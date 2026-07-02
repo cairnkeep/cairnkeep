@@ -64,7 +64,7 @@ function expandHome(value: string): string {
 }
 
 function getBaseDir(): string {
-    return resolve(expandHome(process.env.AGENTFS_WORK_BASE_DIR ?? "~/.agentfs-work"));
+    return resolve(expandHome(process.env.CAIRN_AGENTFS_BASE_DIR ?? "~/.cairnkeep"));
 }
 
 // Provider-neutral config resolution so the same server works under OpenCode,
@@ -557,7 +557,7 @@ async function semanticSearch(
 // module-level helpers + AgentFS below. Enables a single long-lived process to
 // serve many concurrent clients (centralized AgentFS on the VPS).
 function createMemoryServer(): McpServer {
-    const server = new McpServer({ name: "work-memory", version: "0.1.0" });
+    const server = new McpServer({ name: "cairn-memory", version: "0.1.0" });
 
 server.registerTool(
     "memory_read",
@@ -939,7 +939,7 @@ server.registerTool(
 
 // One-shot CLI: `node dist/index.js wakeup` prints project-scope memory for the
 // SessionStart hook. Reads a file-snapshot copy of ./.agentfs/project.db so it
-// never contends with a running work-memory MCP that holds the exclusive lock
+// never contends with a running cairn-memory MCP that holds the exclusive lock
 // (AgentFS/Turso uses SQLite locking). Best-effort: silent + exit 0 on any
 // error or outside a managed repo, so it is safe to call from anywhere.
 const cliCommand = process.argv[2];
@@ -1060,7 +1060,7 @@ if (httpPort > 0) {
 
     const httpHost = process.env.MCP_HTTP_HOST ?? "127.0.0.1";
     httpServer.listen(httpPort, httpHost, () => {
-        process.stderr.write(`work-memory MCP (streamable HTTP) listening on ${httpHost}:${httpPort}\n`);
+        process.stderr.write(`cairn-memory MCP (streamable HTTP) listening on ${httpHost}:${httpPort}\n`);
     });
     process.on("SIGINT", async () => { httpServer.close(); for (const t of sessions.values()) { await t.close(); } process.exit(0); });
 } else {

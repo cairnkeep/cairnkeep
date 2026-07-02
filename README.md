@@ -44,6 +44,12 @@ npm run build
 npm test            # offline smoke tests
 ```
 
+Register it with your harness — the server name is `cairn-memory`. For Claude Code:
+
+```bash
+claude mcp add cairn-memory -s user -- node "$PWD/dist/index.js"
+```
+
 Configure the LLM endpoint (any OpenAI-compatible API) for extraction and
 embedding-ranked search:
 
@@ -54,6 +60,7 @@ embedding-ranked search:
 | `CAIRN_LLM_EXTRACTION_MODEL` | Chat model used for memory extraction |
 | `CAIRN_MEMORY_EMBEDDING_URL` | Embeddings endpoint (falls back to `CAIRN_LLM_API_URL`) |
 | `CAIRN_MEMORY_EMBEDDING_MODEL` | Embedding model (default `text-embedding-3-small`) |
+| `CAIRN_AGENTFS_BASE_DIR` | Base dir for global memory scopes (default `~/.cairnkeep`) |
 
 Without an API key, search degrades gracefully to substring matching.
 
