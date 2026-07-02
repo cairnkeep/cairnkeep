@@ -1,0 +1,63 @@
+# Structured Change Canvas
+
+Use this file as a starter for non-trivial changes that should be reviewed at the intent level before code is generated or edited.
+
+- Project: REPLACE_WITH_PROJECT_NAME
+- Base branch: REPLACE_WITH_DEFAULT_BRANCH
+- Change slug: <short-change-slug>
+- Status: draft
+- Owner: <name>
+- Related issue / branch / prompt: <link-or-id>
+
+## Requirements
+
+- Problem to solve:
+- In scope:
+- Out of scope:
+- Done when:
+
+## Entities
+
+- Domain concepts and relationships:
+- Existing interfaces, data contracts, or policies involved:
+- External systems or dependencies touched:
+
+## Approach
+
+- Chosen implementation approach:
+- Alternatives rejected:
+- Key assumptions and risks:
+
+## Structure
+
+- Expected files, modules, or subsystems to change:
+- Integration boundaries that must stay stable:
+- Migration or rollback considerations:
+
+## Operations
+
+1. First implementation step:
+2. Next implementation step:
+3. Validation or rollout step:
+
+## Norms
+
+- Engineering rules that apply to this slice:
+- Required tests or checks:
+- Required docs, wiki, or memory updates:
+
+## Safeguards
+
+- Security or privacy constraints:
+- Performance or reliability limits:
+- Explicit no-go changes:
+
+## Validation
+
+- Commands to run:
+- Evidence expected when the slice is correct:
+
+## Sync Rules
+
+- If requirements change, update this canvas before updating code.
+- If implementation changes for a valid reason, sync this canvas before merging.

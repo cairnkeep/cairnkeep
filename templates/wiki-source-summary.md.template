@@ -1,0 +1,33 @@
+# Source: REPLACE_WITH_SOURCE_LABEL
+
+- Canonical source: `REPLACE_WITH_SOURCE_PATH`
+- Source kind: `REPLACE_WITH_SOURCE_KIND`
+- Derived status: `active`
+- Last reviewed: `REPLACE_WITH_LAST_REVIEWED`
+
+## Why This Source Matters
+
+REPLACE_WITH_WHY_THIS_MATTERS
+
+## Stable Facts
+
+- REPLACE_WITH_FACT_AND_CITATION
+
+## Contradictions And Freshness Notes
+
+- None noted.
+
+  When a contradiction exists, tag it with a severity so `/wiki-lint` can mirror
+  it into `CONTRADICTIONS.md`. Use one of:
+  - `Contradiction severity: soft` — contextual, coexists.
+  - `Contradiction severity: scope-mismatch` — different scopes, not a true conflict.
+  - `Contradiction severity: hard` — genuinely conflicting, must resolve.
+  Add a `Status: open` (or `resolved`) line so lint can track it deterministically.
+
+## Related Wiki Pages
+
+- None yet.
+
+## Canonical References
+
+- `REPLACE_WITH_SOURCE_PATH`

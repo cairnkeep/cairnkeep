@@ -1,0 +1,42 @@
+# [PROJECT_NAME] - Project Guidelines
+
+## Project Identity
+<!-- What is this project? One paragraph. -->
+
+## Technology Stack
+<!-- List specific technologies and roles -->
+
+## Architectural Decisions
+<!-- Number them for reference -->
+
+## Decision Matrix
+
+### Always Self-Decide
+| Question Pattern | Default Answer |
+|---|---|
+| "Which approach for X?" | Most consistent with existing codebase |
+| "Should we add tests?" | Yes, always |
+
+### Escalate Only If
+- Deleting or restructuring domain entities
+- Breaking schema changes
+- New external dependencies
+- Switching core technologies
+
+## Conventions
+<!-- File naming, import style, patterns -->
+
+## Known Pitfalls
+<!-- Hard-won lessons. Add as you go. -->
+
+## Memory Configuration
+Scopes defined in `.opencode/memory.json`:
+- `identity` - work developer preferences
+- `project` - this project's decisions and history
+<!-- Add domain scopes and AnythingLLM workspaces as needed -->
+
+## Tool Roles
+- AgentFS is the durable structured memory layer.
+- AnythingLLM is the long-form document retrieval layer.
+- `lean-ctx` is the default context layer (reads, search, exploration), not durable project memory.
+- RTK is a recommended companion for shell-heavy sessions (git, listings, failing builds); Token Savior is not default.

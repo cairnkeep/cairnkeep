@@ -1,0 +1,4 @@
+{
+  "scopes": ["identity", "domain-engineering", "project"],
+  "anythingllm_workspaces": ["engineering-patterns"]
+}

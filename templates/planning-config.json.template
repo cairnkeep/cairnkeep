@@ -1,0 +1,6 @@
+{
+  "graphify": {
+    "enabled": false,
+    "build_timeout": 300
+  }
+}

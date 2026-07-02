@@ -1,0 +1,18 @@
+## Summary
+
+Describe the change and the problem it solves.
+
+## Alignment Checklist
+
+- [ ] I did not push this work directly to the default branch.
+- [ ] I ran `/gsd-align-audit` for changes that affect code, docs, `AGENTS.md`, or durable behavior, or this PR does not need it.
+- [ ] I ran `/security-audit` for attack-surface or security-sensitive changes, or this PR does not need it.
+- [ ] I updated repo docs and `AGENTS.md` if behavior or operating guidance changed.
+- [ ] I kept branch-local findings out of durable memory until merge.
+- [ ] I linked the relevant gap IDs from `.planning/alignment/GAPS.yaml` when applicable.
+- [ ] I linked the relevant accepted finding IDs from `.planning/security/FINDINGS.yaml` when applicable.
+- [ ] I will run `/gsd-align-promote` after merge for accepted gaps that changed durable memory or project-doc retrieval.
+
+## Verification
+
+List the checks you ran.

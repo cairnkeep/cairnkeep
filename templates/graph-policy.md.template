@@ -1,0 +1,37 @@
+# Project Knowledge Graph Policy
+
+This repository uses `.planning/graphs/` as an optional, local, machine-facing derived knowledge graph layer.
+
+## Canonical Sources
+
+- Raw repository docs, ADRs, tests, interfaces, config, and code remain the canonical sources of truth.
+- The graph must never overrule the default-branch implementation or canonical repository documents.
+- Treat graph edges as retrieval hints and structural compression, not as accepted decisions.
+
+## Branch Rules
+
+- Project: `REPLACE_WITH_PROJECT_NAME`
+- Default branch: `REPLACE_WITH_DEFAULT_BRANCH`
+- Rebuild graph artifacts on the same branch as the code or docs changes they depend on.
+- Keep graph build outputs local by default. Share or force-add them only when a human explicitly wants the artifact reviewed.
+
+## Provenance Rules
+
+- `EXTRACTED` edges are structural facts emitted by deterministic parsing.
+- `INFERRED` and `AMBIGUOUS` edges are assistant-facing hints until they are confirmed elsewhere.
+- Promote accepted conclusions into repo docs, wiki pages, memory, or governance artifacts instead of treating the graph itself as durable truth.
+- If a graph result conflicts with raw sources, trust the raw sources and rebuild or investigate the graph.
+
+## Scope Rules
+
+- Use the graph to compress dependency context for planning, exploration, and impact analysis.
+- Do not use graph outputs as a human-facing substitute for the repo wiki.
+- Do not commit graph build outputs by default; `.planning/graphs/.gitignore` keeps them local unless you intentionally override it.
+
+## Maintenance
+
+- Enable Graphify explicitly in `.planning/config.json`.
+- Install it locally with `uv pip install graphifyy && graphify install` before first use.
+- Use `/gsd-graphify build` to create or refresh the graph after meaningful topology or architecture-doc changes.
+- Use `/gsd-graphify status`, `/gsd-graphify query <term>`, and `/gsd-graphify diff` to inspect freshness and focused subgraphs.
+- Planner and query consumers should treat stale graphs as approximate context, not proof.
