@@ -1,28 +1,67 @@
-# Cairnkeep — roadmap
+# Roadmap: Cairnkeep
 
-## Milestone: OSS core → parity
-Bring the open-source core to feature parity with the originating workflow so it
-can be adopted as a drop-in.
+## Overview
 
-### Phase 1 — Configurable git-provider abstraction  *(done)*
-Make the collaboration commands (`memory-sync`, `repo-review` / `code-review`,
-`security-audit`) work against any git host (GitHub, GitLab, Codeberg/Forgejo, …)
-selected by one config setting, instead of assuming one. Deliver a provider
-config key + a per-provider operation→tool map, and rewire the commands to
-resolve through it.
+Bring the open-source core — the `cairn-memory` MCP server, the `cairn` CLI, and the carved operating layer (commands, agents, hooks) — to feature parity with the originating private workflow so it can be adopted as a drop-in. Phase 1 delivered the configurable git-provider abstraction; Phase 2 verifies the operating layer end-to-end against `cairn-memory`; Phase 3 lands the operating guide, confirms fresh-bootstrap parity, and tags a baseline.
 
-### Phase 2 — Operating-layer verification
-Verify the carved commands, agents, and hooks work end-to-end against the
-`cairn-memory` MCP: register the server, exercise remember/recall/memory-sync and
-the wiki/security/review flows, fix breakage, and confirm the memory hooks
-(wakeup/capture/review) round-trip.
+## Milestones
 
-### Phase 3 — Docs + parity sign-off
-Bring the operating guide into the OSS docs, confirm a fresh `cairn bootstrap`
-yields a working same-as-before workflow, and tag a baseline.
+- **OSS core → parity** — Phases 1-3 (in progress)
+- **Enterprise overlay (private)** — planned; wraps the core with organization-specific launchers and config; lives only on the private remote, never in this repo
+- **token-miser integration** — planned; the routing + context-explore sibling, brought in as an optional companion
 
-## Future milestones
-- **Enterprise overlay (private)** — wraps the core with organization-specific
-  launchers and config; lives only on the private remote, never here.
-- **token-miser integration** — the routing + context-explore sibling, brought in
-  as an optional companion.
+## Phases
+
+**Phase Numbering:**
+- Integer phases (1, 2, 3): Planned milestone work
+- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+
+- [x] **Phase 1: Configurable git-provider abstraction** - Collaboration commands work against any git host selected by one config setting (COMPLETE)
+- [ ] **Phase 2: Operating-layer verification** - Carved commands, agents, and hooks verified end-to-end against the cairn-memory MCP
+- [ ] **Phase 3: Docs + parity sign-off** - Operating guide in the OSS docs, fresh-bootstrap parity confirmed, baseline tagged
+
+## Phase Details
+
+### Phase 1: Configurable git-provider abstraction
+**Goal**: Collaboration commands (`memory-sync`, `repo-review`/`code-review`, `security-audit`) work against any git host (GitHub, GitLab, Codeberg/Forgejo, ...) selected by one config setting
+**Depends on**: Nothing (first phase)
+**Requirements**: REQ-provider-neutral-core
+**Status**: COMPLETE — delivered before plan tracking; do not re-plan
+**Success Criteria** (verified TRUE):
+  1. A single provider config key selects the git host
+  2. Collaboration commands resolve every git-host operation through the per-provider operation→tool map, never through a hardcoded host
+  3. No hardcoded vendor endpoints exist anywhere in the core
+**Plans**: Complete (pre-tracking; see repo history)
+
+### Phase 2: Operating-layer verification
+**Goal**: The carved commands, agents, and hooks work end-to-end against the `cairn-memory` MCP
+**Depends on**: Phase 1
+**Requirements**: REQ-memory-mcp-server, REQ-operating-layer
+**Success Criteria** (what must be TRUE):
+  1. `cairn-memory` registers successfully as an MCP server and responds to requests
+  2. remember, recall, and memory-sync operations complete successfully end-to-end against `cairn-memory`
+  3. The wiki, security, and review flows run successfully through the carved commands and agents
+  4. The memory hooks (wakeup/capture/review) round-trip — content captured in one session is recalled in a later session
+**Plans**: TBD
+
+### Phase 3: Docs + parity sign-off
+**Goal**: A fresh `cairn bootstrap` yields a working same-as-before workflow, with parity documented and baselined
+**Depends on**: Phase 2
+**Requirements**: REQ-cli-bootstrap, REQ-feature-parity, REQ-oss-hygiene
+**Success Criteria** (what must be TRUE):
+  1. The operating guide is part of the OSS docs
+  2. A fresh `cairn bootstrap` on a clean project yields a working same-as-before workflow (drop-in parity with the originating workflow)
+  3. A baseline is tagged at sign-off
+  4. Repo hygiene holds at sign-off — Apache-2.0 license present, CI passing, no secrets or attribution noise in any artifact
+**Plans**: TBD
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 1 → 2 → 3
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Configurable git-provider abstraction | pre-tracking | Complete | — (before plan tracking) |
+| 2. Operating-layer verification | 0/TBD | Not started | - |
+| 3. Docs + parity sign-off | 0/TBD | Not started | - |

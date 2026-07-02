@@ -1,0 +1,19 @@
+{
+  "source_path": ".planning/PROJECT.md",
+  "type": "PRD",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Cairnkeep — project",
+  "summary": "Project charter for Cairnkeep: goals, hard constraints, and layout for a harness-agnostic memory and context layer for coding agents.",
+  "scope": [
+    "cairn-memory MCP server",
+    "cairn CLI and bootstrap scripts",
+    "project scaffolding templates",
+    "commands, agents, hooks, plugins (operating layer)",
+    "open-source hygiene and commit scanning constraints"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": 0,
+  "notes": ""
+}
