@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# cairn — Cairnkeep CLI. Thin dispatcher over the core scripts.
+set -euo pipefail
+
+CAIRN_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+
+cmd="${1:-help}"
+[[ $# -gt 0 ]] && shift
+
+case "$cmd" in
+  bootstrap)
+    exec "$CAIRN_ROOT/scripts/bootstrap.sh" "$@"
+    ;;
+  version | --version | -v)
+    echo "cairnkeep (development)"
+    ;;
+  help | --help | -h | *)
+    cat <<'USAGE'
+cairn — Cairnkeep CLI
+
+Usage:
+  cairn bootstrap [path]   Scaffold .ai/ launchers + env into a project (default: .)
+  cairn version            Print version
+  cairn help               Show this help
+USAGE
+    ;;
+esac

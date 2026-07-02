@@ -19,6 +19,21 @@ follow.
 - **`mcp-memory-server/`** — an MCP server exposing durable, scoped memory
   (`memory_write`, `memory_search`, …) backed by AgentFS, with optional
   embedding-ranked search against any OpenAI-compatible endpoint.
+- **`bin/cairn`** — the CLI. `cairn bootstrap [path]` scaffolds a project's
+  `.ai/` launchers + env from the bundled templates.
+- **`templates/`** — project scaffolding (generic launchers, env) plus the
+  derived-knowledge layer (wiki, alignment, graph, security, planning).
+- **`scripts/`** — asset-sync and maintenance utilities.
+
+## Bootstrap a project
+
+```bash
+cairn bootstrap /path/to/project   # writes .ai/start-claude.sh, start-opencode.sh, env.example
+cp /path/to/project/.ai/env.example /path/to/project/.ai/.env
+```
+
+The launchers load `.ai/.env` and start the harness in the repo root. They stay
+deliberately minimal — provider/profile specifics belong in your own wrapper.
 
 ## Memory server — quick start
 

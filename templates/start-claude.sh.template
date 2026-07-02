@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Cairnkeep launcher for Claude Code. Loads this repo's .ai/.env (if present),
+# then launches Claude Code in the repo root. Keep provider/profile specifics in
+# your own wrapper; this stays minimal and generic.
+set -euo pipefail
+ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ -f "$ROOT_DIR/.ai/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/.env"
+  set +a
+fi
+cd "$ROOT_DIR"
+exec claude "$@"
