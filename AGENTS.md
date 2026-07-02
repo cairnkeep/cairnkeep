@@ -31,5 +31,15 @@ npm test        # offline smoke tests — no API key required
 - Keep the core provider-neutral: no vendor names, no hardcoded endpoints. All
   LLM configuration comes from `CAIRN_LLM_*` / `CAIRN_MEMORY_*` environment
   variables.
+- Keep the git-host layer configurable via `CAIRN_GIT_PROVIDER`
+  (see `docs/git-providers.md`); never hardcode a specific host.
 - Match the existing style; prefer the smallest change that solves the task.
 - Run the relevant checks before closing work.
+
+## Working rules (hard)
+- This repo never references a specific employer, vendor, internal host/IP, or
+  private repo name — in code, comments, commit messages, or docs.
+- No AI/assistant authorship references anywhere (commits, comments, docs).
+- Scan every commit — the diff **and** the message — for the above before
+  creating it.
+- Commit locally, review, then push.
