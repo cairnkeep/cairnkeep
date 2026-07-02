@@ -12,7 +12,7 @@ tools:
   question: true
 ---
 
-Git provider: these steps use the git host set by `CAIRN_GIT_PROVIDER` (`github`/`gitlab`/`codeberg`/`forgejo`/`none`); resolve the operation-to-tool mapping from `docs/git-providers.md`. If it is `none` or no provider MCP is registered, skip the provider steps and continue locally.
+Git provider: these steps use the git host set by `CAIRN_GIT_PROVIDER` (`github`/`gitlab`/`codeberg`/`forgejo`/`none`); resolve the operation-to-tool mapping from `docs/git-providers.md`. If it is `none` or unset, or no provider MCP is registered, skip the provider steps and continue locally.
 
 <objective>
 Sync all memory tools with the current state of tracked MRs and PRs.
@@ -52,7 +52,7 @@ Important rules:
 
 <process>
 ## 1. Read memory configuration
-Read `.opencode/memory.json` to get scopes and anythingllm_workspaces.
+Read `.opencode/memory.json` to get scopes and anythingllm_workspaces. If no config file exists, default to scope `project` with no workspaces.
 
 ## 2. Extract tracked MRs and PRs from AgentFS
 Read AgentFS keys `internal-mrs-status` and `upstream-prs-status` from the `project` scope.

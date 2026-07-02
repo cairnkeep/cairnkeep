@@ -4,7 +4,7 @@ argument-hint: "[--dry-run] [--force]"
 allowed-tools: Read, Grep, Glob, Bash, mcp__cairn-memory__memory_read, mcp__cairn-memory__memory_write, mcp__cairn-memory__memory_list, mcp__cairn-memory__domain_knowledge_sync
 ---
 
-Git provider: these steps use the git host set by `CAIRN_GIT_PROVIDER` (`github`/`gitlab`/`codeberg`/`forgejo`/`none`); resolve the operation-to-tool mapping from `docs/git-providers.md`. If it is `none` or no provider MCP is registered, skip the provider steps and continue locally.
+Git provider: these steps use the git host set by `CAIRN_GIT_PROVIDER` (`github`/`gitlab`/`codeberg`/`forgejo`/`none`); resolve the operation-to-tool mapping from `docs/git-providers.md`. If it is `none` or unset, or no provider MCP is registered, skip the provider steps and continue locally.
 
 <objective>
 Sync durable memory with the current state of tracked MRs and PRs.
@@ -44,7 +44,7 @@ Important rules:
 
 <process>
 ## 1. Read memory configuration
-Read the project memory config to get scopes and `anythingllm_workspaces`.
+Read the project memory config to get scopes and `anythingllm_workspaces`. If no config file exists, default to scope `project` with no workspaces.
 
 ## 2. Extract tracked MRs and PRs from AgentFS
 Use `memory_read` with scope `project` for keys `internal-mrs-status` and `upstream-prs-status`.
@@ -54,7 +54,7 @@ Parse the markdown to extract tracked items:
 
 ## 3. Query live state
 For each tracked MR, use the git-provider MCP tools to capture: state, draft, assignees, merge_status, updated_at, latest discussion notes (last 3).
-For each tracked PR, call the git-provider MCP `GET /repos/{owner}/{repo}/pulls/{number}` and capture: state, merged, updated_at, comments count.
+For each tracked PR, call the provider's "get change state" tool from the operation map (e.g. `get_pull_request`) and capture: state, merged, updated_at, comments count.
 
 ## 4. Compare and diff
 Compare each item's live state against the stored AgentFS state: state changes (open→merged, open→closed), assignee changes, new discussion notes/comments, draft status changes, merge status changes.

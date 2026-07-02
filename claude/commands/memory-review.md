@@ -1,7 +1,7 @@
 ---
 description: Review staged memory candidates extracted from prior sessions and accept (write to AgentFS) or discard them
 argument-hint: "[--all]"
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob, mcp__cairn-memory__memory_read, mcp__cairn-memory__memory_search, mcp__cairn-memory__memory_write, mcp__cairn-memory__memory_supersede
 ---
 
 <objective>
