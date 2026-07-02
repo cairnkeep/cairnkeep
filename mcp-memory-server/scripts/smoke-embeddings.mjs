@@ -53,6 +53,29 @@ try {
     rmSync(dir, { recursive: true, force: true });
 }
 
+// 3b. config requires an explicit model — the core ships no vendor default
+{
+    const saved = {
+        key: process.env.CAIRN_LLM_API_KEY,
+        url: process.env.CAIRN_MEMORY_EMBEDDING_URL,
+        model: process.env.CAIRN_MEMORY_EMBEDDING_MODEL,
+    };
+    process.env.CAIRN_LLM_API_KEY = "smoke-key";
+    process.env.CAIRN_MEMORY_EMBEDDING_URL = "http://127.0.0.1:9/v1";
+    delete process.env.CAIRN_MEMORY_EMBEDDING_MODEL;
+    check("config null without explicit model", getEmbeddingConfig() === null);
+    process.env.CAIRN_MEMORY_EMBEDDING_MODEL = "smoke-model";
+    check("config uses explicit model", getEmbeddingConfig()?.model === "smoke-model");
+    for (const [env, value] of [
+        ["CAIRN_LLM_API_KEY", saved.key],
+        ["CAIRN_MEMORY_EMBEDDING_URL", saved.url],
+        ["CAIRN_MEMORY_EMBEDDING_MODEL", saved.model],
+    ]) {
+        if (value === undefined) delete process.env[env];
+        else process.env[env] = value;
+    }
+}
+
 // 4. live embeddings (only if configured)
 const config = getEmbeddingConfig();
 if (!config) {

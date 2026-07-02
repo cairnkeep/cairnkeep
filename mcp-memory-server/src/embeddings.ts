@@ -8,10 +8,10 @@ export type EmbeddingConfig = {
     model: string;
 };
 
-// Resolve the embeddings endpoint from the environment. Returns null when no API
-// key or URL is configured, so callers can fall back to substring search. Point
-// CAIRN_LLM_API_URL (or CAIRN_MEMORY_EMBEDDING_URL) at any OpenAI-compatible
-// embeddings endpoint.
+// Resolve the embeddings endpoint from the environment. Returns null when the
+// API key, URL, or model name is not configured, so callers can fall back to
+// substring search. Point CAIRN_LLM_API_URL (or CAIRN_MEMORY_EMBEDDING_URL) at
+// any OpenAI-compatible embeddings endpoint.
 export function getEmbeddingConfig(): EmbeddingConfig | null {
     const apiKey = process.env.CAIRN_LLM_API_KEY;
     if (!apiKey) {
@@ -24,8 +24,12 @@ export function getEmbeddingConfig(): EmbeddingConfig | null {
         return null;
     }
     const apiUrl = rawUrl.trim().replace(/\/+$/, "");
-    // Any OpenAI-compatible embedding model; override with CAIRN_MEMORY_EMBEDDING_MODEL.
-    const model = (process.env.CAIRN_MEMORY_EMBEDDING_MODEL ?? "text-embedding-3-small").trim();
+    // The model name must be configured explicitly — the core ships no vendor
+    // default. Unset means semantic search degrades to substring matching.
+    const model = process.env.CAIRN_MEMORY_EMBEDDING_MODEL?.trim();
+    if (!model) {
+        return null;
+    }
 
     return { apiUrl, apiKey, model };
 }

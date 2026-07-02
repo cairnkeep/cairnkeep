@@ -563,21 +563,22 @@ server.registerTool(
     "memory_read",
     {
         description: "Read an exact key or search memory entries across AgentFS scopes.",
-        inputSchema: z
-            .object({
-                scope: z.string(),
-                key: z.string().optional(),
-                query: z.string().optional(),
-            })
-            .refine((value) => Boolean(value.key) !== Boolean(value.query), {
-                message: "Provide exactly one of key or query.",
-            }),
+        // Plain object schema — a .refine() wrapper (ZodEffects) makes the SDK
+        // publish an empty JSON Schema, hiding the parameters from clients.
+        inputSchema: z.object({
+            scope: z.string(),
+            key: z.string().optional(),
+            query: z.string().optional(),
+        }),
         annotations: {
             readOnlyHint: true,
             idempotentHint: true,
         },
     },
     async ({ scope, key, query }) => {
+        if (Boolean(key) === Boolean(query)) {
+            throw new Error("Provide exactly one of key or query.");
+        }
         const config = getMemoryConfig();
         const scopes = getSearchScopes(scope, config);
         const results = key
@@ -709,7 +710,7 @@ server.registerTool(
 server.registerTool(
     "memory_search",
     {
-        description: "Semantic search across AgentFS memory scopes using cluster embeddings (qwen3-embedding-8b by default), ranked by cosine similarity. Falls back to substring matching when embeddings are unavailable. Use this to find memory by meaning rather than by exact key.",
+        description: "Semantic search across AgentFS memory scopes using the configured embedding endpoint, ranked by cosine similarity. Falls back to substring matching when embeddings are unavailable. Use this to find memory by meaning rather than by exact key.",
         inputSchema: z.object({
             scope: z.string(),
             query: z.string().min(1),

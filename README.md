@@ -59,7 +59,7 @@ embedding-ranked search:
 | `CAIRN_LLM_API_URL` | Base URL of the OpenAI-compatible endpoint |
 | `CAIRN_LLM_EXTRACTION_MODEL` | Chat model used for memory extraction |
 | `CAIRN_MEMORY_EMBEDDING_URL` | Embeddings endpoint (falls back to `CAIRN_LLM_API_URL`) |
-| `CAIRN_MEMORY_EMBEDDING_MODEL` | Embedding model (default `text-embedding-3-small`) |
+| `CAIRN_MEMORY_EMBEDDING_MODEL` | Embedding model name (required for semantic search) |
 | `CAIRN_AGENTFS_BASE_DIR` | Base dir for global memory scopes (default `~/.cairnkeep`) |
 
 Without an API key, search degrades gracefully to substring matching.
