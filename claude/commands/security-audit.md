@@ -4,6 +4,8 @@ argument-hint: "[--full] [--focus <path>] [--threat-model <name>] [--verify-only
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Task
 ---
 
+Git provider: these steps use the git host set by `CAIRN_GIT_PROVIDER` (`github`/`gitlab`/`codeberg`/`forgejo`/`none`); resolve the operation-to-tool mapping from `docs/git-providers.md`. If it is `none` or no provider MCP is registered, skip the provider steps and continue locally.
+
 <objective>
 Run one governed local security assessment against the current repository: select one narrow target, investigate it, validate at most one candidate finding, and preserve the outcome under `.planning/security/`.
 

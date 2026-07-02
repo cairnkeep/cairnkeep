@@ -4,6 +4,8 @@ argument-hint: "[--dry-run] [--force]"
 allowed-tools: Read, Grep, Glob, Bash, mcp__cairn-memory__memory_read, mcp__cairn-memory__memory_write, mcp__cairn-memory__memory_list, mcp__cairn-memory__domain_knowledge_sync
 ---
 
+Git provider: these steps use the git host set by `CAIRN_GIT_PROVIDER` (`github`/`gitlab`/`codeberg`/`forgejo`/`none`); resolve the operation-to-tool mapping from `docs/git-providers.md`. If it is `none` or no provider MCP is registered, skip the provider steps and continue locally.
+
 <objective>
 Sync durable memory with the current state of tracked MRs and PRs.
 
@@ -26,7 +28,7 @@ Default behavior:
 2. Read AgentFS key `internal-mrs-status` (project scope) via the cairn-memory `memory_read` tool to get the tracked MR list
 3. For each tracked MR, query the git-provider MCP for current state
 4. Read AgentFS key `upstream-prs-status` via `memory_read` to get the tracked PR list
-5. For each tracked PR, query the GitHub API for current state
+5. For each tracked PR, query the git-provider MCP for current state
 6. Compare live state against stored state
 7. If changed (or --force):
    - Update AgentFS keys with current state via `memory_write`
@@ -52,7 +54,7 @@ Parse the markdown to extract tracked items:
 
 ## 3. Query live state
 For each tracked MR, use the git-provider MCP tools to capture: state, draft, assignees, merge_status, updated_at, latest discussion notes (last 3).
-For each tracked PR, call the GitHub API `GET /repos/{owner}/{repo}/pulls/{number}` and capture: state, merged, updated_at, comments count.
+For each tracked PR, call the git-provider MCP `GET /repos/{owner}/{repo}/pulls/{number}` and capture: state, merged, updated_at, comments count.
 
 ## 4. Compare and diff
 Compare each item's live state against the stored AgentFS state: state changes (open→merged, open→closed), assignee changes, new discussion notes/comments, draft status changes, merge status changes.

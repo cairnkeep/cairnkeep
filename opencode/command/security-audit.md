@@ -12,6 +12,8 @@ tools:
   question: true
 ---
 
+Git provider: these steps use the git host set by `CAIRN_GIT_PROVIDER` (`github`/`gitlab`/`codeberg`/`forgejo`/`none`); resolve the operation-to-tool mapping from `docs/git-providers.md`. If it is `none` or no provider MCP is registered, skip the provider steps and continue locally.
+
 <objective>
 Run one governed local security assessment against the current repository.
 

@@ -11,6 +11,9 @@ tools:
   agent: true
   question: true
 ---
+
+Git provider: these steps use the git host set by `CAIRN_GIT_PROVIDER` (`github`/`gitlab`/`codeberg`/`forgejo`/`none`); resolve the operation-to-tool mapping from `docs/git-providers.md`. If it is `none` or no provider MCP is registered, skip the provider steps and continue locally.
+
 <objective>
 Sync all memory tools with the current state of tracked MRs and PRs.
 
@@ -33,7 +36,7 @@ Default behavior:
 2. Read AgentFS key `internal-mrs-status` to get tracked MR list
 3. For each tracked MR, query the git-provider MCP for current state
 4. Read AgentFS key `upstream-prs-status` to get tracked PR list
-5. For each tracked PR, query GitHub API for current state
+5. For each tracked PR, query the git-provider MCP for current state
 6. Compare live state against stored state
 7. If changed (or --force):
    - Update AgentFS keys with current state
@@ -63,7 +66,7 @@ For each tracked MR:
 - Capture: state, draft, assignees, merge_status, updated_at, latest discussion notes (last 3)
 
 For each tracked PR:
-- Call GitHub API: `GET /repos/{owner}/{repo}/pulls/{number}`
+- Call the git-provider `get_pull_request` (or your provider's equivalent) for the PR
 - Capture: state, merged, updated_at, comments count
 
 ## 4. Compare and diff

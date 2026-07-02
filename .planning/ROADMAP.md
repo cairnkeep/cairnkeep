@@ -4,7 +4,7 @@
 Bring the open-source core to feature parity with the originating workflow so it
 can be adopted as a drop-in.
 
-### Phase 1 — Configurable git-provider abstraction  *(in progress)*
+### Phase 1 — Configurable git-provider abstraction  *(done)*
 Make the collaboration commands (`memory-sync`, `repo-review` / `code-review`,
 `security-audit`) work against any git host (GitHub, GitLab, Codeberg/Forgejo, …)
 selected by one config setting, instead of assuming one. Deliver a provider
