@@ -34,7 +34,7 @@ except Exception: print("")' 2>/dev/null || true)"
 base="$(basename "$file_path")"
 stem="${base%.*}"
 # Avoid matching on tiny/generic stems that would noise up results.
-${#stem} -lt 4 && exit 0
+[ "${#stem}" -lt 4 ] && exit 0
 
 matches=()
 
