@@ -42,7 +42,7 @@ Full detail archived in [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   4. Running `remember` in OpenCode persists a durable finding across the memory layers (OCP-03)
   5. Running `recall` in OpenCode retrieves known info across the memory layers (OCP-04)
 
-**Plans**: 2/6 plans executed
+**Plans**: 3/6 plans executed
 **Wave 1**
 
 - [x] 04-01-PLAN.md — Wave 1 — spike: injection-mechanism spike + channel decision (OCP-05 de-risk)
@@ -50,7 +50,7 @@ Full detail archived in [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 04-03-PLAN.md — rewrite memory-wakeup.ts native, self-sufficient of Claude assets (OCP-05)
+- [x] 04-03-PLAN.md — rewrite memory-wakeup.ts native, self-sufficient of Claude assets (OCP-05)
 - [ ] 04-04-PLAN.md — memory-capture.ts: session-end extract → staging (OCP-01)
 - [ ] 04-05-PLAN.md — memory-recall.ts: pre-edit file-specific injection (OCP-02)
 
@@ -79,5 +79,5 @@ Full detail archived in [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 | 1. Configurable git-provider abstraction | v1.0 | Complete | pre-tracking |
 | 2. Operating-layer verification | v1.0 | Complete | 2026-07-03 |
 | 3. Docs + parity sign-off | v1.0 | Complete | 2026-07-03 |
-| 4. OpenCode parity operating layer | 2/6 | In Progress|  |
+| 4. OpenCode parity operating layer | 3/6 | In Progress|  |
 | 5. Live OpenCode parity verification | v1.1 | Not started | - |

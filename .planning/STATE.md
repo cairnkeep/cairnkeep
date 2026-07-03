@@ -5,15 +5,15 @@ milestone_name: OpenCode parity
 current_phase: 04
 current_phase_name: opencode-parity-operating-layer
 status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-07-03T12:48:44.619Z"
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-07-03T12:56:35.825Z"
 last_activity: 2026-07-03
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 6
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-03)
 ## Current Position
 
 Phase: 04 (opencode-parity-operating-layer) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-07-03 — Phase 04 execution started
 
@@ -86,6 +86,7 @@ All follow-ups since resolved on 2026-07-03: HTTP-transport hardening for the op
 *Updated after each plan completion*
 | Phase 04 P01 | 25 | 2 tasks | 1 files |
 | Phase 04 P02 | 3min | 3 tasks | 3 files |
+| Phase 04 P03 | 5min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,7 @@ Recent decisions affecting current work:
 - v1.1: OpenCode parity for capture/recall is implemented as OpenCode plugin lifecycle handlers (not Claude shell hooks); `memory-wakeup` must be self-sufficient of Claude-rendered assets (per the PROJECT.md v1.1 decision).
 - [Phase 04]: OCP-05 injection channel = system.transform (empirically confirmed against installed OpenCode CLI v1.17.11; instruction-file fallback not needed)
 - [Phase 04]: OpenCode remember/recall commands port: AgentFS-only per D-06 (Claude file-memory layer dropped), verbatim layer-agnostic semantics per D-07
+- [Phase 04]: OCP-05 wakeup resolves project root via PluginInput.directory (not process.cwd()) to avoid a cwd/repo-root mismatch
 
 ### Pending Todos
 
@@ -124,8 +126,8 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-07-03T12:48:44.613Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-07-03T12:56:35.820Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
