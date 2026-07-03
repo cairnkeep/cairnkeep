@@ -47,18 +47,18 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| OCP-01 | TBD | Pending |
-| OCP-02 | TBD | Pending |
-| OCP-03 | TBD | Pending |
-| OCP-04 | TBD | Pending |
-| OCP-05 | TBD | Pending |
-| OCP-06 | TBD | Pending |
+| OCP-01 | Phase 4 | Pending |
+| OCP-02 | Phase 4 | Pending |
+| OCP-03 | Phase 4 | Pending |
+| OCP-04 | Phase 4 | Pending |
+| OCP-05 | Phase 4 | Pending |
+| OCP-06 | Phase 5 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 6 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 6 ⚠️
+- Mapped to phases: 6 (all mapped ✓)
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-03*
-*Last updated: 2026-07-03 after initial definition*
+*Last updated: 2026-07-03 after roadmap creation — all 6 requirements mapped (Phase 4: OCP-01..05, Phase 5: OCP-06)*

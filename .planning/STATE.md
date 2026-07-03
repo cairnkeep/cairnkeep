@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: OpenCode parity
 status: planning
-last_updated: "2026-07-03T10:13:32.178Z"
+last_updated: "2026-07-03T12:00:00.000Z"
 last_activity: 2026-07-03
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-03)
 
 **Core value:** Drop-in parity — a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
-**Current focus:** Planning next milestone (`/gsd-new-milestone`)
+**Current focus:** v1.1 OpenCode parity — roadmap defined (Phases 4-5); ready to plan Phase 4
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 4 — OpenCode parity operating layer (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-03 — Milestone v1.1 started
+Status: Roadmap defined — ready to plan Phase 4
+Last activity: 2026-07-03 — v1.1 roadmap created (Phases 4-5; OCP-01..06 mapped, 6/6 coverage)
+
+### v1.1 roadmap (2026-07-03)
+
+Two phases, continuing the sequential numbering from v1.0 (ended at Phase 3):
+
+- **Phase 4 — OpenCode parity operating layer** (OCP-01, OCP-02, OCP-03, OCP-04, OCP-05): port the memory-capture (SessionEnd) and memory-recall (pre-edit) lifecycle plus the `remember`/`recall` commands to OpenCode's plugin model, and make `memory-wakeup` self-sufficient of Claude-rendered assets. Installs via the `sync-opencode-*-assets.sh` scripts.
+- **Phase 5 — Live OpenCode parity verification** (OCP-06): prove the full wakeup → recall → capture lifecycle and the commands round-trip against the registered `cairn-memory` MCP in a live OpenCode session — the same verify-by-execution bar v1.0 used for the Claude path.
 
 ### Phase 3 results (2026-07-03)
 
@@ -36,7 +43,7 @@ Last activity: 2026-07-03 — Milestone v1.1 started
 - **Hygiene** — Apache-2.0 LICENSE present, CI (`ci.yml`) builds + tests the memory server on push/PR, no tracked secrets or `.env`, no attribution noise. Satisfies criterion 4.
 - **Baseline tag (criterion 3)** — DONE. Annotated tag `v1.0.0` at HEAD; all security follow-ups closed before sign-off.
 
-Known OpenCode-side gap (documented, not fixed): the `memory-sync` / `memory-review` / `code-review` OpenCode commands have no dedicated sync script yet — the guide says to copy them manually. Claude Code is the complete, verified path.
+Known OpenCode-side gap (documented, not fixed at v1.0 — now the v1.1 milestone target): the OpenCode memory lifecycle (capture/recall) and self-sufficient wakeup are the parity work carried into v1.1. Claude Code is the complete, verified path.
 
 ### Phase 2 verification results (2026-07-03)
 
@@ -52,8 +59,6 @@ All flows exercised end-to-end against the registered `cairn-memory` MCP and now
 - **repo-review** — reviewed the session's own diff; caught a Medium in the SEC-0001 fix (an ineffective `resolve===join` containment guard). Hardened it with `relative()`-based containment.
 
 All follow-ups since resolved on 2026-07-03: HTTP-transport hardening for the opt-in `MCP_HTTP_PORT` mode (auth, CORS, DNS-rebinding) — SEC-0001 fully closed; and the `scope:"all"` write/read asymmetry (REVIEW.md finding 3) — `"all"` now rejected on write/list/delete/supersede/history paths. No open review or security items.
-
-Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
@@ -84,10 +89,11 @@ Locked hard rules live in the PROJECT.md decisions block: DEC-no-private-referen
 Recent decisions affecting current work:
 
 - Phase 1: Git host resolved via one provider config key + per-provider operation→tool map; collaboration commands never assume a specific host
+- v1.1: OpenCode parity for capture/recall is implemented as OpenCode plugin lifecycle handlers (not Claude shell hooks); `memory-wakeup` must be self-sufficient of Claude-rendered assets (per the PROJECT.md v1.1 decision).
 
 ### Pending Todos
 
-- None for v1.0 — milestone shipped. Next milestone scoped via `/gsd-new-milestone`.
+- Plan Phase 4 (OpenCode parity operating layer) via `/gsd-plan-phase 4`.
 
 ### Done since (2026-07-03)
 
@@ -97,7 +103,7 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-None. v1.0 shipped — all phases verified, all review/security follow-ups closed.
+None. v1.1 roadmap defined; ready to plan Phase 4.
 
 ## Deferred Items
 
@@ -111,9 +117,9 @@ Items acknowledged and carried forward:
 ## Session Continuity
 
 Last session: 2026-07-03
-Stopped at: v1.0 "OSS core → parity" shipped and archived — 6/6 requirements validated, baseline tag v1.0.0. Ready for `/gsd-new-milestone`.
+Stopped at: v1.1 "OpenCode parity" roadmap created — 6 requirements (OCP-01..06) mapped across 2 phases (Phase 4: parity operating layer; Phase 5: live verification). Ready to plan Phase 4.
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Plan Phase 4 with /gsd-plan-phase 4
