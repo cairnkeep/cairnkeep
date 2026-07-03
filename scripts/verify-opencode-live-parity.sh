@@ -254,6 +254,132 @@ positive_load_check() {
   return 1
 }
 
+# log_env_presence(): echoes whether the CAIRN_LLM_* guard vars are set
+# (never their values) so a stage failure can be triaged as "env wasn't
+# exported into this shell" vs "a real plugin/model failure" (Pitfall 3).
+log_env_presence() {
+  echo "[env] CAIRN_LLM_API_KEY set: $([[ -n "${CAIRN_LLM_API_KEY:-}" ]] && echo yes || echo no)" >&2
+  echo "[env] CAIRN_LLM_API_URL set: $([[ -n "${CAIRN_LLM_API_URL:-}" ]] && echo yes || echo no)" >&2
+  echo "[env] CAIRN_LLM_EXTRACTION_MODEL set: $([[ -n "${CAIRN_LLM_EXTRACTION_MODEL:-}" ]] && echo yes || echo no)" >&2
+}
+
+# run_opencode(project_dir, timeout_secs, prompt, [extra opencode-run args...]):
+# thin wrapper around `opencode run` used by every stage. Uses
+# --dangerously-skip-permissions (not --auto — the installed CLI, v1.17.11,
+# has no such flag; confirmed live in 05-01 and reconfirmed here). Never pass
+# a prompt containing literal `<...>` angle-bracket placeholder syntax — live
+# testing this phase found it makes the installed CLI hang indefinitely with
+# zero output (reproduced twice, unrelated to model load/timeout); every
+# prompt in this script is phrased without angle brackets for this reason.
+run_opencode() {
+  local project_dir="$1"; shift
+  local timeout_secs="$1"; shift
+  local prompt="$1"; shift
+  (cd "$project_dir" && timeout "$timeout_secs" opencode run "$prompt" --dir "$project_dir" --format json --dangerously-skip-permissions "$@" 2>&1)
+}
+
+# CANARY_PREFIX: the fixed literal prefix every seed_canary()-generated value
+# starts with, regardless of the random suffix. Used by negative controls to
+# assert "no canary-shaped value leaked" even when the control project never
+# had its own canary generated (T-05-01/T-05-03).
+CANARY_PREFIX="OCP-06-CANARY"
+
+# run_stage_wakeup(project_dir, mode): re-confirms OCP-05 live in THIS
+# phase's own scratch env (05-RESEARCH.md anti-pattern: never assume Phase-4
+# carryover). mode="seeded" asserts the seeded canary is echoed back under
+# both an explicit-recite prompt and a natural-framing prompt (Phase-4 Run
+# A/Run B pattern — rules out prompt leakage). mode="unseeded" asserts
+# NOT-FOUND and no canary-shaped leak.
+run_stage_wakeup() {
+  local project_dir="$1" mode="$2"
+  local explicit_prompt='Inspect your session-start system context. If it contains a line under a heading about project memory, reply with exactly: FOUND: the fact verbatim. If there is no such fact, reply exactly: NOT-FOUND.'
+  local natural_prompt='Without me telling you anything new, what specific fact do you already know about this project?'
+  local out_a out_b
+
+  out_a=$(run_opencode "$project_dir" 60 "$explicit_prompt") || true
+  out_b=$(run_opencode "$project_dir" 60 "$natural_prompt") || true
+
+  if [[ "$mode" == "seeded" ]]; then
+    if echo "$out_a" | grep -qF "$CANARY_VALUE" && echo "$out_b" | grep -qF "$CANARY_VALUE"; then
+      echo "[run_stage_wakeup:$mode] OK: canary surfaced (explicit-recite AND natural-framing runs)"
+      return 0
+    fi
+    echo "[run_stage_wakeup:$mode] FAIL: canary not surfaced in one or both runs" >&2
+    log_env_presence
+    echo "--- explicit-recite run (tail) ---" >&2
+    echo "$out_a" | tail -n 20 >&2
+    echo "--- natural-framing run (tail) ---" >&2
+    echo "$out_b" | tail -n 20 >&2
+    return 1
+  else
+    if echo "$out_a" | grep -qi "NOT-FOUND" && ! echo "$out_a" | grep -qF "$CANARY_PREFIX" && ! echo "$out_b" | grep -qF "$CANARY_PREFIX"; then
+      echo "[run_stage_wakeup:$mode] OK: NOT-FOUND confirmed, no canary-shaped leak"
+      return 0
+    fi
+    echo "[run_stage_wakeup:$mode] FAIL: expected NOT-FOUND / no canary-shaped leak" >&2
+    log_env_presence
+    echo "$out_a" | tail -n 20 >&2
+    return 1
+  fi
+}
+
+# run_stage_recall_edit(project_dir, mode): seeds a fact whose key IS the
+# file stem (CANARY_KEY, seeded by seed_canary()) so memory-recall.ts's
+# stem-substring match against the wakeup index's `- <key>: <preview>` line
+# hits. mode="seeded" asserts a matching-file edit throws the injected
+# "Memory recall" context containing the canary, AND a non-matching-file
+# edit stays silent (the high-signal/low-noise pair, OCP-02). mode="unseeded"
+# asserts a matching-file-name edit stays silent (no AgentFS data to surface).
+run_stage_recall_edit() {
+  local project_dir="$1" mode="$2"
+  local match_file="${CANARY_KEY}.md"
+  local nomatch_file="routine-notes.md"
+  local out_match out_nomatch matched=0
+
+  if [[ "$mode" == "seeded" ]]; then
+    # Bounded retry (live testing this phase found the local model sometimes
+    # narrates an edit without actually issuing the tool call, regardless of
+    # prompt category — a general model-reliability characteristic, not a
+    # plugin defect; delete the target file between attempts so a stale
+    # "file already exists" observation from the model can't suppress the
+    # next attempt's tool call).
+    for _attempt in 1 2 3; do
+      rm -f "${project_dir:?}/${match_file}"
+      out_match=$(run_opencode "$project_dir" 60 "Create a new file named ${match_file} in the project root with the single line: placeholder") || true
+      if echo "$out_match" | grep -qF "Memory recall (auto-injected" && echo "$out_match" | grep -qF "$CANARY_VALUE"; then
+        matched=1
+        break
+      fi
+    done
+
+    if [[ "$matched" -eq 1 ]]; then
+      echo "[run_stage_recall_edit:$mode] OK: matching-file edit threw injected recall context containing the canary"
+    else
+      echo "[run_stage_recall_edit:$mode] FAIL: matching-file edit did not surface the injected recall context after 3 attempts" >&2
+      log_env_presence
+      echo "$out_match" | tail -n 30 >&2
+      return 1
+    fi
+
+    out_nomatch=$(run_opencode "$project_dir" 60 "Create a new file named ${nomatch_file} in the project root with the single line: placeholder") || true
+    if echo "$out_nomatch" | grep -qF "Memory recall (auto-injected"; then
+      echo "[run_stage_recall_edit:$mode] FAIL: non-matching-file edit unexpectedly surfaced recall context" >&2
+      echo "$out_nomatch" | tail -n 30 >&2
+      return 1
+    fi
+    echo "[run_stage_recall_edit:$mode] OK: non-matching-file edit stayed silent"
+    return 0
+  else
+    if echo "$out_match" | grep -qF "Memory recall (auto-injected"; then
+      echo "[run_stage_recall_edit:$mode] FAIL: unseeded project surfaced recall context unexpectedly" >&2
+      echo "$out_match" | tail -n 30 >&2
+      return 1
+    fi
+    echo "[run_stage_recall_edit:$mode] OK: unseeded project stayed silent on a matching-name edit (no AgentFS data)"
+    return 0
+  fi
+}
+
 main() {
   case "${1:-}" in
     --setup-only)
