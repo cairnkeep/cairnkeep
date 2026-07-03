@@ -1,6 +1,13 @@
 ---
-gsd_state_version: '1.0'
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+current_phase: 3
+current_phase_name: Docs + parity sign-off
 status: in-progress
+stopped_at: Phase 3 near complete — operating guide written, parity verified, hygiene clean; only the baseline tag remains (user-gated). All commits local, awaiting review before push.
+last_updated: "2026-07-03T00:32:24.880Z"
+last_activity: 2026-07-03
 progress:
   total_phases: 3
   completed_phases: 2
@@ -23,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-03)
 Phase: 3 of 3 (Docs + parity sign-off)
 Plan: verified directly; no formal PLAN authored
 Status: Near complete — operating guide written and parity mechanism verified; only the baseline tag (a user-gated sign-off act) remains
-Last activity: 2026-07-03 — Verified fresh bootstrap reproduces the operating layer; wrote docs/operating.md; wired README + bootstrap to the operating-layer install; hygiene checked
+Last activity: 2026-07-03
 
 Progress: [█████████░] 90%
 
@@ -56,6 +63,7 @@ Progress: [██████░░░░] 60%
 ## Performance Metrics
 
 **Velocity:**
+
 - Total plans completed: 0 (Phase 1 delivered before plan tracking)
 - Average duration: -
 - Total execution time: -
@@ -67,6 +75,7 @@ Progress: [██████░░░░] 60%
 | 1. Configurable git-provider abstraction | pre-tracking | - | - |
 
 **Recent Trend:**
+
 - Last 5 plans: -
 - Trend: -
 
