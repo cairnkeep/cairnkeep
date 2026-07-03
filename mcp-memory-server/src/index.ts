@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { stdin as input, stdout as output } from "node:process";
@@ -141,8 +141,10 @@ function resolveScopePath(scope: string, cwd: string = process.cwd()): string {
     const baseDir = getBaseDir();
     const dbPath = resolve(baseDir, `${scope}.db`);
     // Defense in depth: even if the pattern is ever loosened, never resolve
-    // outside the base dir.
-    if (dbPath !== join(baseDir, `${scope}.db`)) {
+    // outside the base dir. `relative` catches `..` escapes (which `join` would
+    // silently normalize away) as well as absolute overrides.
+    const rel = relative(baseDir, dbPath);
+    if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
         throw new Error(`Invalid scope "${scope}": resolves outside the base directory.`);
     }
     return dbPath;
