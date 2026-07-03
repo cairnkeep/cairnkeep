@@ -39,7 +39,13 @@ Full detail archived in [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. Starting an OpenCode session surfaces session-start context — AgentFS memory plus the wiki index plus any open HARD contradictions — with no Claude-rendered assets present on disk (OCP-05)
   4. Running `remember` in OpenCode persists a durable finding across the memory layers (OCP-03)
   5. Running `recall` in OpenCode retrieves known info across the memory layers (OCP-04)
-**Plans**: TBD
+**Plans**: 6 plans (3 waves)
+- [ ] 04-01-PLAN.md — Wave 0 injection-mechanism spike + channel decision (OCP-05 de-risk)
+- [ ] 04-02-PLAN.md — remember + recall commands, wired into sync-opencode-memory-assets.sh (OCP-03, OCP-04)
+- [ ] 04-03-PLAN.md — rewrite memory-wakeup.ts native, self-sufficient of Claude assets (OCP-05)
+- [ ] 04-04-PLAN.md — memory-capture.ts: session-end extract → staging (OCP-01)
+- [ ] 04-05-PLAN.md — memory-recall.ts: pre-edit file-specific injection (OCP-02)
+- [ ] 04-06-PLAN.md — sync-opencode-plugin-assets.sh INFRA_ROOT rendering + OCP-05 acceptance gate
 
 ### Phase 5: Live OpenCode parity verification
 **Goal**: The full OpenCode memory lifecycle and commands are proven to round-trip end-to-end in a live OpenCode session against the registered `cairn-memory` MCP — confirming drop-in parity with the Claude path by execution, the same bar v1.0 used.
