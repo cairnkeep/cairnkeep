@@ -1,4 +1,5 @@
 import type { Plugin } from "@opencode-ai/plugin"
+import { spawn } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 
@@ -32,6 +33,58 @@ type SessionMessage = {
   parts?: Array<{ type?: string; text?: string }>
 }
 
+// Runs `node <serverEntry> extract <model>` piping `input` on stdin via
+// Node's own child_process API (never the plugin runtime's `$` BunShell
+// helper — live verification found `$`...`.quiet().nothrow()`'s returned
+// promise has no usable `.stdin` writer at runtime in this OpenCode build,
+// throwing `TypeError: undefined is not an object (evaluating
+// 'shellPromise.stdin.getWriter')` on every call, which silently no-oped
+// capture end to end via the outer fail-open catch (OCP-06 defect, this
+// phase). Async/non-blocking so a slow extraction call never freezes a live
+// interactive session; bounded by `timeoutMs` and resolves (never rejects)
+// so the caller's existing fail-open handling is unchanged.
+function runExtract(
+  serverEntry: string,
+  model: string,
+  input: string,
+  timeoutMs = 120000,
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolvePromise) => {
+    let stdout = ""
+    let stderr = ""
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolvePromise({ stdout, stderr })
+    }
+
+    const child = spawn("node", [serverEntry, "extract", model], {
+      stdio: ["pipe", "pipe", "pipe"],
+    })
+    const timer = setTimeout(() => {
+      try {
+        child.kill("SIGTERM")
+      } catch {
+        // best-effort kill only
+      }
+    }, timeoutMs)
+
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8")
+    })
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8")
+    })
+    child.on("close", finish)
+    child.on("error", finish)
+
+    child.stdin.write(input)
+    child.stdin.end()
+  })
+}
+
 // Reimplements scripts/transcript-to-text.mjs's behavior (skip tool/reasoning/
 // file noise, join user/assistant text in order, cap total length keeping the
 // most recent turns) against OpenCode's { info, parts } message shape rather
@@ -54,7 +107,7 @@ function messagesToText(messages: SessionMessage[]): string {
   return out
 }
 
-export const MemoryCapturePlugin: Plugin = async ({ $, client, directory }) => {
+export const MemoryCapturePlugin: Plugin = async ({ client, directory }) => {
   const processed = new Set<string>()
 
   return {
@@ -97,11 +150,7 @@ export const MemoryCapturePlugin: Plugin = async ({ $, client, directory }) => {
         // Pipe the session text into the shared `extract` subcommand via
         // stdin (T-04-01 mitigation) — never string-interpolate arbitrary
         // session/message content into the shell command.
-        const shellPromise = $`node ${SERVER_ENTRY} extract ${model}`.quiet().nothrow()
-        const writer = shellPromise.stdin.getWriter()
-        await writer.write(new TextEncoder().encode(text))
-        await writer.close()
-        const res = await shellPromise
+        const res = await runExtract(SERVER_ENTRY, model, text)
         const candidatesJson = String(res.stdout ?? "").trim()
         if (!candidatesJson) return
 

@@ -51,11 +51,15 @@ REAL_CLAUDE_DIR="$ORIG_HOME/.claude"
 
 SCRATCH_HOME=""
 SCRATCH_PROJECT=""
+SCRATCH_PROJECT_UNSEEDED=""
 CANARY_KEY=""
 CANARY_VALUE=""
 CLEANED_UP=0
 PRE_OPENCODE_FINGERPRINT=""
 PRE_CLAUDE_FINGERPRINT=""
+CAPTURE_SERVE_PID=""
+CAPTURE_SERVE_URL=""
+CAPTURE_SERVE_LOG=""
 
 fingerprint_dir() {
   local dir="$1"
@@ -77,11 +81,26 @@ cleanup() {
   fi
   CLEANED_UP=1
 
+  # Stop the capture stage's persistent `opencode serve` (if started) before
+  # touching scratch dirs — it may still be holding the scratch HOME's
+  # OPENCODE_CONFIG_DIR/cairn-memory MCP subprocess open.
+  if [[ -n "$CAPTURE_SERVE_PID" ]]; then
+    kill "$CAPTURE_SERVE_PID" 2>/dev/null || true
+    wait "$CAPTURE_SERVE_PID" 2>/dev/null || true
+    CAPTURE_SERVE_PID=""
+  fi
+  if [[ -n "$CAPTURE_SERVE_LOG" && -f "$CAPTURE_SERVE_LOG" ]]; then
+    rm -f "$CAPTURE_SERVE_LOG"
+  fi
+
   if [[ -n "$SCRATCH_HOME" && -d "$SCRATCH_HOME" ]]; then
     rm -rf "$SCRATCH_HOME"
   fi
   if [[ -n "$SCRATCH_PROJECT" && -d "$SCRATCH_PROJECT" ]]; then
     rm -rf "$SCRATCH_PROJECT"
+  fi
+  if [[ -n "$SCRATCH_PROJECT_UNSEEDED" && -d "$SCRATCH_PROJECT_UNSEEDED" ]]; then
+    rm -rf "$SCRATCH_PROJECT_UNSEEDED"
   fi
 
   export HOME="$ORIG_HOME"
@@ -377,6 +396,122 @@ run_stage_recall_edit() {
     fi
     echo "[run_stage_recall_edit:$mode] OK: unseeded project stayed silent on a matching-name edit (no AgentFS data)"
     return 0
+  fi
+}
+
+# setup_negative_project(): a second scratch project directory (no .agentfs
+# seeded) for every stage's negative control. Plugin/command assets are
+# global (installed once into $OPENCODE_CONFIG_DIR by install_assets), so
+# the negative-control project only needs to exist as a bare directory.
+setup_negative_project() {
+  SCRATCH_PROJECT_UNSEEDED=$(mktemp -d)
+  echo "[setup_negative_project] SCRATCH_PROJECT_UNSEEDED=$SCRATCH_PROJECT_UNSEEDED"
+}
+
+# start_capture_server()/stop_capture_server(): the capture stage cannot use
+# a bare `opencode run` invocation. Live verification this phase found that
+# `opencode run` tears down its whole process (killing any still-running
+# child processes, e.g. the extract subprocess memory-capture.ts spawns)
+# immediately once its own turn finishes — it does not wait for plugin
+# `event` handlers' async work (session.idle -> extract) to settle. This
+# reproduced deterministically: an instrumented run showed the extract
+# child process spawned successfully but was killed before its "close"
+# event could fire, even though the whole `opencode run` invocation's own
+# wall-clock time was only ~3s. This is a genuine limitation of `opencode
+# run`'s headless process lifecycle, not something a plugin-side code
+# change can outrun.
+#
+# Workaround (harness-only, no plugin/server change): `opencode serve`
+# starts a headless, persistent server process; `opencode run --attach
+# <url>` then drives it as a client whose own exit does NOT kill the
+# server. The server keeps running long enough for session.idle's async
+# extract call to complete naturally. Confirmed live: with --attach, the
+# same extract subprocess's "close" event fired ~8s after the triggering
+# turn, well after the `run` client itself had already exited.
+start_capture_server() {
+  CAPTURE_SERVE_LOG=$(mktemp)
+  opencode serve --port 0 --hostname 127.0.0.1 >"$CAPTURE_SERVE_LOG" 2>&1 &
+  CAPTURE_SERVE_PID=$!
+
+  CAPTURE_SERVE_URL=""
+  for _wait_sec in 1 2 3 4 5 6 7 8 9 10; do
+    if grep -q "listening on" "$CAPTURE_SERVE_LOG" 2>/dev/null; then
+      CAPTURE_SERVE_URL=$(grep -o 'http://[0-9.]*:[0-9]*' "$CAPTURE_SERVE_LOG" | head -1)
+      break
+    fi
+    sleep 1
+  done
+
+  if [[ -z "$CAPTURE_SERVE_URL" ]]; then
+    echo "[start_capture_server] FAIL: opencode serve did not report a listening URL within 10s" >&2
+    cat "$CAPTURE_SERVE_LOG" >&2
+    return 1
+  fi
+  echo "[start_capture_server] OK: $CAPTURE_SERVE_URL (pid=$CAPTURE_SERVE_PID)"
+}
+
+stop_capture_server() {
+  if [[ -n "$CAPTURE_SERVE_PID" ]]; then
+    kill "$CAPTURE_SERVE_PID" 2>/dev/null || true
+    wait "$CAPTURE_SERVE_PID" 2>/dev/null || true
+    CAPTURE_SERVE_PID=""
+  fi
+  CAPTURE_SERVE_URL=""
+}
+
+# run_stage_capture(project_dir, mode): drives the capture stage through the
+# persistent server (start_capture_server must already be running). A
+# durable-fact-worthy turn is sent via --attach; the stage then polls for a
+# new .planning/memory-staging/*.json containing the turn's canary. Bounded
+# retry (3 attempts for mode="seeded") absorbs an independently-confirmed
+# characteristic of the configured local extraction model: it sometimes
+# exhausts its response budget on reasoning tokens before emitting the
+# candidates JSON, yielding an empty (not malformed) extraction result —
+# not a plugin defect (mcp-memory-server's extractMemoryCandidates, out of
+# this plan's file scope).
+run_stage_capture() {
+  local project_dir="$1" mode="$2"
+  local staging_dir="$project_dir/.planning/memory-staging"
+  rm -rf "${staging_dir:?}"
+
+  if [[ -z "$CAPTURE_SERVE_URL" ]]; then
+    echo "[run_stage_capture:$mode] FAIL: capture server not running (call start_capture_server first)" >&2
+    return 1
+  fi
+
+  local attempts_list="1 2 3"
+  [[ "$mode" == "unseeded" ]] && attempts_list="1"
+
+  local canary found=0
+  for _attempt in $attempts_list; do
+    canary="OCP-06-CAPTURE-${mode}-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
+    (cd "$project_dir" && timeout 60 opencode run "Important decision to remember for future sessions, no need to use any tools yourself: this project's staging deployment region is permanently fixed to $canary. This is a durable architectural constraint, not a temporary note." --attach "$CAPTURE_SERVE_URL" --dir "$project_dir" --format json --dangerously-skip-permissions >/dev/null 2>&1) || true
+
+    for _poll_sec in 1 2 3 4 5 6 7 8 9 10; do
+      if [[ -d "$staging_dir" ]] && grep -rq "$canary" "$staging_dir"/*.json 2>/dev/null; then
+        found=1
+        break
+      fi
+      sleep 1
+    done
+    [[ "$found" -eq 1 ]] && break
+  done
+
+  if [[ "$mode" == "seeded" ]]; then
+    if [[ "$found" -eq 1 ]]; then
+      echo "[run_stage_capture:$mode] OK: staged candidate contains the turn's canary"
+      return 0
+    fi
+    echo "[run_stage_capture:$mode] FAIL: no staged candidate contained the canary after retries" >&2
+    log_env_presence
+    return 1
+  else
+    if [[ "$found" -eq 0 ]]; then
+      echo "[run_stage_capture:$mode] OK: unseeded project staged nothing containing a canary"
+      return 0
+    fi
+    echo "[run_stage_capture:$mode] FAIL: unseeded project unexpectedly staged a canary-bearing candidate" >&2
+    return 1
   fi
 }
 
