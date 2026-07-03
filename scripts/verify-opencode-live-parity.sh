@@ -398,6 +398,7 @@ run_stage_recall_edit() {
     echo "[run_stage_recall_edit:$mode] OK: non-matching-file edit stayed silent"
     return 0
   else
+    out_match=$(run_opencode "$project_dir" 60 "Create a new file named ${match_file} in the project root with the single line: placeholder") || true
     if echo "$out_match" | grep -qF "Memory recall (auto-injected"; then
       echo "[run_stage_recall_edit:$mode] FAIL: unseeded project surfaced recall context unexpectedly" >&2
       echo "$out_match" | tail -n 30 >&2
