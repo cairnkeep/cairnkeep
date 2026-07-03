@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: OpenCode parity
-current_phase: 5
-current_phase_name: Live OpenCode parity verification
-status: verifying
+current_phase: 05
+current_phase_name: live-opencode-parity-verification
+status: executing
 stopped_at: Phase 5 context gathered
-last_updated: "2026-07-03T14:25:19.061Z"
+last_updated: "2026-07-03T15:26:37.255Z"
 last_activity: 2026-07-03
-last_activity_desc: Phase 04 complete, transitioned to Phase 5
+last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 2
   completed_phases: 1
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 9
+  completed_plans: 7
   percent: 50
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-03)
 
 **Core value:** Drop-in parity — a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
-**Current focus:** Phase 5 — Live OpenCode parity verification
+**Current focus:** Phase 05 — live-opencode-parity-verification
 
 ## Current Position
 
-Phase: 5 — Live OpenCode parity verification
-Plan: Not started
-Status: Ready to plan. Phase 4 COMPLETE — UAT verified live: the OCP-05 hard bar (wakeup surfaces AgentFS memory via `system.transform` with no reachable `~/.claude`) was re-run end-to-end with a fresh canary + negative control, re-confirming the `CHOSEN-CHANNEL: system.transform` decision. The OCP-01/02/03/04 *live round-trip* was deferred to this phase by design (UAT test 2, skipped-with-reason).
-Last activity: 2026-07-03 — Phase 04 complete, transitioned to Phase 5
+Phase: 05 (live-opencode-parity-verification) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-07-03 — Phase 05 execution started
 
 ### Owed to Phase 5 (carried from Phase 4)
 
@@ -95,6 +95,7 @@ All follow-ups since resolved on 2026-07-03: HTTP-transport hardening for the op
 | Phase 04 P04 | 15min | 2 tasks | 1 files |
 | Phase 04 P05 | 20min | 1 tasks | 1 files |
 | Phase 04 P06 | 45min | 2 tasks | 2 files |
+| Phase 05 P01 | 55min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -113,6 +114,9 @@ Recent decisions affecting current work:
 - [Phase 04]: OCP-02 dedupe key is sessionID:filePath (not filePath alone) so recall re-arms per distinct session, matching memory-wakeup.ts's per-session semantics
 - [Phase 04]: OCP-02 recall plugin's catch block re-throws only its own intentional surface-context Error (prefix-matched), swallowing all other errors to stay fail-open (D-03)
 - [Phase 04-06]: OCP-05 hard bar proven by execution — OpenCode wakeup surfaces AgentFS memory with no reachable ~/.claude (Run A/B canary confirmed); removed memory-wakeup's per-session dedupe Set since experimental.chat.system.transform fires more than once per session (title-gen call shares sessionID with the real turn) and output.system is a fresh array per call
+- [Phase 05-01]: session.idle does not double-fire and never fires before real messages exist (confirmed live, v1.17.11); memory-capture.ts dedupe needs no fix
+- [Phase 05-01]: opencode run --format json carries the session ID as the top-level field sessionID on every streamed event
+- [Phase 05-01]: installed OpenCode CLI has no --auto flag; harness uses --dangerously-skip-permissions instead
 
 ### Pending Todos
 
@@ -126,7 +130,9 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-None. Phase 4 (OCP-01, OCP-02, OCP-03, OCP-04, OCP-05) complete; ready to plan Phase 5 (OCP-06).
+Phase 4 (OCP-01, OCP-02, OCP-03, OCP-04, OCP-05) complete; ready to plan Phase 5 (OCP-06).
+
+- 05-02/05-03 live stages require operator to configure a reachable local OpenAI-compatible endpoint plus CAIRN_LLM_API_KEY/CAIRN_LLM_API_URL/CAIRN_LLM_EXTRACTION_MODEL (e.g. via .ai/.env) before executing
 
 ## Deferred Items
 
@@ -139,7 +145,7 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-07-03T14:25:19.055Z
+Last session: 2026-07-03T15:23:47.039Z
 Stopped at: Phase 5 context gathered
 Resume file: .planning/phases/05-live-opencode-parity-verification/05-CONTEXT.md
 
