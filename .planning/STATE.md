@@ -2,18 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 3
-current_phase_name: Docs + parity sign-off
-status: in-progress
-stopped_at: Phase 3 near complete — operating guide written, parity verified, hygiene clean; only the baseline tag remains (user-gated). All commits local, awaiting review before push.
-last_updated: "2026-07-03T00:32:24.880Z"
+current_phase: 0
+status: Awaiting next milestone
+stopped_at: v1.0 "OSS core → parity" shipped and archived — 6/6 requirements validated, baseline tag v1.0.0. Ready for /gsd-new-milestone.
+last_updated: "2026-07-03T09:44:30.862Z"
 last_activity: 2026-07-03
+last_activity_desc: Milestone v1.0 completed and archived
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 0
   completed_plans: 0
-  percent: 90
+  percent: 100
+current_phase_name: "— (milestone complete)"
 ---
 
 # Project State
@@ -23,23 +24,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-03)
 
 **Core value:** Drop-in parity — a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
-**Current focus:** Phase 3 — Docs + parity sign-off (baseline tag pending review)
+**Current focus:** Planning next milestone (`/gsd-new-milestone`)
 
 ## Current Position
 
-Phase: 3 of 3 (Docs + parity sign-off)
-Plan: verified directly; no formal PLAN authored
-Status: Near complete — operating guide written and parity mechanism verified; only the baseline tag (a user-gated sign-off act) remains
-Last activity: 2026-07-03
-
-Progress: [█████████░] 90%
+Phase: Milestone v1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-03 — Milestone v1.0 completed and archived
 
 ### Phase 3 results (2026-07-03)
 
 - **Operating guide** — `docs/operating.md` written: full setup order (build + register `cairn-memory` MCP → install operating layer → configure `.ai/.env` → launch), a workflow reference for every command/hook, and the config table. Satisfies Phase 3 criterion 1.
 - **Fresh-bootstrap parity** — verified. `cairn bootstrap` writes `.ai/` + `.planning/`; the operating layer is reproduced by `sync-claude-assets.sh --apply` (confirmed into a scratch `--live-root`: 10 commands, 7 agents, 3 hooks registered on the right events, idempotent re-check clean). The gap was purely that this install step was undocumented — now fixed in README + the bootstrap next-steps output. Satisfies criterion 2.
 - **Hygiene** — Apache-2.0 LICENSE present, CI (`ci.yml`) builds + tests the memory server on push/PR, no tracked secrets or `.env`, no attribution noise. Satisfies criterion 4.
-- **Baseline tag (criterion 3)** — NOT yet done. This is the sign-off act; deferred until the local commits are reviewed and the two open security follow-ups are dispositioned.
+- **Baseline tag (criterion 3)** — DONE. Annotated tag `v1.0.0` at HEAD; all security follow-ups closed before sign-off.
 
 Known OpenCode-side gap (documented, not fixed): the `memory-sync` / `memory-review` / `code-review` OpenCode commands have no dedicated sync script yet — the guide says to copy them manually. Claude Code is the complete, verified path.
 
@@ -56,7 +55,7 @@ All flows exercised end-to-end against the registered `cairn-memory` MCP and now
 - **security-audit** — full selector → investigator → validator chain produced accepted finding **SEC-0001** (memory scope path traversal). Fixed with a kebab-case scope allowlist + base-dir containment; regression-tested by `smoke-scope-guard.mjs`.
 - **repo-review** — reviewed the session's own diff; caught a Medium in the SEC-0001 fix (an ineffective `resolve===join` containment guard). Hardened it with `relative()`-based containment.
 
-Deferred at the time (since resolved on 2026-07-03): HTTP-transport hardening for the opt-in `MCP_HTTP_PORT` mode (auth, CORS, DNS-rebinding) — now done, SEC-0001 fully closed. Still open: the `scope:"all"` write/read asymmetry (REVIEW.md finding 3).
+All follow-ups since resolved on 2026-07-03: HTTP-transport hardening for the opt-in `MCP_HTTP_PORT` mode (auth, CORS, DNS-rebinding) — SEC-0001 fully closed; and the `scope:"all"` write/read asymmetry (REVIEW.md finding 3) — `"all"` now rejected on write/list/delete/supersede/history paths. No open review or security items.
 
 Progress: [██████░░░░] 60%
 
@@ -92,7 +91,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- Tag the baseline (Phase 3 sign-off) once local commits are reviewed. All known review/security follow-ups are now closed.
+- None for v1.0 — milestone shipped. Next milestone scoped via `/gsd-new-milestone`.
 
 ### Done since (2026-07-03)
 
@@ -102,7 +101,7 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-None. Phase 2 flows verified and passing; commits are local, awaiting user review before push.
+None. v1.0 shipped — all phases verified, all review/security follow-ups closed.
 
 ## Deferred Items
 
@@ -116,5 +115,9 @@ Items acknowledged and carried forward:
 ## Session Continuity
 
 Last session: 2026-07-03
-Stopped at: Phase 3 near complete — operating guide written, parity verified, hygiene clean; only the baseline tag remains (user-gated). All commits local, awaiting review before push.
+Stopped at: v1.0 "OSS core → parity" shipped and archived — 6/6 requirements validated, baseline tag v1.0.0. Ready for `/gsd-new-milestone`.
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

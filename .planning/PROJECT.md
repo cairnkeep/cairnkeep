@@ -12,15 +12,16 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 
 ### Validated
 
-- ✓ **REQ-provider-neutral-core** — git host selected by one provider config key; collaboration commands resolve every git-host operation through a per-provider operation→tool map; no hardcoded vendor endpoints anywhere in the core (Phase 1)
+- ✓ **REQ-provider-neutral-core** — git host selected by one provider config key; collaboration commands resolve every git-host operation through a per-provider operation→tool map; no hardcoded vendor endpoints anywhere in the core — v1.0
+- ✓ **REQ-memory-mcp-server** — `cairn-memory` registers and responds as an MCP server (10 tools on stdio + opt-in token-gated HTTP); remember/recall work end-to-end — v1.0
+- ✓ **REQ-operating-layer** — commands, agents, and hooks for memory, wiki, security, and review workflows work end-to-end against `cairn-memory`; memory hooks (wakeup/capture/review) round-trip — v1.0 (Claude Code verified path; OpenCode wakeup ordering documented)
+- ✓ **REQ-cli-bootstrap** — a fresh `cairn bootstrap` yields a working same-as-before workflow — v1.0
+- ✓ **REQ-feature-parity** — operating guide in the OSS docs, fresh bootstrap works same-as-before, baseline tagged `v1.0.0` — v1.0
+- ✓ **REQ-oss-hygiene** — Apache-2.0 license, CI, no secrets, no attribution noise — v1.0
 
 ### Active
 
-- [ ] **REQ-memory-mcp-server** — `cairn-memory` registers and responds as an MCP server; remember/recall work end-to-end
-- [ ] **REQ-operating-layer** — commands, agents, and hooks for memory, wiki, security, and review workflows work end-to-end against `cairn-memory` across harnesses; memory hooks (wakeup/capture/review) round-trip
-- [ ] **REQ-cli-bootstrap** — a fresh `cairn bootstrap` yields a working same-as-before workflow
-- [ ] **REQ-feature-parity** — parity sign-off: operating guide in the OSS docs, fresh bootstrap works same-as-before, baseline tagged
-- [ ] **REQ-oss-hygiene** — Apache-2.0 license, CI, no secrets, no attribution noise
+(None yet — v1.0 shipped. Next milestone requirements defined via `/gsd-new-milestone`.)
 
 ### Out of Scope
 
@@ -32,8 +33,9 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 
 - Layout: `mcp-memory-server/` (the `cairn-memory` MCP server), `bin/cairn` + `scripts/` (CLI, bootstrap, utilities), `templates/` (project scaffolding + derived-knowledge templates), `claude/` + `opencode/` (commands, agents, hooks, and plugins — the operating layer)
 - Target runtime: Node.js/TypeScript for the MCP server; the operating layer targets the Claude Code and OpenCode harnesses
-- Milestone "OSS core → parity" is mid-flight: Phase 1 (configurable git-provider abstraction) is complete; Phase 2 (operating-layer verification) is current; Phase 3 (docs + parity sign-off) is pending
-- CI (build + smoke-test of the memory server) already exists per repo history
+- Milestone "OSS core → parity" **shipped 2026-07-03** (all 3 phases, 6/6 requirements validated; baseline tag `v1.0.0`). Next milestone not yet scoped.
+- CI (build + smoke-test of the memory server) exists and passes on push/PR; smoke suite covers scope-guard, http-guard, extract-cli, search-e2e, embeddings
+- Known deferred: OpenCode memory-wakeup install ordering (documented, Claude-first path is complete); enterprise overlay and token-miser integration carried to future milestones
 
 ## Constraints (hard rules)
 
@@ -62,8 +64,12 @@ Additional constraints:
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Git host resolved via one provider config key + per-provider operation→tool map | Collaboration commands must work against any git host, never assuming one | ✓ Good (Phase 1) |
-| Enterprise overlay kept private-only | Enforces DEC-no-private-references; keeps the OSS core neutral | — Pending |
+| Enterprise overlay kept private-only | Enforces DEC-no-private-references; keeps the OSS core neutral | — Pending (future milestone) |
 | Three hard rules locked (see decisions block above) | Public-repo hygiene is non-negotiable | ✓ Good |
+| `memory_read` validation moved into the handler | ZodEffects `.refine()` as an MCP inputSchema publishes an empty tool schema | ✓ Good (Phase 2) |
+| Semantic-search embedding model required, else substring fallback | Removed a hardcoded vendor model default to keep the core provider-neutral | ✓ Good (Phase 2) |
+| Scope path containment via `relative()`, `"all"` rejected on write paths | `resolve===join` misses `../` traversal; `"all"` is a read-only fan-out scope | ✓ Good (Phase 2, SEC-0001) |
+| Opt-in HTTP transport fails closed (bearer auth + per-origin CORS + Host validation) | The `MCP_HTTP_PORT` mode must not be exploitable by default | ✓ Good (Phase 2) |
 
 ---
-*Last updated: 2026-07-03 after ingest of existing planning docs*
+*Last updated: 2026-07-03 after v1.0 milestone*
