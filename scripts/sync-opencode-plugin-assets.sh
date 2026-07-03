@@ -27,6 +27,8 @@ MODE="check"
 
 ASSETS=(
   "plugins/memory-wakeup.ts"
+  "plugins/memory-capture.ts"
+  "plugins/memory-recall.ts"
 )
 
 while [[ $# -gt 0 ]]; do
@@ -54,6 +56,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+render_asset() {
+  local src="$1"
+  sed "s|@@INFRA_ROOT@@|$ROOT_DIR|g" "$src"
+}
 
 ensure_source_assets_exist() {
   local rel
@@ -87,7 +94,7 @@ check_asset_sync() {
       continue
     fi
 
-    if ! cmp -s "$src" "$dst"; then
+    if ! cmp -s <(render_asset "$src") "$dst"; then
       mismatched+=("$rel")
     fi
   done
@@ -119,6 +126,7 @@ run_apply() {
   local rel
   local src
   local dst
+  local rendered_tmp
   local updated=0
   local unchanged=0
 
@@ -129,12 +137,15 @@ run_apply() {
     dst="$LIVE_ROOT/$rel"
 
     mkdir -p "$(dirname "$dst")"
-    if [[ -f "$dst" ]] && cmp -s "$src" "$dst"; then
+    if [[ -f "$dst" ]] && cmp -s <(render_asset "$src") "$dst"; then
       unchanged=$((unchanged + 1))
       continue
     fi
 
-    install -m 0644 "$src" "$dst"
+    rendered_tmp=$(mktemp)
+    render_asset "$src" > "$rendered_tmp"
+    install -m 0644 "$rendered_tmp" "$dst"
+    rm -f "$rendered_tmp"
     updated=$((updated + 1))
   done
 
