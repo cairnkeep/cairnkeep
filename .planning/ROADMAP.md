@@ -70,7 +70,19 @@ Full detail archived in [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. A fresh install of only the OpenCode assets (no Claude assets on disk) reproduces the full working workflow — drop-in parity confirmed (OCP-06)
   4. The parity run is captured as execution evidence, matching how v1.0 verified the Claude path by execution (OCP-06)
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — Wave 0 diagnostics (session.idle double-fire probe + session-ID field inspection) and scratch-env harness scaffold registering cairn-memory as a local MCP (OCP-06)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 05-02-PLAN.md — five live stages (wakeup, recall-on-edit, capture, remember→recall) + negative controls against the registered MCP (OCP-06)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 05-03-PLAN.md — 05-UAT.md execution evidence, one interactive OpenCode session (D-01), and the operating.md stale-line fix (OCP-06)
 
 ## Progress
 
