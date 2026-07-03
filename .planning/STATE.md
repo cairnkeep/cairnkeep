@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-07-03)
 
 ## Current Position
 
-Phase: 04 (opencode-parity-operating-layer) — COMPLETE
-Plan: 6 of 6
-Status: Phase complete — ready for verification / Phase 5 planning
-Last activity: 2026-07-03 — Phase 04 complete (all 6 plans executed, OCP-05 hard bar proven by execution)
+Phase: 04 (opencode-parity-operating-layer) — VERIFYING (awaiting human verification)
+Plan: 6 of 6 executed
+Status: Automated verification passed 5/5 must-haves; human_needed — two auto-confirmed blocking checkpoints (04-01, 04-06) need operator sign-off. Run /gsd-verify-work 4. Phase NOT yet complete.
+Last activity: 2026-07-03 — Phase 04 plans executed + verified (5/5 code/wiring); OCP-05 hard bar proven by execution. Pending human UAT (04-UAT.md).
 
 ### v1.1 roadmap (2026-07-03)
 
