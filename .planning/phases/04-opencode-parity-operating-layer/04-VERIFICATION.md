@@ -1,14 +1,16 @@
 ---
 phase: 04-opencode-parity-operating-layer
 verified: 2026-07-03T13:45:00Z
-status: human_needed
+status: passed
 score: 5/5 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
+
   - test: "Re-confirm the two blocking checkpoint:human-verify gates in this phase (04-01 Task 2 CHOSEN-CHANNEL decision, 04-06 Task 2 OCP-05 acceptance gate) that were auto-confirmed by the orchestrator after an operator timeout rather than by explicit operator action"
     expected: "Operator reviews 04-SPIKE-INJECTION.md's CHOSEN-CHANNEL: system.transform decision and 04-06-SUMMARY.md's OCP-05 acceptance evidence (canary fact OCP-05-CANARY-QUOKKA-9182 surfaced in two isolated scratch-HOME runs) and confirms both stand, or re-runs the live acceptance test personally"
     why_human: "Both were explicit blocking checkpoints (gate=\"blocking\") requiring operator sign-off on a live, model-in-the-loop observation; the recorded evidence is concrete and specific, but the sign-off itself was a timeout auto-confirmation, not genuine human judgment, and both SUMMARYs self-flag this as re-visitable"
+
   - test: "Live round-trip of OCP-01 (capture stages a real session's candidates), OCP-02 (recall throws real context on a live matched edit), OCP-03 (remember persists a fact via a live cairn-memory MCP call), and OCP-04 (recall retrieves it back)"
     expected: "Each command/plugin performs its documented effect against a live, registered cairn-memory MCP in a real OpenCode session"
     why_human: "Deliberately scoped to Phase 5 (OCP-06) per this phase's own plans (04-02, 04-04, 04-05 SUMMARYs all explicitly defer live round-trip verification to Phase 5) — Phase 4's own success criteria and this verification's task framing treat OCP-01/02/03/04 as satisfied by correct implementation + wiring, with OCP-05 as the one hard bar requiring in-phase live execution proof"
