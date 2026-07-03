@@ -85,10 +85,9 @@ Each installs into `~/.config/opencode` (override with `OPENCODE_CONFIG_DIR` or
 `--live-root`) and is idempotent — re-run with `--check` to see drift without
 writing.
 
-**Install the Claude assets first.** The OpenCode memory-wakeup plugin reuses the
-rendered Claude hook at `~/.claude/hooks/memory-wakeup.sh` as its single source of
-truth. Run `sync-claude-assets.sh --apply` before the plugin sync — otherwise the
-plugin fails open and session-start wakeup silently no-ops (no error).
+**No Claude install required.** The OpenCode memory-wakeup plugin is self-sufficient
+of Claude assets — it surfaces AgentFS project memory natively via OpenCode's own
+`experimental.chat.system.transform` hook and never reads `~/.claude`.
 
 ## Configuration
 
