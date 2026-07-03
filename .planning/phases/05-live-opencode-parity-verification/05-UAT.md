@@ -237,27 +237,33 @@ evidence: |
   - On `:8001`, `/remember` (write) still reliably fires a genuine `cairn-memory_memory_write`
     call; `/recall` (read) does not fire `memory_search`/`_read` (consistent with 05-02's ~9-attempt
     finding and this session's runs).
-  - A thinking-strip proxy (`enable_thinking=false`, same coder model, exposed on `127.0.0.1:8006`)
-    made an ISOLATED tool call fire cleanly in a raw `/v1/chat/completions` probe:
-    `finish_reason=tool_calls`, `tool_calls=[memory_search]`. This proves the read-side tool call
-    CAN fire when thinking is stripped and the call is single-step.
-  - BUT driving the full multi-step `/remember` slash-command flow through `opencode` against the
-    thinking-stripped `:8006` made the WRITE call stop firing (0/3 attempts). So neither endpoint
-    yields a reliable full round-trip through opencode's multi-step slash commands: thinking-on
-    breaks the read half, thinking-off (via proxy) breaks the write half in the multi-step flow.
-    The model's tool-calling is flaky for multi-step command flows regardless of thinking on/off.
+  - A thinking-strip proxy (`vllm-thinking-proxy` on `127.0.0.1:8006` — injects
+    `chat_template_kwargs.enable_thinking=false`, upstream `:8001`) DOES strip thinking and DOES
+    fire real `cairn-memory` tool calls when driven by raw `curl`: both non-streaming and streaming
+    `/v1/chat/completions` probes returned `finish_reason=tool_calls` with a genuine
+    `cairn-memory_memory_search` call. This proves the read-side tool call fires cleanly against the
+    thinking-stripped endpoint when spoken to directly.
+  - BUT `opencode` is INCOMPATIBLE with the proxy: pointing `opencode` at `:8006` hangs on EVERY
+    call — even a trivial `opencode run "reply PONG"` returns 0 bytes and times out at 60s, while
+    raw `curl` to the same endpoint works. The proxy is purpose-built for AnythingLLM's
+    Generic-OpenAI provider (per its own docstring); `opencode`'s `@ai-sdk/openai-compatible` client
+    hangs on it. So the proxy is NOT a usable fix for `opencode` — headless or TUI, both use the
+    same client. The bare thinking-on `:8001` endpoint therefore remains the recorded/stable config
+    for this UAT's committed `--full` evidence.
 
   **Conclusion:** OCP-04 read-back is a genuine, well-characterized model-reliability limitation —
   NOT a defect in `recall.md`/`remember.md`, the `cairn-memory` MCP server, or the harness. The
   underlying mechanisms (system.transform injection, PreToolUse recall injection, session.idle
   capture staging, and the MCP write tool) are all proven to work; what is unreliable is this
-  specific local reasoning model's agentic tool-calling through opencode's multi-step command flows.
+  specific local reasoning model's agentic tool-calling through `opencode` when thinking is on, and
+  the one thinking-strip proxy available is incompatible with `opencode`'s HTTP client.
 
-  **Recommended future fix direction (documentation, not a passing result):** a tool-call-reliable
-  local configuration — either a provider-level thinking-disable that still preserves multi-step
-  tool-calling, or a model with robust agentic tool use — should close OCP-04's read-back half.
-  `.ai/.env` has been reverted to the stable `:8001` coder endpoint, matching this UAT's committed
-  `--full` evidence.
+  **Recommended future fix direction (documentation, not a passing result):** get `opencode` to
+  send `enable_thinking=false` directly to `:8001` (if its provider config supports extra
+  `chat_template_kwargs` body params), OR stand up a dedicated non-thinking vLLM endpoint that
+  `opencode` can talk to directly (the `:8006` proxy is not usable — `opencode`'s client hangs on
+  it). `.ai/.env` has been reverted to the stable `:8001` coder endpoint, matching this UAT's
+  committed `--full` evidence.
 
 ## Fixes applied this session (disclosed per D-03/OCP-06's defect clause)
 
@@ -310,13 +316,18 @@ blocked: 0
 - **OCP-04 (recall live MCP read-back) is an open, well-characterized model-reliability
   limitation** — root cause identified this session (see Test 5): `qwen3.6-27b-coder` is a thinking
   model whose reasoning leaks as narrated pseudo-tool-call text on the thinking-on endpoint
-  (`:8001`), so `/recall` does not fire a genuine `memory_search`/`_read` call; a thinking-strip
-  proxy fires an isolated read call cleanly but breaks the write half in the multi-step `/remember`
-  flow. This is NOT a defect in `recall.md`/`remember.md`, the `cairn-memory` server, or the
-  harness — the underlying mechanisms all work. Fix direction: a tool-call-reliable local config
-  (provider-level thinking-disable preserving multi-step tool-calling, or a model with robust
-  agentic tool use). This is a documented open gap for verification to surface, not a passing
-  result.
+  (`:8001`), so `/recall` does not fire a genuine `memory_search`/`_read` call. The one
+  thinking-strip proxy available (`vllm-thinking-proxy`, `:8006`) DOES strip thinking and DOES fire
+  real `cairn-memory` tool calls under raw `curl` (`finish_reason=tool_calls`, non-streaming and
+  streaming), but `opencode` is incompatible with it — pointing `opencode` at `:8006` hangs on every
+  call (even a trivial `opencode run "reply PONG"` times out at 0 bytes), because the proxy is built
+  for AnythingLLM's Generic-OpenAI provider and `opencode`'s `@ai-sdk/openai-compatible` client
+  hangs on it. This is NOT a defect in `recall.md`/`remember.md`, the `cairn-memory` server, or the
+  harness — the underlying mechanisms all work. Fix direction: get `opencode` to send
+  `enable_thinking=false` directly to `:8001` (if its provider config supports extra
+  `chat_template_kwargs` body params), OR stand up a dedicated non-thinking vLLM endpoint `opencode`
+  can talk to directly (the `:8006` proxy is not usable for `opencode`). This is a documented open
+  gap for verification to surface, not a passing result.
 - **Harness grep-based tool-call assertions can false-positive on narrated (non-executed) tool
   syntax** — discovered this session (Test 4), and now explained by the thinking-model root cause.
   Not fixed here (out of this plan's surgical docs/UAT scope); worth hardening in any future
