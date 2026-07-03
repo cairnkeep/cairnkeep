@@ -30,32 +30,46 @@ Full detail archived in [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 ## Phase Details
 
 ### Phase 4: OpenCode parity operating layer
+
 **Goal**: OpenCode gains the same memory lifecycle and memory commands as the verified Claude path — implemented against OpenCode's plugin model (lifecycle handlers, not Claude's shell hooks) and installed via the `sync-opencode-*-assets.sh` scripts — standing on its own with no Claude assets present.
 **Depends on**: Phase 3 (the v1.0 Claude baseline is the parity reference)
 **Requirements**: OCP-01, OCP-02, OCP-03, OCP-04, OCP-05
 **Success Criteria** (what must be TRUE):
+
   1. Ending an OpenCode session extracts memory candidates into the shared staging area — the same staging the Claude `memory-capture` SessionEnd hook writes to (OCP-01)
   2. Editing or writing a file in OpenCode injects that file's specific memory into context before the edit proceeds, matching the Claude `memory-recall` pre-edit behavior (OCP-02)
   3. Starting an OpenCode session surfaces session-start context — AgentFS memory plus the wiki index plus any open HARD contradictions — with no Claude-rendered assets present on disk (OCP-05)
   4. Running `remember` in OpenCode persists a durable finding across the memory layers (OCP-03)
   5. Running `recall` in OpenCode retrieves known info across the memory layers (OCP-04)
+
 **Plans**: 6 plans (3 waves)
+**Wave 1**
+
 - [ ] 04-01-PLAN.md — Wave 1 — spike: injection-mechanism spike + channel decision (OCP-05 de-risk)
 - [ ] 04-02-PLAN.md — remember + recall commands, wired into sync-opencode-memory-assets.sh (OCP-03, OCP-04)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 04-03-PLAN.md — rewrite memory-wakeup.ts native, self-sufficient of Claude assets (OCP-05)
 - [ ] 04-04-PLAN.md — memory-capture.ts: session-end extract → staging (OCP-01)
 - [ ] 04-05-PLAN.md — memory-recall.ts: pre-edit file-specific injection (OCP-02)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 04-06-PLAN.md — sync-opencode-plugin-assets.sh INFRA_ROOT rendering + OCP-05 acceptance gate
 
 ### Phase 5: Live OpenCode parity verification
+
 **Goal**: The full OpenCode memory lifecycle and commands are proven to round-trip end-to-end in a live OpenCode session against the registered `cairn-memory` MCP — confirming drop-in parity with the Claude path by execution, the same bar v1.0 used.
 **Depends on**: Phase 4
 **Requirements**: OCP-06
 **Success Criteria** (what must be TRUE):
+
   1. In a live OpenCode session, the wakeup → recall → capture lifecycle runs against the registered `cairn-memory` MCP and each stage produces its expected effect (OCP-06)
   2. `remember` followed by `recall` round-trips a finding within the live session — written on one turn, read back across layers on a later turn (OCP-06)
   3. A fresh install of only the OpenCode assets (no Claude assets on disk) reproduces the full working workflow — drop-in parity confirmed (OCP-06)
   4. The parity run is captured as execution evidence, matching how v1.0 verified the Claude path by execution (OCP-06)
+
 **Plans**: TBD
 
 ## Progress
