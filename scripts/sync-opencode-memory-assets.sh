@@ -31,6 +31,8 @@ ASSETS=(
   "command/memory-sync.md"
   "command/memory-review.md"
   "command/code-review.md"
+  "command/remember.md"
+  "command/recall.md"
   "agents/code-reviewer.md"
   "workflows/memory-review-workflow.md"
 )
