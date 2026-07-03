@@ -75,16 +75,15 @@ The operating-layer assets are installed by topic-specific scripts:
 
 ```bash
 scripts/sync-opencode-plugin-assets.sh   --apply   # memory-wakeup plugin
+scripts/sync-opencode-memory-assets.sh   --apply   # memory-sync/review + code-review
 scripts/sync-opencode-wiki-assets.sh     --apply   # wiki commands/agents/workflows
 scripts/sync-opencode-security-assets.sh --apply   # security-audit chain
 scripts/sync-opencode-graphify-assets.sh --apply   # graphify command
 ```
 
 Each installs into `~/.config/opencode` (override with `OPENCODE_CONFIG_DIR` or
-`--live-root`). Note: the `memory-sync`, `memory-review`, and `code-review`
-OpenCode commands under `opencode/command/` do not yet have a dedicated sync
-script — copy them into your OpenCode `command/` directory manually if you need
-them.
+`--live-root`) and is idempotent — re-run with `--check` to see drift without
+writing.
 
 ## Configuration
 
