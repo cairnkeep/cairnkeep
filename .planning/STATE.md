@@ -2,9 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: OpenCode parity
+current_phase: 4
 status: planning
-last_updated: "2026-07-03T12:00:00.000Z"
+stopped_at: Phase 4 context gathered
+last_updated: "2026-07-03T10:52:04.619Z"
 last_activity: 2026-07-03
+last_activity_desc: v1.1 roadmap created (Phases 4-5; OCP-01..06 mapped, 6/6 coverage)
 progress:
   total_phases: 2
   completed_phases: 0
@@ -116,9 +119,9 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-07-03
-Stopped at: v1.1 "OpenCode parity" roadmap created — 6 requirements (OCP-01..06) mapped across 2 phases (Phase 4: parity operating layer; Phase 5: live verification). Ready to plan Phase 4.
-Resume file: None
+Last session: 2026-07-03T10:52:04.614Z
+Stopped at: Phase 4 context gathered
+Resume file: .planning/phases/04-opencode-parity-operating-layer/04-CONTEXT.md
 
 ## Operator Next Steps
 
