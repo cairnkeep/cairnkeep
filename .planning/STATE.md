@@ -4,17 +4,17 @@ milestone: v1.1
 milestone_name: OpenCode parity
 current_phase: 04
 current_phase_name: opencode-parity-operating-layer
-status: executing
-stopped_at: Completed 04-05-PLAN.md
-last_updated: "2026-07-03T13:10:45.989Z"
+status: verifying
+stopped_at: Completed 04-06-PLAN.md (final plan of Phase 4)
+last_updated: "2026-07-03T13:29:57.095Z"
 last_activity: 2026-07-03
-last_activity_desc: Phase 04 execution started
+last_activity_desc: Phase 04 complete (all 6 plans executed, OCP-05 hard bar proven by execution)
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 6
-  completed_plans: 5
-  percent: 0
+  completed_plans: 6
+  percent: 50
 ---
 
 # Project State
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-07-03)
 
 ## Current Position
 
-Phase: 04 (opencode-parity-operating-layer) — EXECUTING
+Phase: 04 (opencode-parity-operating-layer) — COMPLETE
 Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-07-03 — Phase 04 execution started
+Status: Phase complete — ready for verification / Phase 5 planning
+Last activity: 2026-07-03 — Phase 04 complete (all 6 plans executed, OCP-05 hard bar proven by execution)
 
 ### v1.1 roadmap (2026-07-03)
 
@@ -89,6 +89,7 @@ All follow-ups since resolved on 2026-07-03: HTTP-transport hardening for the op
 | Phase 04 P03 | 5min | 1 tasks | 1 files |
 | Phase 04 P04 | 15min | 2 tasks | 1 files |
 | Phase 04 P05 | 20min | 1 tasks | 1 files |
+| Phase 04 P06 | 45min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -106,10 +107,11 @@ Recent decisions affecting current work:
 - [Phase 04]: memory-capture dedupe Set is marked before the extract call, capping each top-level session at exactly one extraction attempt regardless of outcome (fail-open, no retry loop)
 - [Phase 04]: OCP-02 dedupe key is sessionID:filePath (not filePath alone) so recall re-arms per distinct session, matching memory-wakeup.ts's per-session semantics
 - [Phase 04]: OCP-02 recall plugin's catch block re-throws only its own intentional surface-context Error (prefix-matched), swallowing all other errors to stay fail-open (D-03)
+- [Phase 04-06]: OCP-05 hard bar proven by execution — OpenCode wakeup surfaces AgentFS memory with no reachable ~/.claude (Run A/B canary confirmed); removed memory-wakeup's per-session dedupe Set since experimental.chat.system.transform fires more than once per session (title-gen call shares sessionID with the real turn) and output.system is a fresh array per call
 
 ### Pending Todos
 
-- Plan Phase 4 (OpenCode parity operating layer) via `/gsd-plan-phase 4`.
+- Plan Phase 5 (Live OpenCode parity verification, OCP-06) via `/gsd-plan-phase 5`.
 
 ### Done since (2026-07-03)
 
@@ -119,7 +121,7 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-None. v1.1 roadmap defined; ready to plan Phase 4.
+None. Phase 4 (OCP-01, OCP-02, OCP-03, OCP-04, OCP-05) complete; ready to plan Phase 5 (OCP-06).
 
 ## Deferred Items
 
@@ -132,10 +134,10 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-07-03T13:10:45.984Z
-Stopped at: Completed 04-05-PLAN.md
+Last session: 2026-07-03T13:29:57.090Z
+Stopped at: Completed 04-06-PLAN.md (final plan of Phase 4)
 Resume file: None
 
 ## Operator Next Steps
 
-- Plan Phase 4 with /gsd-plan-phase 4
+- Plan Phase 5 (Live OpenCode parity verification, OCP-06) with /gsd-plan-phase 5
