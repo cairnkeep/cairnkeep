@@ -1,0 +1,51 @@
+version: 1
+project: REPLACE_WITH_PROJECT_NAME
+default_branch: REPLACE_WITH_DEFAULT_BRANCH
+last_security_audit:
+  at: null
+  branch: null
+  report: null
+findings: []
+
+# Finding entry shape:
+# - id: SEC-0001
+#   title: Unsafe shell command composition in archive import helper
+#   kind: command_execution
+#   severity: high
+#   status: open
+#   confidence: confirmed
+#   opened_by: security-audit
+#   opened_at: 2026-04-17T18:00:00Z
+#   branch: feature/archive-import
+#   threat_model: authenticated HTTP request
+#   exploit_surface: POST /api/import
+#   selected_file: src/import.rs
+#   investigation_target: shell command construction for imported filenames
+#   evidence:
+#     files:
+#       - src/import.rs
+#     commands:
+#       - cargo test --test import
+#     inputs:
+#       - multipart upload filename payload
+#     reports:
+#       - .planning/security/VALIDATED/SEC-0001-unsafe-shell-command-composition.md
+#   duplication:
+#     duplicate_of: null
+#     related_ids: []
+#   validation:
+#     verdict: accepted
+#     report_path: .planning/security/VALIDATED/SEC-0001-unsafe-shell-command-composition.md
+#     validated_at: 2026-04-17T18:00:00Z
+#     rationale: Reachable from the standard import flow without repo-external assumptions.
+#   remediation:
+#     status: open
+#     fixed_in: null
+#     verified_at: null
+#   tracking:
+#     provider_issue:
+#       project: group/project
+#       iid: "123"
+#       web_url: https://git.example.com/group/project/issues/123
+#       confidential: true
+#       created_at: 2026-04-17T18:00:00Z

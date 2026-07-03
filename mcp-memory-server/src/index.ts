@@ -115,12 +115,37 @@ function getSearchScopes(scope: string, config: MemoryConfig): string[] {
     return [scope];
 }
 
+// Scopes name a single db file directly under the base dir, so they must be a
+// bare kebab-case token. Rejecting separators, dots, and absolute paths here —
+// the one chokepoint every tool resolves through — stops a `../` or absolute
+// `scope` from escaping the base dir and reading/creating arbitrary .db files.
+const SCOPE_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+
+function assertSafeScope(scope: string): void {
+    if (scope === "project" || scope === "all") {
+        return;
+    }
+    if (!SCOPE_PATTERN.test(scope)) {
+        throw new Error(
+            `Invalid scope "${scope}": must be kebab-case (^[a-z0-9][a-z0-9-]*$), "project", or "all".`,
+        );
+    }
+}
+
 function resolveScopePath(scope: string, cwd: string = process.cwd()): string {
     if (scope === "project") {
         return resolve(cwd, ".agentfs", "project.db");
     }
 
-    return resolve(getBaseDir(), `${scope}.db`);
+    assertSafeScope(scope);
+    const baseDir = getBaseDir();
+    const dbPath = resolve(baseDir, `${scope}.db`);
+    // Defense in depth: even if the pattern is ever loosened, never resolve
+    // outside the base dir.
+    if (dbPath !== join(baseDir, `${scope}.db`)) {
+        throw new Error(`Invalid scope "${scope}": resolves outside the base directory.`);
+    }
+    return dbPath;
 }
 
 function ensureParentDir(filePath: string): void {

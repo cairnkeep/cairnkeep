@@ -1,0 +1,47 @@
+version: 1
+project: cairnkeep
+default_branch: main
+last_security_audit:
+  at: 2026-07-02T23:59:00Z
+  branch: main
+  report: .planning/security/REPORTS/2026-07-02T235900Z.md
+findings:
+  - id: SEC-0001
+    title: Unvalidated scope input allows AgentFS sandbox escape via path traversal
+    kind: path-traversal
+    severity: medium
+    status: open
+    confidence: confirmed
+    opened_by: security-audit
+    opened_at: 2026-07-02T23:59:00Z
+    branch: main
+    threat_model: localhost-service-abuse
+    exploit_surface: memory_* tool scope argument (stdio + opt-in HTTP transport)
+    selected_file: mcp-memory-server/src/index.ts
+    investigation_target: scope/promote_to flow into resolveScopePath without confinement
+    evidence:
+      files:
+        - mcp-memory-server/src/index.ts
+      commands: []
+      inputs:
+        - "scope: ../../../../tmp/pwn"
+        - "scope: /tmp/abs-escape"
+      reports:
+        - .planning/security/VALIDATED/SEC-0001-scope-path-traversal-sandbox-escape.md
+    duplication:
+      duplicate_of: null
+      related_ids: []
+    validation:
+      verdict: accepted
+      report_path: .planning/security/VALIDATED/SEC-0001-scope-path-traversal-sandbox-escape.md
+      validated_at: 2026-07-02T23:59:00Z
+      rationale: Concrete unguarded input-to-filesystem path confirmed in source and dynamically; materially new (empty ledger).
+    remediation:
+      status: fixed
+      fixed_in: mcp-memory-server/src/index.ts (assertSafeScope + base-dir containment in resolveScopePath)
+      verified_at: 2026-07-02T23:59:00Z
+      verified_by: mcp-memory-server/scripts/smoke-scope-guard.mjs (npm run check:scope-guard)
+      note: >-
+        Stdio-transport traversal is closed by input validation. The opt-in HTTP
+        transport hardening (auth token, CORS restriction, DNS-rebinding
+        protection) remains a separate follow-up, tracked in the VALIDATED report.
