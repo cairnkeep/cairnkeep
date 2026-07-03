@@ -109,3 +109,10 @@ None - no external service configuration required. `opencode/plugins/memory-reca
 ---
 *Phase: 04-opencode-parity-operating-layer*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+
+- FOUND: opencode/plugins/memory-recall.ts
+- FOUND: .planning/phases/04-opencode-parity-operating-layer/04-05-SUMMARY.md
+- FOUND: b831238 (feat commit)
+- FOUND: d3fa410 (docs commit)
