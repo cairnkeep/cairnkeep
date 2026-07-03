@@ -56,7 +56,7 @@ All flows exercised end-to-end against the registered `cairn-memory` MCP and now
 - **security-audit** — full selector → investigator → validator chain produced accepted finding **SEC-0001** (memory scope path traversal). Fixed with a kebab-case scope allowlist + base-dir containment; regression-tested by `smoke-scope-guard.mjs`.
 - **repo-review** — reviewed the session's own diff; caught a Medium in the SEC-0001 fix (an ineffective `resolve===join` containment guard). Hardened it with `relative()`-based containment.
 
-Deferred (tracked, not blocking Phase 2): HTTP-transport hardening for the opt-in `MCP_HTTP_PORT` mode (auth, CORS, DNS-rebinding) — see SEC-0001 report; and the `scope:"all"` write/read asymmetry (REVIEW.md finding 3).
+Deferred at the time (since resolved on 2026-07-03): HTTP-transport hardening for the opt-in `MCP_HTTP_PORT` mode (auth, CORS, DNS-rebinding) — now done, SEC-0001 fully closed. Still open: the `scope:"all"` write/read asymmetry (REVIEW.md finding 3).
 
 Progress: [██████░░░░] 60%
 
@@ -92,10 +92,13 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- Tag the baseline (Phase 3 sign-off) once local commits are reviewed and the security follow-ups are dispositioned.
-- Harden the opt-in HTTP transport (`MCP_HTTP_PORT`): auth token, CORS restriction, DNS-rebinding protection (SEC-0001 follow-up).
+- Tag the baseline (Phase 3 sign-off) once local commits are reviewed.
 - Resolve the `scope:"all"` write/read asymmetry in the memory tools (REVIEW.md finding 3).
-- Optional: add a `sync-opencode-memory-assets.sh` so OpenCode's memory/review commands install like the others.
+
+### Done since (2026-07-03)
+
+- SEC-0001 HTTP-transport hardening: fail-closed bearer-token auth, per-origin CORS, Host-header/DNS-rebinding validation; regression-tested by `smoke-http-guard.mjs`. SEC-0001 remediation is now fully closed.
+- Added `sync-opencode-memory-assets.sh` so OpenCode's memory/review commands install like the other asset families (guide caveat removed).
 
 ### Blockers/Concerns
 
