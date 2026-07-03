@@ -5,15 +5,15 @@ milestone_name: OpenCode parity
 current_phase: 04
 current_phase_name: opencode-parity-operating-layer
 status: executing
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-07-03T13:03:26.835Z"
+stopped_at: Completed 04-05-PLAN.md
+last_updated: "2026-07-03T13:10:45.989Z"
 last_activity: 2026-07-03
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-03)
 ## Current Position
 
 Phase: 04 (opencode-parity-operating-layer) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-07-03 — Phase 04 execution started
 
@@ -88,6 +88,7 @@ All follow-ups since resolved on 2026-07-03: HTTP-transport hardening for the op
 | Phase 04 P02 | 3min | 3 tasks | 3 files |
 | Phase 04 P03 | 5min | 1 tasks | 1 files |
 | Phase 04 P04 | 15min | 2 tasks | 1 files |
+| Phase 04 P05 | 20min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -103,6 +104,8 @@ Recent decisions affecting current work:
 - [Phase 04]: OCP-05 wakeup resolves project root via PluginInput.directory (not process.cwd()) to avoid a cwd/repo-root mismatch
 - [Phase 04]: OpenCode memory-capture uses client.session.get() to filter subagent subsessions via parentID, since session.idle's event payload only carries sessionID
 - [Phase 04]: memory-capture dedupe Set is marked before the extract call, capping each top-level session at exactly one extraction attempt regardless of outcome (fail-open, no retry loop)
+- [Phase 04]: OCP-02 dedupe key is sessionID:filePath (not filePath alone) so recall re-arms per distinct session, matching memory-wakeup.ts's per-session semantics
+- [Phase 04]: OCP-02 recall plugin's catch block re-throws only its own intentional surface-context Error (prefix-matched), swallowing all other errors to stay fail-open (D-03)
 
 ### Pending Todos
 
@@ -129,8 +132,8 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-07-03T13:03:26.830Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-07-03T13:10:45.984Z
+Stopped at: Completed 04-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

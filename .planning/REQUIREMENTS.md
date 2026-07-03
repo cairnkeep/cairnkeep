@@ -10,7 +10,7 @@ Requirements for the OpenCode-parity milestone. Each maps to exactly one roadmap
 ### Memory lifecycle
 
 - [x] **OCP-01**: On session end, OpenCode extracts memory candidates to the shared staging area (parity with the Claude `memory-capture` SessionEnd hook)
-- [ ] **OCP-02**: Before an OpenCode edit/write, file-specific memory is injected into context (parity with the Claude `memory-recall` PreToolUse hook)
+- [x] **OCP-02**: Before an OpenCode edit/write, file-specific memory is injected into context (parity with the Claude `memory-recall` PreToolUse hook)
 - [x] **OCP-05**: OpenCode `memory-wakeup` surfaces session-start context (AgentFS memory + wiki index + open HARD contradictions) without requiring Claude assets to be installed first
 
 ### Memory commands
@@ -48,7 +48,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | OCP-01 | Phase 4 | Complete |
-| OCP-02 | Phase 4 | Pending |
+| OCP-02 | Phase 4 | Complete |
 | OCP-03 | Phase 4 | Complete |
 | OCP-04 | Phase 4 | Complete |
 | OCP-05 | Phase 4 | Complete |
