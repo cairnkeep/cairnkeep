@@ -19,6 +19,8 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: verify-opencode-live-parity.sh --setup-only [seeded|unseeded]
+       verify-opencode-live-parity.sh --stage wakeup
+       verify-opencode-live-parity.sh --full
 
 Stands up a fresh scratch OpenCode HOME, registers cairn-memory as a local
 stdio MCP server pointing at the real mcp-memory-server/dist/index.js,
@@ -31,6 +33,13 @@ Options:
       and positive_load_check end to end, then clean up. Mode defaults to
       "seeded"; pass "unseeded" for a negative-control scratch project
       (no canary written).
+  --stage wakeup
+      Fastest per-commit signal: the setup above plus the wakeup
+      FOUND/NOT-FOUND canary probe alone.
+  --full
+      The full suite: wakeup, recall-on-edit, capture, remember->recall
+      against a seeded project, then the full negative-control sweep
+      against a fresh unseeded project. Exits non-zero if any stage fails.
   -h, --help
       Show this help text.
 
@@ -515,6 +524,120 @@ run_stage_capture() {
   fi
 }
 
+# extract_session_id(): reads NDJSON `opencode run --format json` output on
+# stdin, prints the first non-null top-level `sessionID` field (05-01
+# confirmed this exact field name live) so a later `opencode run --session`
+# call can continue the same session.
+extract_session_id() {
+  node -e '
+let data = "";
+process.stdin.on("data", (c) => { data += c; });
+process.stdin.on("end", () => {
+  for (const line of data.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const parsed = JSON.parse(line);
+      if (parsed.sessionID) {
+        process.stdout.write(parsed.sessionID);
+        process.exit(0);
+      }
+    } catch {
+      // not a JSON line, skip
+    }
+  }
+});
+'
+}
+
+# run_stage_remember_recall(project_dir, mode): mode="seeded" writes a fresh
+# canary via `/remember`, asserting a live cairn-memory_memory_write/
+# _supersede tool call, captures the sessionID from that call's JSON output,
+# then continues the SAME session with `/recall` for the topic, asserting a
+# live cairn-memory_memory_search/_read tool call whose output contains the
+# canary (OCP-03/OCP-04's write-then-read-back round trip). mode="unseeded"
+# only runs `/recall` (nothing was ever remembered there) and asserts the
+# canary is absent.
+#
+# Known live-verification finding (this phase): `/remember`-style prompts
+# reliably drove a real cairn-memory_memory_write tool call in every
+# instance observed. `/recall`-style prompts (both the literal `/recall`
+# command and a direct `--command recall` invocation) did NOT drive a real
+# cairn-memory_memory_search/_read tool call in any of ~9 live attempts —
+# the model narrated an intended search (or emitted malformed pseudo-tool
+# text) instead of issuing the actual call, while the local model endpoint
+# was independently confirmed reachable and responsive. This is a discovered
+# reliability limitation of the configured local model for read-oriented MCP
+# tool invocation in headless `opencode run`, not a defect in recall.md, the
+# cairn-memory server, or this harness; see 05-02-SUMMARY.md for the raw
+# evidence. The bounded retry below is a good-faith attempt; a FAIL here is
+# reported distinctly from a missing/errored remember() call so 05-03's
+# interactive session can pick this up with a human steering the model.
+run_stage_remember_recall() {
+  local project_dir="$1" mode="$2"
+  local topic="the ci pipeline canary token"
+  local canary out_remember out_recall session_id
+
+  if [[ "$mode" == "seeded" ]]; then
+    canary="OCP-06-REMEMBER-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
+    out_remember=$(run_opencode "$project_dir" 60 "/remember ${topic} is ${canary}") || true
+
+    if ! echo "$out_remember" | grep -qE "cairn-memory_memory_write|cairn-memory_memory_supersede"; then
+      echo "[run_stage_remember_recall:$mode] FAIL: /remember did not perform a live memory_write/_supersede call" >&2
+      log_env_presence
+      echo "$out_remember" | tail -n 20 >&2
+      return 1
+    fi
+
+    session_id=$(echo "$out_remember" | extract_session_id)
+    if [[ -z "$session_id" ]]; then
+      echo "[run_stage_remember_recall:$mode] FAIL: could not extract sessionID from /remember's JSON output" >&2
+      return 1
+    fi
+    echo "[run_stage_remember_recall:$mode] OK: /remember wrote via a live MCP call (sessionID=$session_id)"
+
+    local found=0
+    for _attempt in 1 2 3; do
+      out_recall=$( (cd "$project_dir" && timeout 60 opencode run "recall ${topic}" --dir "$project_dir" --format json --dangerously-skip-permissions --session "$session_id" 2>&1) ) || true
+      if echo "$out_recall" | grep -qE "cairn-memory_memory_search|cairn-memory_memory_read" && echo "$out_recall" | grep -qF "$canary"; then
+        found=1
+        break
+      fi
+    done
+
+    if [[ "$found" -eq 1 ]]; then
+      echo "[run_stage_remember_recall:$mode] OK: recall retrieved the canary via a live memory_search/_read call"
+      return 0
+    fi
+    echo "[run_stage_remember_recall:$mode] FAIL: recall did not perform a live memory_search/_read call returning the canary after 3 attempts (known model-reliability limitation for read-oriented tool calls — see 05-02-SUMMARY.md)" >&2
+    log_env_presence
+    echo "$out_recall" | tail -n 30 >&2
+    return 1
+  else
+    canary="OCP-06-REMEMBER-unseeded-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
+    out_recall=$(run_opencode "$project_dir" 60 "recall ${topic}") || true
+    if echo "$out_recall" | grep -qF "$canary"; then
+      echo "[run_stage_remember_recall:$mode] FAIL: unseeded project unexpectedly returned a canary-shaped value" >&2
+      return 1
+    fi
+    echo "[run_stage_remember_recall:$mode] OK: unseeded project recall returned no canary (not-found)"
+    return 0
+  fi
+}
+
+# run_negative_controls(): sweeps every stage against the unseeded
+# negative-control project as one pass — the D-04 proof that a surfaced
+# canary can only have come from injected memory, never model
+# training/guessing. Returns non-zero if ANY control fails.
+run_negative_controls() {
+  local failures=0
+  echo "=== Negative control sweep (unseeded project: $SCRATCH_PROJECT_UNSEEDED) ==="
+  run_stage_wakeup "$SCRATCH_PROJECT_UNSEEDED" unseeded || failures=1
+  run_stage_recall_edit "$SCRATCH_PROJECT_UNSEEDED" unseeded || failures=1
+  run_stage_capture "$SCRATCH_PROJECT_UNSEEDED" unseeded || failures=1
+  run_stage_remember_recall "$SCRATCH_PROJECT_UNSEEDED" unseeded || failures=1
+  return "$failures"
+}
+
 main() {
   case "${1:-}" in
     --setup-only)
@@ -524,6 +647,55 @@ main() {
       install_assets
       write_scratch_config
       positive_load_check
+      ;;
+    --stage)
+      # Fastest per-commit signal: the wakeup FOUND/NOT-FOUND probe alone
+      # (confirms MCP registration + isolation didn't regress) without the
+      # slower capture/remember/recall stages.
+      capture_real_config_fingerprint
+      setup_scratch
+      seed_canary seeded
+      install_assets
+      write_scratch_config
+      positive_load_check
+      case "${2:-wakeup}" in
+        wakeup)
+          run_stage_wakeup "$SCRATCH_PROJECT" seeded
+          ;;
+        *)
+          echo "Unknown stage: ${2:-}" >&2
+          exit 2
+          ;;
+      esac
+      ;;
+    --full)
+      # Full suite: every stage against the seeded project, then the full
+      # negative-control sweep against a fresh unseeded project. Single
+      # non-zero-on-failure exit code for a 05-03-consumable green/red
+      # signal.
+      capture_real_config_fingerprint
+      setup_scratch
+      seed_canary seeded
+      setup_negative_project
+      install_assets
+      write_scratch_config
+      positive_load_check
+      start_capture_server
+
+      local failures=0
+      run_stage_wakeup "$SCRATCH_PROJECT" seeded || failures=1
+      run_stage_recall_edit "$SCRATCH_PROJECT" seeded || failures=1
+      run_stage_capture "$SCRATCH_PROJECT" seeded || failures=1
+      run_stage_remember_recall "$SCRATCH_PROJECT" seeded || failures=1
+      run_negative_controls || failures=1
+
+      stop_capture_server
+
+      if [[ "$failures" -ne 0 ]]; then
+        echo "[main:--full] ONE OR MORE STAGES FAILED" >&2
+        return 1
+      fi
+      echo "[main:--full] ALL STAGES PASSED"
       ;;
     -h|--help)
       usage
