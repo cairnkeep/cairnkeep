@@ -8,6 +8,16 @@ A durable, harness-agnostic memory + context layer for coding agents (Claude Cod
 
 Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
 
+## Current Milestone: v1.1 OpenCode parity
+
+**Goal:** Bring the OpenCode operating layer to full drop-in parity with the verified Claude Code path.
+
+**Target features:**
+- OpenCode memory-capture lifecycle (SessionEnd → extract candidates to staging)
+- OpenCode memory-recall lifecycle (pre-edit → inject file-specific memory)
+- `remember` and `recall` commands for OpenCode
+- Self-sufficient memory-wakeup (no dependency on Claude-rendered assets)
+
 ## Requirements
 
 ### Validated
@@ -21,7 +31,12 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 
 ### Active
 
-(None yet — v1.0 shipped. Next milestone requirements defined via `/gsd-new-milestone`.)
+- ☐ **OCP-01** — OpenCode extracts memory candidates to staging when a session ends (memory-capture parity) — v1.1
+- ☐ **OCP-02** — OpenCode injects file-specific memory before an edit (memory-recall parity) — v1.1
+- ☐ **OCP-03** — User can run `remember` in OpenCode to persist a durable finding — v1.1
+- ☐ **OCP-04** — User can run `recall` in OpenCode to retrieve memory across layers — v1.1
+- ☐ **OCP-05** — OpenCode memory-wakeup surfaces session-start context without requiring Claude assets installed — v1.1
+- ☐ **OCP-06** — The full memory lifecycle + commands round-trip in a live OpenCode session (parity verified) — v1.1
 
 ### Out of Scope
 
@@ -68,8 +83,26 @@ Additional constraints:
 | Three hard rules locked (see decisions block above) | Public-repo hygiene is non-negotiable | ✓ Good |
 | `memory_read` validation moved into the handler | ZodEffects `.refine()` as an MCP inputSchema publishes an empty tool schema | ✓ Good (Phase 2) |
 | Semantic-search embedding model required, else substring fallback | Removed a hardcoded vendor model default to keep the core provider-neutral | ✓ Good (Phase 2) |
+| OpenCode memory-wakeup made self-sufficient (v1.1) | Reusing Claude's rendered hook made OpenCode parity require Claude installed first; true parity means OpenCode stands alone | — Pending (v1.1) |
 | Scope path containment via `relative()`, `"all"` rejected on write paths | `resolve===join` misses `../` traversal; `"all"` is a read-only fan-out scope | ✓ Good (Phase 2, SEC-0001) |
 | Opt-in HTTP transport fails closed (bearer auth + per-origin CORS + Host validation) | The `MCP_HTTP_PORT` mode must not be exploitable by default | ✓ Good (Phase 2) |
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-07-03 after v1.0 milestone*
+*Last updated: 2026-07-03 — v1.1 OpenCode parity milestone started*

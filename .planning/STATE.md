@@ -1,20 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-current_phase: 0
-status: Awaiting next milestone
-stopped_at: v1.0 "OSS core → parity" shipped and archived — 6/6 requirements validated, baseline tag v1.0.0. Ready for /gsd-new-milestone.
-last_updated: "2026-07-03T09:44:30.862Z"
+milestone: v1.1
+milestone_name: OpenCode parity
+status: planning
+last_updated: "2026-07-03T10:13:32.178Z"
 last_activity: 2026-07-03
-last_activity_desc: Milestone v1.0 completed and archived
 progress:
-  total_phases: 3
-  completed_phases: 3
+  total_phases: 0
+  completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 100
-current_phase_name: "— (milestone complete)"
+  percent: 0
 ---
 
 # Project State
@@ -28,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-07-03)
 
 ## Current Position
 
-Phase: Milestone v1.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-07-03 — Milestone v1.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-07-03 — Milestone v1.1 started
 
 ### Phase 3 results (2026-07-03)
 
