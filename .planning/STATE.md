@@ -5,15 +5,15 @@ milestone_name: OpenCode parity
 current_phase: 05
 current_phase_name: live-opencode-parity-verification
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-07-03T15:26:37.255Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-07-03T19:41:04.991Z"
 last_activity: 2026-07-03
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 50
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-03)
 ## Current Position
 
 Phase: 05 (live-opencode-parity-verification) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-07-03 — Phase 05 execution started
 
@@ -96,6 +96,7 @@ All follow-ups since resolved on 2026-07-03: HTTP-transport hardening for the op
 | Phase 04 P05 | 20min | 1 tasks | 1 files |
 | Phase 04 P06 | 45min | 2 tasks | 2 files |
 | Phase 05 P01 | 55min | 2 tasks | 1 files |
+| Phase 05 P02 | 79min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -117,6 +118,8 @@ Recent decisions affecting current work:
 - [Phase 05-01]: session.idle does not double-fire and never fires before real messages exist (confirmed live, v1.17.11); memory-capture.ts dedupe needs no fix
 - [Phase 05-01]: opencode run --format json carries the session ID as the top-level field sessionID on every streamed event
 - [Phase 05-01]: installed OpenCode CLI has no --auto flag; harness uses --dangerously-skip-permissions instead
+- [Phase 05-02]: memory-capture.ts stdin-writer crash fixed (D-03/OCP-06 defect clause); opencode-run process-exit race worked around via opencode serve + --attach at the harness level (no plugin change)
+- [Phase 05-02]: Discovered live-model reliability gap: /recall does not drive a real memory_search/_read tool call with the configured local model in headless opencode run (write-oriented calls remained reliable); carried forward to 05-03's interactive-session fallback per D-01
 
 ### Pending Todos
 
@@ -133,6 +136,7 @@ Recent decisions affecting current work:
 Phase 4 (OCP-01, OCP-02, OCP-03, OCP-04, OCP-05) complete; ready to plan Phase 5 (OCP-06).
 
 - 05-02/05-03 live stages require operator to configure a reachable local OpenAI-compatible endpoint plus CAIRN_LLM_API_KEY/CAIRN_LLM_API_URL/CAIRN_LLM_EXTRACTION_MODEL (e.g. via .ai/.env) before executing
+- 05-02: local model endpoint (127.0.0.1:8001) went down mid-session and did not recover; recall stage + full negative-control sweep need re-verification once the endpoint is confirmed reachable again
 
 ## Deferred Items
 
@@ -145,9 +149,9 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-07-03T15:23:47.039Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-live-opencode-parity-verification/05-CONTEXT.md
+Last session: 2026-07-03T19:41:04.985Z
+Stopped at: Completed 05-02-PLAN.md
+Resume file: .planning/phases/05-live-opencode-parity-verification/05-03-PLAN.md
 
 ## Operator Next Steps
 
