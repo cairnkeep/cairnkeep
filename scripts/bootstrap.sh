@@ -51,4 +51,9 @@ done
 
 echo
 echo "Cairnkeep bootstrapped into $target"
-echo "Next: cp .ai/env.example .ai/.env and edit, then run ./.ai/start-claude.sh"
+echo "Next steps (full guide: docs/operating.md):"
+echo "  1. cp .ai/env.example .ai/.env  and edit"
+echo "  2. Build + register the memory server: cd mcp-memory-server && npm install && npm run build,"
+echo "     then: claude mcp add cairn-memory -s user -- node \"\$PWD/dist/index.js\""
+echo "  3. Install the operating layer (commands/agents/hooks): scripts/sync-claude-assets.sh --apply"
+echo "  4. Launch: $target/.ai/start-claude.sh"

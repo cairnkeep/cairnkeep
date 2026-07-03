@@ -25,33 +25,44 @@ follow.
   derived-knowledge layer (wiki, alignment, graph, security, planning).
 - **`scripts/`** — asset-sync and maintenance utilities.
 
-## Bootstrap a project
+## Setup
+
+A working workflow needs three things: the memory server registered, the
+operating layer (commands, agents, hooks) installed into your harness, and a
+bootstrapped project. `cairn bootstrap` does only the last of these — the full
+ordered walkthrough is in **[docs/operating.md](docs/operating.md)**.
+
+The short version for Claude Code, from a clone of this repo:
 
 ```bash
-cairn bootstrap /path/to/project   # writes .ai/start-claude.sh, start-opencode.sh, env.example
-cp /path/to/project/.ai/env.example /path/to/project/.ai/.env
+# 1. Build + register the memory server (server name: cairn-memory)
+cd mcp-memory-server && npm install && npm run build && npm test && cd ..
+claude mcp add cairn-memory -s user -- node "$PWD/mcp-memory-server/dist/index.js"
+
+# 2. Install the operating layer (commands, agents, hooks, scaffold templates)
+scripts/sync-claude-assets.sh --apply
+
+# 3. Scaffold a project and configure it
+cairn bootstrap /path/to/project
+cp /path/to/project/.ai/env.example /path/to/project/.ai/.env   # then edit
+
+# 4. Launch
+/path/to/project/.ai/start-claude.sh
 ```
+
+Step 2 is easy to miss and load-bearing: without it the memory server is
+registered but none of the `/remember`, `/recall`, `/wiki-*`, `/security-audit`,
+or `/repo-review` commands (and no memory hooks) exist. OpenCode uses the
+`sync-opencode-*.sh` scripts instead — see the operating guide.
 
 The launchers load `.ai/.env` and start the harness in the repo root. They stay
 deliberately minimal — provider/profile specifics belong in your own wrapper.
 
-## Memory server — quick start
+## Configuration
 
-```bash
-cd mcp-memory-server
-npm install
-npm run build
-npm test            # offline smoke tests
-```
-
-Register it with your harness — the server name is `cairn-memory`. For Claude Code:
-
-```bash
-claude mcp add cairn-memory -s user -- node "$PWD/dist/index.js"
-```
-
-Configure the LLM endpoint (any OpenAI-compatible API) for extraction and
-embedding-ranked search:
+The memory server and collaboration commands are configured entirely through
+`.ai/.env` (any OpenAI-compatible API for extraction and embedding-ranked
+search):
 
 | Variable | Purpose |
 |---|---|
@@ -61,6 +72,7 @@ embedding-ranked search:
 | `CAIRN_MEMORY_EMBEDDING_URL` | Embeddings endpoint (falls back to `CAIRN_LLM_API_URL`) |
 | `CAIRN_MEMORY_EMBEDDING_MODEL` | Embedding model name (required for semantic search) |
 | `CAIRN_AGENTFS_BASE_DIR` | Base dir for global memory scopes (default `~/.cairnkeep`) |
+| `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none` ([docs/git-providers.md](docs/git-providers.md)) |
 
 Without an API key, search degrades gracefully to substring matching.
 
