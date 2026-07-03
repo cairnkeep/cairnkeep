@@ -24,7 +24,7 @@ Full detail archived in [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Milestone Goal:** Bring the OpenCode operating layer to full drop-in parity with the verified Claude Code path — the same memory-capture and memory-recall lifecycle, the same `remember`/`recall` commands, and a self-sufficient session-start wakeup that stands on its own without Claude assets installed — proven end-to-end by a live OpenCode run.
 
-- [ ] **Phase 4: OpenCode parity operating layer** - Port the memory lifecycle (capture, recall, wakeup) and the `remember`/`recall` commands to OpenCode's plugin model, self-sufficient of Claude assets (all 6 plans executed; awaiting human verification — see 04-UAT.md)
+- [x] **Phase 4: OpenCode parity operating layer** - Port the memory lifecycle (capture, recall, wakeup) and the `remember`/`recall` commands to OpenCode's plugin model, self-sufficient of Claude assets (all 6 plans executed; awaiting human verification — see 04-UAT.md) (completed 2026-07-03)
 - [ ] **Phase 5: Live OpenCode parity verification** - Prove the full lifecycle plus commands round-trip end-to-end against the registered `cairn-memory` MCP in a live OpenCode session
 
 ## Phase Details
@@ -79,5 +79,5 @@ Full detail archived in [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 | 1. Configurable git-provider abstraction | v1.0 | Complete | pre-tracking |
 | 2. Operating-layer verification | v1.0 | Complete | 2026-07-03 |
 | 3. Docs + parity sign-off | v1.0 | Complete | 2026-07-03 |
-| 4. OpenCode parity operating layer | v1.1 | Verifying | - |
+| 4. OpenCode parity operating layer | 6/6 | Complete    | 2026-07-03 |
 | 5. Live OpenCode parity verification | v1.1 | Not started | - |

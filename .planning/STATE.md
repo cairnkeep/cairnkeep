@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: OpenCode parity
-current_phase: 04
-current_phase_name: opencode-parity-operating-layer
+current_phase: 5
+current_phase_name: Live OpenCode parity verification
 status: verifying
 stopped_at: Completed 04-06-PLAN.md (final plan of Phase 4)
-last_updated: "2026-07-03T13:29:57.095Z"
+last_updated: "2026-07-03T14:04:12.984Z"
 last_activity: 2026-07-03
-last_activity_desc: Phase 04 complete (all 6 plans executed, OCP-05 hard bar proven by execution)
+last_activity_desc: Phase 04 complete, transitioned to Phase 5
 progress:
   total_phases: 2
   completed_phases: 1
@@ -24,14 +24,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-03)
 
 **Core value:** Drop-in parity — a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
-**Current focus:** Phase 04 — opencode-parity-operating-layer
+**Current focus:** Phase 5 — Live OpenCode parity verification
 
 ## Current Position
 
-Phase: 04 (opencode-parity-operating-layer) — VERIFYING (awaiting human verification)
-Plan: 6 of 6 executed
-Status: Automated verification passed 5/5 must-haves; human_needed — two auto-confirmed blocking checkpoints (04-01, 04-06) need operator sign-off. Run /gsd-verify-work 4. Phase NOT yet complete.
-Last activity: 2026-07-03 — Phase 04 plans executed + verified (5/5 code/wiring); OCP-05 hard bar proven by execution. Pending human UAT (04-UAT.md).
+Phase: 5 — Live OpenCode parity verification
+Plan: Not started
+Status: Ready to plan. Phase 4 COMPLETE — UAT verified live: the OCP-05 hard bar (wakeup surfaces AgentFS memory via `system.transform` with no reachable `~/.claude`) was re-run end-to-end with a fresh canary + negative control, re-confirming the `CHOSEN-CHANNEL: system.transform` decision. The OCP-01/02/03/04 *live round-trip* was deferred to this phase by design (UAT test 2, skipped-with-reason).
+Last activity: 2026-07-03 — Phase 04 complete, transitioned to Phase 5
+
+### Owed to Phase 5 (carried from Phase 4)
+
+- ⚠️ **OCP-01/02/03/04 live round-trip** — Phase 4 shipped these as implementation + install wiring only; the live proof (capture stages real candidates, recall-on-edit throws context, `remember` persists via live MCP, `recall` retrieves) is Phase 5's OCP-06 scope. Tracked in `04-UAT.md` test 2.
 
 ### v1.1 roadmap (2026-07-03)
 
@@ -68,7 +72,7 @@ All follow-ups since resolved on 2026-07-03: HTTP-transport hardening for the op
 
 **Velocity:**
 
-- Total plans completed: 0 (Phase 1 delivered before plan tracking)
+- Total plans completed: 6 (Phase 1 delivered before plan tracking)
 - Average duration: -
 - Total execution time: -
 
@@ -77,6 +81,7 @@ All follow-ups since resolved on 2026-07-03: HTTP-transport hardening for the op
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Configurable git-provider abstraction | pre-tracking | - | - |
+| 04 | 6 | - | - |
 
 **Recent Trend:**
 
