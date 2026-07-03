@@ -101,3 +101,8 @@ None - no external service configuration required. (`CAIRN_LLM_API_KEY` / `CAIRN
 ---
 *Phase: 04-opencode-parity-operating-layer*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+- FOUND: opencode/plugins/memory-capture.ts
+- FOUND: 3c65c21 (feat commit)
+- FOUND: c1bc9f6 (docs/summary commit)
