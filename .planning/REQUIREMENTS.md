@@ -15,8 +15,8 @@ Requirements for the OpenCode-parity milestone. Each maps to exactly one roadmap
 
 ### Memory commands
 
-- [ ] **OCP-03**: User can run `remember` in OpenCode to persist a durable finding across memory layers
-- [ ] **OCP-04**: User can run `recall` in OpenCode to retrieve known info across memory layers
+- [x] **OCP-03**: User can run `remember` in OpenCode to persist a durable finding across memory layers
+- [x] **OCP-04**: User can run `recall` in OpenCode to retrieve known info across memory layers
 
 ### Parity verification
 
@@ -49,8 +49,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 |-------------|-------|--------|
 | OCP-01 | Phase 4 | Pending |
 | OCP-02 | Phase 4 | Pending |
-| OCP-03 | Phase 4 | Pending |
-| OCP-04 | Phase 4 | Pending |
+| OCP-03 | Phase 4 | Complete |
+| OCP-04 | Phase 4 | Complete |
 | OCP-05 | Phase 4 | Complete |
 | OCP-06 | Phase 5 | Pending |
 
