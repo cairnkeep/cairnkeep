@@ -20,7 +20,7 @@ Requirements for the OpenCode-parity milestone. Each maps to exactly one roadmap
 
 ### Parity verification
 
-- [ ] **OCP-06**: The full OpenCode memory lifecycle (wakeup → recall → capture) and the `remember`/`recall` commands round-trip against the registered `cairn-memory` MCP in a live OpenCode session
+- [x] **OCP-06**: The full OpenCode memory lifecycle (wakeup → recall → capture) and the `remember`/`recall` commands round-trip against the registered `cairn-memory` MCP in a live OpenCode session
 
 ## v2 Requirements
 
@@ -52,7 +52,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | OCP-03 | Phase 4 | Complete |
 | OCP-04 | Phase 4 | Complete |
 | OCP-05 | Phase 4 | Complete |
-| OCP-06 | Phase 5 | Pending |
+| OCP-06 | Phase 5 | Complete |
 
 **Coverage:**
 

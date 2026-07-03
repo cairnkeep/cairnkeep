@@ -4,17 +4,17 @@ milestone: v1.1
 milestone_name: OpenCode parity
 current_phase: 05
 current_phase_name: live-opencode-parity-verification
-status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-07-03T19:41:04.991Z"
+status: verifying
+stopped_at: Completed 05-03-PLAN.md (via D-01 fallback); phase 05 ready for verification
+last_updated: "2026-07-03T23:11:21.074Z"
 last_activity: 2026-07-03
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 8
-  percent: 50
+  completed_plans: 9
+  percent: 100
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-03)
 
 Phase: 05 (live-opencode-parity-verification) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-03 — Phase 05 execution started
 
 ### Owed to Phase 5 (carried from Phase 4)
@@ -97,6 +97,7 @@ All follow-ups since resolved on 2026-07-03: HTTP-transport hardening for the op
 | Phase 04 P06 | 45min | 2 tasks | 2 files |
 | Phase 05 P01 | 55min | 2 tasks | 1 files |
 | Phase 05 P02 | 79min | 3 tasks | 2 files |
+| Phase 05 P03 | 95min | 3 tasks tasks | 3 files files |
 
 ## Accumulated Context
 
@@ -120,6 +121,9 @@ Recent decisions affecting current work:
 - [Phase 05-01]: installed OpenCode CLI has no --auto flag; harness uses --dangerously-skip-permissions instead
 - [Phase 05-02]: memory-capture.ts stdin-writer crash fixed (D-03/OCP-06 defect clause); opencode-run process-exit race worked around via opencode serve + --attach at the harness level (no plugin change)
 - [Phase 05-02]: Discovered live-model reliability gap: /recall does not drive a real memory_search/_read tool call with the configured local model in headless opencode run (write-oriented calls remained reliable); carried forward to 05-03's interactive-session fallback per D-01
+- [Phase 05-03] OCP-04 recall read-back is an open, root-caused model-reliability limitation: qwen3.6-27b-coder is a thinking model whose reasoning leaks as narrated pseudo-tool-calls; not a defect in recall.md/remember.md/cairn-memory/harness
+- [Phase 05-03] Interactive TUI session (D-01) resolved via harness-only fallback clause (headless operator, no TTY); recorded as explicit fallback-gap in 05-UAT.md Test 5
+- [Phase 05-03] docs/operating.md corrected: OpenCode memory-wakeup plugin is self-sufficient of Claude assets (Phase-4 D-04); stale precondition removed
 
 ### Pending Todos
 
@@ -149,9 +153,9 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-07-03T19:41:04.985Z
-Stopped at: Completed 05-02-PLAN.md
-Resume file: .planning/phases/05-live-opencode-parity-verification/05-03-PLAN.md
+Last session: 2026-07-03T23:11:21.068Z
+Stopped at: Completed 05-03-PLAN.md (via D-01 fallback); phase 05 ready for verification
+Resume file: None
 
 ## Operator Next Steps
 

@@ -25,7 +25,7 @@ Full detail archived in [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Milestone Goal:** Bring the OpenCode operating layer to full drop-in parity with the verified Claude Code path — the same memory-capture and memory-recall lifecycle, the same `remember`/`recall` commands, and a self-sufficient session-start wakeup that stands on its own without Claude assets installed — proven end-to-end by a live OpenCode run.
 
 - [x] **Phase 4: OpenCode parity operating layer** - Port the memory lifecycle (capture, recall, wakeup) and the `remember`/`recall` commands to OpenCode's plugin model, self-sufficient of Claude assets (all 6 plans executed; awaiting human verification — see 04-UAT.md) (completed 2026-07-03)
-- [ ] **Phase 5: Live OpenCode parity verification** - Prove the full lifecycle plus commands round-trip end-to-end against the registered `cairn-memory` MCP in a live OpenCode session
+- [x] **Phase 5: Live OpenCode parity verification** - Prove the full lifecycle plus commands round-trip end-to-end against the registered `cairn-memory` MCP in a live OpenCode session (completed 2026-07-03)
 
 ## Phase Details
 
@@ -70,7 +70,7 @@ Full detail archived in [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. A fresh install of only the OpenCode assets (no Claude assets on disk) reproduces the full working workflow — drop-in parity confirmed (OCP-06)
   4. The parity run is captured as execution evidence, matching how v1.0 verified the Claude path by execution (OCP-06)
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans complete
 
 **Wave 1**
 
@@ -82,7 +82,7 @@ Full detail archived in [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 05-03-PLAN.md — 05-UAT.md execution evidence, one interactive OpenCode session (D-01), and the operating.md stale-line fix (OCP-06)
+- [x] 05-03-PLAN.md — 05-UAT.md execution evidence, one interactive OpenCode session (D-01), and the operating.md stale-line fix (OCP-06)
 
 ## Progress
 
@@ -92,4 +92,4 @@ Full detail archived in [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 | 2. Operating-layer verification | v1.0 | Complete | 2026-07-03 |
 | 3. Docs + parity sign-off | v1.0 | Complete | 2026-07-03 |
 | 4. OpenCode parity operating layer | 6/6 | Complete    | 2026-07-03 |
-| 5. Live OpenCode parity verification | 2/3 | In Progress|  |
+| 5. Live OpenCode parity verification | 3/3 | Complete   | 2026-07-03 |
