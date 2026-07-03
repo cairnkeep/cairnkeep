@@ -309,17 +309,17 @@ opencode run "/recall <canary-topic>" --dir "$SCRATCH_PROJECT" --format json --a
 
 ## Open Questions
 
-1. **Does `opencode run` reliably fire `session.idle` exactly once per real working session (not on the title-gen sub-call)?**
+1. **Does `opencode run` reliably fire `session.idle` exactly once per real working session (not on the title-gen sub-call)?** — RESOLVED-AT-EXECUTION: 05-01 Wave-0 `session.idle` probe (Task 1); the capture-stage design in 05-02 Task 2 is gated on this finding.
    - What we know: CLI docs describe `run` as "exiting when idle," implying `session.idle` is the run command's own completion signal; Phase 4 confirmed `experimental.chat.system.transform` double-fires (title-gen + real turn) sharing `sessionID`, but never characterized `session.idle` specifically.
    - What's unclear: whether the same double-fire class applies to `session.idle`, and whether it fires before or after the real turn's messages are persisted.
    - Recommendation: Wave-0 diagnostic probe (mirrors `04-01`'s `probe.ts` exactly) — log every `session.idle` fire with message-count-at-fire-time, run one real `opencode run` prompt, inspect the log before trusting the capture stage's assertions.
 
-2. **What is the exact field name/shape for extracting the session ID from `opencode run --format json` output, for the `--session <id>` continuity step?**
+2. **What is the exact field name/shape for extracting the session ID from `opencode run --format json` output, for the `--session <id>` continuity step?** — RESOLVED-AT-EXECUTION: 05-01 Wave-0 one-line JSON inspection; consumed by 05-02 Task 3's remember→recall `--session` continuity step.
    - What we know: `--format json` streams raw events (used successfully by Phase 4's spike to inspect `output.system` and `tool.execute.before` payloads); a session ID must be present somewhere in that stream since sessions are created per-run.
    - What's unclear: the exact top-level field name.
    - Recommendation: one throwaway `opencode run "hello" --format json | jq .` inspection during Wave 0 settles this in under a minute.
 
-3. **Is the "one genuine interactive OpenCode session" (D-01's literal-live-session bar) best used for the full lifecycle, or specifically to de-risk the remember→recall multi-turn continuity that the headless `--session`/`--continue` flags have open reliability bugs against?**
+3. **Is the "one genuine interactive OpenCode session" (D-01's literal-live-session bar) best used for the full lifecycle, or specifically to de-risk the remember→recall multi-turn continuity that the headless `--session`/`--continue` flags have open reliability bugs against?** — RESOLVED-AT-EXECUTION: 05-03 interactive-session scope (the D-01 live-session bar recorded into 05-UAT.md).
    - What we know: `--continue`/`--session` have two open GitHub issues reporting inconsistent behavior; a real interactive TUI session has no such risk since it keeps its own live conversation state.
    - What's unclear: whether D-01 intends the interactive session as a full parallel proof or specifically as insurance against this one CLI weak point.
    - Recommendation: use it for the multi-turn remember→recall proof primarily (where the CLI's documented flag reliability is weakest), and let it double as informal confirmation of wakeup/recall-on-edit if convenient — matches D-01's stated rationale ("the roadmap says 'in a live OpenCode session' explicitly").
