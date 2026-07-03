@@ -122,7 +122,7 @@ function getSearchScopes(scope: string, config: MemoryConfig): string[] {
 const SCOPE_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
 function assertSafeScope(scope: string): void {
-    if (scope === "project" || scope === "all") {
+    if (scope === "project") {
         return;
     }
     if (!SCOPE_PATTERN.test(scope)) {
@@ -135,6 +135,18 @@ function assertSafeScope(scope: string): void {
 function resolveScopePath(scope: string, cwd: string = process.cwd()): string {
     if (scope === "project") {
         return resolve(cwd, ".agentfs", "project.db");
+    }
+
+    // "all" is a read-only virtual scope: memory_read/memory_search fan it out
+    // over the configured scopes (via getSearchScopes) before resolving. It has
+    // no db file of its own, so resolving it directly — which only the write,
+    // list, delete, supersede, and history paths do — is a bug: it would create
+    // or read a literal `all.db` invisible to the fan-out readers. Reject it.
+    if (scope === "all") {
+        throw new Error(
+            'Scope "all" fans out over configured scopes for reads only (memory_read / memory_search); '
+                + "name a concrete scope for writes, lists, deletes, supersedes, and history.",
+        );
     }
 
     assertSafeScope(scope);

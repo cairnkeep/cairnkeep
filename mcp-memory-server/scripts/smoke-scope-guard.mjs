@@ -52,6 +52,19 @@ check("traversal scope created no db in /tmp", !existsSync("/tmp/cairn-escape-tr
 const ok = await writeScope("domain-engineering");
 check("legit kebab-case scope accepted", !ok.blocked);
 
+// 4. "all" is read-only: writing to it must be rejected (no literal all.db),
+//    but reading it must still fan out over configured scopes.
+const writeAll = await writeScope("all");
+check("write to scope 'all' rejected", writeAll.blocked);
+let readAllBlocked = false;
+try {
+    const res = await client.callTool({ name: "memory_read", arguments: { scope: "all", query: "anything" } });
+    readAllBlocked = Boolean(res.isError);
+} catch {
+    readAllBlocked = true;
+}
+check("read from scope 'all' still works (fan-out)", !readAllBlocked);
+
 await client.close();
 rmSync(baseDir, { recursive: true, force: true });
 rmSync(escapeDir, { recursive: true, force: true });

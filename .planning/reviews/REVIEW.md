@@ -1,10 +1,12 @@
 ## FINDINGS
 
-> Resolution (2026-07-02): **Finding 1 (Medium) fixed** — `resolveScopePath` now uses
-> `relative(baseDir, dbPath)` containment (rejects `..` escapes and absolute overrides),
-> covered by `scripts/smoke-scope-guard.mjs`. Findings 2 and 3 are accepted as low-risk,
-> pre-existing notes: scopes follow the documented kebab-case convention (2), and the
-> `"all"` write/read asymmetry predates this change and is left as a tracked follow-up (3).
+> Resolution: **Finding 1 (Medium) fixed** (2026-07-02) — `resolveScopePath` now uses
+> `relative(baseDir, dbPath)` containment (rejects `..` escapes and absolute overrides).
+> **Finding 3 (Low) fixed** (2026-07-03) — `resolveScopePath` now rejects the read-only
+> virtual scope `"all"` on the write/list/delete/supersede/history paths, so it can no
+> longer masquerade as a literal `all.db`; `memory_read`/`memory_search` still fan it out.
+> Both are covered by `scripts/smoke-scope-guard.mjs`. Finding 2 (Low) is accepted as a
+> non-issue: scopes follow the documented kebab-case convention.
 
 **Scope:** diff (SEC-0001 scope traversal fix + memory_read schema fix + embedding vendor-default removal)
 **Files reviewed:** 2 (`mcp-memory-server/src/index.ts`, `mcp-memory-server/src/embeddings.ts`)

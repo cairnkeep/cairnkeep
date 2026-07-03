@@ -92,13 +92,13 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- Tag the baseline (Phase 3 sign-off) once local commits are reviewed.
-- Resolve the `scope:"all"` write/read asymmetry in the memory tools (REVIEW.md finding 3).
+- Tag the baseline (Phase 3 sign-off) once local commits are reviewed. All known review/security follow-ups are now closed.
 
 ### Done since (2026-07-03)
 
 - SEC-0001 HTTP-transport hardening: fail-closed bearer-token auth, per-origin CORS, Host-header/DNS-rebinding validation; regression-tested by `smoke-http-guard.mjs`. SEC-0001 remediation is now fully closed.
 - Added `sync-opencode-memory-assets.sh` so OpenCode's memory/review commands install like the other asset families (guide caveat removed).
+- Fixed the `scope:"all"` write/read asymmetry (REVIEW.md finding 3): `resolveScopePath` rejects `"all"` on the write/list/delete/supersede/history paths (it is a read-only fan-out scope); regression-tested in `smoke-scope-guard.mjs`.
 
 ### Blockers/Concerns
 
