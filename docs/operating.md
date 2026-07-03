@@ -101,6 +101,25 @@ vendor or host.
 | `CAIRN_AGENTFS_BASE_DIR` | Base dir for global memory scopes (default `~/.cairnkeep`) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none`. See [git-providers.md](git-providers.md) |
 
+### HTTP transport (opt-in, network-facing)
+
+The server runs over stdio by default. Setting `MCP_HTTP_PORT` switches it to a
+streamable HTTP transport so one long-lived process can serve many clients — but
+because that exposes every memory tool over the network, HTTP mode is guarded and
+**fails closed**:
+
+| Variable | Purpose |
+|---|---|
+| `MCP_HTTP_PORT` | Enable HTTP mode on this port (unset → stdio) |
+| `MCP_HTTP_HOST` | Bind address (default `127.0.0.1`) |
+| `CAIRN_MEMORY_HTTP_TOKEN` | **Required** in HTTP mode — clients send `Authorization: Bearer <token>`; the server refuses to start without it |
+| `CAIRN_MEMORY_HTTP_ALLOWED_ORIGINS` | Comma-separated browser origins allowed via CORS (default: none — no cross-origin access) |
+| `CAIRN_MEMORY_HTTP_ALLOWED_HOSTS` | Comma-separated allowed `Host` headers for DNS-rebinding protection (default: the bind host + `localhost` on the chosen port) |
+
+Requests without a valid bearer token get `401`; requests with an unexpected
+`Host` header get `403`. Keep HTTP mode bound to `127.0.0.1` unless you have a
+specific reason to expose it, and use a long random token.
+
 ## The workflow
 
 Once installed, the operating layer gives you:

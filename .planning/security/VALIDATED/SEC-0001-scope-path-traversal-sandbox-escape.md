@@ -4,7 +4,7 @@
 - **Kind:** path-traversal
 - **Severity:** medium
 - **Threat model:** localhost-service-abuse / confused-deputy tool-arg injection
-- **Status:** fixed (input validation); HTTP-transport hardening remains a follow-up
+- **Status:** fixed (input validation + HTTP-transport hardening)
 - **Component:** `mcp-memory-server/src/index.ts`
 
 ## Remediation Status
@@ -12,17 +12,25 @@
 The path-traversal / sandbox-escape vector is closed. `resolveScopePath` now
 routes every non-`project` scope through `assertSafeScope` (kebab-case allowlist
 `^[a-z0-9][a-z0-9-]*$`, plus `project`/`all`) and asserts the resolved db path
-equals `join(baseDir, scope + ".db")`, rejecting any `..` or absolute scope
-before a file or directory is created. `promote_to` is covered because it
-resolves through the same `openScope` chokepoint. Regression-tested end-to-end by
-`mcp-memory-server/scripts/smoke-scope-guard.mjs` (`npm run check:scope-guard`),
-which drives the built server over stdio and confirms absolute and traversal
-scopes are rejected with no file created outside the base dir.
+stays within the base dir via `relative()` containment, rejecting any `..` or
+absolute scope before a file or directory is created. `promote_to` is covered
+because it resolves through the same `openScope` chokepoint. Regression-tested
+end-to-end by `mcp-memory-server/scripts/smoke-scope-guard.mjs`
+(`npm run check:scope-guard`), which drives the built server over stdio and
+confirms absolute and traversal scopes are rejected with no file created outside
+the base dir.
 
-**Still open (separate follow-up):** the opt-in HTTP transport
-(`MCP_HTTP_PORT`) remains unauthenticated with CORS `*` and no DNS-rebinding
-protection. Harden it before enabling HTTP mode in any shared deployment. The
-remaining HTTP items under "Recommended Remediation" below are not yet applied.
+**HTTP transport now hardened.** The opt-in HTTP mode (`MCP_HTTP_PORT`) fails
+closed: it requires `CAIRN_MEMORY_HTTP_TOKEN` (refuses to start otherwise) and
+demands `Authorization: Bearer <token>` on every request (constant-time
+comparison → `401`); CORS is opt-in per origin via
+`CAIRN_MEMORY_HTTP_ALLOWED_ORIGINS` (default: no `Access-Control-Allow-Origin`,
+replacing the former `*`); and the `Host` header is validated against an
+allowlist (`CAIRN_MEMORY_HTTP_ALLOWED_HOSTS`, default bind-host + localhost) for
+DNS-rebinding protection (`403` on mismatch). Regression-tested by
+`mcp-memory-server/scripts/smoke-http-guard.mjs` (`npm run check:http-guard`):
+fail-closed start, `401` without/with a bad token, `403` on an unexpected Host,
+and `200` when authorized.
 
 ## Summary
 

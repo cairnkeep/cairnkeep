@@ -38,10 +38,10 @@ findings:
       rationale: Concrete unguarded input-to-filesystem path confirmed in source and dynamically; materially new (empty ledger).
     remediation:
       status: fixed
-      fixed_in: mcp-memory-server/src/index.ts (assertSafeScope + base-dir containment in resolveScopePath)
-      verified_at: 2026-07-02T23:59:00Z
-      verified_by: mcp-memory-server/scripts/smoke-scope-guard.mjs (npm run check:scope-guard)
+      fixed_in: mcp-memory-server/src/index.ts (assertSafeScope + relative() containment in resolveScopePath; HTTP transport auth + CORS + host validation)
+      verified_at: 2026-07-03T00:00:00Z
+      verified_by: mcp-memory-server/scripts/smoke-scope-guard.mjs + smoke-http-guard.mjs (npm test)
       note: >-
         Stdio-transport traversal is closed by input validation. The opt-in HTTP
-        transport hardening (auth token, CORS restriction, DNS-rebinding
-        protection) remains a separate follow-up, tracked in the VALIDATED report.
+        transport is now hardened: fail-closed bearer-token auth, per-origin CORS
+        (default none), and Host-header validation for DNS-rebinding protection.

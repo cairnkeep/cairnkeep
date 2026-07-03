@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -1034,6 +1034,42 @@ if (cliCommand === "extract") {
 const httpPort = parseInt(process.env.MCP_HTTP_PORT ?? "", 10);
 
 if (httpPort > 0) {
+    const httpHost = process.env.MCP_HTTP_HOST ?? "127.0.0.1";
+
+    // HTTP mode exposes every memory tool over the network, so it is guarded:
+    // a bearer token is mandatory (fail closed), CORS is opt-in per origin, and
+    // the Host header is validated to block DNS-rebinding. See docs/operating.md.
+    const httpToken = process.env.CAIRN_MEMORY_HTTP_TOKEN?.trim();
+    if (!httpToken) {
+        process.stderr.write(
+            "cairn-memory: HTTP mode requires CAIRN_MEMORY_HTTP_TOKEN — refusing to start an unauthenticated network server.\n",
+        );
+        process.exit(1);
+    }
+
+    const allowedOrigins = (process.env.CAIRN_MEMORY_HTTP_ALLOWED_ORIGINS ?? "")
+        .split(",").map((value) => value.trim()).filter(Boolean);
+    const configuredHosts = (process.env.CAIRN_MEMORY_HTTP_ALLOWED_HOSTS ?? "")
+        .split(",").map((value) => value.trim()).filter(Boolean);
+    const allowedHosts = new Set(
+        configuredHosts.length > 0
+            ? configuredHosts
+            : [`${httpHost}:${httpPort}`, `localhost:${httpPort}`, `127.0.0.1:${httpPort}`],
+    );
+
+    const tokenMatches = (header: string | undefined): boolean => {
+        const prefix = "Bearer ";
+        if (!header || !header.startsWith(prefix)) {
+            return false;
+        }
+        const provided = Buffer.from(header.slice(prefix.length));
+        const expected = Buffer.from(httpToken);
+        // Length check first: timingSafeEqual throws on length mismatch.
+        return provided.length === expected.length && timingSafeEqual(provided, expected);
+    };
+    const originAllowed = (origin: string | undefined): string | null =>
+        origin && allowedOrigins.includes(origin) ? origin : null;
+
     // Session-based streamable HTTP: one transport per session, keyed by the
     // mcp-session-id header the client sends after initialize. This is how real
     // remote MCP servers work (e.g. context7). Lets a long-lived process serve
@@ -1059,10 +1095,25 @@ if (httpPort > 0) {
     };
 
     const httpServer = createServer(async (req, res) => {
-        res.setHeader("Access-Control-Allow-Origin", "*");
-        res.setHeader("Access-Control-Allow-Methods", "POST, GET, DELETE, OPTIONS");
-        res.setHeader("Access-Control-Allow-Headers", "Content-Type, mcp-session-id, Accept");
-        if (req.method === "OPTIONS") { res.writeHead(204).end(); return; }
+        const allowOrigin = originAllowed(req.headers.origin);
+        if (allowOrigin) {
+            res.setHeader("Access-Control-Allow-Origin", allowOrigin);
+            res.setHeader("Vary", "Origin");
+            res.setHeader("Access-Control-Allow-Methods", "POST, GET, DELETE, OPTIONS");
+            res.setHeader("Access-Control-Allow-Headers", "Content-Type, mcp-session-id, Accept, Authorization");
+        }
+        if (req.method === "OPTIONS") { res.writeHead(allowOrigin ? 204 : 403).end(); return; }
+
+        // DNS-rebinding protection: only serve requests whose Host we expect.
+        if (!req.headers.host || !allowedHosts.has(req.headers.host)) {
+            res.writeHead(403).end("host not allowed");
+            return;
+        }
+        // Authentication: a valid bearer token is mandatory on every request.
+        if (!tokenMatches(req.headers.authorization)) {
+            res.writeHead(401, { "WWW-Authenticate": "Bearer" }).end("unauthorized");
+            return;
+        }
         try {
             const headers = new Headers(req.headers as Record<string, string>);
             let body: BodyInit | null = null;
@@ -1086,7 +1137,6 @@ if (httpPort > 0) {
         }
     });
 
-    const httpHost = process.env.MCP_HTTP_HOST ?? "127.0.0.1";
     httpServer.listen(httpPort, httpHost, () => {
         process.stderr.write(`cairn-memory MCP (streamable HTTP) listening on ${httpHost}:${httpPort}\n`);
     });
