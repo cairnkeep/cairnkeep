@@ -21,15 +21,17 @@ import path from "node:path"
 const SERVER_ENTRY = "@@INFRA_ROOT@@/mcp-memory-server/dist/index.js"
 
 export const MemoryWakeupPlugin: Plugin = async ({ $, directory }) => {
-  const surfaced = new Set<string>()
-
   return {
+    // No per-session dedupe: this hook fires more than once per session
+    // (including OpenCode's internal title-generation call, which happens
+    // before the first real agent turn and shares the same sessionID). A
+    // "surface once per session" Set keyed on sessionID would mark the
+    // session surfaced on that throwaway title-gen call and silently skip
+    // every real turn afterward — the OCP-05 acceptance gate never sees the
+    // injected context. `output.system` is a fresh array per call, so
+    // re-pushing on every invocation is both correct and required.
     "experimental.chat.system.transform": async (input, output) => {
       try {
-        const sid = input?.sessionID ?? ""
-        // Surface once per session; the content is static for the session.
-        if (sid && surfaced.has(sid)) return
-
         const repo = directory
         const agentfsDb = path.join(repo, ".agentfs", "project.db")
         const wikiIndex = path.join(repo, ".planning", "wiki", "index.md")
@@ -88,7 +90,6 @@ export const MemoryWakeupPlugin: Plugin = async ({ $, directory }) => {
 
         if (sections.length === 0) return
 
-        if (sid) surfaced.add(sid)
         output.system.push(
           "Session-start context (auto-surfaced by the memory-wakeup plugin — use it; do not ask the user to recall anything it contains):",
         )
