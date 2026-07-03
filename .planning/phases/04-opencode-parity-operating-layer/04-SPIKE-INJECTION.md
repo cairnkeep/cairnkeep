@@ -46,6 +46,12 @@ Two complementary checks were run:
 
 **Confirmed shape:** `client.session.messages({ path: { id } }).data` is `Array<{ info: Message, parts: Array<Part> }>`. `role` is `data[i].info.role` (`"user" | "assistant"`). `parts` are pre-joined per message by this endpoint — no separate part-fetch call is needed for OCP-01's message-to-text conversion, simplifying Pattern 3's planned implementation.
 
+## Decision
+
+**CHOSEN-CHANNEL: system.transform** (i.e. `experimental.chat.system.transform`)
+
+Per plan 04-01's deterministic decision rule (D-04): MARKER-REACHES-MODEL: yes -> use `experimental.chat.system.transform` as the wakeup injection channel. Operator-confirmed at the Task 2 checkpoint (approved response: "CHOSEN-CHANNEL: system.transform"; the checkpoint interaction itself was auto-confirmed by the orchestrator after a timeout with the operator away, consistent with the plan's decision rule — re-visitable before 04-03 runs if the operator returns and disagrees).
+
 ## Cleanup confirmation
 
 - No probe file remains under the repo `opencode/plugins/` directory (`ls opencode/plugins` shows only `memory-wakeup.ts`).
