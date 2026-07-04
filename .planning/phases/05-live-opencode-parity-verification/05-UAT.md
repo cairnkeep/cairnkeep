@@ -9,8 +9,10 @@ updated: 2026-07-04T01:10:00Z
 ## Current Test
 
 [testing complete — Task 3's interactive session resolved via D-01's fallback clause (headless
-operator, no TTY); recorded as an explicit fallback-gap in Test 5. OCP-04 read-back remains a
-documented open model-reliability limitation with an identified root cause.]
+operator, no TTY); recorded as an explicit fallback-gap in Test 5. OCP-04 read-back is now PROVEN
+ACHIEVABLE end-to-end (demonstrated once live with a no-thinking, tool-call-reliable local model,
+qwen3.5-27b); the one documented open item is reliable headless-harness reproduction due to
+opencode run-completion flakiness.]
 
 ## Discharges owed Phase-4 items
 
@@ -199,11 +201,15 @@ evidence: |
   **Important caveat for this evidence's standing (T-05-05):** unlike Tests 1-3, where a positive
   match is either a genuine model recitation of injected context (Test 1) or a structural,
   server-side event immune to model narration (Tests 2's error field, Test 3's staged file), Test
-  4's positive assertions rely on a plain substring match against the model's own free-text output,
-  which this session directly proved can contain narrated-but-never-executed tool syntax. OCP-03's
-  write half and OCP-04's read half are therefore **not conclusively proven live in this session**,
-  reinforcing rather than closing the gap 05-02-SUMMARY.md first identified — the interactive
-  session (Test 5) is the necessary next bar per D-01's explicit fallback clause.
+  4's positive assertions against the coder rely on a plain substring match against the model's own
+  free-text output, which this session directly proved can contain narrated-but-never-executed tool
+  syntax. Against `qwen3.6-27b-coder`, OCP-03's write half and OCP-04's read half were therefore not
+  conclusively proven live. **This was subsequently RESOLVED for OCP-04 (2026-07-04):** with a
+  no-thinking, tool-call-reliable model (`qwen3.5-27b`) the full `/remember`->`/recall` round-trip
+  completed live once through `opencode` — a genuine `memory_write` then a genuine
+  `memory_search`/`_read` returning the fresh canary (see Test 5). The one remaining open item is
+  reliable headless-harness reproduction (opencode run-completion flakiness), not whether OCP-04 is
+  achievable.
 
 ### 5. Interactive live OpenCode session (D-01 literal live-session bar)
 
@@ -220,8 +226,10 @@ clause ("if a genuine interactive session is impractical at execution time, reco
 as a gap in 05-UAT.md — the scripted harness already proves each stage — do NOT silently drop it"),
 this is recorded here as an explicit gap. The scripted harness (Tests 1-4) already proves each
 stage headlessly; wakeup (OCP-05), recall-on-edit (OCP-02), capture (OCP-01), and /remember's live
-memory_write (OCP-03 write half) are proven live. OCP-04's read-back half remains the documented
-open limitation (Test 4 / Gaps), now with a root cause identified below.
+memory_write (OCP-03 write half) are proven live. OCP-04's read-back half is now PROVEN ACHIEVABLE
+end-to-end (demonstrated once live with a no-thinking, tool-call-reliable model — see below); the
+one documented open item is reliable headless-harness reproduction (opencode run-completion
+flakiness).
 
 evidence: |
   **The interactive TUI session was not run** (headless operator, no TTY). What follows is the
@@ -263,21 +271,41 @@ evidence: |
   - So there is NO thinking setting where both write and read fire for these multi-step
     slash-command flows: thinking-on buys the write and loses the read; thinking-off loses the write.
 
-  **Conclusion:** OCP-04 read-back is a fundamental tool-calling limitation of `qwen3.6-27b-coder`
-  for multi-step `/remember` & `/recall` command flows — NOT a defect in `recall.md`/`remember.md`,
-  the `cairn-memory` MCP server, or the harness (the underlying mechanisms — system.transform
-  injection, PreToolUse recall injection, session.idle capture staging, and the MCP write tool — are
-  all proven to work), and NOT fixable by thinking configuration or a thinking-strip proxy (both
-  were tested and rejected).
+  **Interim conclusion (about `qwen3.6-27b-coder` specifically):** with the coder, there is no
+  thinking setting where both write and read fire — NOT a defect in `recall.md`/`remember.md`, the
+  `cairn-memory` MCP server, or the harness (the underlying mechanisms — system.transform injection,
+  PreToolUse recall injection, session.idle capture staging, and the MCP write tool — are all proven
+  to work), but the coder itself cannot drive the multi-step `/remember` & `/recall` tool calls
+  reliably under any thinking configuration.
 
-  **Recommended future fix direction (documentation, not a passing result):** the genuine remaining
-  fix is a DIFFERENT, more tool-call-reliable local model — not this coder with thinking toggled.
-  Thinking config is a proven dead-end. (Secondary, now moot: the `vllm-thinking-proxy` is
-  additionally unusable by `opencode` for an unrelated reason — `opencode`'s Node/undici client
-  hangs on the uvicorn/FastAPI proxy across framing/injection/keep-alive variants while `curl`
-  works — but that no longer matters given thinking-off breaks writes regardless of transport.)
-  `.ai/.env` has been reverted to the stable `:8001` coder endpoint, matching this UAT's committed
-  `--full` evidence.
+  **OCP-04 IS NOW PROVEN ACHIEVABLE (2026-07-04) — the "different, more tool-call-reliable local
+  model" fix direction was validated, not merely theorized:**
+  - **Model:** `qwen3.5-27b` (unsloth `Q3_K_M`, NO-THINKING), served via `llama.cpp` in podman on
+    debian (systemd user unit `model.service`, now stopped but kept reusable; endpoint was
+    `http://192.0.2.10:8001` during the test).
+  - **API-level:** it fires `cairn-memory` tool calls RELIABLY (raw `curl`: 100%, ~2s latency,
+    `finish=tool_calls`, no-thinking confirmed) — exactly where the coder only narrated.
+  - **Full round-trip PASSED LIVE ONCE through `opencode`:** `/remember` performed a live
+    `memory_write` AND `/recall` performed a live `memory_search`/`_read` that returned the fresh
+    random canary. **This is the FIRST successful end-to-end round-trip in the entire phase** — the
+    coder never achieved it.
+  - **Setup specifics worth recording:** needed `--chat-template-kwargs '{"enable_thinking": false}'`
+    (not just `--reasoning-budget 0`); the unsloth GGUF's Jinja template needed its
+    `raise_exception` guards stripped (via `--chat-template-file`) because they broke `llama.cpp`'s
+    tool-parser generation with a system message present.
+
+  **STILL OPEN (honest caveat):** reliable headless-harness reproduction. Subsequent `/remember`
+  runs intermittently hang (0 bytes / timeout) while the model answers in ~2s via `curl` — an
+  `opencode run`-side flakiness (undici<->server, observed with every model/server this session),
+  independent of the model's tool-calling.
+
+  **Net:** OCP-04 read-back is **proven achievable with a no-thinking, tool-call-reliable local
+  model (`qwen3.5-27b`); demonstrated once end-to-end live; reliable harness reproduction remains
+  open due to `opencode run`-completion flakiness.** This is a material upgrade from the earlier
+  "fundamental limitation" framing. (Secondary, now moot: the `vllm-thinking-proxy` was also
+  unusable by `opencode` — its Node/undici client hangs on the uvicorn/FastAPI proxy while `curl`
+  works.) `.ai/.env` has been reverted to the stable `:8001` coder endpoint, matching this UAT's
+  committed `--full` evidence.
 
 ## Fixes applied this session (disclosed per D-03/OCP-06's defect clause)
 
@@ -317,9 +345,10 @@ passed: 3 (wakeup / OCP-05, recall-on-edit / OCP-02, capture / OCP-01 — mechan
 concrete evidence this phase, though wakeup/recall-on-edit show live-model-reliability intermittency
 across repeated single-shot attempts). Plus OCP-03's write half (/remember's live memory_write on
 :8001) proven live.
-issues: 1 (OCP-04 read-back — /recall's live memory_search/_read — is an open, now root-caused
-model-reliability limitation; write half's multi-step-flow reliability is also fragile. See Test 4
-+ Test 5's root-cause analysis)
+issues: 1 (OCP-04 read-back — /recall's live memory_search/_read — now PROVEN ACHIEVABLE end-to-end
+with a no-thinking, tool-call-reliable local model (qwen3.5-27b), demonstrated once live; reliable
+headless-harness reproduction remains the one open item due to opencode run-completion flakiness.
+See Test 4 + Test 5)
 pending: 0
 skipped: 1 (Test 5 — interactive TUI session not run: headless operator, no TTY; recorded as D-01's
 explicit harness-only fallback-gap, not silently dropped)
@@ -327,18 +356,26 @@ blocked: 0
 
 ## Gaps
 
-- **OCP-04 (recall live MCP read-back) is an open, fundamental tool-calling limitation of
-  `qwen3.6-27b-coder`** for multi-step `/remember` & `/recall` command flows — NOT fixable by
-  thinking configuration (proven dead-end, triangulated this session across raw `curl`, the `:8006`
-  proxy, AND direct `chat_template_kwargs.enable_thinking=false` in `opencode`'s model config):
-  thinking ON gives a reliable `/remember` `memory_write` but no `/recall` `memory_search`/`_read`;
-  thinking OFF (proxy or direct config, both confirmed to reach vLLM) loses the `/remember` write
-  entirely (~4 trials), read half never reached. There is no thinking setting where both write and
-  read fire. This is NOT a defect in `recall.md`/`remember.md`, the `cairn-memory` server, or the
-  harness — the underlying mechanisms all work. **Genuine fix direction: a different, more
-  tool-call-reliable local model** — not this coder with thinking toggled. (Secondary, now moot:
-  `opencode`'s Node/undici client also hangs on the `:8006` uvicorn/FastAPI proxy while `curl`
-  works.) This is a documented open gap for verification to surface, not a passing result.
+- **OCP-04 (recall live MCP read-back) is PROVEN ACHIEVABLE, with reliable harness reproduction the
+  one remaining open item.** With `qwen3.6-27b-coder` there was no thinking setting where both write
+  and read fired (triangulated across raw `curl`, the `:8006` proxy, AND direct
+  `chat_template_kwargs.enable_thinking=false` in `opencode`'s model config) — but this is a coder
+  limitation, NOT a defect in `recall.md`/`remember.md`, the `cairn-memory` server, or the harness
+  (the mechanisms all work). The "different, more tool-call-reliable local model" fix direction was
+  **validated live (2026-07-04)**: `qwen3.5-27b` (unsloth `Q3_K_M`, NO-THINKING, `llama.cpp`/podman
+  on debian) fires `cairn-memory` tool calls reliably at the API level (raw `curl` 100%, ~2s,
+  `finish=tool_calls`) and completed the FULL `/remember`->`/recall` round-trip live once through
+  `opencode` (real `memory_write` then a real `memory_search`/`_read` returning the fresh canary —
+  the first successful round-trip in the entire phase). Setup specifics: needed
+  `--chat-template-kwargs '{"enable_thinking": false}'` (not just `--reasoning-budget 0`), and the
+  unsloth GGUF's Jinja template needed its `raise_exception` guards stripped via
+  `--chat-template-file` (they broke `llama.cpp`'s tool-parser generation with a system message
+  present). **STILL OPEN:** reliable headless-harness reproduction — subsequent `/remember` runs
+  intermittently hang (0 bytes / timeout) while the model answers in ~2s via `curl`, an
+  `opencode run`-side flakiness (undici<->server, seen with every model/server this session),
+  independent of the model's tool-calling. This is the one documented open item for verification to
+  surface. (Secondary, now moot: `opencode`'s Node/undici client also hangs on the `:8006`
+  uvicorn/FastAPI proxy while `curl` works.)
 - **Harness grep-based tool-call assertions can false-positive on narrated (non-executed) tool
   syntax** — discovered this session (Test 4), and now explained by the thinking-model root cause.
   Not fixed here (out of this plan's surgical docs/UAT scope); worth hardening in any future
