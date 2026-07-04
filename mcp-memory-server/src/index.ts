@@ -403,11 +403,16 @@ async function extractMemoryCandidates(
     };
 }
 
-async function runCommand(command: string, args: string[], timeoutMs: number): Promise<CommandResult> {
+async function runCommand(
+    command: string,
+    args: string[],
+    timeoutMs: number,
+    env: NodeJS.ProcessEnv = process.env,
+): Promise<CommandResult> {
     return new Promise((resolvePromise, reject) => {
         const child = spawn(command, args, {
             cwd: infraRoot,
-            env: process.env,
+            env,
             stdio: ["ignore", "pipe", "pipe"],
         });
 
