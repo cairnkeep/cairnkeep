@@ -8,15 +8,11 @@ A durable, harness-agnostic memory + context layer for coding agents (Claude Cod
 
 Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
 
-## Current Milestone: v1.1 OpenCode parity
+## Current State
 
-**Goal:** Bring the OpenCode operating layer to full drop-in parity with the verified Claude Code path.
+**Shipped:** v1.1 OpenCode parity (2026-07-04, tag `v1.1`) — the OpenCode operating layer reached the Claude Code baseline: native memory-capture (session-end) and memory-recall (pre-edit) plugins, `remember`/`recall` commands, and a self-sufficient session-start wakeup that no longer depends on Claude-rendered assets. Closed as an **override closeout** — the `/remember`→`/recall` round-trip is proven achievable (demonstrated once live with a tool-call-reliable local model) but not reliably reproducible headless, and the interactive TUI confirm was not run (headless operator, no TTY). Details + follow-ups in MILESTONES.md → Known Gaps.
 
-**Target features:**
-- OpenCode memory-capture lifecycle (SessionEnd → extract candidates to staging)
-- OpenCode memory-recall lifecycle (pre-edit → inject file-specific memory)
-- `remember` and `recall` commands for OpenCode
-- Self-sufficient memory-wakeup (no dependency on Claude-rendered assets)
+**Next milestone:** not yet scoped. Run `/gsd-new-milestone`.
 
 ## Requirements
 
@@ -28,15 +24,16 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 - ✓ **REQ-cli-bootstrap** — a fresh `cairn bootstrap` yields a working same-as-before workflow — v1.0
 - ✓ **REQ-feature-parity** — operating guide in the OSS docs, fresh bootstrap works same-as-before, baseline tagged `v1.0.0` — v1.0
 - ✓ **REQ-oss-hygiene** — Apache-2.0 license, CI, no secrets, no attribution noise — v1.0
+- ✓ **OCP-01** — OpenCode extracts memory candidates to staging when a session ends (memory-capture parity) — v1.1 (proven live, capture 4/4)
+- ✓ **OCP-02** — OpenCode injects file-specific memory before an edit (memory-recall parity) — v1.1 (mechanism proven with structural injected-error evidence; live tool-invocation intermittent — model-reliability, not a defect)
+- ✓ **OCP-03** — User can run `remember` in OpenCode to persist a durable finding — v1.1 (live `memory_write` proven)
+- ✓ **OCP-04** — User can run `recall` in OpenCode to retrieve memory across layers — v1.1 (proven achievable — demonstrated once live with a no-thinking, tool-call-reliable local model; reliable headless reproduction is an open gap, see MILESTONES.md)
+- ✓ **OCP-05** — OpenCode memory-wakeup surfaces session-start context without requiring Claude assets installed — v1.1 (proven live in scratch-HOME)
+- ✓ **OCP-06** — The full memory lifecycle + commands round-trip in a live OpenCode session (parity verified) — v1.1 (override closeout — full round-trip demonstrated once live; reliable headless reproduction + interactive TUI confirm are open gaps)
 
 ### Active
 
-- ☐ **OCP-01** — OpenCode extracts memory candidates to staging when a session ends (memory-capture parity) — v1.1
-- ☐ **OCP-02** — OpenCode injects file-specific memory before an edit (memory-recall parity) — v1.1
-- ☐ **OCP-03** — User can run `remember` in OpenCode to persist a durable finding — v1.1
-- ☐ **OCP-04** — User can run `recall` in OpenCode to retrieve memory across layers — v1.1
-- ☐ **OCP-05** — OpenCode memory-wakeup surfaces session-start context without requiring Claude assets installed — v1.1
-- ☐ **OCP-06** — The full memory lifecycle + commands round-trip in a live OpenCode session (parity verified) — v1.1
+_(none — next milestone not yet scoped)_
 
 ### Out of Scope
 
@@ -48,9 +45,10 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 
 - Layout: `mcp-memory-server/` (the `cairn-memory` MCP server), `bin/cairn` + `scripts/` (CLI, bootstrap, utilities), `templates/` (project scaffolding + derived-knowledge templates), `claude/` + `opencode/` (commands, agents, hooks, and plugins — the operating layer)
 - Target runtime: Node.js/TypeScript for the MCP server; the operating layer targets the Claude Code and OpenCode harnesses
-- Milestone "OSS core → parity" **shipped 2026-07-03** (all 3 phases, 6/6 requirements validated; baseline tag `v1.0.0`). Next milestone not yet scoped.
+- Milestone "OSS core → parity" **shipped 2026-07-03** (all 3 phases, 6/6 requirements validated; baseline tag `v1.0.0`)
+- Milestone "OpenCode parity" **shipped 2026-07-04** (phases 4-5, 6/6 requirements; baseline tag `v1.1`; override closeout). OpenCode now has native memory-capture/recall plugins, `remember`/`recall` commands, and self-sufficient wakeup — installed via `sync-opencode-*-assets.sh`. Next milestone not yet scoped.
 - CI (build + smoke-test of the memory server) exists and passes on push/PR; smoke suite covers scope-guard, http-guard, extract-cli, search-e2e, embeddings
-- Known deferred: OpenCode memory-wakeup install ordering (documented, Claude-first path is complete); enterprise overlay and token-miser integration carried to future milestones
+- Known deferred (v1.1 override gap): reliable headless reproduction of the OpenCode `/remember`→`/recall` round-trip is blocked by opencode run-completion flakiness + local thinking-model tool-call variance (external, not a code defect); the interactive TUI confirm awaits a TTY operator. Enterprise overlay and token-miser integration carried to future milestones.
 
 ## Constraints (hard rules)
 
@@ -83,9 +81,12 @@ Additional constraints:
 | Three hard rules locked (see decisions block above) | Public-repo hygiene is non-negotiable | ✓ Good |
 | `memory_read` validation moved into the handler | ZodEffects `.refine()` as an MCP inputSchema publishes an empty tool schema | ✓ Good (Phase 2) |
 | Semantic-search embedding model required, else substring fallback | Removed a hardcoded vendor model default to keep the core provider-neutral | ✓ Good (Phase 2) |
-| OpenCode memory-wakeup made self-sufficient (v1.1) | Reusing Claude's rendered hook made OpenCode parity require Claude installed first; true parity means OpenCode stands alone | — Pending (v1.1) |
+| OpenCode memory-wakeup made self-sufficient (v1.1) | Reusing Claude's rendered hook made OpenCode parity require Claude installed first; true parity means OpenCode stands alone | ✓ Good (Phase 4, OCP-05 — native rewrite, no `~/.claude` shell-out) |
 | Scope path containment via `relative()`, `"all"` rejected on write paths | `resolve===join` misses `../` traversal; `"all"` is a read-only fan-out scope | ✓ Good (Phase 2, SEC-0001) |
 | Opt-in HTTP transport fails closed (bearer auth + per-origin CORS + Host validation) | The `MCP_HTTP_PORT` mode must not be exploitable by default | ✓ Good (Phase 2) |
+| OpenCode memory lifecycle built on native plugins, not Claude's shell hooks | OpenCode has a plugin/event model (`session.idle`, `tool.execute.before`); reusing shell hooks would not be idiomatic parity | ✓ Good (Phase 4, OCP-01/02) |
+| Live parity verified by a scratch-isolated harness with fingerprint guards + negative controls | Same verify-by-execution bar v1.0 used; scratch HOME prevents polluting the real `~/.config/opencode` / `~/.claude` | ✓ Good (Phase 5) |
+| OCP-04 recall read-back blocker was the local model's tool-calling, not cairnkeep code | Thinking-config + strip-proxy were proven dead ends; a no-thinking, tool-call-reliable model (qwen3.5-27b) cleared it in one live round-trip | ⚠️ Revisit (reliable headless reproduction still open — v1.1 known gap) |
 
 ## Evolution
 
@@ -105,4 +106,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-03 — v1.1 OpenCode parity milestone started*
+*Last updated: 2026-07-04 after v1.1 OpenCode parity milestone*

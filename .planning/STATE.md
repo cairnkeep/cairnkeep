@@ -2,40 +2,40 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: OpenCode parity
-current_phase: 05
-current_phase_name: live-opencode-parity-verification
-status: verifying
+current_phase: 1
+status: Awaiting next milestone
 stopped_at: Completed 05-03-PLAN.md (via D-01 fallback); phase 05 ready for verification
-last_updated: "2026-07-03T23:11:21.074Z"
-last_activity: 2026-07-03
-last_activity_desc: Phase 05 execution started
+last_updated: "2026-07-04T17:13:45.111Z"
+last_activity: 2026-07-04
+last_activity_desc: Milestone v1.1 completed and archived
 progress:
   total_phases: 2
   completed_phases: 2
   total_plans: 9
   completed_plans: 9
   percent: 100
+current_phase_name: live-opencode-parity-verification
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-03)
+See: .planning/PROJECT.md (updated 2026-07-04)
 
 **Core value:** Drop-in parity — a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
-**Current focus:** Phase 05 — live-opencode-parity-verification
+**Current focus:** v1.1 shipped (override closeout) — planning next milestone (`/gsd-new-milestone`)
 
 ## Current Position
 
-Phase: 05 (live-opencode-parity-verification) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
-Last activity: 2026-07-03 — Phase 05 execution started
+Phase: Milestone v1.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-04 — Milestone v1.1 completed and archived
 
-### Owed to Phase 5 (carried from Phase 4)
+### Owed to Phase 5 — RESOLVED (documented as v1.1 known gap)
 
-- ⚠️ **OCP-01/02/03/04 live round-trip** — Phase 4 shipped these as implementation + install wiring only; the live proof (capture stages real candidates, recall-on-edit throws context, `remember` persists via live MCP, `recall` retrieves) is Phase 5's OCP-06 scope. Tracked in `04-UAT.md` test 2.
+- ✓ **OCP-01/02/03/04 live round-trip** — discharged by `05-UAT.md`: capture proven live (4/4), recall-on-edit + remember-write proven with structural evidence, and the `/recall` read-back proven achievable end-to-end once live (qwen3.5-27b). The one remaining open item — reliable *headless* reproduction — is recorded as the v1.1 override known gap in MILESTONES.md, not carried as active work.
 
 ### v1.1 roadmap (2026-07-03)
 
@@ -159,4 +159,4 @@ Resume file: None
 
 ## Operator Next Steps
 
-- Plan Phase 5 (Live OpenCode parity verification, OCP-06) with /gsd-plan-phase 5
+- Start the next milestone with /gsd-new-milestone

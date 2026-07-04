@@ -39,6 +39,44 @@
 
 ---
 
+## Milestone: v1.1 — OpenCode parity
+
+**Shipped:** 2026-07-04 (override closeout)
+**Phases:** 2 (4-5) | **Plans:** 9 | **Sessions:** ~2 (2026-07-03 → 2026-07-04)
+
+### What Was Built
+- OpenCode memory lifecycle on native plugins — `memory-capture.ts` (`session.idle` → staging, byte-compatible with the Claude contract), `memory-recall.ts` (pre-edit throw-to-surface injection), `memory-wakeup.ts` (native, self-sufficient of `~/.claude`)
+- `remember`/`recall` commands for OpenCode, wired into `sync-opencode-memory-assets.sh`
+- `verify-opencode-live-parity.sh` — a scratch-isolated live-parity harness (fingerprint-guarded HOME, negative controls, real registered `cairn-memory` MCP)
+- 05-UAT.md execution evidence discharging the OCP-01/02/03/04 live round-trip owed from 04-UAT
+
+### What Worked
+- The scratch-HOME fingerprint guard (snapshot real `~/.config/opencode` + `~/.claude` before/after, fail loud on drift) let live verification run without risking the operator's real config
+- Capture was the most reliable stage (4/4) because its evidence is server-side (a staged JSON file), not model-narrated — structural evidence beats grepping model text
+- Diagnosing OCP-04 by triangulating raw curl + a proxy + direct model-config injection isolated the blocker to the model's tool-calling, not the code
+
+### What Was Inefficient
+- Grep-based tool-call assertions produced a false-positive class: narrated-but-unexecuted tool syntax matched as if it were a real `"type":"tool"` event — trust was misplaced until caught
+- Chased thinking-config and a thinking-strip proxy as OCP-04 fixes before proving they were dead ends; the real fix was swapping to a tool-call-reliable model
+- Headless operator (no TTY) meant the literal interactive-session bar couldn't be met — recorded as a fallback-gap rather than closed
+
+### Patterns Established
+- Verify a live MCP tool call by a genuine `"type":"tool"` event in the `--format json` stream, never a substring grep of free-text (thinking models narrate tool syntax they don't execute)
+- Local thinking-model tool-calling is a reliability variable, not a determinism guarantee — document per-stage evidence + variance rather than asserting per-invocation success
+- Toggling `enable_thinking` can move *which* tool call fails rather than fixing it; the durable fix is a genuinely no-thinking, tool-call-reliable model verified with the actual client (opencode), not just curl
+
+### Key Lessons
+1. Structural, server-side evidence (a staged file, a plugin-injected exception) is the only trustworthy signal when the client is a variable-reliability local model.
+2. When a live assertion is grep-based, distrust it unless the matched text is structurally server-side or a real tool event.
+3. An override closeout is the honest call when the mechanism is proven but reliable reproduction is gated on an external dependency (model/runtime) — document the gap and the follow-up, don't claim a green pass.
+
+### Cost Observations
+- Model mix: predominantly opus (single-developer, verification-heavy)
+- Sessions: ~2; local inference (qwen coder / qwen3.5-27b) under test as the OpenCode-side model
+- Notable: most of the effort was live-verification diagnosis, not implementation — the plugins landed quickly; proving them live against a flaky local model was the long pole
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -46,14 +84,17 @@
 | Milestone | Sessions | Phases | Key Change |
 |-----------|----------|--------|------------|
 | v1.0 | ~2 | 3 | Retroactive audit-against-code closeout for a pre-plan-tracking codebase |
+| v1.1 | ~2 | 2 | Scratch-isolated live-parity harness; first override closeout (gap gated on external model reliability) |
 
 ### Cumulative Quality
 
 | Milestone | Tests | Coverage | Zero-Dep Additions |
 |-----------|-------|----------|-------------------|
 | v1.0 | 5 smoke checks | build clean, flows verified | provider-neutral core (no vendor deps) |
+| v1.1 | live-parity harness (5 stages + negative controls) | 4/6 reqs proven live, 2/6 proven-achievable | native OpenCode plugins (no new runtime deps) |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Verification by execution beats a paper trail — run the build + smoke suite.
 2. Fail closed on any opt-in network surface.
+3. Trust only structural, server-side evidence when verifying against a variable-reliability local model — not grep matches on model free-text.
