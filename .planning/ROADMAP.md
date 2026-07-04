@@ -53,10 +53,10 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
   2. The probe checks `GET /props` → `chat_template_tool_use` against the deployed `llama-server` build to confirm a native tool-call template is active rather than a narration-prone generic fallback.
   3. A documented go/no-go verdict exists in the phase artifacts: either "reliably invokes tools" (safe to build Phase 7 on) or "narrates instead of invoking" (a hard blocker requiring remediation before proceeding) — never a silent assumption either way.
 
-**Plans**: 2 plans
+**Plans**: 1/2 plans executed
 **Wave 1**
 
-- [ ] 06-01-PLAN.md — Build the committed FastContext reliability probe (`scripts/verify-fastcontext-reliability.sh`; bash+curl+jq, offline `--self-test`, `--props-only`, `--full`)
+- [x] 06-01-PLAN.md — Build the committed FastContext reliability probe (`scripts/verify-fastcontext-reliability.sh`; bash+curl+jq, offline `--self-test`, `--props-only`, `--full`)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -111,7 +111,7 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 3. Docs + parity sign-off | v1.0 | Complete | 2026-07-03 |
 | 4. OpenCode parity operating layer | v1.1 | Complete | 2026-07-03 |
 | 5. Live OpenCode parity verification | v1.1 | Complete (override) | 2026-07-04 |
-| 6. FastContext Reliability Spike | v1.2 | Not started | - |
+| 6. FastContext Reliability Spike | 1/2 | In Progress|  |
 | 7. context_explore MCP Tool | v1.2 | Not started | - |
 | 8. Operating-Layer Wiring | v1.2 | Not started | - |
 | 9. Live Verification + A/B Token-Savings | v1.2 | Not started | - |

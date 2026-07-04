@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Context Exploration
-current_phase: 6
+current_phase: 06
 current_phase_name: FastContext Reliability Spike
 status: executing
 stopped_at: Phase 6 context gathered
-last_updated: "2026-07-04T20:57:22.936Z"
+last_updated: "2026-07-04T21:11:50.178Z"
 last_activity: 2026-07-04
-last_activity_desc: v1.2 ROADMAP.md created, 7/7 requirements mapped across 4 phases
+last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-04)
 
 **Core value:** Drop-in parity — a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
-**Current focus:** v1.2 Context Exploration — ROADMAP.md created (Phases 6-9); ready to plan Phase 6 (FastContext reliability spike)
+**Current focus:** Phase 06 — FastContext Reliability Spike
 
 ## Current Position
 
-Phase: 6 of 9 (FastContext Reliability Spike) — first phase of v1.2, not yet planned
-Plan: —
+Phase: 06 (FastContext Reliability Spike) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-07-04 — v1.2 ROADMAP.md created, 7/7 requirements mapped across 4 phases
+Last activity: 2026-07-04 — Phase 06 execution started
 
 ### v1.2 roadmap (2026-07-04)
 
@@ -68,6 +68,7 @@ Four phases, continuing the sequential numbering from v1.1 (ended at Phase 5). O
 - Trend: Stable
 
 *Updated after each plan completion*
+| Phase 06 P01 | 2min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,8 @@ Recent decisions affecting current work:
 - v1.2 roadmap: reliability spike (Phase 6) is a standalone phase and hard gate on Phases 7-9, mirroring the OCP-04 lesson that building wiring atop an unverified local model's tool-calling is the expensive way to discover a narration failure.
 - [Phase 05-03] OCP-04 recall read-back is an open, root-caused model-reliability limitation: qwen3.6-27b-coder is a thinking model whose reasoning leaks as narrated pseudo-tool-calls; not a defect in recall.md/remember.md/cairn-memory/harness.
 - [Phase 05-03] docs/operating.md corrected: OpenCode memory-wakeup plugin is self-sufficient of Claude assets (Phase-4 D-04); stale precondition removed.
+- [Phase 06]: Refined D-05 implemented: verdict anchored to gate #2 (per-turn matrix), gate #1 (chat_template_tool_use) recorded as evidence only, never auto-forcing NO-GO
+- [Phase 06]: System prompt and read/glob/grep tool schemas copied verbatim from 06-RESEARCH.md finding #2/#3 curl example
 
 ### Pending Todos
 
@@ -106,7 +109,7 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-07-04T18:51:22.065Z
+Last session: 2026-07-04T21:07:34.428Z
 Stopped at: Phase 6 context gathered
 Resume file: .planning/phases/06-fastcontext-reliability-spike/06-CONTEXT.md
 
