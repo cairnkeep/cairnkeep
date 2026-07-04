@@ -105,7 +105,7 @@ Each task was committed atomically:
 1. **Task 1: Add a backward-compatible env-merge parameter to runCommand** - `23de414` (feat)
 2. **Task 2: Register the context_explore tool (delegate, parse, fail closed, dual output)** - `6d57677` (feat)
 
-**Plan metadata:** (this commit)
+**Plan metadata:** `3ed2a72` (docs: add plan summary)
 
 ## Files Created/Modified
 - `mcp-memory-server/src/index.ts` - added `runCommand`'s optional `env` param, a `renderCitations()` helper, and the `context_explore` tool registration (precondition throws + execution-tier `{ ok:false }` returns + dual text/structured success output)
@@ -149,3 +149,11 @@ None beyond what the plan's own `<threat_model>` already registers (T-07-01 thro
 ---
 *Phase: 07-context-explore-mcp-tool*
 *Completed: 2026-07-05*
+
+## Self-Check: PASSED
+
+- FOUND: mcp-memory-server/src/index.ts
+- FOUND: .planning/phases/07-context-explore-mcp-tool/07-02-SUMMARY.md
+- FOUND commit: 23de414 (Task 1)
+- FOUND commit: 6d57677 (Task 2)
+- FOUND commit: 3ed2a72 (docs: plan summary, initial)
