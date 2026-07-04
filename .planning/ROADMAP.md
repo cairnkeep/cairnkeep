@@ -74,11 +74,11 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
   3. `context_explore`'s only configuration surface is environment variables (binary path + optional repo-root override); a grep across `src/` and docs confirms no FastContext endpoint/model/API-key or private host/IP/vendor default is committed anywhere (honors DEC-no-private-references).
   4. An offline smoke test (no live model dependency) exercises the "not configured" and "binary missing" fail-closed paths and passes in CI.
 
-**Plans**: 2 plans
+**Plans**: 1/2 plans executed
 
 **Wave 1**
 
-- [ ] 07-01-PLAN.md — Offline fail-closed smoke harness + fake-binary fixtures + `check:explore-guard` wiring (Wave 0 test infra; RED until Wave 2)
+- [x] 07-01-PLAN.md — Offline fail-closed smoke harness + fake-binary fixtures + `check:explore-guard` wiring (Wave 0 test infra; RED until Wave 2)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -120,6 +120,6 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 4. OpenCode parity operating layer | v1.1 | Complete | 2026-07-03 |
 | 5. Live OpenCode parity verification | v1.1 | Complete (override) | 2026-07-04 |
 | 6. FastContext Reliability Spike | 2/2 | Complete    | 2026-07-04 |
-| 7. context_explore MCP Tool | v1.2 | Not started | - |
+| 7. context_explore MCP Tool | 1/2 | In Progress|  |
 | 8. Operating-Layer Wiring | v1.2 | Not started | - |
 | 9. Live Verification + A/B Token-Savings | v1.2 | Not started | - |

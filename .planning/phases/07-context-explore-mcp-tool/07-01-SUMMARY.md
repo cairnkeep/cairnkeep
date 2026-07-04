@@ -115,6 +115,7 @@ Each task was committed atomically:
 ## Decisions Made
 - Guard is intentionally RED at the registration anchor pre-Plan-02, per the plan's explicit design intent — not weakened or worked around.
 - No new npm packages; reused existing `@modelcontextprotocol/sdk` `Client`/`StdioClientTransport` already a project dependency.
+- Did NOT run `requirements mark-complete` for CTX-01/CTX-02 despite them being listed in this plan's frontmatter `requirements` field: this plan only builds test scaffolding (the smoke guard + fixtures), the `context_explore` tool itself does not exist until Plan 02 registers it, and `REQUIREMENTS.md` still correctly shows both as `Pending`. Marking them complete here would misrepresent undelivered functionality as done; they should be marked complete when Plan 02's SUMMARY is created and the guard turns GREEN.
 
 ## Deviations from Plan
 
