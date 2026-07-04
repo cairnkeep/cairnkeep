@@ -9,9 +9,9 @@ Each maps to exactly one roadmap phase. Numbering continues from v1.1 (phases 4�
 
 ### Context exploration
 
-- [ ] **CTX-01**: User can run a `context_explore` MCP tool that takes a natural-language query and returns compact `path:line-range` citations, by delegating to the external `token_miser explore` subcommand and parsing its `Evidence` JSON
-- [ ] **CTX-02**: `context_explore` fails closed with a clear error when the `token-miser` binary is missing, misconfigured, times out, or emits malformed output — never a silent empty-success
-- [ ] **CTX-03**: `context_explore` is configured provider-neutrally via environment only (token-miser binary path + optional repo-root override); no FastContext endpoint/model/API-key, and no host/IP/vendor default, is committed anywhere in `src/` or docs (honors DEC-no-private-references)
+- [x] **CTX-01**: User can run a `context_explore` MCP tool that takes a natural-language query and returns compact `path:line-range` citations, by delegating to the external `token_miser explore` subcommand and parsing its `Evidence` JSON
+- [x] **CTX-02**: `context_explore` fails closed with a clear error when the `token-miser` binary is missing, misconfigured, times out, or emits malformed output — never a silent empty-success
+- [x] **CTX-03**: `context_explore` is configured provider-neutrally via environment only (token-miser binary path + optional repo-root override); no FastContext endpoint/model/API-key, and no host/IP/vendor default, is committed anywhere in `src/` or docs (honors DEC-no-private-references)
 
 ### Operating layer
 
@@ -56,9 +56,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CTX-01 | Phase 7 | Pending |
-| CTX-02 | Phase 7 | Pending |
-| CTX-03 | Phase 7 | Pending |
+| CTX-01 | Phase 7 | Complete |
+| CTX-02 | Phase 7 | Complete |
+| CTX-03 | Phase 7 | Complete |
 | CTX-04 | Phase 8 | Pending |
 | CTX-05 | Phase 8 | Pending |
 | CTX-06 | Phase 6 | Complete |

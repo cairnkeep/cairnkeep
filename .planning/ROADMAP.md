@@ -36,7 +36,7 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 **Milestone Goal:** Give cairnkeep a token-efficient repo-exploration capability — FastContext as a provider-neutral context-explore backend, routed through token-miser — wired into both the `cairn-memory` MCP and the Claude Code + OpenCode operating layers.
 
 - [x] **Phase 6: FastContext Reliability Spike** - Probe and document `finish_reason=tool_calls` reliability against the deployed GGUF quant + `llama-server --jinja` combo before any wiring is built on it (completed 2026-07-04)
-- [ ] **Phase 7: context_explore MCP Tool** - Thin subprocess-delegating tool in `cairn-memory`, provider-neutral config, fail-closed on every error path
+- [x] **Phase 7: context_explore MCP Tool** - Thin subprocess-delegating tool in `cairn-memory`, provider-neutral config, fail-closed on every error path (completed 2026-07-04)
 - [ ] **Phase 8: Operating-Layer Wiring** - Claude Code + OpenCode commands invoke context exploration on demand
 - [ ] **Phase 9: Live Verification + A/B Token-Savings** - Cairnkeep's own measured before/after token count, milestone close-out gate
 
@@ -74,7 +74,7 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
   3. `context_explore`'s only configuration surface is environment variables (binary path + optional repo-root override); a grep across `src/` and docs confirms no FastContext endpoint/model/API-key or private host/IP/vendor default is committed anywhere (honors DEC-no-private-references).
   4. An offline smoke test (no live model dependency) exercises the "not configured" and "binary missing" fail-closed paths and passes in CI.
 
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans complete
 
 **Wave 1**
 
@@ -82,7 +82,7 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 07-02-PLAN.md — Register the `context_explore` tool: delegate to `token_miser explore`, parse Evidence, fail closed, dual compact/structured output, env-only config
+- [x] 07-02-PLAN.md — Register the `context_explore` tool: delegate to `token_miser explore`, parse Evidence, fail closed, dual compact/structured output, env-only config
 
 ### Phase 8: Operating-Layer Wiring
 
@@ -120,6 +120,6 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 4. OpenCode parity operating layer | v1.1 | Complete | 2026-07-03 |
 | 5. Live OpenCode parity verification | v1.1 | Complete (override) | 2026-07-04 |
 | 6. FastContext Reliability Spike | 2/2 | Complete    | 2026-07-04 |
-| 7. context_explore MCP Tool | 1/2 | In Progress|  |
+| 7. context_explore MCP Tool | 2/2 | Complete   | 2026-07-04 |
 | 8. Operating-Layer Wiring | v1.2 | Not started | - |
 | 9. Live Verification + A/B Token-Savings | v1.2 | Not started | - |
