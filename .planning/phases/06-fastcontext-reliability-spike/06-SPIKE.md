@@ -4,6 +4,7 @@
 **Verdict recorded:** 2026-07-04
 **Probe:** `scripts/verify-fastcontext-reliability.sh` (bash + curl + jq), run live against the operator's deployed endpoint via `FASTCONTEXT_PROBE_URL` (loopback-only, never committed — D-02).
 **Raw evidence:** `06-EVIDENCE.log` (gitignored via the existing `*.log` rule; scrub-check confirmed no endpoint URL or API key was written).
+**Probe hardening (2026-07-04, commit `9df61a7`):** after the initial GO, code review (`06-REVIEW.md`) found CR-01 — the replay answered only `tool_calls[0]` per turn, which could desync a re-run on parallel tool calls and bias toward a *false NO-GO*. It was fixed (reply to every tool_call, id-normalized; plus WR-01/WR-02) and the corrected probe was **re-run live against the same deployed GGUF: 15/15 PASS, GO, `--full` exit 0**. The verdict below is unchanged and now rests on a parallel-call-safe instrument.
 
 ---
 

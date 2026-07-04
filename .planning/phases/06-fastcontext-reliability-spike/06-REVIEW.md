@@ -10,7 +10,10 @@ findings:
   warning: 2
   info: 2
   total: 5
-status: issues_found
+status: resolved
+resolved: 2026-07-04
+resolution_commit: 9df61a7
+resolution_note: CR-01, WR-01, WR-02 fixed and reconfirmed by a live 15/15 GO re-run; IN-01/IN-02 left as accepted info-level notes.
 ---
 
 # Phase 6: Code Review Report
@@ -18,7 +21,17 @@ status: issues_found
 **Reviewed:** 2026-07-04
 **Depth:** standard
 **Files Reviewed:** 1
-**Status:** issues_found
+**Status:** resolved (fixes in `9df61a7`; live re-run reconfirmed GO 15/15)
+
+> **Resolution (2026-07-04, commit `9df61a7`):** CR-01 fixed — the replay now
+> normalizes every tool_call id and sends one `role:"tool"` reply per call, so
+> parallel/id-less calls no longer desync the transcript; a new offline
+> `[self-test:parallel]` guards it. WR-01 fixed — a malformed 2xx body is now
+> recorded as a per-turn FAIL instead of aborting the probe under `set -e`.
+> WR-02 fixed — token_miser corroboration output is kept out of the evidence log
+> (redacted status line only). IN-01/IN-02 accepted as info-level, not changed.
+> The corrected probe was re-run live against the deployed GGUF: **15/15 turns
+> PASS, VERDICT GO, `--full` exit 0** — the verdict is unchanged.
 
 ## Summary
 
