@@ -56,19 +56,20 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CTX-01 | — | Pending |
-| CTX-02 | — | Pending |
-| CTX-03 | — | Pending |
-| CTX-04 | — | Pending |
-| CTX-05 | — | Pending |
-| CTX-06 | — | Pending |
-| CTX-07 | — | Pending |
+| CTX-01 | Phase 7 | Pending |
+| CTX-02 | Phase 7 | Pending |
+| CTX-03 | Phase 7 | Pending |
+| CTX-04 | Phase 8 | Pending |
+| CTX-05 | Phase 8 | Pending |
+| CTX-06 | Phase 6 | Pending |
+| CTX-07 | Phase 9 | Pending |
 
 **Coverage:**
 
 - v1.2 requirements: 7 total
-- Mapped to phases: 0 (populated by roadmapper)
-- Unmapped: 7
+- Mapped to phases: 7
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-04*
+*Roadmap created: 2026-07-04 — 4 phases (6-9), 100% coverage*

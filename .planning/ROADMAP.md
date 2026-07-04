@@ -4,8 +4,9 @@
 
 - ✅ **v1.0 OSS core → parity** — Phases 1-3 (shipped 2026-07-03) — see [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - ✅ **v1.1 OpenCode parity** — Phases 4-5 (shipped 2026-07-04) — see [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
+- 🚧 **v1.2 Context Exploration (token-miser + FastContext)** — Phases 6-9 (in progress)
 - 📋 **Enterprise overlay (private)** — planned; wraps the core with organization-specific launchers and config; lives only on the private remote, never in this repo
-- 📋 **token-miser integration** — planned; the routing + context-explore sibling, brought in as an optional companion
+- 📋 **token-miser routing-proxy surface (TMISER-R1)** — planned; the HTTP routing/tiering surface (`/v1/chat/completions` tiering, semantic router) — distinct from v1.2's `context_explore` subprocess delegation, which token-miser's own docs call "never a routing target"
 
 ## Phases
 
@@ -30,6 +31,58 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 </details>
 
+### 🚧 v1.2 Context Exploration (token-miser + FastContext) (In Progress)
+
+**Milestone Goal:** Give cairnkeep a token-efficient repo-exploration capability — FastContext as a provider-neutral context-explore backend, routed through token-miser — wired into both the `cairn-memory` MCP and the Claude Code + OpenCode operating layers.
+
+- [ ] **Phase 6: FastContext Reliability Spike** - Probe and document `finish_reason=tool_calls` reliability against the deployed GGUF quant + `llama-server --jinja` combo before any wiring is built on it
+- [ ] **Phase 7: context_explore MCP Tool** - Thin subprocess-delegating tool in `cairn-memory`, provider-neutral config, fail-closed on every error path
+- [ ] **Phase 8: Operating-Layer Wiring** - Claude Code + OpenCode commands invoke context exploration on demand
+- [ ] **Phase 9: Live Verification + A/B Token-Savings** - Cairnkeep's own measured before/after token count, milestone close-out gate
+
+## Phase Details
+
+### Phase 6: FastContext Reliability Spike
+**Goal**: The actually-deployed FastContext GGUF quant + `llama-server --jinja` combination is proven to reliably emit real tool calls (not narration) before any code depends on it — de-risking the exact failure class this project already paid for once (OCP-04).
+**Depends on**: Nothing (first phase of v1.2; gates Phases 7-9)
+**Requirements**: CTX-06
+**Success Criteria** (what must be TRUE):
+  1. A repeated-trial probe (multiple prompts, multiple turns) against the actually-deployed FastContext GGUF quant + `llama-server --jinja` endpoint records the observed `finish_reason` on every turn.
+  2. The probe checks `GET /props` → `chat_template_tool_use` against the deployed `llama-server` build to confirm a native tool-call template is active rather than a narration-prone generic fallback.
+  3. A documented go/no-go verdict exists in the phase artifacts: either "reliably invokes tools" (safe to build Phase 7 on) or "narrates instead of invoking" (a hard blocker requiring remediation before proceeding) — never a silent assumption either way.
+**Plans**: TBD
+
+### Phase 7: context_explore MCP Tool
+**Goal**: `cairn-memory` exposes a `context_explore` tool that delegates natural-language exploration queries to the external `token_miser explore` binary and returns compact citations, configured entirely provider-neutrally, and failing closed on every error path.
+**Depends on**: Phase 6 (reliability spike must clear before this is built)
+**Requirements**: CTX-01, CTX-02, CTX-03
+**Success Criteria** (what must be TRUE):
+  1. User can invoke `context_explore` with a natural-language query against a real repo and receive compact `path:line-range` citations, parsed from `token_miser explore`'s `Evidence` JSON via the existing `runCommand` subprocess pattern.
+  2. When the `token-miser` binary is missing, misconfigured, times out, or emits malformed stdout, `context_explore` returns a clear, fail-closed error — never a silent empty-success.
+  3. `context_explore`'s only configuration surface is environment variables (binary path + optional repo-root override); a grep across `src/` and docs confirms no FastContext endpoint/model/API-key or private host/IP/vendor default is committed anywhere (honors DEC-no-private-references).
+  4. An offline smoke test (no live model dependency) exercises the "not configured" and "binary missing" fail-closed paths and passes in CI.
+**Plans**: TBD
+
+### Phase 8: Operating-Layer Wiring
+**Goal**: Users can invoke context exploration on demand from both the Claude Code and OpenCode operating layers, mirroring the existing command/agent pairing pattern.
+**Depends on**: Phase 7 (`context_explore` must exist and be correctly configured before it's wired into commands)
+**Requirements**: CTX-04, CTX-05
+**Success Criteria** (what must be TRUE):
+  1. User can run a Claude Code command that invokes the `context_explore` MCP tool and surfaces its citations in the response.
+  2. User can run an OpenCode command that invokes the same `context_explore` tool, installed via a new `sync-opencode-*-assets.sh` script mirroring the existing asset-sync pattern (parity with Claude).
+  3. Both commands are on-demand, agent-invoked entry points — not automatic hooks — consistent with token-miser's fresh-task-only invariant for exploration.
+**Plans**: TBD
+
+### Phase 9: Live Verification + A/B Token-Savings
+**Goal**: The milestone's actual value proposition — token-efficient exploration — is proven with cairnkeep's own measured number against a real bootstrapped project, not a cited paper figure.
+**Depends on**: Phase 8 (needs the full pipeline — tool, config, and at least one operating-layer command — working end-to-end to produce a meaningful measurement)
+**Requirements**: CTX-07
+**Success Criteria** (what must be TRUE):
+  1. An A/B harness runs the same representative exploration prompt through both native Read/Glob/Grep and `context_explore` against a real bootstrapped project, on cairnkeep's own verification harness.
+  2. A measured (not cited-from-paper) before/after token count is recorded and reported in the phase's UAT/SUMMARY docs.
+  3. At least one operating-layer `/context-explore` command (Claude Code and/or OpenCode) is run live end-to-end against a real bootstrapped project — the same verify-by-execution bar proven against the registered `cairn-memory` MCP in prior milestones.
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Status | Completed |
@@ -39,3 +92,7 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 3. Docs + parity sign-off | v1.0 | Complete | 2026-07-03 |
 | 4. OpenCode parity operating layer | v1.1 | Complete | 2026-07-03 |
 | 5. Live OpenCode parity verification | v1.1 | Complete (override) | 2026-07-04 |
+| 6. FastContext Reliability Spike | v1.2 | Not started | - |
+| 7. context_explore MCP Tool | v1.2 | Not started | - |
+| 8. Operating-Layer Wiring | v1.2 | Not started | - |
+| 9. Live Verification + A/B Token-Savings | v1.2 | Not started | - |

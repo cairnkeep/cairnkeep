@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Context Exploration
 status: planning
-last_updated: "2026-07-04T18:02:23.051Z"
+last_updated: "2026-07-04T20:20:00.000Z"
 last_activity: 2026-07-04
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,55 +20,33 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-04)
 
 **Core value:** Drop-in parity — a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
-**Current focus:** v1.1 shipped (override closeout) — planning next milestone (`/gsd-new-milestone`)
+**Current focus:** v1.2 Context Exploration — ROADMAP.md created (Phases 6-9); ready to plan Phase 6 (FastContext reliability spike)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 6 of 9 (FastContext Reliability Spike) — first phase of v1.2, not yet planned
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-04 — Milestone v1.2 started
+Status: Ready to plan
+Last activity: 2026-07-04 — v1.2 ROADMAP.md created, 7/7 requirements mapped across 4 phases
+
+### v1.2 roadmap (2026-07-04)
+
+Four phases, continuing the sequential numbering from v1.1 (ended at Phase 5). Ordering mirrors the research SUMMARY.md's "Implications for Roadmap": reliability spike gates everything, config folded into the tool phase, operating-layer wiring only after the tool is proven, A/B measurement closes out the milestone.
+
+- **Phase 6 — FastContext Reliability Spike** (CTX-06): probe `finish_reason=tool_calls` reliability against the actually-deployed GGUF quant + `llama-server --jinja` combo before any wiring is built on it — same failure class as OCP-04.
+- **Phase 7 — context_explore MCP Tool** (CTX-01, CTX-02, CTX-03): thin subprocess-delegating tool in `cairn-memory` (mirrors the existing `python3` graphify `runCommand` pattern), parses token-miser's `Evidence` JSON, fail-closed error handling, provider-neutral env-only config folded into the same phase per the roadmapper's judgment call.
+- **Phase 8 — Operating-Layer Wiring** (CTX-04, CTX-05): Claude Code + OpenCode commands invoke `context_explore` on demand, installed via a new `sync-opencode-*-assets.sh` script.
+- **Phase 9 — Live Verification + A/B Token-Savings** (CTX-07): milestone close-out gate — measured (not cited) before/after token count on cairnkeep's own harness against a real bootstrapped project.
 
 ### Owed to Phase 5 — RESOLVED (documented as v1.1 known gap)
 
 - ✓ **OCP-01/02/03/04 live round-trip** — discharged by `05-UAT.md`: capture proven live (4/4), recall-on-edit + remember-write proven with structural evidence, and the `/recall` read-back proven achievable end-to-end once live (qwen3.5-27b). The one remaining open item — reliable *headless* reproduction — is recorded as the v1.1 override known gap in MILESTONES.md, not carried as active work.
 
-### v1.1 roadmap (2026-07-03)
-
-Two phases, continuing the sequential numbering from v1.0 (ended at Phase 3):
-
-- **Phase 4 — OpenCode parity operating layer** (OCP-01, OCP-02, OCP-03, OCP-04, OCP-05): port the memory-capture (SessionEnd) and memory-recall (pre-edit) lifecycle plus the `remember`/`recall` commands to OpenCode's plugin model, and make `memory-wakeup` self-sufficient of Claude-rendered assets. Installs via the `sync-opencode-*-assets.sh` scripts.
-- **Phase 5 — Live OpenCode parity verification** (OCP-06): prove the full wakeup → recall → capture lifecycle and the commands round-trip against the registered `cairn-memory` MCP in a live OpenCode session — the same verify-by-execution bar v1.0 used for the Claude path.
-
-### Phase 3 results (2026-07-03)
-
-- **Operating guide** — `docs/operating.md` written: full setup order (build + register `cairn-memory` MCP → install operating layer → configure `.ai/.env` → launch), a workflow reference for every command/hook, and the config table. Satisfies Phase 3 criterion 1.
-- **Fresh-bootstrap parity** — verified. `cairn bootstrap` writes `.ai/` + `.planning/`; the operating layer is reproduced by `sync-claude-assets.sh --apply` (confirmed into a scratch `--live-root`: 10 commands, 7 agents, 3 hooks registered on the right events, idempotent re-check clean). The gap was purely that this install step was undocumented — now fixed in README + the bootstrap next-steps output. Satisfies criterion 2.
-- **Hygiene** — Apache-2.0 LICENSE present, CI (`ci.yml`) builds + tests the memory server on push/PR, no tracked secrets or `.env`, no attribution noise. Satisfies criterion 4.
-- **Baseline tag (criterion 3)** — DONE. Annotated tag `v1.0.0` at HEAD; all security follow-ups closed before sign-off.
-
-Known OpenCode-side gap (documented, not fixed at v1.0 — now the v1.1 milestone target): the OpenCode memory lifecycle (capture/recall) and self-sufficient wakeup are the parity work carried into v1.1. Claude Code is the complete, verified path.
-
-### Phase 2 verification results (2026-07-03)
-
-All flows exercised end-to-end against the registered `cairn-memory` MCP and now pass:
-
-- **Memory MCP round-trip** — write/read/list/search/delete confirmed. Fixed: `memory_read` published an empty tool schema (ZodEffects `.refine()` wrapper); moved the exactly-one-of check into the handler.
-- **Provider neutrality** — removed a hardcoded vendor embedding-model default; the model name is now required for semantic search, else substring fallback.
-- **remember / recall** — AgentFS + file-memory write and cross-layer read confirmed.
-- **memory-sync / memory-review** — routed the PR-state read through the provider operation map (was a hardcoded GitHub path); fixed the memory-review MCP tool allowlist; both default cleanly when the provider is unset/`none`.
-- **Memory hooks (wakeup / capture / recall)** — capture → staging → wakeup surfacing → memory-review accept-gate round-trip confirmed. Fixed a shell test-guard bug in `memory-recall.sh`; re-synced live hooks via `sync-claude-assets.sh`.
-- **wiki-ingest / wiki-query / wiki-lint** — seeded the wiki from `docs/git-providers.md`, wrote back a cited query answer, and ran a clean lint pass (0 findings).
-- **security-audit** — full selector → investigator → validator chain produced accepted finding **SEC-0001** (memory scope path traversal). Fixed with a kebab-case scope allowlist + base-dir containment; regression-tested by `smoke-scope-guard.mjs`.
-- **repo-review** — reviewed the session's own diff; caught a Medium in the SEC-0001 fix (an ineffective `resolve===join` containment guard). Hardened it with `relative()`-based containment.
-
-All follow-ups since resolved on 2026-07-03: HTTP-transport hardening for the opt-in `MCP_HTTP_PORT` mode (auth, CORS, DNS-rebinding) — SEC-0001 fully closed; and the `scope:"all"` write/read asymmetry (REVIEW.md finding 3) — `"all"` now rejected on write/list/delete/supersede/history paths. No open review or security items.
-
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 6 (Phase 1 delivered before plan tracking)
+- Total plans completed: 9 (Phase 1 delivered before plan tracking)
 - Average duration: -
 - Total execution time: -
 
@@ -78,22 +56,14 @@ All follow-ups since resolved on 2026-07-03: HTTP-transport hardening for the op
 |-------|-------|-------|----------|
 | 1. Configurable git-provider abstraction | pre-tracking | - | - |
 | 04 | 6 | - | - |
+| 05 | 3 | - | - |
 
 **Recent Trend:**
 
-- Last 5 plans: -
-- Trend: -
+- Last 5 plans: 25min, 3min, 5min, 15min, 20min (Phase 4 tail)
+- Trend: Stable
 
 *Updated after each plan completion*
-| Phase 04 P01 | 25 | 2 tasks | 1 files |
-| Phase 04 P02 | 3min | 3 tasks | 3 files |
-| Phase 04 P03 | 5min | 1 tasks | 1 files |
-| Phase 04 P04 | 15min | 2 tasks | 1 files |
-| Phase 04 P05 | 20min | 1 tasks | 1 files |
-| Phase 04 P06 | 45min | 2 tasks | 2 files |
-| Phase 05 P01 | 55min | 2 tasks | 1 files |
-| Phase 05 P02 | 79min | 3 tasks | 2 files |
-| Phase 05 P03 | 95min | 3 tasks tasks | 3 files files |
 
 ## Accumulated Context
 
@@ -102,41 +72,21 @@ All follow-ups since resolved on 2026-07-03: HTTP-transport hardening for the op
 Locked hard rules live in the PROJECT.md decisions block: DEC-no-private-references, DEC-no-ai-authorship, DEC-commit-scanning.
 Recent decisions affecting current work:
 
-- Phase 1: Git host resolved via one provider config key + per-provider operation→tool map; collaboration commands never assume a specific host
-- v1.1: OpenCode parity for capture/recall is implemented as OpenCode plugin lifecycle handlers (not Claude shell hooks); `memory-wakeup` must be self-sufficient of Claude-rendered assets (per the PROJECT.md v1.1 decision).
-- [Phase 04]: OCP-05 injection channel = system.transform (empirically confirmed against installed OpenCode CLI v1.17.11; instruction-file fallback not needed)
-- [Phase 04]: OpenCode remember/recall commands port: AgentFS-only per D-06 (Claude file-memory layer dropped), verbatim layer-agnostic semantics per D-07
-- [Phase 04]: OCP-05 wakeup resolves project root via PluginInput.directory (not process.cwd()) to avoid a cwd/repo-root mismatch
-- [Phase 04]: OpenCode memory-capture uses client.session.get() to filter subagent subsessions via parentID, since session.idle's event payload only carries sessionID
-- [Phase 04]: memory-capture dedupe Set is marked before the extract call, capping each top-level session at exactly one extraction attempt regardless of outcome (fail-open, no retry loop)
-- [Phase 04]: OCP-02 dedupe key is sessionID:filePath (not filePath alone) so recall re-arms per distinct session, matching memory-wakeup.ts's per-session semantics
-- [Phase 04]: OCP-02 recall plugin's catch block re-throws only its own intentional surface-context Error (prefix-matched), swallowing all other errors to stay fail-open (D-03)
-- [Phase 04-06]: OCP-05 hard bar proven by execution — OpenCode wakeup surfaces AgentFS memory with no reachable ~/.claude (Run A/B canary confirmed); removed memory-wakeup's per-session dedupe Set since experimental.chat.system.transform fires more than once per session (title-gen call shares sessionID with the real turn) and output.system is a fresh array per call
-- [Phase 05-01]: session.idle does not double-fire and never fires before real messages exist (confirmed live, v1.17.11); memory-capture.ts dedupe needs no fix
-- [Phase 05-01]: opencode run --format json carries the session ID as the top-level field sessionID on every streamed event
-- [Phase 05-01]: installed OpenCode CLI has no --auto flag; harness uses --dangerously-skip-permissions instead
-- [Phase 05-02]: memory-capture.ts stdin-writer crash fixed (D-03/OCP-06 defect clause); opencode-run process-exit race worked around via opencode serve + --attach at the harness level (no plugin change)
-- [Phase 05-02]: Discovered live-model reliability gap: /recall does not drive a real memory_search/_read tool call with the configured local model in headless opencode run (write-oriented calls remained reliable); carried forward to 05-03's interactive-session fallback per D-01
-- [Phase 05-03] OCP-04 recall read-back is an open, root-caused model-reliability limitation: qwen3.6-27b-coder is a thinking model whose reasoning leaks as narrated pseudo-tool-calls; not a defect in recall.md/remember.md/cairn-memory/harness
-- [Phase 05-03] Interactive TUI session (D-01) resolved via harness-only fallback clause (headless operator, no TTY); recorded as explicit fallback-gap in 05-UAT.md Test 5
-- [Phase 05-03] docs/operating.md corrected: OpenCode memory-wakeup plugin is self-sufficient of Claude assets (Phase-4 D-04); stale precondition removed
+- v1.2 roadmap: `context_explore` is a thin new tool in the existing `cairn-memory` MCP that shells out to the external `token_miser explore` binary (mirrors the `python3` graphify `runCommand` pattern) — it does not reimplement the FastContext tool-calling loop, sandbox, or model serving, and holds no FastContext endpoint/model config (token-miser owns that, per its own TOML).
+- v1.2 roadmap: reliability spike (Phase 6) is a standalone phase and hard gate on Phases 7-9, mirroring the OCP-04 lesson that building wiring atop an unverified local model's tool-calling is the expensive way to discover a narration failure.
+- [Phase 05-03] OCP-04 recall read-back is an open, root-caused model-reliability limitation: qwen3.6-27b-coder is a thinking model whose reasoning leaks as narrated pseudo-tool-calls; not a defect in recall.md/remember.md/cairn-memory/harness.
+- [Phase 05-03] docs/operating.md corrected: OpenCode memory-wakeup plugin is self-sufficient of Claude assets (Phase-4 D-04); stale precondition removed.
 
 ### Pending Todos
 
-- Plan Phase 5 (Live OpenCode parity verification, OCP-06) via `/gsd-plan-phase 5`.
-
-### Done since (2026-07-03)
-
-- SEC-0001 HTTP-transport hardening: fail-closed bearer-token auth, per-origin CORS, Host-header/DNS-rebinding validation; regression-tested by `smoke-http-guard.mjs`. SEC-0001 remediation is now fully closed.
-- Added `sync-opencode-memory-assets.sh` so OpenCode's memory/review commands install like the other asset families (guide caveat removed).
-- Fixed the `scope:"all"` write/read asymmetry (REVIEW.md finding 3): `resolveScopePath` rejects `"all"` on the write/list/delete/supersede/history paths (it is a read-only fan-out scope); regression-tested in `smoke-scope-guard.mjs`.
+- Plan Phase 6 (FastContext reliability spike, CTX-06) via `/gsd-plan-phase 6`.
 
 ### Blockers/Concerns
 
-Phase 4 (OCP-01, OCP-02, OCP-03, OCP-04, OCP-05) complete; ready to plan Phase 5 (OCP-06).
+Phase 5 (OCP-06) complete (override closeout); v1.2 roadmap created and ready to plan.
 
-- 05-02/05-03 live stages require operator to configure a reachable local OpenAI-compatible endpoint plus CAIRN_LLM_API_KEY/CAIRN_LLM_API_URL/CAIRN_LLM_EXTRACTION_MODEL (e.g. via .ai/.env) before executing
-- 05-02: local model endpoint (127.0.0.1:8001) went down mid-session and did not recover; recall stage + full negative-control sweep need re-verification once the endpoint is confirmed reachable again
+- Phase 6 execution requires operator access to the actually-deployed FastContext GGUF quant + `llama-server --jinja` endpoint (local infra) to run the reliability probe — no committed host/IP per DEC-no-private-references.
+- Phase 2's `Evidence` JSON schema (citations/expanded_snippets/stats field names) is not fully pinned by research; read `~/PARA/Projects/token-miser/src/explore/mod.rs` directly during Phase 7 planning before writing the parser.
 
 ## Deferred Items
 
@@ -145,14 +95,17 @@ Items acknowledged and carried forward:
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | Milestone | Enterprise overlay (private-only, never in this repo) | Planned | 2026-07-03 |
-| Milestone | token-miser integration (optional companion) | Planned | 2026-07-03 |
+| Milestone | token-miser routing-proxy surface (TMISER-R1) | Planned | 2026-07-04 (narrowed from v1.0's "token-miser integration" — `context_explore` subprocess delegation is now in-scope for v1.2; only the HTTP routing/tiering surface remains deferred) |
+| v1.2 Future Requirement | CTX-F1 — memory-aware exploration (cross-reference citations against memory_search/wiki-query) | Deferred | 2026-07-04 |
+| v1.2 Future Requirement | CTX-F2 — pre-task hook auto-invoke of exploration | Deferred | 2026-07-04 |
+| v1.2 Future Requirement | CTX-F3 — result caching keyed on (query, repo HEAD/dirty-state) | Deferred | 2026-07-04 |
 
 ## Session Continuity
 
-Last session: 2026-07-03T23:11:21.068Z
-Stopped at: Completed 05-03-PLAN.md (via D-01 fallback); phase 05 ready for verification
+Last session: 2026-07-04T20:20:00.000Z
+Stopped at: v1.2 ROADMAP.md created (Phases 6-9); REQUIREMENTS.md traceability populated
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Plan Phase 6 with `/gsd-plan-phase 6`
