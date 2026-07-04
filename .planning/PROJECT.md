@@ -24,7 +24,7 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 
 **Shipped:** v1.1 OpenCode parity (2026-07-04, tag `v1.1`) — the OpenCode operating layer reached the Claude Code baseline: native memory-capture (session-end) and memory-recall (pre-edit) plugins, `remember`/`recall` commands, and a self-sufficient session-start wakeup that no longer depends on Claude-rendered assets. Closed as an **override closeout** — the `/remember`→`/recall` round-trip is proven achievable (demonstrated once live with a tool-call-reliable local model) but not reliably reproducible headless, and the interactive TUI confirm was not run (headless operator, no TTY). Details + follow-ups in MILESTONES.md → Known Gaps.
 
-**Next milestone:** v1.2 Context Exploration (token-miser + FastContext) — scoping in progress (requirements → roadmap).
+**In progress:** v1.2 Context Exploration (token-miser + FastContext). **Phase 6 (FastContext Reliability Spike) complete (2026-07-04)** — the deployed `fastcontext-1.0-4b-rl-q8_0` GGUF + `llama-server --jinja` combo emits reliable `tool_calls` (live 15/15, **GO**), clearing the hard gate on Phases 7–9. Next: Phase 7 (`context_explore` MCP tool).
 
 ## Requirements
 
@@ -42,6 +42,7 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 - ✓ **OCP-04** — User can run `recall` in OpenCode to retrieve memory across layers — v1.1 (proven achievable — demonstrated once live with a no-thinking, tool-call-reliable local model; reliable headless reproduction is an open gap, see MILESTONES.md)
 - ✓ **OCP-05** — OpenCode memory-wakeup surfaces session-start context without requiring Claude assets installed — v1.1 (proven live in scratch-HOME)
 - ✓ **OCP-06** — The full memory lifecycle + commands round-trip in a live OpenCode session (parity verified) — v1.1 (override closeout — full round-trip demonstrated once live; reliable headless reproduction + interactive TUI confirm are open gaps)
+- ✓ **CTX-06** — FastContext tool-calling reliability probed against the actually-deployed GGUF quant + `llama-server --jinja` before any wiring — v1.2 Phase 6 (live 15/15 `finish_reason=tool_calls`, GO; re-runnable probe `scripts/verify-fastcontext-reliability.sh`, hardened for parallel tool calls)
 
 ### Active
 
@@ -118,4 +119,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-04 — started milestone v1.2 Context Exploration (token-miser + FastContext)*
+*Last updated: 2026-07-04 — Phase 6 (FastContext Reliability Spike) complete: live GO verdict, Phases 7–9 unblocked*
