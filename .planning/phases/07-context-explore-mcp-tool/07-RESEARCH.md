@@ -596,10 +596,13 @@ const res = await client.callTool({
 resolution before planning, but A2 should be revisited once real end-to-end
 timing data exists (likely surfaced naturally in Phase 9's A/B measurement).
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `context_explore` attempt any heuristic detection of Pitfall #1
    (endpoint-down-but-reports-success)?**
+   - **RESOLVED:** Accept + document as a residual CTX-02 gap; no heuristic
+     detection. Disposition carried into the plans as threat T-07-06 (accepted)
+     and the empty-citation text surfaces `turns`/`tool_calls` for transparency.
    - What we know: The failure is indistinguishable from a genuine empty
      result purely from the `Evidence` JSON's shape (`stats.tool_calls: 0`,
      `stats.turns: 1` in the observed case — but a legitimate trivial query
@@ -618,6 +621,9 @@ timing data exists (likely surfaced naturally in Phase 9's A/B measurement).
 
 2. **What is the realistic wall-clock duration of a real `token_miser explore`
    call against a live FastContext endpoint?**
+   - **RESOLVED:** Ship the conservative default `timeout_seconds` of 120s
+     (Assumption A2) as a tunable, not a hard contract; Phase 9's live A/B
+     measurement supplies real timing data to confirm or adjust it.
    - What we know: Phase 6's spike measured *raw-endpoint* tool-call
      reliability using a stubbed, instant tool-result loop — not real
      end-to-end timing through token-miser's actual Rust execution path.
