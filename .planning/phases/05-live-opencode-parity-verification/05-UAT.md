@@ -251,19 +251,33 @@ evidence: |
     same client. The bare thinking-on `:8001` endpoint therefore remains the recorded/stable config
     for this UAT's committed `--full` evidence.
 
-  **Conclusion:** OCP-04 read-back is a genuine, well-characterized model-reliability limitation —
-  NOT a defect in `recall.md`/`remember.md`, the `cairn-memory` MCP server, or the harness. The
-  underlying mechanisms (system.transform injection, PreToolUse recall injection, session.idle
-  capture staging, and the MCP write tool) are all proven to work; what is unreliable is this
-  specific local reasoning model's agentic tool-calling through `opencode` when thinking is on, and
-  the one thinking-strip proxy available is incompatible with `opencode`'s HTTP client.
+  **DEFINITIVE FINDING — thinking configuration is NOT a viable fix for OCP-04** (triangulated
+  across raw `curl`, the `:8006` proxy, AND direct `chat_template_kwargs.enable_thinking=false`
+  injection in `opencode`'s own model config):
+  - Thinking ON (`:8001` default): `/remember` fires a real `memory_write` reliably, but `/recall`
+    does NOT fire `memory_search`/`_read` (the model narrates it).
+  - Thinking OFF — whether via the `:8006` proxy OR via `chat_template_kwargs.enable_thinking=false`
+    placed directly in `opencode`'s model config (which DOES reach vLLM, proven by the behavior
+    change): `/remember`'s `memory_write` STOPS firing (~4 trials across proxy + direct config); the
+    read half is never even reached.
+  - So there is NO thinking setting where both write and read fire for these multi-step
+    slash-command flows: thinking-on buys the write and loses the read; thinking-off loses the write.
 
-  **Recommended future fix direction (documentation, not a passing result):** get `opencode` to
-  send `enable_thinking=false` directly to `:8001` (if its provider config supports extra
-  `chat_template_kwargs` body params), OR stand up a dedicated non-thinking vLLM endpoint that
-  `opencode` can talk to directly (the `:8006` proxy is not usable — `opencode`'s client hangs on
-  it). `.ai/.env` has been reverted to the stable `:8001` coder endpoint, matching this UAT's
-  committed `--full` evidence.
+  **Conclusion:** OCP-04 read-back is a fundamental tool-calling limitation of `qwen3.6-27b-coder`
+  for multi-step `/remember` & `/recall` command flows — NOT a defect in `recall.md`/`remember.md`,
+  the `cairn-memory` MCP server, or the harness (the underlying mechanisms — system.transform
+  injection, PreToolUse recall injection, session.idle capture staging, and the MCP write tool — are
+  all proven to work), and NOT fixable by thinking configuration or a thinking-strip proxy (both
+  were tested and rejected).
+
+  **Recommended future fix direction (documentation, not a passing result):** the genuine remaining
+  fix is a DIFFERENT, more tool-call-reliable local model — not this coder with thinking toggled.
+  Thinking config is a proven dead-end. (Secondary, now moot: the `vllm-thinking-proxy` is
+  additionally unusable by `opencode` for an unrelated reason — `opencode`'s Node/undici client
+  hangs on the uvicorn/FastAPI proxy across framing/injection/keep-alive variants while `curl`
+  works — but that no longer matters given thinking-off breaks writes regardless of transport.)
+  `.ai/.env` has been reverted to the stable `:8001` coder endpoint, matching this UAT's committed
+  `--full` evidence.
 
 ## Fixes applied this session (disclosed per D-03/OCP-06's defect clause)
 
@@ -313,21 +327,18 @@ blocked: 0
 
 ## Gaps
 
-- **OCP-04 (recall live MCP read-back) is an open, well-characterized model-reliability
-  limitation** — root cause identified this session (see Test 5): `qwen3.6-27b-coder` is a thinking
-  model whose reasoning leaks as narrated pseudo-tool-call text on the thinking-on endpoint
-  (`:8001`), so `/recall` does not fire a genuine `memory_search`/`_read` call. The one
-  thinking-strip proxy available (`vllm-thinking-proxy`, `:8006`) DOES strip thinking and DOES fire
-  real `cairn-memory` tool calls under raw `curl` (`finish_reason=tool_calls`, non-streaming and
-  streaming), but `opencode` is incompatible with it — pointing `opencode` at `:8006` hangs on every
-  call (even a trivial `opencode run "reply PONG"` times out at 0 bytes), because the proxy is built
-  for AnythingLLM's Generic-OpenAI provider and `opencode`'s `@ai-sdk/openai-compatible` client
-  hangs on it. This is NOT a defect in `recall.md`/`remember.md`, the `cairn-memory` server, or the
-  harness — the underlying mechanisms all work. Fix direction: get `opencode` to send
-  `enable_thinking=false` directly to `:8001` (if its provider config supports extra
-  `chat_template_kwargs` body params), OR stand up a dedicated non-thinking vLLM endpoint `opencode`
-  can talk to directly (the `:8006` proxy is not usable for `opencode`). This is a documented open
-  gap for verification to surface, not a passing result.
+- **OCP-04 (recall live MCP read-back) is an open, fundamental tool-calling limitation of
+  `qwen3.6-27b-coder`** for multi-step `/remember` & `/recall` command flows — NOT fixable by
+  thinking configuration (proven dead-end, triangulated this session across raw `curl`, the `:8006`
+  proxy, AND direct `chat_template_kwargs.enable_thinking=false` in `opencode`'s model config):
+  thinking ON gives a reliable `/remember` `memory_write` but no `/recall` `memory_search`/`_read`;
+  thinking OFF (proxy or direct config, both confirmed to reach vLLM) loses the `/remember` write
+  entirely (~4 trials), read half never reached. There is no thinking setting where both write and
+  read fire. This is NOT a defect in `recall.md`/`remember.md`, the `cairn-memory` server, or the
+  harness — the underlying mechanisms all work. **Genuine fix direction: a different, more
+  tool-call-reliable local model** — not this coder with thinking toggled. (Secondary, now moot:
+  `opencode`'s Node/undici client also hangs on the `:8006` uvicorn/FastAPI proxy while `curl`
+  works.) This is a documented open gap for verification to surface, not a passing result.
 - **Harness grep-based tool-call assertions can false-positive on narrated (non-executed) tool
   syntax** — discovered this session (Test 4), and now explained by the thinking-model root cause.
   Not fixed here (out of this plan's surgical docs/UAT scope); worth hardening in any future
