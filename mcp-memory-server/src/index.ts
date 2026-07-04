@@ -596,6 +596,24 @@ async function semanticSearch(
     }
 }
 
+// Compact citation rendering (D-02): reduce the full Evidence.citations array
+// to the lean `path:start-end` text list — the actual token-economy payoff of
+// this tool. Empty citations from a successful run are first-class (D-04),
+// never conflated with failure; surface turns/tool_calls for transparency
+// (Pitfall #1 — an unreachable-but-configured endpoint looks identical).
+function renderCitations(evidence: {
+    citations: Array<{ path: string; start_line: number; end_line: number }>;
+    stats: { turns: number; tool_calls: number };
+}): string {
+    if (evidence.citations.length === 0) {
+        return `(no citations found; turns=${evidence.stats.turns}, ` +
+            `tool_calls=${evidence.stats.tool_calls})`;
+    }
+    return evidence.citations
+        .map((c) => `${c.path}:${c.start_line}-${c.end_line}`)
+        .join("\n");
+}
+
 // Factory: each MCP client/session needs its own McpServer instance (the SDK
 // only allows one connected transport per server). All instances share the
 // module-level helpers + AgentFS below. Enables a single long-lived process to
@@ -975,6 +993,93 @@ server.registerTool(
                 mode: syncMode,
                 ...result,
             },
+        };
+    },
+);
+
+server.registerTool(
+    "context_explore",
+    {
+        description: "Delegate a natural-language repo-exploration query to the external token_miser explore binary (FastContext-backed). Returns compact path:line-range citations. Requires CAIRN_EXPLORE_BINARY (absolute path to the token_miser binary) and a repo_root (per-call param or CAIRN_EXPLORE_REPO_ROOT env). Thin adapter — token_miser owns all exploration logic.",
+        inputSchema: z.object({
+            query: z.string().min(1),
+            repo_root: z.string().min(1).optional(),
+            timeout_seconds: z.number().int().min(10).max(600).optional(),
+        }),
+    },
+    async ({ query, repo_root, timeout_seconds }) => {
+        // --- Precondition tier: throw (config/environment problems, D-04) ---
+        const binaryPath = process.env.CAIRN_EXPLORE_BINARY;
+        if (!binaryPath) {
+            throw new Error("CAIRN_EXPLORE_BINARY is not set.");
+        }
+        if (!existsSync(binaryPath)) {
+            throw new Error(`CAIRN_EXPLORE_BINARY does not exist: ${binaryPath}`);
+        }
+
+        const rawRoot = repo_root ?? process.env.CAIRN_EXPLORE_REPO_ROOT;
+        if (!rawRoot) {
+            throw new Error(
+                "No repo_root provided and CAIRN_EXPLORE_REPO_ROOT is not set.",
+            );
+        }
+        // Always resolve to an ABSOLUTE path before it crosses the process
+        // boundary (Pitfall #3, D-01) — a relative repo_root would resolve
+        // against runCommand's hardcoded cwd (infraRoot), not the caller's intent.
+        const resolvedRoot = resolve(expandHome(rawRoot));
+        if (!existsSync(resolvedRoot)) {
+            throw new Error(`repo_root does not exist: ${resolvedRoot}`);
+        }
+
+        // --- Execution tier: return { ok: false, ... } (runtime problems, D-04) ---
+        const result = await runCommand(
+            binaryPath,
+            ["explore", "--query", query, "--repo-root", resolvedRoot],
+            (timeout_seconds ?? 120) * 1000,
+            { ...process.env, NO_COLOR: "1" },
+        );
+
+        if (result.timedOut || result.exitCode !== 0) {
+            const payload = {
+                ok: false,
+                error: result.timedOut
+                    ? "token_miser explore timed out"
+                    : "token_miser explore exited non-zero",
+                stderr: result.stderr,
+                exitCode: result.exitCode,
+                timedOut: result.timedOut,
+            };
+            return {
+                content: [{ type: "text", text: asToolText(payload) }],
+                structuredContent: payload,
+            };
+        }
+
+        let evidence: {
+            citations: Array<{ path: string; start_line: number; end_line: number }>;
+            expanded_snippets: unknown[];
+            stats: { turns: number; tool_calls: number };
+        };
+        try {
+            evidence = JSON.parse(result.stdout.trim());
+        } catch {
+            const payload = {
+                ok: false,
+                error: "malformed Evidence JSON",
+                stderr: result.stderr,
+                exitCode: result.exitCode,
+            };
+            return {
+                content: [{ type: "text", text: asToolText(payload) }],
+                structuredContent: payload,
+            };
+        }
+
+        // --- Success shaping (D-02 dual output) ---
+        const payload = { ok: true, ...evidence };
+        return {
+            content: [{ type: "text", text: renderCitations(evidence) }],
+            structuredContent: payload,
         };
     },
 );
