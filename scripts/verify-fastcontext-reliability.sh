@@ -269,6 +269,24 @@ tool_result_message() {
   }'
 }
 
+# normalize_tool_call_ids(message_json, id_prefix): guarantees every tool_call
+# in an assistant message carries a non-empty id, synthesizing "<prefix>_<idx>"
+# for any that lack one. Fixes CR-01: the replay previously answered only
+# tool_calls[0].id, so a turn with PARALLEL tool_calls (or a missing .id)
+# desynced the re-sent OpenAI transcript and biased later turns toward
+# narration - a false NO-GO. With ids normalized, exactly one role:"tool"
+# reply is matched to each call.
+normalize_tool_call_ids() {
+  local message_json="$1" prefix="$2"
+  echo "$message_json" | jq --arg pfx "$prefix" '
+    if (.tool_calls | type) == "array" then
+      .tool_calls |= (to_entries | map(
+        .value + (if ((.value.id // "") == "")
+                  then {id: ($pfx + "_" + (.key | tostring))}
+                  else {} end)))
+    else . end'
+}
+
 # run_turn_matrix(url, turns_per_prompt): the gate #2 matrix. For each
 # EXPLORATION_PROMPTS entry, runs a genuine multi-turn loop over an
 # accumulating messages array (system + user, then each assistant turn and
@@ -305,6 +323,17 @@ run_turn_matrix() {
         continue
       fi
 
+      # WR-01: a 2xx body that is not valid JSON must be recorded as a FAIL,
+      # not abort the whole probe. Under `set -euo pipefail` a bare jq parse
+      # error downstream would exit the script mid-matrix, so validate up front
+      # and record-then-continue instead of silently dying.
+      if ! echo "$response" | jq -e . >/dev/null 2>&1; then
+        echo "[matrix] FAIL: malformed JSON body at prompt $prompt_idx turn $turn_idx" >&2
+        MATRIX_RESULTS+=("$prompt_idx|$turn_idx|FAIL|malformed-json|0")
+        append_evidence "[matrix] prompt=$prompt_idx turn=$turn_idx result=FAIL reason=malformed-json"
+        continue
+      fi
+
       # Log the raw tool-call arguments even though the result is stubbed -
       # a free early signal for Phase 7 planning (Pitfall 4).
       echo "$response" | jq -c '.choices[0].message.tool_calls[]?.function.arguments // empty' 2>/dev/null \
@@ -325,15 +354,21 @@ run_turn_matrix() {
       append_evidence "[matrix] prompt=$prompt_idx turn=$turn_idx result=$result finish_reason=$finish_reason tool_calls=$n_calls"
 
       # Append this turn to the accumulating conversation and continue -
-      # never reset to a fresh length-2 messages array (Pitfall 3).
+      # never reset to a fresh length-2 messages array (Pitfall 3). Normalize
+      # tool_call ids first (CR-01) so the appended assistant message and its
+      # replies agree on every id, including any the model omitted.
       assistant_msg=$(echo "$response" | jq '.choices[0].message')
+      assistant_msg=$(normalize_tool_call_ids "$assistant_msg" "call_p${prompt_idx}_t${turn_idx}")
       messages=$(echo "$messages" | jq --argjson m "$assistant_msg" '. + [$m]')
 
-      tool_call_id=$(echo "$response" | jq -r '.choices[0].message.tool_calls[0].id // empty')
-      if [[ -n "$tool_call_id" ]]; then
+      # CR-01: reply to EVERY tool_call with its own role:"tool" message, not
+      # just tool_calls[0]. Parallel calls (common for Qwen3-family exploration
+      # models) otherwise leave dangling calls and desync the next turn.
+      while IFS= read -r tool_call_id; do
+        [[ -z "$tool_call_id" ]] && continue
         tool_msg=$(tool_result_message "$tool_call_id")
         messages=$(echo "$messages" | jq --argjson t "$tool_msg" '. + [$t]')
-      fi
+      done < <(echo "$assistant_msg" | jq -r '.tool_calls[]?.id // empty')
     done
   done
 }
@@ -364,8 +399,11 @@ run_token_miser_corroboration() {
     local out
     echo "[stage-3] token_miser found on PATH - running corroboration explore against this repo"
     out=$(cd "$ROOT_DIR" && timeout 60 token_miser explore --repo-root . 2>&1) || true
-    append_evidence "[stage-3] token_miser corroboration output:"
-    append_evidence "$out"
+    # WR-02: token_miser output can echo endpoint/env config; keep the raw text
+    # out of the evidence log (which advertises URL/secret-free) - surface it on
+    # stderr for the operator and record only a redacted status line.
+    echo "$out" >&2
+    append_evidence "[stage-3] token_miser corroboration ran ($(printf '%s' "$out" | wc -l) lines); raw output withheld from evidence log to preserve the URL/secret-free invariant"
   else
     local msg="[stage-3] token_miser absent from PATH - optional corroboration skipped (D-04); verdict remains anchored to the raw endpoint (D-03)"
     echo "$msg"
@@ -504,6 +542,30 @@ self_test_props() {
   echo "[self-test:props] OK: absent-field and present-field /props fixtures both recorded without error"
 }
 
+# self_test_parallel_tool_replies(): proves the CR-01 fix offline - a turn with
+# two tool_calls (one of them missing an id) is normalized so that every call
+# gets a distinct, non-empty id, i.e. one role:"tool" reply per call rather than
+# only the first. Guards against a regression back to the single-reply desync.
+self_test_parallel_tool_replies() {
+  local fixture normalized ids id_count distinct_count
+  # Two parallel calls; the first deliberately omits "id" to exercise synthesis.
+  fixture='{"role":"assistant","content":null,"tool_calls":[{"type":"function","function":{"name":"grep","arguments":"{}"}},{"id":"call_b","type":"function","function":{"name":"read","arguments":"{}"}}]}'
+  normalized=$(normalize_tool_call_ids "$fixture" "call_pX_tY")
+  ids=$(echo "$normalized" | jq -r '.tool_calls[].id // ""')
+  id_count=$(printf '%s\n' "$ids" | grep -c .)
+  distinct_count=$(printf '%s\n' "$ids" | sort -u | grep -c .)
+
+  if printf '%s\n' "$ids" | grep -q '^$'; then
+    echo "[self-test:parallel] FAIL: a tool_call was left without an id: [$ids]" >&2
+    return 1
+  fi
+  if [[ "$id_count" -ne 2 || "$distinct_count" -ne 2 ]]; then
+    echo "[self-test:parallel] FAIL: expected 2 distinct tool_call ids, got count=$id_count distinct=$distinct_count" >&2
+    return 1
+  fi
+  echo "[self-test:parallel] OK: every tool_call (incl. missing-id) gets a distinct reply id (CR-01 guard)"
+}
+
 # run_self_test(): the offline self-test entry point. Task 1 covers only the
 # /props recording path; Tasks 2-3 extend this with the tool-call-matrix
 # assertion and verdict-scoring fixtures.
@@ -513,6 +575,7 @@ run_self_test() {
   self_test_props || failures=1
   self_test_matrix_assertion || failures=1
   self_test_verdict || failures=1
+  self_test_parallel_tool_replies || failures=1
 
   if [[ "$failures" -ne 0 ]]; then
     echo "[self-test] FAILED" >&2
