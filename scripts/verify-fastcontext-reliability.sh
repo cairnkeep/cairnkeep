@@ -338,6 +338,119 @@ run_turn_matrix() {
   done
 }
 
+# compute_verdict(): the refined-D-05 scoring ("Evidence, not hard gate",
+# this plan's <d05_refinement>). GO only when every turn in the matrix
+# passed assert_tool_call_turn (gate #2, D-06 hard blocker on any single
+# narration/malformed turn). Gate #1 (chat_template_tool_use, from
+# GATE1_STATUS) is recorded as evidence alongside the verdict and MUST NOT
+# by itself force a NO-GO - its absence is expected and architecturally
+# explainable for a single-unified-template Qwen3-family GGUF.
+compute_verdict() {
+  if [[ "$MATRIX_TOTAL" -gt 0 && "$MATRIX_PASS" -eq "$MATRIX_TOTAL" ]]; then
+    VERDICT="GO"
+  else
+    VERDICT="NO-GO"
+  fi
+
+  echo "[verdict] gate-1 chat_template_tool_use: ${GATE1_STATUS:-UNKNOWN} (absence alone never forces NO-GO - refined D-05)"
+  echo "[verdict] gate-2 tool-call matrix: ${MATRIX_PASS}/${MATRIX_TOTAL} turns passed"
+  echo "[verdict] VERDICT: $VERDICT"
+}
+
+# run_token_miser_corroboration(): optional stage 3 (D-04). Corroboration
+# only - never the verdict basis, and its absence is never a failure.
+run_token_miser_corroboration() {
+  if command -v token_miser >/dev/null 2>&1; then
+    local out
+    echo "[stage-3] token_miser found on PATH - running corroboration explore against this repo"
+    out=$(cd "$ROOT_DIR" && timeout 60 token_miser explore --repo-root . 2>&1) || true
+    append_evidence "[stage-3] token_miser corroboration output:"
+    append_evidence "$out"
+  else
+    local msg="[stage-3] token_miser absent from PATH - optional corroboration skipped (D-04); verdict remains anchored to the raw endpoint (D-03)"
+    echo "$msg"
+    append_evidence "$msg"
+  fi
+}
+
+# finalize_evidence_log(): appends the per-turn results table and the D-08
+# pinned-combination block (build_info, chat_template excerpt, gate-1
+# status from /props) to the evidence log, then re-affirms the URL/secret
+# scrub - only a presence indicator is ever written, never the endpoint
+# value or a bearer token.
+finalize_evidence_log() {
+  {
+    echo "=== per-turn results ($(date -u +%FT%TZ)) ==="
+    echo "prompt|turn|result|finish_reason|tool_calls_count"
+    local r
+    for r in "${MATRIX_RESULTS[@]:-}"; do
+      [[ -n "$r" ]] && echo "$r"
+    done
+
+    echo "=== pinned combination (D-08) ==="
+    if [[ -n "$PROPS_RAW" ]]; then
+      echo "build_info: $(echo "$PROPS_RAW" | jq -r '.build_info // "unknown"')"
+      echo "chat_template_tool_use: ${GATE1_STATUS:-UNKNOWN}"
+      echo "--jinja: assumed on (server-side flag, not queryable via /props)"
+      echo "chat_template excerpt (first 400 chars):"
+      echo "$PROPS_RAW" | jq -r '.chat_template // "unknown"' | head -c 400
+      echo
+    else
+      echo "PROPS_RAW unavailable - /props was not fetched this run"
+    fi
+
+    echo "=== verdict ==="
+    echo "gate-1 chat_template_tool_use: ${GATE1_STATUS:-UNKNOWN}"
+    echo "gate-2 matrix: ${MATRIX_PASS}/${MATRIX_TOTAL}"
+    echo "VERDICT: ${VERDICT:-UNKNOWN}"
+    echo "[scrub-check] this log never contains FASTCONTEXT_PROBE_URL's value or an Authorization header/API key"
+  } >> "$FASTCONTEXT_EVIDENCE_LOG"
+
+  echo "[finalize] evidence log updated at $FASTCONTEXT_EVIDENCE_LOG (URL/secrets never written)"
+}
+
+# self_test_verdict(): proves compute_verdict()'s refined-D-05 scoring
+# offline - (a) an all-PASS matrix yields GO, (b) a single narration turn
+# yields NO-GO (D-06 hard blocker), and (c) a chat_template_tool_use-ABSENT
+# fixture with an all-PASS matrix still yields GO (the refined-D-05 guard:
+# field absence alone must never block).
+self_test_verdict() {
+  local failures=0
+
+  MATRIX_TOTAL=15
+  MATRIX_PASS=15
+  GATE1_STATUS="ABSENT"
+  compute_verdict >/dev/null
+  if [[ "$VERDICT" != "GO" ]]; then
+    echo "[self-test:verdict] FAIL: all-PASS matrix + gate1 ABSENT expected GO, got $VERDICT" >&2
+    failures=1
+  fi
+
+  MATRIX_TOTAL=15
+  MATRIX_PASS=14
+  GATE1_STATUS="ABSENT"
+  compute_verdict >/dev/null
+  if [[ "$VERDICT" != "NO-GO" ]]; then
+    echo "[self-test:verdict] FAIL: one-narration-turn matrix expected NO-GO, got $VERDICT" >&2
+    failures=1
+  fi
+
+  MATRIX_TOTAL=15
+  MATRIX_PASS=15
+  GATE1_STATUS="PRESENT"
+  compute_verdict >/dev/null
+  if [[ "$VERDICT" != "GO" ]]; then
+    echo "[self-test:verdict] FAIL: all-PASS matrix + gate1 PRESENT expected GO, got $VERDICT" >&2
+    failures=1
+  fi
+
+  if [[ "$failures" -eq 0 ]]; then
+    echo "[self-test:verdict] OK: GO/NO-GO logic verified, including the refined-D-05 absent-field guard"
+    return 0
+  fi
+  return 1
+}
+
 # self_test_matrix_assertion(): proves assert_tool_call_turn() discriminates
 # a PASS fixture (finish_reason == "tool_calls" AND a non-empty tool_calls
 # array) from a narration-FAIL fixture (finish_reason == "stop", content-only)
@@ -399,6 +512,7 @@ run_self_test() {
 
   self_test_props || failures=1
   self_test_matrix_assertion || failures=1
+  self_test_verdict || failures=1
 
   if [[ "$failures" -ne 0 ]]; then
     echo "[self-test] FAILED" >&2
@@ -418,13 +532,21 @@ main() {
       inspect_props "$FASTCONTEXT_PROBE_URL"
       ;;
     --full)
-      # Verdict scoring + evidence finalize wired in Task 3; this stage
-      # currently runs gate #1 (/props) and gate #2 (the tool-call matrix).
       validate_probe_url "$FASTCONTEXT_PROBE_URL"
       log_endpoint_presence
-      inspect_props "$FASTCONTEXT_PROBE_URL"
+      if ! inspect_props "$FASTCONTEXT_PROBE_URL"; then
+        echo "[main:--full] FATAL: /props unreachable - server not up per D-07, recording as a no-go blocker" >&2
+        append_evidence "[main:--full] FATAL: /props unreachable at run time; treated as a documented no-go blocker (D-08 - never a silent skip)"
+        exit 1
+      fi
       run_turn_matrix "$FASTCONTEXT_PROBE_URL" 3
-      echo "[main:--full] gate-2 matrix: ${MATRIX_PASS}/${MATRIX_TOTAL} turns passed"
+      compute_verdict
+      run_token_miser_corroboration
+      finalize_evidence_log
+      if [[ "$VERDICT" == "GO" ]]; then
+        exit 0
+      fi
+      exit 1
       ;;
     -h|--help)
       usage
