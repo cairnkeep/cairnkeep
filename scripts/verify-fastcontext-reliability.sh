@@ -73,6 +73,81 @@ FASTCONTEXT_PROBE_URL="${FASTCONTEXT_PROBE_URL:-$FASTCONTEXT_PROBE_URL_DEFAULT}"
 FASTCONTEXT_MODEL_ALIAS="${FASTCONTEXT_MODEL_ALIAS:-fastcontext-4b-rl}"
 FASTCONTEXT_EVIDENCE_LOG="${FASTCONTEXT_EVIDENCE_LOG:-$ROOT_DIR/.planning/phases/06-fastcontext-reliability-spike/06-EVIDENCE.log}"
 
+# System prompt copied verbatim from 06-RESEARCH.md finding #2's curl example
+# (itself copied from token-miser/src/explore/client.rs) - inventing an
+# approximate prompt would confound a no-go with a schema/prompt-mismatch
+# artifact (RESEARCH #3 / Pitfall 5).
+SYSTEM_PROMPT="You are a repository exploration agent. Locate the code relevant to the user's task using the read, glob, and grep tools. Do not attempt to solve the task."
+
+# Tool schemas copied verbatim from 06-RESEARCH.md finding #2/#3 (the
+# token-miser client.rs read/glob/grep shape) - field names, descriptions,
+# and required lists are not to be re-derived approximately.
+TOOL_SCHEMAS_JSON=$(cat <<'EOF'
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "read",
+      "description": "Read a file's contents with line numbers. Use offset/limit to read a span.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path":   {"type": "string", "description": "Path relative to the repo root."},
+          "offset": {"type": "integer", "description": "1-based first line to read."},
+          "limit":  {"type": "integer", "description": "Number of lines to read."}
+        },
+        "required": ["path"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "glob",
+      "description": "List files matching a glob pattern (gitignore-aware).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pattern": {"type": "string"},
+          "base":    {"type": "string", "description": "Optional subdirectory to search under."}
+        },
+        "required": ["pattern"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "grep",
+      "description": "Regex search across the repo (gitignore-aware). Returns path:line:content.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "regex": {"type": "string"},
+          "path":  {"type": "string", "description": "Optional single file to search."},
+          "glob":  {"type": "string", "description": "Optional glob to limit which files are searched."}
+        },
+        "required": ["regex"]
+      }
+    }
+  }
+]
+EOF
+)
+
+# >=5 distinct exploration prompts targeting cairnkeep's own repo (the same
+# corpus Phase 9's A/B will measure), per CONTEXT.md Claude's Discretion.
+# Plausible exploration asks only - the probe never executes them; every
+# turn is answered with a static stubbed tool result regardless of what the
+# model actually asked for (Pattern 1).
+EXPLORATION_PROMPTS=(
+  "Where is scope path containment implemented in this repo?"
+  "Where is the AgentFS project scope resolved in this repo?"
+  "Where is the git-provider abstraction configured in this repo?"
+  "Where does the OpenCode memory-wakeup plugin live in this repo?"
+  "Where do the asset-sync scripts render the infra-root placeholder value?"
+)
+
 # Globals populated by inspect_props()/record_props_evidence() and by
 # run_turn_matrix()/compute_verdict() (Tasks 2-3). Declared here with safe
 # defaults because `set -u` treats an unset reference as an error.
@@ -161,6 +236,131 @@ inspect_props() {
   record_props_evidence "$props" "$FASTCONTEXT_EVIDENCE_LOG"
 }
 
+# assert_tool_call_turn(response_json): PASS only when finish_reason ==
+# "tool_calls" AND message.tool_calls is a non-empty array - gated strictly
+# on jq JSON structure, never a substring match on content. The stale-doc
+# value "tool" (singular, docs/function-calling.md's example - confirmed
+# stale against the current llama.cpp source in 06-RESEARCH.md finding #2)
+# is deliberately NOT accepted as a pass; do not "fix" this to match the
+# stale doc if a future build is observed to emit it.
+assert_tool_call_turn() {
+  local response_json="$1"
+  local finish_reason n_calls
+
+  finish_reason=$(echo "$response_json" | jq -r '.choices[0].finish_reason // "missing"')
+  n_calls=$(echo "$response_json" | jq '.choices[0].message.tool_calls | length? // 0')
+
+  if [[ "$finish_reason" == "tool_calls" && "$n_calls" -gt 0 ]]; then
+    return 0
+  fi
+  return 1
+}
+
+# tool_result_message(tool_call_id): the stubbed role:"tool" reply appended
+# after every observed tool_calls turn (Pattern 1 - the probe never executes
+# real read/glob/grep against the filesystem; it only observes whether the
+# model reliably emits well-formed tool calls turn after turn).
+tool_result_message() {
+  local tool_call_id="$1"
+  jq -n --arg id "$tool_call_id" '{
+    role: "tool",
+    tool_call_id: $id,
+    content: "1: fn placeholder() {}\n2:     // stubbed tool result for reliability probing\n3: }"
+  }'
+}
+
+# run_turn_matrix(url, turns_per_prompt): the gate #2 matrix. For each
+# EXPLORATION_PROMPTS entry, runs a genuine multi-turn loop over an
+# accumulating messages array (system + user, then each assistant turn and
+# stubbed tool result appended in place - never rebuilt as a fresh length-2
+# array between turns, Pitfall 3). Populates MATRIX_TOTAL/MATRIX_PASS/
+# MATRIX_RESULTS for compute_verdict() and finalize_evidence_log() (Task 3).
+run_turn_matrix() {
+  local url="$1"
+  local turns_per_prompt="${2:-3}"
+  local prompt prompt_idx=0 turn_idx
+  local messages request response n_calls tool_call_id assistant_msg tool_msg result
+
+  MATRIX_TOTAL=0
+  MATRIX_PASS=0
+  MATRIX_RESULTS=()
+
+  for prompt in "${EXPLORATION_PROMPTS[@]}"; do
+    prompt_idx=$((prompt_idx + 1))
+    messages=$(jq -n --arg sys "$SYSTEM_PROMPT" --arg user "$prompt" \
+      '[{role: "system", content: $sys}, {role: "user", content: $user}]')
+
+    for ((turn_idx = 1; turn_idx <= turns_per_prompt; turn_idx++)); do
+      MATRIX_TOTAL=$((MATRIX_TOTAL + 1))
+
+      request=$(jq -n --argjson messages "$messages" --argjson tools "$TOOL_SCHEMAS_JSON" \
+        --arg model "$FASTCONTEXT_MODEL_ALIAS" \
+        '{model: $model, temperature: 0, stream: false, tool_choice: "auto", tools: $tools, messages: $messages}')
+
+      if ! response=$(curl -sf --max-time 60 "${url}/chat/completions" \
+        -H "Content-Type: application/json" -d "$request" 2>/dev/null); then
+        echo "[matrix] FAIL: request error at prompt $prompt_idx turn $turn_idx" >&2
+        MATRIX_RESULTS+=("$prompt_idx|$turn_idx|FAIL|request-error|0")
+        append_evidence "[matrix] prompt=$prompt_idx turn=$turn_idx result=FAIL reason=request-error"
+        continue
+      fi
+
+      # Log the raw tool-call arguments even though the result is stubbed -
+      # a free early signal for Phase 7 planning (Pitfall 4).
+      echo "$response" | jq -c '.choices[0].message.tool_calls[]?.function.arguments // empty' 2>/dev/null \
+        | while IFS= read -r args; do
+            append_evidence "[tool-call-args] prompt=$prompt_idx turn=$turn_idx args=$args"
+          done
+
+      n_calls=$(echo "$response" | jq '.choices[0].message.tool_calls | length? // 0')
+      if assert_tool_call_turn "$response"; then
+        MATRIX_PASS=$((MATRIX_PASS + 1))
+        result="PASS"
+      else
+        result="FAIL"
+      fi
+      local finish_reason
+      finish_reason=$(echo "$response" | jq -r '.choices[0].finish_reason // "missing"')
+      MATRIX_RESULTS+=("$prompt_idx|$turn_idx|$result|$finish_reason|$n_calls")
+      append_evidence "[matrix] prompt=$prompt_idx turn=$turn_idx result=$result finish_reason=$finish_reason tool_calls=$n_calls"
+
+      # Append this turn to the accumulating conversation and continue -
+      # never reset to a fresh length-2 messages array (Pitfall 3).
+      assistant_msg=$(echo "$response" | jq '.choices[0].message')
+      messages=$(echo "$messages" | jq --argjson m "$assistant_msg" '. + [$m]')
+
+      tool_call_id=$(echo "$response" | jq -r '.choices[0].message.tool_calls[0].id // empty')
+      if [[ -n "$tool_call_id" ]]; then
+        tool_msg=$(tool_result_message "$tool_call_id")
+        messages=$(echo "$messages" | jq --argjson t "$tool_msg" '. + [$t]')
+      fi
+    done
+  done
+}
+
+# self_test_matrix_assertion(): proves assert_tool_call_turn() discriminates
+# a PASS fixture (finish_reason == "tool_calls" AND a non-empty tool_calls
+# array) from a narration-FAIL fixture (finish_reason == "stop", content-only)
+# - offline, no network call.
+self_test_matrix_assertion() {
+  local fixture_pass fixture_fail
+
+  fixture_pass='{"choices":[{"finish_reason":"tool_calls","message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_1","type":"function","function":{"name":"grep","arguments":"{\"regex\":\"selftest\"}"}}]}}]}'
+  fixture_fail='{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"I will grep for selftest next..."}}]}'
+
+  if ! assert_tool_call_turn "$fixture_pass"; then
+    echo "[self-test:matrix] FAIL: PASS fixture was rejected by assert_tool_call_turn" >&2
+    return 1
+  fi
+
+  if assert_tool_call_turn "$fixture_fail"; then
+    echo "[self-test:matrix] FAIL: narration-FAIL fixture was incorrectly accepted by assert_tool_call_turn" >&2
+    return 1
+  fi
+
+  echo "[self-test:matrix] OK: PASS fixture accepted, narration-FAIL fixture rejected"
+}
+
 # self_test_props(): exercises record_props_evidence() against a
 # chat_template_tool_use-ABSENT fixture and a -PRESENT fixture, entirely
 # offline (no curl, no FASTCONTEXT_PROBE_URL reachability required), and
@@ -198,6 +398,7 @@ run_self_test() {
   local failures=0
 
   self_test_props || failures=1
+  self_test_matrix_assertion || failures=1
 
   if [[ "$failures" -ne 0 ]]; then
     echo "[self-test] FAILED" >&2
@@ -217,11 +418,13 @@ main() {
       inspect_props "$FASTCONTEXT_PROBE_URL"
       ;;
     --full)
-      # Chat-completion matrix + verdict scoring wired in Tasks 2-3; this
-      # stage currently runs gate #1 only.
+      # Verdict scoring + evidence finalize wired in Task 3; this stage
+      # currently runs gate #1 (/props) and gate #2 (the tool-call matrix).
       validate_probe_url "$FASTCONTEXT_PROBE_URL"
       log_endpoint_presence
       inspect_props "$FASTCONTEXT_PROBE_URL"
+      run_turn_matrix "$FASTCONTEXT_PROBE_URL" 3
+      echo "[main:--full] gate-2 matrix: ${MATRIX_PASS}/${MATRIX_TOTAL} turns passed"
       ;;
     -h|--help)
       usage
