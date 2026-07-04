@@ -74,7 +74,15 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
   3. `context_explore`'s only configuration surface is environment variables (binary path + optional repo-root override); a grep across `src/` and docs confirms no FastContext endpoint/model/API-key or private host/IP/vendor default is committed anywhere (honors DEC-no-private-references).
   4. An offline smoke test (no live model dependency) exercises the "not configured" and "binary missing" fail-closed paths and passes in CI.
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+**Wave 1**
+
+- [ ] 07-01-PLAN.md — Offline fail-closed smoke harness + fake-binary fixtures + `check:explore-guard` wiring (Wave 0 test infra; RED until Wave 2)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 07-02-PLAN.md — Register the `context_explore` tool: delegate to `token_miser explore`, parse Evidence, fail closed, dual compact/structured output, env-only config
 
 ### Phase 8: Operating-Layer Wiring
 
