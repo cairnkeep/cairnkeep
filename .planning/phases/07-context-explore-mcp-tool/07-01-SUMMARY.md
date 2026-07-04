@@ -135,3 +135,7 @@ None - no external service configuration required.
 ---
 *Phase: 07-context-explore-mcp-tool*
 *Completed: 2026-07-05*
+
+## Self-Check: PASSED
+
+All created files found on disk; all four task/summary commit hashes (`b9fc71a`, `1fb67c7`, `491e611`, `e1a9649`) found in git history; `package.json` confirmed to contain the `check:explore-guard` wiring.
