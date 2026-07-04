@@ -1,20 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: OpenCode parity
-current_phase: 1
-status: Awaiting next milestone
-stopped_at: Completed 05-03-PLAN.md (via D-01 fallback); phase 05 ready for verification
-last_updated: "2026-07-04T17:13:45.111Z"
+milestone: v1.2
+milestone_name: Context Exploration
+status: planning
+last_updated: "2026-07-04T18:02:23.051Z"
 last_activity: 2026-07-04
-last_activity_desc: Milestone v1.1 completed and archived
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
-current_phase_name: live-opencode-parity-verification
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -28,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-07-04)
 
 ## Current Position
 
-Phase: Milestone v1.1 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-07-04 — Milestone v1.1 completed and archived
+Status: Defining requirements
+Last activity: 2026-07-04 — Milestone v1.2 started
 
 ### Owed to Phase 5 — RESOLVED (documented as v1.1 known gap)
 

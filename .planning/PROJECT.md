@@ -8,11 +8,23 @@ A durable, harness-agnostic memory + context layer for coding agents (Claude Cod
 
 Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
 
+## Current Milestone: v1.2 Context Exploration (token-miser + FastContext)
+
+**Goal:** Give cairnkeep a token-efficient repo-exploration capability — FastContext as a provider-neutral context-explore backend, routed through token-miser — wired into both the `cairn-memory` MCP and the Claude Code + OpenCode operating layers.
+
+**Target features:**
+- `context_explore` capability in the `cairn-memory` MCP (offloads READ/GLOB/GREP to a FastContext endpoint; returns compact file paths + line ranges)
+- token-miser routing layer that dispatches exploration/model calls to FastContext and other backends, provider-neutral config
+- Operating-layer wiring: commands/agents/hooks in `claude/` + `opencode/` that route exploration through the new capability
+- Provider-neutral endpoint config (OpenAI-compatible; defaults to the mitkox FastContext GGUF on local infra, operator-swappable) — no vendor hardcoding
+
+**Key context:** FastContext is Microsoft's repo-exploration subagent (4B–30B; MIT-licensed; cuts main-agent tokens ~60%, +5.5% SWE-bench); mitkox ships GGUF quants for llama.cpp. token-miser was already deferred as "the routing + context-explore sibling" — this milestone lands it. Must honor DEC-no-private-references, the provider-neutral core, and the verify-by-execution bar against the registered `cairn-memory` MCP.
+
 ## Current State
 
 **Shipped:** v1.1 OpenCode parity (2026-07-04, tag `v1.1`) — the OpenCode operating layer reached the Claude Code baseline: native memory-capture (session-end) and memory-recall (pre-edit) plugins, `remember`/`recall` commands, and a self-sufficient session-start wakeup that no longer depends on Claude-rendered assets. Closed as an **override closeout** — the `/remember`→`/recall` round-trip is proven achievable (demonstrated once live with a tool-call-reliable local model) but not reliably reproducible headless, and the interactive TUI confirm was not run (headless operator, no TTY). Details + follow-ups in MILESTONES.md → Known Gaps.
 
-**Next milestone:** not yet scoped. Run `/gsd-new-milestone`.
+**Next milestone:** v1.2 Context Exploration (token-miser + FastContext) — scoping in progress (requirements → roadmap).
 
 ## Requirements
 
@@ -106,4 +118,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-04 after v1.1 OpenCode parity milestone*
+*Last updated: 2026-07-04 — started milestone v1.2 Context Exploration (token-miser + FastContext)*
