@@ -50,7 +50,9 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
   1. A repeated-trial probe (multiple prompts, multiple turns) against the actually-deployed FastContext GGUF quant + `llama-server --jinja` endpoint records the observed `finish_reason` on every turn.
   2. The probe checks `GET /props` → `chat_template_tool_use` against the deployed `llama-server` build to confirm a native tool-call template is active rather than a narration-prone generic fallback.
   3. A documented go/no-go verdict exists in the phase artifacts: either "reliably invokes tools" (safe to build Phase 7 on) or "narrates instead of invoking" (a hard blocker requiring remediation before proceeding) — never a silent assumption either way.
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 06-01-PLAN.md — Build the committed FastContext reliability probe (`scripts/verify-fastcontext-reliability.sh`; bash+curl+jq, offline `--self-test`, `--props-only`, `--full`)
+- [ ] 06-02-PLAN.md — Operator-gated live probe run + documented go/no-go verdict (`06-SPIKE.md`, refined-D-05 scoring)
 
 ### Phase 7: context_explore MCP Tool
 **Goal**: `cairn-memory` exposes a `context_explore` tool that delegates natural-language exploration queries to the external `token_miser explore` binary and returns compact citations, configured entirely provider-neutrally, and failing closed on every error path.
