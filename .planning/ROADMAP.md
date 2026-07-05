@@ -95,11 +95,11 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
   2. User can run an OpenCode command that invokes the same `context_explore` tool, installed via a new `sync-opencode-*-assets.sh` script mirroring the existing asset-sync pattern (parity with Claude).
   3. Both commands are on-demand, agent-invoked entry points — not automatic hooks — consistent with token-miser's fresh-task-only invariant for exploration.
 
-**Plans**: 2 plans
+**Plans**: 1/2 plans executed
 
 **Wave 1**
 
-- [ ] 08-01-PLAN.md — Create the paired `/context-explore` command prompt files (Claude Code + OpenCode), direct inline MCP call, citations-only, explicit repo_root (CTX-04 + CTX-05 command half)
+- [x] 08-01-PLAN.md — Create the paired `/context-explore` command prompt files (Claude Code + OpenCode), direct inline MCP call, citations-only, explicit repo_root (CTX-04 + CTX-05 command half)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -129,5 +129,5 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 5. Live OpenCode parity verification | v1.1 | Complete (override) | 2026-07-04 |
 | 6. FastContext Reliability Spike | 2/2 | Complete    | 2026-07-04 |
 | 7. context_explore MCP Tool | 2/2 | Complete    | 2026-07-04 |
-| 8. Operating-Layer Wiring | v1.2 | Not started | - |
+| 8. Operating-Layer Wiring | 1/2 | In Progress|  |
 | 9. Live Verification + A/B Token-Savings | v1.2 | Not started | - |
