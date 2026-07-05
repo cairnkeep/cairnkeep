@@ -121,3 +121,12 @@ None - no external service configuration required.
 ---
 *Phase: 08-operating-layer-wiring*
 *Completed: 2026-07-05*
+
+## Self-Check: PASSED
+
+- FOUND: scripts/sync-opencode-explore-assets.sh
+- FOUND: docs/operating.md
+- FOUND: .planning/phases/08-operating-layer-wiring/08-02-SUMMARY.md
+- FOUND: commit 84495ca
+- FOUND: commit 1ed92fd
+- FOUND: commit 9afc31b
