@@ -79,6 +79,7 @@ scripts/sync-opencode-memory-assets.sh   --apply   # memory-sync/review + code-r
 scripts/sync-opencode-wiki-assets.sh     --apply   # wiki commands/agents/workflows
 scripts/sync-opencode-security-assets.sh --apply   # security-audit chain
 scripts/sync-opencode-graphify-assets.sh --apply   # graphify command
+scripts/sync-opencode-explore-assets.sh --apply    # context-explore command
 ```
 
 Each installs into `~/.config/opencode` (override with `OPENCODE_CONFIG_DIR` or
@@ -159,6 +160,9 @@ wiki and memory layers are derived and never overrule them.
 - Memory server: `cd mcp-memory-server && npm test` (offline smoke tests).
 - Claude operating layer: `scripts/sync-claude-assets.sh --check` should report
   no drift after an apply.
+- OpenCode operating layer: `scripts/sync-opencode-explore-assets.sh --check`
+  (and the other `sync-opencode-*-assets.sh --check` siblings) should report no
+  drift after an apply — a manual sanity check, not a CI job.
 - End to end: launch the harness in a bootstrapped project; the SessionStart
   hook should surface a project-memory section, and `/recall test` should return
   from the `cairn-memory` MCP.
