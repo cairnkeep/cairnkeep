@@ -15,7 +15,7 @@ Each maps to exactly one roadmap phase. Numbering continues from v1.1 (phases 4â
 
 ### Operating layer
 
-- [ ] **CTX-04**: User can invoke context exploration on demand from a Claude Code command
+- [x] **CTX-04**: User can invoke context exploration on demand from a Claude Code command
 - [x] **CTX-05**: User can invoke context exploration on demand from an OpenCode command, installed via a `sync-opencode-*-assets.sh` script (parity with Claude)
 
 ### Verification
@@ -59,7 +59,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | CTX-01 | Phase 7 | Complete |
 | CTX-02 | Phase 7 | Complete |
 | CTX-03 | Phase 7 | Complete |
-| CTX-04 | Phase 8 | Pending |
+| CTX-04 | Phase 8 | Complete |
 | CTX-05 | Phase 8 | Complete |
 | CTX-06 | Phase 6 | Complete |
 | CTX-07 | Phase 9 | Pending |
