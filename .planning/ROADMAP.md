@@ -95,7 +95,15 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
   2. User can run an OpenCode command that invokes the same `context_explore` tool, installed via a new `sync-opencode-*-assets.sh` script mirroring the existing asset-sync pattern (parity with Claude).
   3. Both commands are on-demand, agent-invoked entry points — not automatic hooks — consistent with token-miser's fresh-task-only invariant for exploration.
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+**Wave 1**
+
+- [ ] 08-01-PLAN.md — Create the paired `/context-explore` command prompt files (Claude Code + OpenCode), direct inline MCP call, citations-only, explicit repo_root (CTX-04 + CTX-05 command half)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 08-02-PLAN.md — Dedicated `scripts/sync-opencode-explore-assets.sh` install/drift script + `docs/operating.md` parity (CTX-05 install path; D-04 as documentation parity — no CI job, matching all five siblings)
 
 ### Phase 9: Live Verification + A/B Token-Savings
 
