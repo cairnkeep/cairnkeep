@@ -37,7 +37,7 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 - [x] **Phase 6: FastContext Reliability Spike** - Probe and document `finish_reason=tool_calls` reliability against the deployed GGUF quant + `llama-server --jinja` combo before any wiring is built on it (completed 2026-07-04)
 - [x] **Phase 7: context_explore MCP Tool** - Thin subprocess-delegating tool in `cairn-memory`, provider-neutral config, fail-closed on every error path (completed 2026-07-04)
-- [ ] **Phase 8: Operating-Layer Wiring** - Claude Code + OpenCode commands invoke context exploration on demand
+- [x] **Phase 8: Operating-Layer Wiring** - Claude Code + OpenCode commands invoke context exploration on demand (completed 2026-07-05)
 - [ ] **Phase 9: Live Verification + A/B Token-Savings** - Cairnkeep's own measured before/after token count, milestone close-out gate
 
 ## Phase Details
@@ -95,7 +95,7 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
   2. User can run an OpenCode command that invokes the same `context_explore` tool, installed via a new `sync-opencode-*-assets.sh` script mirroring the existing asset-sync pattern (parity with Claude).
   3. Both commands are on-demand, agent-invoked entry points — not automatic hooks — consistent with token-miser's fresh-task-only invariant for exploration.
 
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans complete
 
 **Wave 1**
 
@@ -103,7 +103,7 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 08-02-PLAN.md — Dedicated `scripts/sync-opencode-explore-assets.sh` install/drift script + `docs/operating.md` parity (CTX-05 install path; D-04 as documentation parity — no CI job, matching all five siblings)
+- [x] 08-02-PLAN.md — Dedicated `scripts/sync-opencode-explore-assets.sh` install/drift script + `docs/operating.md` parity (CTX-05 install path; D-04 as documentation parity — no CI job, matching all five siblings)
 
 ### Phase 9: Live Verification + A/B Token-Savings
 
@@ -129,5 +129,5 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 5. Live OpenCode parity verification | v1.1 | Complete (override) | 2026-07-04 |
 | 6. FastContext Reliability Spike | 2/2 | Complete    | 2026-07-04 |
 | 7. context_explore MCP Tool | 2/2 | Complete    | 2026-07-04 |
-| 8. Operating-Layer Wiring | 1/2 | In Progress|  |
+| 8. Operating-Layer Wiring | 2/2 | Complete   | 2026-07-05 |
 | 9. Live Verification + A/B Token-Savings | v1.2 | Not started | - |
