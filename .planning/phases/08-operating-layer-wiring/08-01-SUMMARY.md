@@ -114,3 +114,11 @@ None - no external service configuration required. (`CAIRN_EXPLORE_BINARY` / end
 ---
 *Phase: 08-operating-layer-wiring*
 *Completed: 2026-07-05*
+
+## Self-Check: PASSED
+
+- FOUND: claude/commands/context-explore.md
+- FOUND: opencode/command/context-explore.md
+- FOUND commit: 52bfaf8
+- FOUND commit: c25e4de
+- FOUND commit: 66fc56d
