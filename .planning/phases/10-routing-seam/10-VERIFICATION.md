@@ -1,14 +1,16 @@
 ---
 phase: 10-routing-seam
 verified: 2026-07-06T19:05:00Z
-status: human_needed
+status: passed
 score: 8/10 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
+
   - test: "Operator (not the executing agent) runs `bash scripts/verify-routing-seam.sh` with the real token_miser binary present and independently confirms a genuine 200 /health (D-06 live-proof sign-off)."
     expected: "`[health] OK: real token_miser binary answered GET /health with status ok` printed, exit 0, no lingering `token_miser` process after the run."
     why_human: "The plan's own <verify><human-check> designates this a human/operator sign-off step, not an automated check, because it proves the seam's target is a real external binary rather than a code artifact grep can see. Both the 10-02 executor and this verifier independently ran the script against the real binary present on this machine and observed success (see Verification Notes below) — that is strong technical evidence, but it does not substitute for the plan-designated operator confirmation, since an agent re-running the same script is not the independent human sign-off the plan calls for."
+
   - test: "Read the 'Routing seam (route_check, opt-in)' subsection of docs/operating.md cold and confirm it alone is sufficient for an external/private overlay to wire CAIRN_ROUTE_ENDPOINT and call route_check without opening mcp-memory-server/src/index.ts (SC #3)."
     expected: "The subsection names the tool, its single env key, the exact GET {endpoint}/health call, all three tier shapes (precondition throw / execution ok:false / success ok:true), and the does-NOT clause — with nothing left to infer from source."
     why_human: "The plan's own <verify><human-check> reserves this as a judgment call about documentation sufficiency, not a grep-able fact. This verifier performed a cold read (see Verification Notes) and found it structurally complete and accurate against the built tool, but sufficiency-for-an-external-reader is inherently a human editorial judgment the plan defers to a person, not an automated pass."

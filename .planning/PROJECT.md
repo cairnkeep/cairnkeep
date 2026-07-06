@@ -46,12 +46,11 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 - ✓ **CTX-01 / CTX-02 / CTX-03** — `context_explore` MCP tool in `cairn-memory`: a thin subprocess-delegating tool that parses token-miser's Evidence JSON with fail-closed error handling and provider-neutral env-only config — v1.2 Phase 7
 - ✓ **CTX-04 / CTX-05** — Operating-layer wiring: Claude Code + OpenCode `/context-explore` commands invoke the tool, installed via the asset-sync script — v1.2 Phase 8 (live MCP round-trip verified)
 - ✓ **CTX-07** — Token-savings value proposition proven by a live measured before/after A/B on cairnkeep's own harness (`scripts/verify-token-savings-ab.sh`): verified tight-query anchor ~99.9% byte-savings (D-03 PASS); the broad-query set's small-model unreliability documented transparently in 09-AB.md, not counted as the headline — v1.2 Phase 9
+- ✓ **RT-01 / RT-02** — Thin `route_check` delegate to token-miser's routing/tiering surface (no proxy/endpoint/model config in the core), proven against the real binary via `scripts/verify-routing-seam.sh` and frozen as a seam contract in `docs/operating.md` — v1.3 Phase 10 (UAT: live `/health` proof + cold-read doc-sufficiency both passed)
 
 ### Active
 
 <!-- v1.3 scope — REQ-IDs assigned in REQUIREMENTS.md -->
-
-- [ ] Thin routing wire to token-miser's routing/tiering surface (thin delegate; no proxy/endpoint/model config in the core)
 - [ ] token-miser established as a public cairnkeep-org sibling; docs self-consistent; no-private-references guard re-verified
 - [ ] Memory-aware exploration (`context_explore` citations cross-referenced against `memory_search` / wiki-query)
 - [ ] Pre-task hook auto-invoke of exploration
@@ -132,4 +131,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 — Milestone v1.3 Routing Seam & Context Maturation started: thin token-miser routing wire, self-consistent public positioning, matured context_explore (memory-aware/auto/cached), and a hardened OpenCode round-trip harness*
+*Last updated: 2026-07-06 after Phase 10 — Routing Seam shipped (RT-01/RT-02 validated: thin `route_check` delegate proven against the real token-miser binary + seam contract frozen in operating docs). Milestone v1.3 continues with self-consistent public positioning, matured context_explore, and a hardened OpenCode round-trip harness.*
