@@ -8,9 +8,17 @@ A durable, harness-agnostic memory + context layer for coding agents (Claude Cod
 
 Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
 
-## Current Milestone
+## Current Milestone: v1.3 Routing Seam & Context Maturation
 
-_None active — v1.2 Context Exploration shipped 2026-07-06 (see **Current State** below). Next milestone not yet scoped; start it with `/gsd-new-milestone`._
+**Goal:** Wire cairnkeep to token-miser's routing/tiering surface as a thin, self-consistent public delegate, mature `context_explore` (memory-aware, auto-invoked, cached), and make the OpenCode remember→recall round-trip reliably reproducible headless — without breaching the thin-delegate or no-private-references boundaries.
+
+**Target features:**
+- Thin routing wire to token-miser's routing/tiering surface (no proxy, endpoint, or model config in the core); freezes the seam the private enterprise overlay will later drive
+- Self-consistency: token-miser positioned as a public cairnkeep-org sibling project, docs updated to match, and the no-private-references guard re-run as a milestone gate
+- Memory-aware exploration — cross-reference `context_explore` citations against `memory_search` / wiki-query
+- Pre-task hook auto-invoke of exploration
+- Result caching keyed on (query, repo HEAD/dirty-state)
+- Hardened headless harness so `/remember`→`/recall` reproduces reliably (serve/`--attach` + retry)
 
 ## Current State
 
@@ -41,12 +49,19 @@ _None active — v1.2 Context Exploration shipped 2026-07-06 (see **Current Stat
 
 ### Active
 
-_(none — next milestone not yet scoped)_
+<!-- v1.3 scope — REQ-IDs assigned in REQUIREMENTS.md -->
+
+- [ ] Thin routing wire to token-miser's routing/tiering surface (thin delegate; no proxy/endpoint/model config in the core)
+- [ ] token-miser established as a public cairnkeep-org sibling; docs self-consistent; no-private-references guard re-verified
+- [ ] Memory-aware exploration (`context_explore` citations cross-referenced against `memory_search` / wiki-query)
+- [ ] Pre-task hook auto-invoke of exploration
+- [ ] `context_explore` result caching keyed on (query, repo HEAD/dirty-state)
+- [ ] Headless harness hardened for a reliable `/remember`→`/recall` round-trip
 
 ### Out of Scope
 
 - Enterprise overlay contents (organization-specific launchers and config) — lives only on the private remote, never in this repo (per DEC-no-private-references)
-- token-miser integration — the routing + context-explore sibling; optional companion deferred to a future milestone
+- Hosting a routing/tiering proxy or any endpoint/model config inside the core — token-miser owns routing; cairnkeep stays a thin delegate that only invokes it (per the LOCKED v1.2 thin-delegate boundary)
 - Vendor-specific hardcoding (LLM or git host) — the core stays provider-neutral; all such configuration is external and swappable
 
 ## Context
@@ -117,4 +132,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 — Milestone v1.2 Context Exploration complete: Phase 9 (Live Verification + A/B Token-Savings) closed CTX-07 with cairnkeep's own live measured number (verified tight-query ~99.9% byte-savings, D-03 PASS; broad-set model unreliability documented in 09-AB.md)*
+*Last updated: 2026-07-06 — Milestone v1.3 Routing Seam & Context Maturation started: thin token-miser routing wire, self-consistent public positioning, matured context_explore (memory-aware/auto/cached), and a hardened OpenCode round-trip harness*
