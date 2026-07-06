@@ -38,7 +38,7 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 - [x] **Phase 6: FastContext Reliability Spike** - Probe and document `finish_reason=tool_calls` reliability against the deployed GGUF quant + `llama-server --jinja` combo before any wiring is built on it (completed 2026-07-04)
 - [x] **Phase 7: context_explore MCP Tool** - Thin subprocess-delegating tool in `cairn-memory`, provider-neutral config, fail-closed on every error path (completed 2026-07-04)
 - [x] **Phase 8: Operating-Layer Wiring** - Claude Code + OpenCode commands invoke context exploration on demand (completed 2026-07-05)
-- [ ] **Phase 9: Live Verification + A/B Token-Savings** - Cairnkeep's own measured before/after token count, milestone close-out gate
+- [x] **Phase 9: Live Verification + A/B Token-Savings** - Cairnkeep's own measured before/after token count, milestone close-out gate (completed 2026-07-06)
 
 ## Phase Details
 
@@ -116,7 +116,7 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
   2. A measured (not cited-from-paper) before/after token count is recorded and reported in the phase's UAT/SUMMARY docs.
   3. At least one operating-layer `/context-explore` command (Claude Code and/or OpenCode) is run live end-to-end against a real bootstrapped project — the same verify-by-execution bar proven against the registered `cairn-memory` MCP in prior milestones.
 
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans complete
 
 **Wave 1**
 
@@ -124,7 +124,7 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 09-02-PLAN.md — Operator-gated live run (`--full` measured number + one live `/context-explore`) + record the verdict in `09-AB.md` referenced from UAT/SUMMARY (SC-2, SC-3; D-04 fail-loud gap)
+- [x] 09-02-PLAN.md — Operator-gated live run (`--full` measured number + one live `/context-explore`) + record the verdict in `09-AB.md` referenced from UAT/SUMMARY (SC-2, SC-3; D-04 fail-loud gap)
 
 ## Progress
 
@@ -138,4 +138,4 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 6. FastContext Reliability Spike | 2/2 | Complete    | 2026-07-04 |
 | 7. context_explore MCP Tool | 2/2 | Complete    | 2026-07-04 |
 | 8. Operating-Layer Wiring | 2/2 | Complete    | 2026-07-05 |
-| 9. Live Verification + A/B Token-Savings | 1/2 | In Progress|  |
+| 9. Live Verification + A/B Token-Savings | 2/2 | Complete   | 2026-07-06 |
