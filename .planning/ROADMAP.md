@@ -48,7 +48,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 
 **Milestone Goal:** Wire cairnkeep to token-miser's routing/tiering surface as a thin, self-consistent public delegate, mature `context_explore` (memory-aware, auto-invoked, cached), and make the OpenCode remember→recall round-trip reliably reproducible headless — without breaching the thin-delegate or no-private-references boundaries.
 
-- [ ] **Phase 10: Routing Seam** - Thin, documented delegate to token-miser's routing/tiering surface; no proxy, endpoint, or model config in the core
+- [x] **Phase 10: Routing Seam** - Thin, documented delegate to token-miser's routing/tiering surface; no proxy, endpoint, or model config in the core (completed 2026-07-06)
 - [ ] **Phase 11: Self-Consistency & Public Positioning** - token-miser positioned as a public sibling, docs matched to shipped code, no-private-references guard re-run as a milestone gate
 - [ ] **Phase 12: Context Exploration Maturation** - `context_explore` becomes memory-aware, auto-invoked pre-task, and cache-backed
 - [ ] **Phase 13: Headless Harness Hardening** - The OpenCode `/remember`→`/recall` round-trip reproduces reliably headless, closing the v1.1 OCP-06 gap
@@ -66,10 +66,10 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   2. The routing invocation's call shape and its provider-neutral config keys (env-var driven, no committed defaults) are written up in the operating docs as a stable seam contract.
   3. The seam-contract doc alone is sufficient for an external/private overlay to drive routing without reading cairnkeep's core source.
 
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans complete
 
 - [x] 10-01-PLAN.md — route_check fetch-based delegate + smoke-route-guard + test:smoke wiring (RT-01)
-- [ ] 10-02-PLAN.md — verify-routing-seam.sh real-binary proof (D-06) + docs/operating.md seam contract (RT-02)
+- [x] 10-02-PLAN.md — verify-routing-seam.sh real-binary proof (D-06) + docs/operating.md seam contract (RT-02)
 
 ### Phase 11: Self-Consistency & Public Positioning
 
@@ -123,7 +123,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 7. context_explore MCP Tool | v1.2 | Complete | 2026-07-04 |
 | 8. Operating-Layer Wiring | v1.2 | Complete | 2026-07-05 |
 | 9. Live Verification + A/B Token-Savings | v1.2 | Complete | 2026-07-06 |
-| 10. Routing Seam | 1/2 | In Progress|  |
+| 10. Routing Seam | 2/2 | Complete   | 2026-07-06 |
 | 11. Self-Consistency & Public Positioning | v1.3 | Not started | - |
 | 12. Context Exploration Maturation | v1.3 | Not started | - |
 | 13. Headless Harness Hardening | v1.3 | Not started | - |

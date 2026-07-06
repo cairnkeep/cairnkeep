@@ -4,17 +4,17 @@ milestone: v1.3
 milestone_name: Routing Seam & Context Maturation
 current_phase: 10
 current_phase_name: routing-seam
-status: executing
-stopped_at: Completed 10-01-PLAN.md
-last_updated: "2026-07-06T16:46:12.761Z"
+status: verifying
+stopped_at: Completed 10-02-PLAN.md
+last_updated: "2026-07-06T16:53:03.601Z"
 last_activity: 2026-07-06
 last_activity_desc: Phase 10 execution started
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 0
+  completed_plans: 2
+  percent: 25
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-06)
 
 Phase: 10 (routing-seam) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-06 — Phase 10 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -79,6 +79,7 @@ Four phases, continuing sequential numbering from v1.2 (ended at Phase 9). RT-02
 | Phase 07 P01 | 5min | 3 tasks | 6 files |
 | Phase 07 P02 | 20min | 2 tasks | 1 files |
 | Phase 10 P01 | 4min | 3 tasks | 3 files |
+| Phase 10-routing-seam P02 | 15min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,8 @@ Recent decisions affecting current work:
 - [Phase 07-02]: T-07-06/Pitfall #1 (endpoint-down-but-configured yields exit 0 + empty Evidence, indistinguishable from genuine empty result) accepted as a residual CTX-02 gap, mitigated only by surfacing turns/tool_calls in the empty-citation text
 - [Phase 10-01]: route_check reuses extractMemoryCandidates fetch/env idiom and context_explore's registration/tier-split/dual-output skeleton -- not runCommand/subprocess, since token-miser routing is proxy-only HTTP (D-03) — token-miser has no route CLI subcommand; the only stable seam is the HTTP /health endpoint
 - [Phase 10-01]: D-10 seam pinning: guard asserts exactly one request to exactly /health, and that CAIRN_ROUTE_ENDPOINT alone is sufficient for success — freezes the seam contract so future refactors cannot silently drift the fetch path or env-key set
+- [Phase 10-02]: Health-only mode is the default and only required proof for the routing seam (D-06); --full is an explicitly optional, skippable-with-message stretch (D-06/D-07 defer live routing)
+- [Phase 10-02]: Used a script-global ROUTE_PID (not a function-local var) so the EXIT trap can read it after run_health_proof() returns; caught and fixed an unbound-variable bug during live execution
 
 ### Pending Todos
 
@@ -124,8 +127,8 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-07-06T16:46:12.756Z
-Stopped at: Completed 10-01-PLAN.md
+Last session: 2026-07-06T16:53:03.596Z
+Stopped at: Completed 10-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

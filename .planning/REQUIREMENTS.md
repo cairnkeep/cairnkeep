@@ -11,7 +11,7 @@ Requirements for the v1.3 milestone. Each maps to exactly one roadmap phase (see
 ### Routing Integration
 
 - [x] **RT-01**: cairnkeep drives token-miser's routing/tiering surface through a thin delegate — the core invokes it but hosts no proxy and holds no endpoint, model, or tier config (mirrors the `context_explore` subprocess-delegate boundary). _(from TMISER-R1)_
-- [ ] **RT-02**: The routing invocation and its provider-neutral config keys are documented as a stable seam contract in the operating docs, so an external/private overlay can drive routing unchanged.
+- [x] **RT-02**: The routing invocation and its provider-neutral config keys are documented as a stable seam contract in the operating docs, so an external/private overlay can drive routing unchanged.
 
 ### Self-Consistency & Hygiene
 
@@ -52,7 +52,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | RT-01 | Phase 10 | Complete |
-| RT-02 | Phase 10 | Pending |
+| RT-02 | Phase 10 | Complete |
 | SC-01 | Phase 11 | Pending |
 | SC-02 | Phase 11 | Pending |
 | SC-03 | Phase 11 | Pending |
