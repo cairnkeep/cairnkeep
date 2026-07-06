@@ -56,6 +56,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 ## Phase Details
 
 ### Phase 10: Routing Seam
+
 **Goal**: cairnkeep drives token-miser's routing/tiering surface through a thin, documented delegate — mirroring the `context_explore` subprocess-delegate boundary — with the seam frozen so a future overlay can drive routing unchanged.
 **Depends on**: Nothing new (builds on the v1.2 `context_explore` subprocess-delegate pattern, Phase 7)
 **Requirements**: RT-01, RT-02
@@ -65,11 +66,13 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   2. The routing invocation's call shape and its provider-neutral config keys (env-var driven, no committed defaults) are written up in the operating docs as a stable seam contract.
   3. The seam-contract doc alone is sufficient for an external/private overlay to drive routing without reading cairnkeep's core source.
 
-**Plans**: 2 plans
-- [ ] 10-01-PLAN.md — route_check fetch-based delegate + smoke-route-guard + test:smoke wiring (RT-01)
+**Plans**: 1/2 plans executed
+
+- [x] 10-01-PLAN.md — route_check fetch-based delegate + smoke-route-guard + test:smoke wiring (RT-01)
 - [ ] 10-02-PLAN.md — verify-routing-seam.sh real-binary proof (D-06) + docs/operating.md seam contract (RT-02)
 
 ### Phase 11: Self-Consistency & Public Positioning
+
 **Goal**: The docs present token-miser as a public cairnkeep-org sibling, describe the routing surface consistently with the shipped Phase 10 code, and the no-private-references guard passes as an explicit milestone gate.
 **Depends on**: Phase 10 (docs describe the routing wire that exists; the guard re-run covers the new surface)
 **Requirements**: SC-01, SC-02, SC-03
@@ -82,6 +85,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 **Plans**: TBD
 
 ### Phase 12: Context Exploration Maturation
+
 **Goal**: `context_explore` becomes memory-aware, auto-invoked at task start, and cache-backed — without a manual command each time or re-paying token-miser's cost on repeat queries.
 **Depends on**: Nothing new (independent of the routing work; builds on the v1.2 `context_explore` tool, Phase 7)
 **Requirements**: CTX-08, CTX-09, CTX-10
@@ -94,6 +98,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 **Plans**: TBD
 
 ### Phase 13: Headless Harness Hardening
+
 **Goal**: The OpenCode `/remember`→`/recall` round-trip reproduces reliably in the scripted headless harness, closing the v1.1 OCP-06 override gap.
 **Depends on**: Nothing new (independent; hardens the existing v1.1 harness, Phase 5)
 **Requirements**: OCP-07
@@ -118,7 +123,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 7. context_explore MCP Tool | v1.2 | Complete | 2026-07-04 |
 | 8. Operating-Layer Wiring | v1.2 | Complete | 2026-07-05 |
 | 9. Live Verification + A/B Token-Savings | v1.2 | Complete | 2026-07-06 |
-| 10. Routing Seam | v1.3 | Not started | - |
+| 10. Routing Seam | 1/2 | In Progress|  |
 | 11. Self-Consistency & Public Positioning | v1.3 | Not started | - |
 | 12. Context Exploration Maturation | v1.3 | Not started | - |
 | 13. Headless Harness Hardening | v1.3 | Not started | - |

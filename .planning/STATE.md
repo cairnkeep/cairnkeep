@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Routing Seam & Context Maturation
 current_phase: 10
-current_phase_name: Routing Seam
-status: planning
-stopped_at: Phase 10 context gathered
-last_updated: "2026-07-06T15:43:48.837Z"
+current_phase_name: routing-seam
+status: executing
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-07-06T16:46:12.761Z"
 last_activity: 2026-07-06
-last_activity_desc: v1.3 ROADMAP.md created, requirements traceability mapped (9/9)
+last_activity_desc: Phase 10 execution started
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-06)
 
 **Core value:** Drop-in parity — a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
-**Current focus:** v1.3 Routing Seam & Context Maturation — roadmap created (Phases 10-13), ready to plan Phase 10.
+**Current focus:** Phase 10 — routing-seam
 
 ## Current Position
 
-Phase: 10 of 13 (Routing Seam) — ready to plan
-Plan: —
-Status: Roadmap created
-Last activity: 2026-07-06 — v1.3 ROADMAP.md created, requirements traceability mapped (9/9)
+Phase: 10 (routing-seam) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-07-06 — Phase 10 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -78,6 +78,7 @@ Four phases, continuing sequential numbering from v1.2 (ended at Phase 9). RT-02
 | Phase 06 P02 | 3min | 2 tasks | 1 file |
 | Phase 07 P01 | 5min | 3 tasks | 6 files |
 | Phase 07 P02 | 20min | 2 tasks | 1 files |
+| Phase 10 P01 | 4min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,8 @@ Recent decisions affecting current work:
 - [Phase 07-01]: Smoke harness intentionally RED at the context_explore registration anchor until Plan 02 lands the tool
 - [Phase 07-02]: context_explore registered as a thin runCommand-delegating MCP tool; runCommand gained a backward-compatible optional env param (defaults to process.env) so NO_COLOR=1 can be injected without touching cwd or regressing domain_knowledge_sync
 - [Phase 07-02]: T-07-06/Pitfall #1 (endpoint-down-but-configured yields exit 0 + empty Evidence, indistinguishable from genuine empty result) accepted as a residual CTX-02 gap, mitigated only by surfacing turns/tool_calls in the empty-citation text
+- [Phase 10-01]: route_check reuses extractMemoryCandidates fetch/env idiom and context_explore's registration/tier-split/dual-output skeleton -- not runCommand/subprocess, since token-miser routing is proxy-only HTTP (D-03) — token-miser has no route CLI subcommand; the only stable seam is the HTTP /health endpoint
+- [Phase 10-01]: D-10 seam pinning: guard asserts exactly one request to exactly /health, and that CAIRN_ROUTE_ENDPOINT alone is sufficient for success — freezes the seam contract so future refactors cannot silently drift the fetch path or env-key set
 
 ### Pending Todos
 
@@ -121,9 +124,9 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-07-06T15:43:48.832Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-routing-seam/10-CONTEXT.md
+Last session: 2026-07-06T16:46:12.756Z
+Stopped at: Completed 10-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
