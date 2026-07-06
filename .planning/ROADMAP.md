@@ -49,7 +49,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 **Milestone Goal:** Wire cairnkeep to token-miser's routing/tiering surface as a thin, self-consistent public delegate, mature `context_explore` (memory-aware, auto-invoked, cached), and make the OpenCode remember→recall round-trip reliably reproducible headless — without breaching the thin-delegate or no-private-references boundaries.
 
 - [x] **Phase 10: Routing Seam** - Thin, documented delegate to token-miser's routing/tiering surface; no proxy, endpoint, or model config in the core (completed 2026-07-06)
-- [ ] **Phase 11: Self-Consistency & Public Positioning** - token-miser positioned as a public sibling, docs matched to shipped code, no-private-references guard re-run as a milestone gate
+- [x] **Phase 11: Self-Consistency & Public Positioning** - token-miser positioned as a public sibling, docs matched to shipped code, no-private-references guard re-run as a milestone gate (completed 2026-07-06)
 - [ ] **Phase 12: Context Exploration Maturation** - `context_explore` becomes memory-aware, auto-invoked pre-task, and cache-backed
 - [ ] **Phase 13: Headless Harness Hardening** - The OpenCode `/remember`→`/recall` round-trip reproduces reliably headless, closing the v1.1 OCP-06 gap
 
@@ -82,7 +82,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   2. The operating docs' description of the routing surface and the token-miser relationship matches the Phase 10 shipped code with no drift between prose and behavior.
   3. A full-repo no-private-references scan (code, comments, docs) returns zero hits, run and recorded as an explicit milestone gate.
 
-**Plans**: 3/4 plans executed
+**Plans**: 4/4 plans complete
 **Wave 1**
 
 - [x] 11-01-PLAN.md — no-private-references guard + docs-parity gate scripts (SC-02/SC-03)
@@ -97,7 +97,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 11-04-PLAN.md — run + record the no-private-references milestone gate (SC-03)
+- [x] 11-04-PLAN.md — run + record the no-private-references milestone gate (SC-03)
 
 ### Phase 12: Context Exploration Maturation
 
@@ -139,6 +139,6 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 8. Operating-Layer Wiring | v1.2 | Complete | 2026-07-05 |
 | 9. Live Verification + A/B Token-Savings | v1.2 | Complete | 2026-07-06 |
 | 10. Routing Seam | 2/2 | Complete    | 2026-07-06 |
-| 11. Self-Consistency & Public Positioning | 3/4 | In Progress|  |
+| 11. Self-Consistency & Public Positioning | 4/4 | Complete   | 2026-07-06 |
 | 12. Context Exploration Maturation | v1.3 | Not started | - |
 | 13. Headless Harness Hardening | v1.3 | Not started | - |
