@@ -83,10 +83,20 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   3. A full-repo no-private-references scan (code, comments, docs) returns zero hits, run and recorded as an explicit milestone gate.
 
 **Plans**: 4 plans
+**Wave 1**
 
 - [ ] 11-01-PLAN.md — no-private-references guard + docs-parity gate scripts (SC-02/SC-03)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 11-02-PLAN.md — clean-slate publish token-miser as a public cairnkeep-org sibling (SC-01)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 11-03-PLAN.md — cairnkeep docs sweep + public-sibling positioning (SC-01/SC-02)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 11-04-PLAN.md — run + record the no-private-references milestone gate (SC-03)
 
 ### Phase 12: Context Exploration Maturation
