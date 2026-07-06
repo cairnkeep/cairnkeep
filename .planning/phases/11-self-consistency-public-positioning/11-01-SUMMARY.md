@@ -141,6 +141,15 @@ None required to complete this plan. Per the plan's `user_setup` block, `CAIRN_G
 - Plan 03 (docs sweep) has a mechanized parity check ready to flip green once the doc fixes land.
 - Open item for the operator/milestone-gate step: the 4 historical AI-authorship commit-message trailers found by Stage 3 (see Known Findings) — not blocking this plan, but should be explicitly acknowledged (per D-08's "recorded" milestone-gate framing) before SC-03 is declared fully satisfied at milestone close.
 
+## Self-Check: PASSED
+
+- FOUND: scripts/verify-no-private-references.sh (executable)
+- FOUND: scripts/verify-docs-parity.sh (executable)
+- FOUND: .planning/phases/11-self-consistency-public-positioning/11-01-SUMMARY.md
+- FOUND commit: c707487 (Task 1)
+- FOUND commit: 6b68daa (Task 2)
+- FOUND commit: a016cdc (SUMMARY)
+
 ---
 *Phase: 11-self-consistency-public-positioning*
 *Completed: 2026-07-06*
