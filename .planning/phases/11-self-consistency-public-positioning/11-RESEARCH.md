@@ -415,14 +415,14 @@ gh repo view cairnkeep/token-miser --json visibility
 
 **If this table is empty:** N/A — two low-risk assumptions logged above; both are easily verified live during execution (a `--dry-run`-style check before the real `gh repo create`, and a diff of the copied LICENSE against `apache.org`'s canonical text if desired).
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Exact guard script filename/structure: one script with `--docs-parity` flag, or two separate scripts?**
+1. **Exact guard script filename/structure: one script with `--docs-parity` flag, or two separate scripts?** (RESOLVED)
    - What we know: CONTEXT explicitly leaves this to Claude's discretion ("Guard/parity script structure and naming... one script vs. two").
    - What's unclear: Nothing blocking — this is a genuinely open discretion point, not a research gap.
    - Recommendation: Two scripts (`verify-no-private-references.sh`, `verify-docs-parity.sh`) — they check different things (security/hygiene gate vs. accuracy check) and have different failure semantics (D-06 fail-closed vs. D-10 diff-and-report); combining them would conflate two audiences (security reviewer vs. docs reviewer) reading the same script.
 
-2. **Whether the `CAIRN_GUARD_DENYLIST` file format should be one-term-per-line or a `git grep -E` pattern file.**
+2. **Whether the `CAIRN_GUARD_DENYLIST` file format should be one-term-per-line or a `git grep -E` pattern file.** (RESOLVED)
    - What we know: D-06 leaves exact format to discretion; `git grep -f <file>` treats each line as a fixed string by default (`-F` implied only with that flag combo — actually `git grep -f` reads patterns and follows whatever pattern flags are also passed, e.g. `-E`/`-F`).
    - What's unclear: Whether the specific denylist needs regex (e.g., to match an employer name with optional suffix) or plain substrings suffice.
    - Recommendation: Plain one-substring-per-line (simplest, matches D-06's stated examples — "employer, private repo names" are literal strings, not patterns needing regex) — use `git grep -F -f "$CAIRN_GUARD_DENYLIST"` for fixed-string matching, avoiding regex-metacharacter escaping bugs entirely.
