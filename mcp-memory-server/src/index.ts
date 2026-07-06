@@ -1084,6 +1084,63 @@ server.registerTool(
     },
 );
 
+server.registerTool(
+    "route_check",
+    {
+        description: "Check reachability of the external token_miser routing/tiering proxy via its /health endpoint. Requires CAIRN_ROUTE_ENDPOINT (base URL of an already-running token_miser instance). Thin adapter — token_miser owns all routing/tiering logic; this tool neither hosts a proxy nor learns which tier serves a request.",
+        inputSchema: z.object({
+            timeout_seconds: z.number().int().min(1).max(60).optional(),
+        }),
+    },
+    async ({ timeout_seconds }) => {
+        // --- Precondition tier: throw ---
+        const rawEndpoint = process.env.CAIRN_ROUTE_ENDPOINT;
+        if (!rawEndpoint) {
+            throw new Error("CAIRN_ROUTE_ENDPOINT is not set.");
+        }
+        let endpoint: URL;
+        try {
+            endpoint = new URL(rawEndpoint);
+        } catch {
+            throw new Error(`CAIRN_ROUTE_ENDPOINT is not a valid URL: ${rawEndpoint}`);
+        }
+        const base = endpoint.toString().replace(/\/+$/, "");
+
+        // --- Execution tier: return { ok: false, ... } ---
+        let response: Response;
+        try {
+            response = await fetch(`${base}/health`, {
+                signal: AbortSignal.timeout((timeout_seconds ?? 10) * 1000),
+            });
+        } catch (e) {
+            const payload = {
+                ok: false,
+                error: e instanceof Error && e.name === "TimeoutError"
+                    ? "token_miser /health timed out"
+                    : "token_miser /health request failed",
+                detail: e instanceof Error ? e.message : String(e),
+            };
+            return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
+        }
+
+        if (!response.ok) {
+            const payload = { ok: false, error: "token_miser /health returned non-2xx", status: response.status };
+            return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
+        }
+
+        let body: { status?: string; cluster_healthy?: boolean | null };
+        try {
+            body = await response.json();
+        } catch {
+            const payload = { ok: false, error: "malformed /health JSON" };
+            return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
+        }
+
+        const payload = { ok: true, status: body.status, cluster_healthy: body.cluster_healthy ?? null };
+        return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
+    },
+);
+
     return server;
 }
 
