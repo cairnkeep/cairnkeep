@@ -9,10 +9,12 @@ across sessions, projects, and harnesses (Claude Code, OpenCode, …).
 
 ## Status
 
-Early. Cairnkeep is being carved out of a larger private workflow repo into a
-clean open-source core. The first component landed here is the memory server;
-launchers, the project bootstrapper, and the compiled-knowledge (wiki) layer
-follow.
+Shipped: the memory server, the `cairn` CLI and project bootstrapper, and the
+operating layer (commands, agents, hooks) installed on both Claude Code and
+OpenCode. Also shipped: context exploration (`/context-explore`) and a thin
+routing seam (`route_check`), both of which delegate to
+[token-miser](https://github.com/cairnkeep/token-miser), a public
+cairnkeep-org sibling project.
 
 ## Components
 
@@ -24,6 +26,13 @@ follow.
 - **`templates/`** — project scaffolding (generic launchers, env) plus the
   derived-knowledge layer (wiki, alignment, graph, security, planning).
 - **`scripts/`** — asset-sync and maintenance utilities.
+
+## Related projects
+
+- **[token-miser](https://github.com/cairnkeep/token-miser)** — a public
+  cairnkeep-org sibling that owns context exploration and request routing;
+  cairnkeep's `context_explore` and `route_check` tools are thin delegates
+  to it.
 
 ## Setup
 
@@ -73,6 +82,9 @@ search):
 | `CAIRN_MEMORY_EMBEDDING_MODEL` | Embedding model name (required for semantic search) |
 | `CAIRN_AGENTFS_BASE_DIR` | Base dir for global memory scopes (default `~/.cairnkeep`) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none` ([docs/git-providers.md](docs/git-providers.md)) |
+| `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → `route_check` is inert) |
+| `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws) |
+| `CAIRN_EXPLORE_REPO_ROOT` | Default repo root for `context_explore` when no per-call `repo_root` is given |
 
 Without an API key, search degrades gracefully to substring matching.
 
