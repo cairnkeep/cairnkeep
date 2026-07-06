@@ -1,5 +1,27 @@
 # Milestones
 
+## v1.3 Routing Seam & Context Maturation (in progress) — Phase 11 self-consistency gate
+
+**Run date:** 2026-07-06
+
+Phase 11 (SC-01/SC-02/SC-03) capstone gate, run live against the final tree
+after the Plan 03 docs sweep and the Plan 01 guard/Plan 02 publish work:
+
+- `scripts/verify-no-private-references.sh` run with `CAIRN_GUARD_DENYLIST` set
+  (operator specific-term list) — exited 0: `[guard] OK: no private/vendor/
+  AI-authorship references found in tracked tree or commit-message history`
+- `scripts/verify-docs-parity.sh` — exited 0: `[env-keys] OK: every
+  mcp-memory-server/src env key is named in docs/operating.md or README.md`,
+  `[commands] OK: every claude/commands/*.md command is named in
+  docs/operating.md`, `[parity] OK: docs match shipped code -- no drift found`
+- `gh repo view cairnkeep/token-miser --json visibility` — `{"visibility":
+  "PUBLIC"}`
+
+SC-01/SC-02/SC-03 evidence triad recorded together. This is a phase-gate
+record, not a v1.3 shipped-milestone section — Phases 12-13 remain open.
+
+---
+
 ## v1.2 Context Exploration (Shipped: 2026-07-06)
 
 **Phases completed:** 4 phases, 8 plans, 18 tasks
