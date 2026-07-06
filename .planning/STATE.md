@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Context Exploration
-current_phase: 09
-status: executing
+current_phase: 2
+status: Awaiting next milestone
 stopped_at: Phase 9 context gathered
-last_updated: "2026-07-06T11:52:22.244Z"
+last_updated: "2026-07-06T12:47:08.918Z"
 last_activity: 2026-07-06
-last_activity_desc: Phase 09 complete
+last_activity_desc: Milestone v1.2 completed and archived
 progress:
   total_phases: 4
   completed_phases: 4
@@ -21,17 +21,17 @@ current_phase_name: live-verification-a-b-token-savings
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-04)
+See: .planning/PROJECT.md (updated 2026-07-06)
 
 **Core value:** Drop-in parity — a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
-**Current focus:** Phase 09 — live-verification-a-b-token-savings
+**Current focus:** v1.2 Context Exploration shipped (2026-07-06, tag `v1.2`) — next milestone not yet scoped.
 
 ## Current Position
 
-Phase: 09
-Plan: Not started
-Status: Executing Phase 09
-Last activity: 2026-07-06 — Phase 09 complete
+Phase: Milestone v1.2 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-06 — Milestone v1.2 completed and archived
 
 ### v1.2 roadmap (2026-07-04)
 
@@ -97,14 +97,11 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- Plan Phase 6 (FastContext reliability spike, CTX-06) via `/gsd-plan-phase 6`.
+- Start the next milestone with `/gsd-new-milestone` (v1.2 complete; no active phase work).
 
 ### Blockers/Concerns
 
-Phase 5 (OCP-06) complete (override closeout); v1.2 roadmap created and ready to plan.
-
-- Phase 2's `Evidence` JSON schema (citations/expanded_snippets/stats field names) is not fully pinned by research; read `~/PARA/Projects/token-miser/src/explore/mod.rs` directly during Phase 7 planning before writing the parser.
-- ✓ RESOLVED (06-02): the operator live-probe checkpoint is discharged — FastContext live run returned GO (15/15 turns, --full exit 0); verdict recorded in 06-SPIKE.md. Phase 6 is ready for verification.
+None open — v1.2 shipped clean (7/7 requirements, all phases verified). Carried-forward items live under **Deferred Items** below.
 
 ## Deferred Items
 
@@ -120,10 +117,10 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-07-06T09:41:52.614Z
+Last session: 2026-07-06T12:28:44.071Z
 Stopped at: Phase 9 context gathered
 Resume file: .planning/phases/09-live-verification-a-b-token-savings/09-CONTEXT.md
 
 ## Operator Next Steps
 
-- Plan Phase 6 with `/gsd-plan-phase 6`
+- Start the next milestone with /gsd-new-milestone
