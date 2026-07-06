@@ -21,7 +21,7 @@ Each maps to exactly one roadmap phase. Numbering continues from v1.1 (phases 4�
 ### Verification
 
 - [x] **CTX-06**: FastContext tool-call reliability is probed and documented against the actually-deployed GGUF quant + `llama-server --jinja` combination (confirming real `tool_calls`, not narration) before any operating-layer wiring is built on top of it
-- [ ] **CTX-07**: The token-savings value proposition is proven by a measured before/after A/B (native Read/Glob/Grep vs `context_explore`) on cairnkeep's own harness against a real bootstrapped project — cairnkeep's own measured number, not FastContext's paper figure
+- [x] **CTX-07**: The token-savings value proposition is proven by a measured before/after A/B (native Read/Glob/Grep vs `context_explore`) on cairnkeep's own harness against a real bootstrapped project — cairnkeep's own measured number, not FastContext's paper figure
 
 ## Future Requirements
 
@@ -62,7 +62,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | CTX-04 | Phase 8 | Complete |
 | CTX-05 | Phase 8 | Complete |
 | CTX-06 | Phase 6 | Complete |
-| CTX-07 | Phase 9 | Pending |
+| CTX-07 | Phase 9 | Complete |
 
 **Coverage:**
 
