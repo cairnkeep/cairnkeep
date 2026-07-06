@@ -138,4 +138,4 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 6. FastContext Reliability Spike | 2/2 | Complete    | 2026-07-04 |
 | 7. context_explore MCP Tool | 2/2 | Complete    | 2026-07-04 |
 | 8. Operating-Layer Wiring | 2/2 | Complete    | 2026-07-05 |
-| 9. Live Verification + A/B Token-Savings | 2/2 | Complete   | 2026-07-06 |
+| 9. Live Verification + A/B Token-Savings | 2/2 | Complete    | 2026-07-06 |
