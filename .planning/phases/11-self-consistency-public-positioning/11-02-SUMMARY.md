@@ -139,3 +139,9 @@ None - no external service configuration required beyond the `gh` auth already v
 ---
 *Phase: 11-self-consistency-public-positioning*
 *Completed: 2026-07-06*
+
+## Self-Check: PASSED
+- FOUND: 11-02-SUMMARY.md on disk in worktree
+- FOUND: commit e3997e5 (SUMMARY commit) in git log
+- FOUND: token-miser HEAD is single commit (git rev-list --count HEAD == 1)
+- FOUND: gh repo view cairnkeep/token-miser --json visibility -> PUBLIC
