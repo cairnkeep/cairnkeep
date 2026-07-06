@@ -116,11 +116,11 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
   2. A measured (not cited-from-paper) before/after token count is recorded and reported in the phase's UAT/SUMMARY docs.
   3. At least one operating-layer `/context-explore` command (Claude Code and/or OpenCode) is run live end-to-end against a real bootstrapped project — the same verify-by-execution bar proven against the registered `cairn-memory` MCP in prior milestones.
 
-**Plans**: 2 plans
+**Plans**: 1/2 plans executed
 
 **Wave 1**
 
-- [ ] 09-01-PLAN.md — Build the committed A/B token-savings harness (`scripts/verify-token-savings-ab.sh`; byte anchor + `chars/4` estimate, native grep→window recipe vs renderCitations text, offline `--self-test`/`--native`, D-03 net-savings gate)
+- [x] 09-01-PLAN.md — Build the committed A/B token-savings harness (`scripts/verify-token-savings-ab.sh`; byte anchor + `chars/4` estimate, native grep→window recipe vs renderCitations text, offline `--self-test`/`--native`, D-03 net-savings gate)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -138,4 +138,4 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 6. FastContext Reliability Spike | 2/2 | Complete    | 2026-07-04 |
 | 7. context_explore MCP Tool | 2/2 | Complete    | 2026-07-04 |
 | 8. Operating-Layer Wiring | 2/2 | Complete    | 2026-07-05 |
-| 9. Live Verification + A/B Token-Savings | v1.2 | Not started | - |
+| 9. Live Verification + A/B Token-Savings | 1/2 | In Progress|  |
