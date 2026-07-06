@@ -65,7 +65,9 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   2. The routing invocation's call shape and its provider-neutral config keys (env-var driven, no committed defaults) are written up in the operating docs as a stable seam contract.
   3. The seam-contract doc alone is sufficient for an external/private overlay to drive routing without reading cairnkeep's core source.
 
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 10-01-PLAN.md — route_check fetch-based delegate + smoke-route-guard + test:smoke wiring (RT-01)
+- [ ] 10-02-PLAN.md — verify-routing-seam.sh real-binary proof (D-06) + docs/operating.md seam contract (RT-02)
 
 ### Phase 11: Self-Consistency & Public Positioning
 **Goal**: The docs present token-miser as a public cairnkeep-org sibling, describe the routing surface consistently with the shipped Phase 10 code, and the no-private-references guard passes as an explicit milestone gate.
