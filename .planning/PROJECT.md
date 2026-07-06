@@ -24,7 +24,7 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 
 **Shipped:** v1.1 OpenCode parity (2026-07-04, tag `v1.1`) — the OpenCode operating layer reached the Claude Code baseline: native memory-capture (session-end) and memory-recall (pre-edit) plugins, `remember`/`recall` commands, and a self-sufficient session-start wakeup that no longer depends on Claude-rendered assets. Closed as an **override closeout** — the `/remember`→`/recall` round-trip is proven achievable (demonstrated once live with a tool-call-reliable local model) but not reliably reproducible headless, and the interactive TUI confirm was not run (headless operator, no TTY). Details + follow-ups in MILESTONES.md → Known Gaps.
 
-**In progress:** v1.2 Context Exploration (token-miser + FastContext). **Phase 6 (FastContext Reliability Spike) complete (2026-07-04)** — the deployed `fastcontext-1.0-4b-rl-q8_0` GGUF + `llama-server --jinja` combo emits reliable `tool_calls` (live 15/15, **GO**), clearing the hard gate on Phases 7–9. Next: Phase 7 (`context_explore` MCP tool).
+**Shipped:** v1.2 Context Exploration (token-miser + FastContext) — complete 2026-07-06. All four phases landed: FastContext reliability spike (Phase 6, live 15/15 `tool_calls`, GO), the `context_explore` MCP tool (Phase 7, CTX-01/02/03), Claude Code + OpenCode operating-layer wiring (Phase 8, CTX-04/05), and the live A/B token-savings verification (Phase 9, CTX-07). CTX-07 was closed against cairnkeep's **own measured number** via `scripts/verify-token-savings-ab.sh`: a live, independently-verified tight-query A/B anchor at ~99.9% byte-savings (D-03 **PASS**), with the small model's unreliability on broad/loosely-worded queries documented transparently (09-AB.md — hallucinated/wander citations disclosed, never counted as the headline). Full requirement traceability in REQUIREMENTS.md.
 
 ## Requirements
 
@@ -43,6 +43,9 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 - ✓ **OCP-05** — OpenCode memory-wakeup surfaces session-start context without requiring Claude assets installed — v1.1 (proven live in scratch-HOME)
 - ✓ **OCP-06** — The full memory lifecycle + commands round-trip in a live OpenCode session (parity verified) — v1.1 (override closeout — full round-trip demonstrated once live; reliable headless reproduction + interactive TUI confirm are open gaps)
 - ✓ **CTX-06** — FastContext tool-calling reliability probed against the actually-deployed GGUF quant + `llama-server --jinja` before any wiring — v1.2 Phase 6 (live 15/15 `finish_reason=tool_calls`, GO; re-runnable probe `scripts/verify-fastcontext-reliability.sh`, hardened for parallel tool calls)
+- ✓ **CTX-01 / CTX-02 / CTX-03** — `context_explore` MCP tool in `cairn-memory`: a thin subprocess-delegating tool that parses token-miser's Evidence JSON with fail-closed error handling and provider-neutral env-only config — v1.2 Phase 7
+- ✓ **CTX-04 / CTX-05** — Operating-layer wiring: Claude Code + OpenCode `/context-explore` commands invoke the tool, installed via the asset-sync script — v1.2 Phase 8 (live MCP round-trip verified)
+- ✓ **CTX-07** — Token-savings value proposition proven by a live measured before/after A/B on cairnkeep's own harness (`scripts/verify-token-savings-ab.sh`): verified tight-query anchor ~99.9% byte-savings (D-03 PASS); the broad-query set's small-model unreliability documented transparently in 09-AB.md, not counted as the headline — v1.2 Phase 9
 
 ### Active
 
@@ -119,4 +122,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-04 — Phase 6 (FastContext Reliability Spike) complete: live GO verdict, Phases 7–9 unblocked*
+*Last updated: 2026-07-06 — Milestone v1.2 Context Exploration complete: Phase 9 (Live Verification + A/B Token-Savings) closed CTX-07 with cairnkeep's own live measured number (verified tight-query ~99.9% byte-savings, D-03 PASS; broad-set model unreliability documented in 09-AB.md)*
