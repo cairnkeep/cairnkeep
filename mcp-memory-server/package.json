@@ -15,8 +15,9 @@
         "check:scope-guard": "node scripts/smoke-scope-guard.mjs",
         "check:http-guard": "node scripts/smoke-http-guard.mjs",
         "check:explore-guard": "node scripts/smoke-explore-guard.mjs",
+        "check:route-guard": "node scripts/smoke-route-guard.mjs",
         "test": "npm run test:smoke",
-        "test:smoke": "npm run build && npm run check:embeddings && npm run check:extract && npm run check:scope-guard && npm run check:http-guard && npm run check:explore-guard",
+        "test:smoke": "npm run build && npm run check:embeddings && npm run check:extract && npm run check:scope-guard && npm run check:http-guard && npm run check:explore-guard && npm run check:route-guard",
         "test:search": "npm run build && npm run check:search",
         "test:memory": "npm run build && npm run check:embeddings && npm run check:extract && npm run check:search",
         "test:all": "npm run test:memory"
