@@ -15,9 +15,9 @@ Requirements for the v1.3 milestone. Each maps to exactly one roadmap phase (see
 
 ### Self-Consistency & Hygiene
 
-- [ ] **SC-01**: token-miser is presented as a public cairnkeep-org sibling project in the docs (named, linked, described), so the routing wire references a public dependency rather than a vendor/private one.
-- [ ] **SC-02**: The operating docs describe the routing surface and the token-miser relationship consistently with the shipped code — no drift between docs and behavior.
-- [ ] **SC-03**: The repo contains zero private/vendor references — the DEC-no-private-references guard passes as a milestone gate across code, comments, and docs.
+- [x] **SC-01**: token-miser is presented as a public cairnkeep-org sibling project in the docs (named, linked, described), so the routing wire references a public dependency rather than a vendor/private one.
+- [x] **SC-02**: The operating docs describe the routing surface and the token-miser relationship consistently with the shipped code — no drift between docs and behavior.
+- [x] **SC-03**: The repo contains zero private/vendor references — the DEC-no-private-references guard passes as a milestone gate across code, comments, and docs.
 
 ### Context Exploration (matured)
 
@@ -53,9 +53,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 |-------------|-------|--------|
 | RT-01 | Phase 10 | Complete |
 | RT-02 | Phase 10 | Complete |
-| SC-01 | Phase 11 | Pending |
-| SC-02 | Phase 11 | Pending |
-| SC-03 | Phase 11 | Pending |
+| SC-01 | Phase 11 | Complete |
+| SC-02 | Phase 11 | Complete |
+| SC-03 | Phase 11 | Complete |
 | CTX-08 | Phase 12 | Pending |
 | CTX-09 | Phase 12 | Pending |
 | CTX-10 | Phase 12 | Pending |

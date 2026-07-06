@@ -139,6 +139,6 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 8. Operating-Layer Wiring | v1.2 | Complete | 2026-07-05 |
 | 9. Live Verification + A/B Token-Savings | v1.2 | Complete | 2026-07-06 |
 | 10. Routing Seam | 2/2 | Complete    | 2026-07-06 |
-| 11. Self-Consistency & Public Positioning | 4/4 | Complete   | 2026-07-06 |
+| 11. Self-Consistency & Public Positioning | 4/4 | Complete    | 2026-07-06 |
 | 12. Context Exploration Maturation | v1.3 | Not started | - |
 | 13. Headless Harness Hardening | v1.3 | Not started | - |
