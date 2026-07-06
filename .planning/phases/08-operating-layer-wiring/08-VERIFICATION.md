@@ -1,20 +1,23 @@
 ---
 phase: 08-operating-layer-wiring
 verified: 2026-07-05T20:30:00Z
-status: human_needed
+status: passed
 score: 5/6 must-haves verified
 behavior_unverified: 1
 overrides_applied: 0
 deferred:
+
   - truth: "User can run a Claude Code command that invokes context_explore and observes real citations surfaced live in the response"
     addressed_in: "Phase 9"
     evidence: "Phase 9 Success Criterion 3: 'At least one operating-layer /context-explore command (Claude Code and/or OpenCode) is run live end-to-end against a real bootstrapped project — the same verify-by-execution bar proven against the registered cairn-memory MCP in prior milestones.'"
 behavior_unverified_items:
+
   - truth: "The Claude/OpenCode /context-explore command actually invokes context_explore live and surfaces real citations in the response (roadmap SC1)."
     test: "Run /context-explore \"<query>\" from a live Claude Code or OpenCode session against a bootstrapped project with CAIRN_EXPLORE_BINARY configured, and observe the response."
     expected: "The command output shows path:line-range citations (or the documented zero-citation note) sourced from a real token_miser explore invocation, not a stub."
     why_human: "Requires a live MCP client session and a configured token-miser binary/FastContext endpoint — cannot be exercised by static grep/file inspection. Explicitly deferred to Phase 9 (CTX-07) by plan design, consistent with how Phases 5-7 deferred live-model-dependent checks."
 human_verification:
+
   - test: "Run /context-explore \"<query>\" from a live Claude Code or OpenCode session against a bootstrapped project with CAIRN_EXPLORE_BINARY configured, and observe the response."
     expected: "The command output shows path:line-range citations (or the documented zero-citation note) sourced from a real token_miser explore invocation, not a stub."
     why_human: "Requires a live MCP client session and a configured token-miser binary/FastContext endpoint — cannot be exercised by static grep/file inspection. Explicitly deferred to Phase 9 (CTX-07) by plan design."

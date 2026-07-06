@@ -129,5 +129,5 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 5. Live OpenCode parity verification | v1.1 | Complete (override) | 2026-07-04 |
 | 6. FastContext Reliability Spike | 2/2 | Complete    | 2026-07-04 |
 | 7. context_explore MCP Tool | 2/2 | Complete    | 2026-07-04 |
-| 8. Operating-Layer Wiring | 2/2 | Complete   | 2026-07-05 |
+| 8. Operating-Layer Wiring | 2/2 | Complete    | 2026-07-05 |
 | 9. Live Verification + A/B Token-Savings | v1.2 | Not started | - |
