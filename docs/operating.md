@@ -52,9 +52,9 @@ $EDITOR /path/to/project/.ai/.env    # see "Configuration" below
 Step 3 installs into `~/.claude` (override with `CLAUDE_CONFIG_DIR` or
 `--live-root <path>`):
 
-- **10 commands** → `commands/`: `remember`, `recall`, `memory-sync`,
+- **11 commands** → `commands/`: `remember`, `recall`, `memory-sync`,
   `memory-review`, `wiki-ingest`, `wiki-query`, `wiki-lint`, `security-audit`,
-  `repo-review`, `graphify`
+  `repo-review`, `graphify`, `context-explore`
 - **7 agents** → `agents/`: `code-reviewer`, the three `security-*` agents, and
   the three `wiki-*` agents
 - **3 hooks** → `hooks/`, registered in `settings.json`:
@@ -105,6 +105,8 @@ vendor or host.
 | `CAIRN_AGENTFS_BASE_DIR` | Base dir for global memory scopes (default `~/.cairnkeep`) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none`. See [git-providers.md](git-providers.md) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → the `route_check` tool is inert) |
+| `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws at call time) |
+| `CAIRN_EXPLORE_REPO_ROOT` | Default repo root for `context_explore` when no per-call `repo_root` is given (unset + no param → the tool throws) |
 
 ### Routing seam (`route_check`, opt-in)
 
@@ -129,6 +131,10 @@ overlay that owns real routing decisions does that. It does not report which
 tier serves a request, or any tier/model/endpoint configuration at all — a
 `/health` 200 proves the proxy process is alive and reachable, not that a
 routing decision was exercised.
+
+The proxy this seam talks to is owned by
+[token-miser](https://github.com/cairnkeep/token-miser), a public
+cairnkeep-org sibling project.
 
 `scripts/verify-routing-seam.sh` proves this against the real token_miser
 binary (not a mock) — see the script's `--help` for usage.
@@ -173,6 +179,12 @@ Once installed, the operating layer gives you:
 - `/wiki-query <question>` — answer from the wiki first, then canonical sources
   (`--writeback` to save a reusable answer).
 - `/wiki-lint` — advisory audit for citation gaps, staleness, and contradictions.
+
+**Context exploration.**
+- `/context-explore <query>` — delegates to the external `token_miser explore`
+  subprocess and relays compact path:line-range citations; owned by
+  [token-miser](https://github.com/cairnkeep/token-miser), the public
+  cairnkeep-org sibling, and holds no endpoint/model config of its own.
 
 **Security and review.**
 - `/security-audit` — a governed local audit (target-selector → investigator →
