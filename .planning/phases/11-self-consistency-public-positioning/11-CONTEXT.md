@@ -43,7 +43,7 @@ This is HOW to position, document, and gate — not new runtime capabilities
   enterprise-overlay pattern). The docs' "public sibling" claim is simply true.
 - **D-04: Trimmed-core published tree.** Publish `src/` + Cargo files +
   scrubbed README/QUICKSTART/docs + neutrally-renamed example configs
-  (`config.enterprise.example.toml` gets a neutral name) + LICENSE. Drop `.ai/`
+  (`config.<employer>.example.toml` gets a neutral name) + LICENSE. Drop `.ai/`
   launchers, `.planning/`, `bench/`, `CLAUDE.md`/`AGENTS.md` from the public
   tree. Constraint: the public tree must build (`cargo build`) and be useful
   standalone.
