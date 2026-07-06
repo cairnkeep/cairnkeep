@@ -1,5 +1,22 @@
 # Milestones
 
+## v1.2 Context Exploration (Shipped: 2026-07-06)
+
+**Phases completed:** 4 phases, 8 plans, 18 tasks
+
+**Key accomplishments:**
+
+- Committed bash+curl+jq probe (`scripts/verify-fastcontext-reliability.sh`) with an offline `--self-test` that proves the /props recording, the strict per-turn tool-call gate, and the refined-D-05 verdict logic — all before any live endpoint is touched.
+- The operator ran the committed probe live against the actually-deployed FastContext q8_0 GGUF + `llama-server --jinja` endpoint; the go/no-go verdict is GO — every turn of the ≥15-turn matrix emitted a real `tool_calls` array (15/15, exit 0, zero narration), de-risking the OCP-04 failure class and opening Phases 7-9.
+- Offline, fail-closed smoke guard + four fake-tokenmiser fixtures for `context_explore`, wired into `test:smoke` — intentionally RED at the tool-registration anchor until Plan 02 lands the tool.
+- Registered `context_explore` as a thin subprocess-delegating MCP tool that shells out to `token_miser explore`, resolves `repo_root` to an absolute path, fails closed on every precondition/execution error, and renders compact `path:line-range` citations alongside a lossless structured `Evidence` passthrough.
+- Paired `/context-explore` slash commands for Claude Code and OpenCode that call the Phase 7 `context_explore` MCP tool directly and relay its compact citations, with no auto-read of cited ranges.
+- Dedicated `scripts/sync-opencode-explore-assets.sh` install/drift script plus `docs/operating.md` parity, giving the OpenCode `/context-explore` command the same install path as its five sibling assets (CTX-05).
+- Committed `scripts/verify-token-savings-ab.sh` — a staged, env-driven, loopback-only harness that computes the native-grep-and-read vs `context_explore` citation-text byte/char delta deterministically, with an offline `--self-test` Nyquist backstop and a fail-loud operator-gated live `--explore` stage.
+- Measured cairnkeep's own byte/token-savings number live against the real FastContext backend: 99.9%+ byte-savings on verified pinpoint queries, with the harness's broad default query set transparently flagged as a D-01 model-reliability gap rather than a hidden pass.
+
+---
+
 ## v1.1 OpenCode parity (Shipped: 2026-07-04)
 
 **Phases completed:** 2 phases (4-5), 9 plans, 19 tasks

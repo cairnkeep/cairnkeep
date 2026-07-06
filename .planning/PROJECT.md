@@ -8,17 +8,9 @@ A durable, harness-agnostic memory + context layer for coding agents (Claude Cod
 
 Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
 
-## Current Milestone: v1.2 Context Exploration (token-miser + FastContext)
+## Current Milestone
 
-**Goal:** Give cairnkeep a token-efficient repo-exploration capability — FastContext as a provider-neutral context-explore backend, routed through token-miser — wired into both the `cairn-memory` MCP and the Claude Code + OpenCode operating layers.
-
-**Target features:**
-- `context_explore` capability in the `cairn-memory` MCP (offloads READ/GLOB/GREP to a FastContext endpoint; returns compact file paths + line ranges)
-- token-miser routing layer that dispatches exploration/model calls to FastContext and other backends, provider-neutral config
-- Operating-layer wiring: commands/agents/hooks in `claude/` + `opencode/` that route exploration through the new capability
-- Provider-neutral endpoint config (OpenAI-compatible; defaults to the mitkox FastContext GGUF on local infra, operator-swappable) — no vendor hardcoding
-
-**Key context:** FastContext is Microsoft's repo-exploration subagent (4B–30B; MIT-licensed; cuts main-agent tokens ~60%, +5.5% SWE-bench); mitkox ships GGUF quants for llama.cpp. token-miser was already deferred as "the routing + context-explore sibling" — this milestone lands it. Must honor DEC-no-private-references, the provider-neutral core, and the verify-by-execution bar against the registered `cairn-memory` MCP.
+_None active — v1.2 Context Exploration shipped 2026-07-06 (see **Current State** below). Next milestone not yet scoped; start it with `/gsd-new-milestone`._
 
 ## Current State
 
@@ -103,6 +95,9 @@ Additional constraints:
 | OpenCode memory lifecycle built on native plugins, not Claude's shell hooks | OpenCode has a plugin/event model (`session.idle`, `tool.execute.before`); reusing shell hooks would not be idiomatic parity | ✓ Good (Phase 4, OCP-01/02) |
 | Live parity verified by a scratch-isolated harness with fingerprint guards + negative controls | Same verify-by-execution bar v1.0 used; scratch HOME prevents polluting the real `~/.config/opencode` / `~/.claude` | ✓ Good (Phase 5) |
 | OCP-04 recall read-back blocker was the local model's tool-calling, not cairnkeep code | Thinking-config + strip-proxy were proven dead ends; a no-thinking, tool-call-reliable model (qwen3.5-27b) cleared it in one live round-trip | ⚠️ Revisit (reliable headless reproduction still open — v1.1 known gap) |
+| `context_explore` is a thin subprocess delegate to `token_miser explore`, not a reimplementation of FastContext's loop/sandbox/serving | token-miser already owns and tests these in Rust; cairnkeep stays provider-neutral and holds no endpoint/model config | ✓ Good (Phase 7, CTX-01/03) |
+| FastContext reliability spike made a standalone hard gate before any wiring | Same failure class as OCP-04 — building atop an unverified local model's tool-calling is the expensive way to find a narration failure | ✓ Good (Phase 6 — live 15/15 `tool_calls`, GO) |
+| CTX-07 reported as cairnkeep's own live measured number, broad-query model unreliability disclosed rather than hidden | The verify-by-execution bar demands a real number; honest disclosure beats a flattering headline | ✓ Good (Phase 9 — tight-query ~99.9% byte-savings, D-03 PASS) |
 
 ## Evolution
 
