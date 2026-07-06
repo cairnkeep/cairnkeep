@@ -26,6 +26,8 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 
 **Shipped:** v1.2 Context Exploration (token-miser + FastContext) — complete 2026-07-06. All four phases landed: FastContext reliability spike (Phase 6, live 15/15 `tool_calls`, GO), the `context_explore` MCP tool (Phase 7, CTX-01/02/03), Claude Code + OpenCode operating-layer wiring (Phase 8, CTX-04/05), and the live A/B token-savings verification (Phase 9, CTX-07). CTX-07 was closed against cairnkeep's **own measured number** via `scripts/verify-token-savings-ab.sh`: a live, independently-verified tight-query A/B anchor at ~99.9% byte-savings (D-03 **PASS**), with the small model's unreliability on broad/loosely-worded queries documented transparently (09-AB.md — hallucinated/wander citations disclosed, never counted as the headline). Full requirement traceability in REQUIREMENTS.md.
 
+**In progress:** v1.3 Routing Seam & Context Maturation — Phases 10–11 complete. Phase 11 (2026-07-07) made the public story true and self-consistent: token-miser is live at github.com/cairnkeep/token-miser as a public sibling, the three-doc sweep closed all code-vs-docs drift, and two new verify-by-execution gates (`scripts/verify-no-private-references.sh`, `scripts/verify-docs-parity.sh`) passed live and are recorded as the milestone gate. Remaining: Phase 12 (context exploration maturation) and Phase 13 (headless harness hardening).
+
 ## Requirements
 
 ### Validated
@@ -48,10 +50,11 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 - ✓ **CTX-07** — Token-savings value proposition proven by a live measured before/after A/B on cairnkeep's own harness (`scripts/verify-token-savings-ab.sh`): verified tight-query anchor ~99.9% byte-savings (D-03 PASS); the broad-query set's small-model unreliability documented transparently in 09-AB.md, not counted as the headline — v1.2 Phase 9
 - ✓ **RT-01 / RT-02** — Thin `route_check` delegate to token-miser's routing/tiering surface (no proxy/endpoint/model config in the core), proven against the real binary via `scripts/verify-routing-seam.sh` and frozen as a seam contract in `docs/operating.md` — v1.3 Phase 10 (UAT: live `/health` proof + cold-read doc-sufficiency both passed)
 
+- ✓ **SC-01 / SC-02 / SC-03** — token-miser published as a public cairnkeep-org sibling (github.com/cairnkeep/token-miser, Apache-2.0, single clean-history commit, guard-zero-hit tree); README + operating docs matched to shipped Phase 10 code (`verify-docs-parity.sh` green); no-private-references guard run live with the operator denylist and recorded as an explicit milestone gate in MILESTONES.md — v1.3 Phase 11
+
 ### Active
 
 <!-- v1.3 scope — REQ-IDs assigned in REQUIREMENTS.md -->
-- [ ] token-miser established as a public cairnkeep-org sibling; docs self-consistent; no-private-references guard re-verified
 - [ ] Memory-aware exploration (`context_explore` citations cross-referenced against `memory_search` / wiki-query)
 - [ ] Pre-task hook auto-invoke of exploration
 - [ ] `context_explore` result caching keyed on (query, repo HEAD/dirty-state)
@@ -131,4 +134,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 after Phase 10 — Routing Seam shipped (RT-01/RT-02 validated: thin `route_check` delegate proven against the real token-miser binary + seam contract frozen in operating docs). Milestone v1.3 continues with self-consistent public positioning, matured context_explore, and a hardened OpenCode round-trip harness.*
+*Last updated: 2026-07-07 after Phase 11 — Self-Consistency & Public Positioning shipped (SC-01/02/03 validated: public token-miser sibling, docs drift closed with a mechanized parity gate, no-private-references guard recorded as a milestone gate). Milestone v1.3 continues with context_explore maturation and the headless OpenCode harness.*
