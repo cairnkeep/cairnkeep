@@ -5,8 +5,9 @@
 - ✅ **v1.0 OSS core → parity** — Phases 1-3 (shipped 2026-07-03) — see [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - ✅ **v1.1 OpenCode parity** — Phases 4-5 (shipped 2026-07-04) — see [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 - ✅ **v1.2 Context Exploration (token-miser + FastContext)** — Phases 6-9 (shipped 2026-07-06) — see [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
+- 🚧 **v1.3 Routing Seam & Context Maturation** — Phases 10-13 (in progress)
 - 📋 **Enterprise overlay (private)** — planned; wraps the core with organization-specific launchers and config; lives only on the private remote, never in this repo
-- 📋 **token-miser routing-proxy surface (TMISER-R1)** — planned; the HTTP routing/tiering surface (`/v1/chat/completions` tiering, semantic router) — distinct from v1.2's `context_explore` subprocess delegation, which token-miser's own docs call "never a routing target"
+- 📋 **token-miser routing-proxy surface, full hosting (TMISER-R1 remainder)** — planned; v1.3's RT-01 delivers only the thin wire to token-miser's routing/tiering surface — hosting the proxy itself, or any endpoint/model/tier config, stays out of the core per the LOCKED thin-delegate boundary and is carried by a future private-track milestone
 
 ## Phases
 
@@ -43,10 +44,69 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 
 </details>
 
+### 🚧 v1.3 Routing Seam & Context Maturation (In Progress)
+
+**Milestone Goal:** Wire cairnkeep to token-miser's routing/tiering surface as a thin, self-consistent public delegate, mature `context_explore` (memory-aware, auto-invoked, cached), and make the OpenCode remember→recall round-trip reliably reproducible headless — without breaching the thin-delegate or no-private-references boundaries.
+
+- [ ] **Phase 10: Routing Seam** - Thin, documented delegate to token-miser's routing/tiering surface; no proxy, endpoint, or model config in the core
+- [ ] **Phase 11: Self-Consistency & Public Positioning** - token-miser positioned as a public sibling, docs matched to shipped code, no-private-references guard re-run as a milestone gate
+- [ ] **Phase 12: Context Exploration Maturation** - `context_explore` becomes memory-aware, auto-invoked pre-task, and cache-backed
+- [ ] **Phase 13: Headless Harness Hardening** - The OpenCode `/remember`→`/recall` round-trip reproduces reliably headless, closing the v1.1 OCP-06 gap
+
+## Phase Details
+
+### Phase 10: Routing Seam
+**Goal**: cairnkeep drives token-miser's routing/tiering surface through a thin, documented delegate — mirroring the `context_explore` subprocess-delegate boundary — with the seam frozen so a future overlay can drive routing unchanged.
+**Depends on**: Nothing new (builds on the v1.2 `context_explore` subprocess-delegate pattern, Phase 7)
+**Requirements**: RT-01, RT-02
+**Success Criteria** (what must be TRUE):
+
+  1. cairnkeep invokes token-miser's routing/tiering surface through one thin delegate call; a grep across `src/` confirms no proxy server, endpoint list, model list, or tier config is hosted in the core.
+  2. The routing invocation's call shape and its provider-neutral config keys (env-var driven, no committed defaults) are written up in the operating docs as a stable seam contract.
+  3. The seam-contract doc alone is sufficient for an external/private overlay to drive routing without reading cairnkeep's core source.
+
+**Plans**: TBD
+
+### Phase 11: Self-Consistency & Public Positioning
+**Goal**: The docs present token-miser as a public cairnkeep-org sibling, describe the routing surface consistently with the shipped Phase 10 code, and the no-private-references guard passes as an explicit milestone gate.
+**Depends on**: Phase 10 (docs describe the routing wire that exists; the guard re-run covers the new surface)
+**Requirements**: SC-01, SC-02, SC-03
+**Success Criteria** (what must be TRUE):
+
+  1. The docs name, link, and describe token-miser as a public cairnkeep-org sibling project — no framing implies it's a private/vendor dependency.
+  2. The operating docs' description of the routing surface and the token-miser relationship matches the Phase 10 shipped code with no drift between prose and behavior.
+  3. A full-repo no-private-references scan (code, comments, docs) returns zero hits, run and recorded as an explicit milestone gate.
+
+**Plans**: TBD
+
+### Phase 12: Context Exploration Maturation
+**Goal**: `context_explore` becomes memory-aware, auto-invoked at task start, and cache-backed — without a manual command each time or re-paying token-miser's cost on repeat queries.
+**Depends on**: Nothing new (independent of the routing work; builds on the v1.2 `context_explore` tool, Phase 7)
+**Requirements**: CTX-08, CTX-09, CTX-10
+**Success Criteria** (what must be TRUE):
+
+  1. `context_explore`'s output flags which cited ranges have related hits in `memory_search` and/or the wiki, surfacing the cross-reference alongside the citation.
+  2. A pre-task hook auto-invokes `context_explore` for a task's query with no manual `/context-explore` call required.
+  3. An identical query against an unchanged repo (same HEAD + dirty-state) returns a cached result instead of re-invoking token-miser; changing the repo invalidates the cache and triggers a fresh call.
+
+**Plans**: TBD
+
+### Phase 13: Headless Harness Hardening
+**Goal**: The OpenCode `/remember`→`/recall` round-trip reproduces reliably in the scripted headless harness, closing the v1.1 OCP-06 override gap.
+**Depends on**: Nothing new (independent; hardens the existing v1.1 harness, Phase 5)
+**Requirements**: OCP-07
+**Success Criteria** (what must be TRUE):
+
+  1. The scripted headless harness (serve/`--attach` + retry) completes the `/remember`→`/recall` round-trip successfully across repeated runs, not a single lucky pass.
+  2. The harness's retry logic absorbs the previously-identified opencode run-completion flakiness without manual operator intervention.
+  3. The v1.1 OCP-06 known gap (reliable headless reproduction) is recorded as resolved in MILESTONES.md and REQUIREMENTS.md traceability.
+
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Status | Completed |
-| ----- | --------- | ------ | --------- |
+|-------|-----------|--------|-----------|
 | 1. Configurable git-provider abstraction | v1.0 | Complete | pre-tracking |
 | 2. Operating-layer verification | v1.0 | Complete | 2026-07-03 |
 | 3. Docs + parity sign-off | v1.0 | Complete | 2026-07-03 |
@@ -56,3 +116,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 7. context_explore MCP Tool | v1.2 | Complete | 2026-07-04 |
 | 8. Operating-Layer Wiring | v1.2 | Complete | 2026-07-05 |
 | 9. Live Verification + A/B Token-Savings | v1.2 | Complete | 2026-07-06 |
+| 10. Routing Seam | v1.3 | Not started | - |
+| 11. Self-Consistency & Public Positioning | v1.3 | Not started | - |
+| 12. Context Exploration Maturation | v1.3 | Not started | - |
+| 13. Headless Harness Hardening | v1.3 | Not started | - |

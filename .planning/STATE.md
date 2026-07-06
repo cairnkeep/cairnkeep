@@ -20,27 +20,29 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-06)
 
 **Core value:** Drop-in parity — a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
-**Current focus:** v1.2 Context Exploration shipped (2026-07-06, tag `v1.2`) — next milestone not yet scoped.
+**Current focus:** v1.3 Routing Seam & Context Maturation — roadmap created (Phases 10-13), ready to plan Phase 10.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 10 of 13 (Routing Seam) — ready to plan
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-06 — Milestone v1.3 started
+Status: Roadmap created
+Last activity: 2026-07-06 — v1.3 ROADMAP.md created, requirements traceability mapped (9/9)
 
-### v1.2 roadmap (2026-07-04)
+Progress: [░░░░░░░░░░] 0%
 
-Four phases, continuing the sequential numbering from v1.1 (ended at Phase 5). Ordering mirrors the research SUMMARY.md's "Implications for Roadmap": reliability spike gates everything, config folded into the tool phase, operating-layer wiring only after the tool is proven, A/B measurement closes out the milestone.
+### v1.3 roadmap (2026-07-06)
 
-- **Phase 6 — FastContext Reliability Spike** (CTX-06): probe `finish_reason=tool_calls` reliability against the actually-deployed GGUF quant + `llama-server --jinja` combo before any wiring is built on it — same failure class as OCP-04.
-- **Phase 7 — context_explore MCP Tool** (CTX-01, CTX-02, CTX-03): thin subprocess-delegating tool in `cairn-memory` (mirrors the existing `python3` graphify `runCommand` pattern), parses token-miser's `Evidence` JSON, fail-closed error handling, provider-neutral env-only config folded into the same phase per the roadmapper's judgment call.
-- **Phase 8 — Operating-Layer Wiring** (CTX-04, CTX-05): Claude Code + OpenCode commands invoke `context_explore` on demand, installed via a new `sync-opencode-*-assets.sh` script.
-- **Phase 9 — Live Verification + A/B Token-Savings** (CTX-07): milestone close-out gate — measured (not cited) before/after token count on cairnkeep's own harness against a real bootstrapped project.
+Four phases, continuing sequential numbering from v1.2 (ended at Phase 9). RT-02 and the SC-* self-consistency/docs requirements are sequenced after RT-01 lands (docs describe the routing wire that exists; the seam contract freezes RT-01's interface). CTX-08/09/10 (context exploration maturation) and OCP-07 (headless harness) are independent tracks, unblocked by the routing work.
 
-### Owed to Phase 5 — RESOLVED (documented as v1.1 known gap)
+- **Phase 10 — Routing Seam** (RT-01, RT-02): thin, documented delegate to token-miser's routing/tiering surface — no proxy, endpoint, or model config in the core; seam contract frozen in the operating docs so a future overlay can drive routing unchanged.
+- **Phase 11 — Self-Consistency & Public Positioning** (SC-01, SC-02, SC-03): token-miser positioned as a public cairnkeep-org sibling, docs matched to the shipped Phase 10 code, no-private-references guard re-run as an explicit milestone gate.
+- **Phase 12 — Context Exploration Maturation** (CTX-08, CTX-09, CTX-10): `context_explore` becomes memory-aware, auto-invoked pre-task, and cache-backed — independent of the routing work, builds on the v1.2 tool (Phase 7).
+- **Phase 13 — Headless Harness Hardening** (OCP-07): the OpenCode `/remember`→`/recall` round-trip reproduces reliably headless (serve/`--attach` + retry), closing the v1.1 OCP-06 gap — independent of everything else in this milestone.
 
-- ✓ **OCP-01/02/03/04 live round-trip** — discharged by `05-UAT.md`: capture proven live (4/4), recall-on-edit + remember-write proven with structural evidence, and the `/recall` read-back proven achievable end-to-end once live (qwen3.5-27b). The one remaining open item — reliable *headless* reproduction — is recorded as the v1.1 override known gap in MILESTONES.md, not carried as active work.
+### v1.1 OCP-06 known gap — now scheduled
+
+- Reliable headless reproduction of the `/remember`→`/recall` round-trip was recorded as a v1.1 override known gap (MILESTONES.md). It is active work in this milestone: **OCP-07 / Phase 13**.
 
 ## Performance Metrics
 
@@ -80,6 +82,9 @@ Four phases, continuing the sequential numbering from v1.1 (ended at Phase 5). O
 Locked hard rules live in the PROJECT.md decisions block: DEC-no-private-references, DEC-no-ai-authorship, DEC-commit-scanning.
 Recent decisions affecting current work:
 
+- v1.3 roadmap: Phase 10 (RT-01, RT-02) ships the routing delegate and its seam-contract doc together — RT-02 freezes RT-01's interface, so splitting them into separate phases would create a documentation-only phase with no independent verification value.
+- v1.3 roadmap: Phase 11 (SC-01/02/03) depends on Phase 10 — self-consistency docs and the no-private-references milestone gate can only describe/verify the routing surface once it exists.
+- v1.3 roadmap: Phase 12 (CTX-08/09/10) and Phase 13 (OCP-07) are independent of the routing track and of each other — kept as separate phases rather than merged, since bundling context-exploration maturation with OpenCode harness hardening would mix two unrelated capability areas into one unverifiable phase.
 - v1.2 roadmap: `context_explore` is a thin new tool in the existing `cairn-memory` MCP that shells out to the external `token_miser explore` binary (mirrors the `python3` graphify `runCommand` pattern) — it does not reimplement the FastContext tool-calling loop, sandbox, or model serving, and holds no FastContext endpoint/model config (token-miser owns that, per its own TOML).
 - v1.2 roadmap: reliability spike (Phase 6) is a standalone phase and hard gate on Phases 7-9, mirroring the OCP-04 lesson that building wiring atop an unverified local model's tool-calling is the expensive way to discover a narration failure.
 - [Phase 05-03] OCP-04 recall read-back is an open, root-caused model-reliability limitation: qwen3.6-27b-coder is a thinking model whose reasoning leaks as narrated pseudo-tool-calls; not a defect in recall.md/remember.md/cairn-memory/harness.
@@ -93,11 +98,11 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- Start the next milestone with `/gsd-new-milestone` (v1.2 complete; no active phase work).
+None yet.
 
 ### Blockers/Concerns
 
-None open — v1.2 shipped clean (7/7 requirements, all phases verified). Carried-forward items live under **Deferred Items** below.
+None open. v1.3 roadmap created with 100% requirement coverage (9/9 mapped, no orphans). Carried-forward items live under **Deferred Items** below.
 
 ## Deferred Items
 
@@ -106,17 +111,17 @@ Items acknowledged and carried forward:
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | Milestone | Enterprise overlay (private-only, never in this repo) | Planned | 2026-07-03 |
-| Milestone | token-miser routing-proxy surface (TMISER-R1) | Planned | 2026-07-04 (narrowed from v1.0's "token-miser integration" — `context_explore` subprocess delegation is now in-scope for v1.2; only the HTTP routing/tiering surface remains deferred) |
-| v1.2 Future Requirement | CTX-F1 — memory-aware exploration (cross-reference citations against memory_search/wiki-query) | Deferred | 2026-07-04 |
-| v1.2 Future Requirement | CTX-F2 — pre-task hook auto-invoke of exploration | Deferred | 2026-07-04 |
-| v1.2 Future Requirement | CTX-F3 — result caching keyed on (query, repo HEAD/dirty-state) | Deferred | 2026-07-04 |
+| Milestone | token-miser routing-proxy surface, full hosting (TMISER-R1 remainder) | Planned | 2026-07-06 (narrowed further — v1.3's RT-01 delivers the thin wire to the surface; only hosting the proxy itself or any endpoint/model/tier config remains deferred to a future private-track milestone) |
+
+*(CTX-F1/F2/F3, previously deferred at v1.2 close, are promoted to active requirements CTX-08/09/10 in Phase 12 of this milestone — see REQUIREMENTS.md.)*
 
 ## Session Continuity
 
-Last session: 2026-07-06T12:28:44.071Z
-Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-live-verification-a-b-token-savings/09-CONTEXT.md
+Last session: 2026-07-06T14:16:18.601Z
+Stopped at: v1.3 ROADMAP.md created (Phases 10-13), REQUIREMENTS.md traceability updated
+Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Review the v1.3 roadmap in .planning/ROADMAP.md
+- Run `/gsd-plan-phase 10` to plan the Routing Seam phase
