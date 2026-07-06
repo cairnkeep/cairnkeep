@@ -104,6 +104,34 @@ vendor or host.
 | `CAIRN_MEMORY_EMBEDDING_MODEL` | Embedding model name (required for semantic search) |
 | `CAIRN_AGENTFS_BASE_DIR` | Base dir for global memory scopes (default `~/.cairnkeep`) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none`. See [git-providers.md](git-providers.md) |
+| `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → the `route_check` tool is inert) |
+
+### Routing seam (`route_check`, opt-in)
+
+`route_check` is a thin MCP tool that checks whether an external token-miser
+routing/tiering proxy is reachable. It hosts no proxy, endpoint list, model
+list, or tier config itself — the proxy runs elsewhere and `route_check` only
+confirms the wire to it is live. This is the full contract; no source reading
+required.
+
+- **Reads exactly one env var:** `CAIRN_ROUTE_ENDPOINT`. Unset or malformed
+  (fails `new URL(...)`) → the tool throws at call time.
+- **Issues exactly one request:** `GET {CAIRN_ROUTE_ENDPOINT}/health`, with a
+  short per-call timeout (`timeout_seconds`, default 10s).
+- **Execution-tier failures** (connection refused, non-2xx status, malformed
+  JSON body, or timeout) never throw — they return `{ ok: false, error, ... }`.
+- **Success** (2xx + parseable JSON) returns
+  `{ ok: true, status, cluster_healthy }`.
+
+**What it does NOT do:** it does not drive `/v1/chat/completions` or
+`/v1/messages` — it never sends chat/messages traffic itself, only an
+overlay that owns real routing decisions does that. It does not report which
+tier serves a request, or any tier/model/endpoint configuration at all — a
+`/health` 200 proves the proxy process is alive and reachable, not that a
+routing decision was exercised.
+
+`scripts/verify-routing-seam.sh` proves this against the real token_miser
+binary (not a mock) — see the script's `--help` for usage.
 
 ### HTTP transport (opt-in, network-facing)
 
