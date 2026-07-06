@@ -82,14 +82,14 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   2. The operating docs' description of the routing surface and the token-miser relationship matches the Phase 10 shipped code with no drift between prose and behavior.
   3. A full-repo no-private-references scan (code, comments, docs) returns zero hits, run and recorded as an explicit milestone gate.
 
-**Plans**: 1/4 plans executed
+**Plans**: 2/4 plans executed
 **Wave 1**
 
 - [x] 11-01-PLAN.md — no-private-references guard + docs-parity gate scripts (SC-02/SC-03)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 11-02-PLAN.md — clean-slate publish token-miser as a public cairnkeep-org sibling (SC-01)
+- [x] 11-02-PLAN.md — clean-slate publish token-miser as a public cairnkeep-org sibling (SC-01)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -139,6 +139,6 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 8. Operating-Layer Wiring | v1.2 | Complete | 2026-07-05 |
 | 9. Live Verification + A/B Token-Savings | v1.2 | Complete | 2026-07-06 |
 | 10. Routing Seam | 2/2 | Complete    | 2026-07-06 |
-| 11. Self-Consistency & Public Positioning | 1/4 | In Progress|  |
+| 11. Self-Consistency & Public Positioning | 2/4 | In Progress|  |
 | 12. Context Exploration Maturation | v1.3 | Not started | - |
 | 13. Headless Harness Hardening | v1.3 | Not started | - |
