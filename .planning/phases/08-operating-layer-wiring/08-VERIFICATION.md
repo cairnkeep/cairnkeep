@@ -76,7 +76,7 @@ human_verification:
 |----------|---------|--------|--------|
 | Claude command frontmatter matches plan's exact required grant | `grep -q '^allowed-tools: Bash, mcp__cairn-memory__context_explore$'` | matched | ✓ PASS |
 | OpenCode command frontmatter has exactly 2 tool grants | `grep -c ': true' opencode/command/context-explore.md` | 2 | ✓ PASS |
-| DEC-no-private-references negative scan (all 3 files) | `grep -niE 'http://\|https://\|127\.0\.0\.1\|localhost\|enterprise\|:8080\|:11434\|gguf\|llama-server'` | no matches (exit 1) on all 3 | ✓ PASS |
+| DEC-no-private-references negative scan (all 3 files) | `grep -niE 'http://\|https://\|127\.0\.0\.1\|localhost\|acme-corp\|:8080\|:11434\|gguf\|llama-server'` | no matches (exit 1) on all 3 | ✓ PASS |
 | Sync script round-trip (`--apply` then `--check`) | `bash scripts/sync-opencode-explore-assets.sh --apply/--check --live-root $tmp` | both exit 0, reports in-sync | ✓ PASS |
 | No `LEGACY_ASSETS` dead code carried over from the wiki template | `grep -c "LEGACY_ASSETS\|report_legacy_live_assets"` | 0 | ✓ PASS |
 | `claude/commands/*.md` auto-install picks up the new file with no script change | `bash scripts/sync-claude-assets.sh --apply --live-root $tmp` | logged `installed: commands/context-explore.md` | ✓ PASS |
