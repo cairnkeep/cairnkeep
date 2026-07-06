@@ -116,7 +116,15 @@ Full detail archived in [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
   2. A measured (not cited-from-paper) before/after token count is recorded and reported in the phase's UAT/SUMMARY docs.
   3. At least one operating-layer `/context-explore` command (Claude Code and/or OpenCode) is run live end-to-end against a real bootstrapped project — the same verify-by-execution bar proven against the registered `cairn-memory` MCP in prior milestones.
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+**Wave 1**
+
+- [ ] 09-01-PLAN.md — Build the committed A/B token-savings harness (`scripts/verify-token-savings-ab.sh`; byte anchor + `chars/4` estimate, native grep→window recipe vs renderCitations text, offline `--self-test`/`--native`, D-03 net-savings gate)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 09-02-PLAN.md — Operator-gated live run (`--full` measured number + one live `/context-explore`) + record the verdict in `09-AB.md` referenced from UAT/SUMMARY (SC-2, SC-3; D-04 fail-loud gap)
 
 ## Progress
 
