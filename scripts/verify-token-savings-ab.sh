@@ -392,6 +392,116 @@ run_full() {
   return 1
 }
 
+# --- self-test fixtures (Task 3): offline Nyquist backstop for the
+# operator-gated live --explore/--full runs. No network, no backend, no
+# live binary. ---
+
+# self_test_delta(): asserts count_bytes/count_chars on a fixed string
+# return the known length, and est_tokens on a known char count returns the
+# expected chars/4 integer.
+self_test_delta() {
+  local sample="Hello, World! This is a fixed test string."
+  local expected actual_bytes actual_chars est
+
+  expected=${#sample}
+  actual_bytes=$(printf '%s' "$sample" | count_bytes)
+  actual_chars=$(printf '%s' "$sample" | count_chars)
+
+  if [[ "$actual_bytes" -ne "$expected" ]]; then
+    echo "[self-test:delta] FAIL: count_bytes expected $expected got $actual_bytes" >&2
+    return 1
+  fi
+  if [[ "$actual_chars" -ne "$expected" ]]; then
+    echo "[self-test:delta] FAIL: count_chars expected $expected got $actual_chars" >&2
+    return 1
+  fi
+
+  est=$(est_tokens 100)
+  if [[ "$est" -ne 25 ]]; then
+    echo "[self-test:delta] FAIL: est_tokens(100) expected 25 got $est" >&2
+    return 1
+  fi
+
+  echo "[self-test:delta] OK: count_bytes/count_chars/est_tokens verified"
+}
+
+# self_test_gate() (D-03, both directions): a native>explore fixture must
+# PASS; native==explore and native<explore fixtures must FAIL AND emit the
+# loud documented-finding line - proving a regression cannot pass silently.
+self_test_gate() {
+  local failures=0 out
+
+  if ! net_savings_gate 1000 500 >/dev/null 2>&1; then
+    echo "[self-test:gate] FAIL: expected PASS for native>explore" >&2
+    failures=1
+  fi
+
+  out=$(net_savings_gate 500 500 2>&1) && {
+    echo "[self-test:gate] FAIL: expected FAIL for native==explore" >&2
+    failures=1
+  }
+  if ! echo "$out" | grep -qi "documented finding"; then
+    echo "[self-test:gate] FAIL: native==explore case did not emit a documented-finding line" >&2
+    failures=1
+  fi
+
+  out=$(net_savings_gate 500 600 2>&1) && {
+    echo "[self-test:gate] FAIL: expected FAIL for native<explore" >&2
+    failures=1
+  }
+  if ! echo "$out" | grep -qi "documented finding"; then
+    echo "[self-test:gate] FAIL: native<explore case did not emit a documented-finding line" >&2
+    failures=1
+  fi
+
+  if [[ "$failures" -eq 0 ]]; then
+    echo "[self-test:gate] OK: PASS/FAIL directions verified with a documented-finding line on regression"
+    return 0
+  fi
+  return 1
+}
+
+# self_test_render(): feeds canned Evidence JSON fixtures through the same
+# render_citation_text() run_explore uses and asserts the output matches
+# renderCitations() verbatim - both the populated-citations case and the
+# exact empty-citations note string.
+self_test_render() {
+  local fixture expected actual empty_fixture empty_expected empty_actual
+
+  fixture='{"citations":[{"path":"src/a.ts","start_line":10,"end_line":20},{"path":"src/b.ts","start_line":1,"end_line":5}],"stats":{"turns":2,"tool_calls":3}}'
+  expected=$'src/a.ts:10-20\nsrc/b.ts:1-5'
+  actual=$(render_citation_text "$fixture")
+  if [[ "$actual" != "$expected" ]]; then
+    echo "[self-test:render] FAIL: citation text mismatch (expected [$expected] got [$actual])" >&2
+    return 1
+  fi
+
+  empty_fixture='{"citations":[],"stats":{"turns":4,"tool_calls":7}}'
+  empty_expected="(no citations found; turns=4, tool_calls=7)"
+  empty_actual=$(render_citation_text "$empty_fixture")
+  if [[ "$empty_actual" != "$empty_expected" ]]; then
+    echo "[self-test:render] FAIL: empty-citations text mismatch (expected [$empty_expected] got [$empty_actual])" >&2
+    return 1
+  fi
+
+  echo "[self-test:render] OK: citation-text shape matches renderCitations verbatim"
+}
+
+# run_self_test(): runs all self-test concerns and returns non-zero if any
+# failed - the automated Nyquist backstop for the operator-gated live run.
+run_self_test() {
+  local failures=0
+  self_test_delta || failures=1
+  self_test_gate || failures=1
+  self_test_render || failures=1
+
+  if [[ "$failures" -ne 0 ]]; then
+    echo "[self-test] FAILED" >&2
+    return 1
+  fi
+  echo "[self-test] PASSED"
+}
+
 main() {
   local stage="" repo_override=""
 
@@ -430,8 +540,7 @@ main() {
 
   case "$stage" in
     --self-test)
-      echo "FATAL: --self-test not yet implemented (Task 3)" >&2
-      exit 1
+      run_self_test
       ;;
     --native)
       run_native "$repo"
