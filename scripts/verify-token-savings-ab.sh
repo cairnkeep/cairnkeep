@@ -32,6 +32,16 @@ set -euo pipefail
 # Mirrors scripts/verify-fastcontext-reliability.sh's committed, env-driven,
 # loopback-only, staged-with-generous-timeouts harness discipline (Phase 6
 # D-01/D-02, re-runnability).
+#
+# Native-exploration recipe (D-02 - reproducible/auditable baseline; each
+# pattern is run via `git grep -nE` against tracked files only):
+#
+#   # | query                                                       | git grep -nE pattern | window | hit cap
+#   1 | scope path containment implemented in this repo             | containment           | +/-25  | 12
+#   2 | AgentFS project scope resolved in this repo                  | AgentFS.*scope        | +/-25  | 12
+#   3 | git-provider abstraction configured in this repo             | git-provider          | +/-25  | 12
+#   4 | OpenCode memory-wakeup plugin lives in this repo              | memory-wakeup         | +/-25  | 12
+#   5 | asset-sync scripts render the infra-root placeholder value    | infraRoot             | +/-25  | 12
 
 usage() {
   cat <<'EOF'
@@ -100,6 +110,32 @@ CAIRN_EXPLORE_BINARY="${CAIRN_EXPLORE_BINARY:-}"
 CAIRN_EXPLORE_REPO_ROOT="${CAIRN_EXPLORE_REPO_ROOT:-$ROOT_DIR}"
 AB_EVIDENCE_LOG="${AB_EVIDENCE_LOG:-$ROOT_DIR/.planning/phases/09-live-verification-a-b-token-savings/09-AB.log}"
 
+NATIVE_WINDOW=25
+NATIVE_HIT_CAP=12
+
+# 5 curated cairnkeep exploration prompts (same corpus Phase 6 probed),
+# paired 1:1 with a fixed `git grep -nE` pattern per D-02 - see the recipe
+# table in the header comment above for the reproducible/auditable baseline.
+QUERIES=(
+  "Where is scope path containment implemented in this repo?"
+  "Where is the AgentFS project scope resolved in this repo?"
+  "Where is the git-provider abstraction configured in this repo?"
+  "Where does the OpenCode memory-wakeup plugin live in this repo?"
+  "Where do the asset-sync scripts render the infra-root placeholder value?"
+)
+PATTERNS=(
+  "containment"
+  "AgentFS.*scope"
+  "git-provider"
+  "memory-wakeup"
+  "infraRoot"
+)
+
+NATIVE_QUERY_BYTES=()
+NATIVE_QUERY_CHARS=()
+EXPLORE_QUERY_BYTES=()
+EXPLORE_QUERY_CHARS=()
+
 # log_repo_presence(override): logs only whether --repo/env overrode the
 # default repo root - never the path value (mirrors log_endpoint_presence()
 # in verify-fastcontext-reliability.sh, T-09-01).
@@ -155,21 +191,204 @@ net_savings_gate() {
   return 1
 }
 
-# run_native/run_explore/run_full: stubbed here so main()'s dispatch and the
-# --help/config wiring can be verified independently; Task 2 fills in the
-# real measurement logic.
+# median(...): integer median of the given numbers (nearest-integer average
+# for an even count).
+median() {
+  local -a sorted
+  sorted=($(printf '%s\n' "$@" | sort -n))
+  local n=${#sorted[@]}
+  local mid=$((n / 2))
+  if (( n % 2 == 1 )); then
+    echo "${sorted[$mid]}"
+  else
+    echo $(( (sorted[mid-1] + sorted[mid]) / 2 ))
+  fi
+}
+
+# resolve_explore_binary(): CAIRN_EXPLORE_BINARY (the real env var
+# context_explore reads) or a `token_miser` on PATH. Prints the resolved
+# path on success; callers must never echo it further (T-09-01).
+resolve_explore_binary() {
+  if [[ -n "$CAIRN_EXPLORE_BINARY" ]]; then
+    echo "$CAIRN_EXPLORE_BINARY"
+    return 0
+  fi
+  if command -v token_miser >/dev/null 2>&1; then
+    command -v token_miser
+    return 0
+  fi
+  return 1
+}
+
+# render_citation_text(evidence_json): reproduces mcp-memory-server's
+# renderCitations() shape byte-for-byte (index.ts ~L604-615) - the compact
+# `path:start-end` newline-joined text, or the exact empty-citations note
+# with turns/tool_calls interpolated. Fails (non-zero) on malformed JSON.
+render_citation_text() {
+  local evidence_json="$1"
+  jq -e -r '
+    if (.citations | length) == 0 then
+      "(no citations found; turns=" + (.stats.turns|tostring) + ", tool_calls=" + (.stats.tool_calls|tostring) + ")"
+    else
+      [.citations[] | "\(.path):\(.start_line)-\(.end_line)"] | join("\n")
+    end
+  ' <<< "$evidence_json"
+}
+
+# run_native(repo): the "before" side, fully offline (D-02). For each query,
+# runs the fixed git-grep pattern, takes up to NATIVE_HIT_CAP hits, extracts
+# a +/-NATIVE_WINDOW line window per hit, dedupes identical (path,window)
+# spans, and totals the bytes/chars. Populates NATIVE_QUERY_BYTES/CHARS for
+# --full.
 run_native() {
-  echo "FATAL: run_native not yet implemented (Task 2)" >&2
-  return 1
+  local repo="$1"
+  local qi pattern hits path line _rest start end key
+  local -A seen_spans
+  local hit_count query_bytes query_chars span_bytes span_chars
+
+  NATIVE_QUERY_BYTES=()
+  NATIVE_QUERY_CHARS=()
+
+  for qi in "${!QUERIES[@]}"; do
+    pattern="${PATTERNS[$qi]}"
+    seen_spans=()
+    hit_count=0
+    query_bytes=0
+    query_chars=0
+
+    hits=$(git -C "$repo" grep -nE "$pattern" -- . 2>/dev/null | head -n "$NATIVE_HIT_CAP" || true)
+
+    while IFS=: read -r path line _rest; do
+      [[ -z "$path" ]] && continue
+      hit_count=$((hit_count + 1))
+      start=$(( line - NATIVE_WINDOW ))
+      [[ "$start" -lt 1 ]] && start=1
+      end=$(( line + NATIVE_WINDOW ))
+      key="${path}:${start}-${end}"
+      [[ -n "${seen_spans[$key]:-}" ]] && continue
+      seen_spans[$key]=1
+
+      span_bytes=$(sed -n "${start},${end}p" "$repo/$path" | count_bytes)
+      span_chars=$(sed -n "${start},${end}p" "$repo/$path" | count_chars)
+      query_bytes=$((query_bytes + span_bytes))
+      query_chars=$((query_chars + span_chars))
+    done <<< "$hits"
+
+    NATIVE_QUERY_BYTES[$qi]=$query_bytes
+    NATIVE_QUERY_CHARS[$qi]=$query_chars
+    echo "[native] query=$((qi + 1)) hits=$hit_count bytes=$query_bytes chars=$query_chars"
+    append_evidence "[native] query=$((qi + 1)) hits=$hit_count bytes=$query_bytes chars=$query_chars"
+  done
 }
 
+# run_explore(repo): the "after" side, live and operator-gated (D-04). Fails
+# loud (non-zero, documented gap) on a missing/non-executable binary, a
+# timeout, a non-zero exit, or malformed Evidence JSON - never a silent
+# skip. Counts only the renderCitations citation-text shape (never the raw
+# Evidence JSON). Populates EXPLORE_QUERY_BYTES/CHARS for --full.
 run_explore() {
-  echo "FATAL: run_explore not yet implemented (Task 2)" >&2
-  return 1
+  local repo="$1"
+  local binary qi query raw_out exit_code citation_text bytes chars n_citations
+
+  if ! binary=$(resolve_explore_binary); then
+    echo "FATAL: no exploration binary found (CAIRN_EXPLORE_BINARY unset and token_miser absent from PATH) - documented gap, not a silent skip (D-04)" >&2
+    append_evidence "[explore] FATAL: no exploration binary found - documented gap (D-04)"
+    return 1
+  fi
+  if [[ ! -x "$binary" ]] && ! command -v "$binary" >/dev/null 2>&1; then
+    echo "FATAL: resolved exploration binary is not executable - documented gap (D-04)" >&2
+    append_evidence "[explore] FATAL: resolved exploration binary is not executable - documented gap (D-04)"
+    return 1
+  fi
+
+  EXPLORE_QUERY_BYTES=()
+  EXPLORE_QUERY_CHARS=()
+
+  for qi in "${!QUERIES[@]}"; do
+    query="${QUERIES[$qi]}"
+    exit_code=0
+    raw_out=$(NO_COLOR=1 timeout 120 "$binary" explore --query "$query" --repo-root "$repo" 2>/dev/null) || exit_code=$?
+
+    if [[ "$exit_code" -ne 0 ]]; then
+      echo "FATAL: exploration binary failed or timed out for query $((qi + 1)) (exit=$exit_code) - documented gap, not a silent skip (D-04)" >&2
+      append_evidence "[explore] FATAL: query=$((qi + 1)) exit=$exit_code - documented gap (D-04)"
+      return 1
+    fi
+
+    if ! citation_text=$(render_citation_text "$raw_out"); then
+      echo "FATAL: malformed Evidence JSON for query $((qi + 1)) - documented gap (D-04)" >&2
+      append_evidence "[explore] FATAL: query=$((qi + 1)) malformed Evidence JSON - documented gap (D-04)"
+      return 1
+    fi
+
+    bytes=$(printf '%s' "$citation_text" | count_bytes)
+    chars=$(printf '%s' "$citation_text" | count_chars)
+    n_citations=$(echo "$raw_out" | jq '.citations | length? // 0' 2>/dev/null || echo 0)
+
+    EXPLORE_QUERY_BYTES[$qi]=$bytes
+    EXPLORE_QUERY_CHARS[$qi]=$chars
+    echo "[explore] query=$((qi + 1)) citations=$n_citations bytes=$bytes chars=$chars"
+    append_evidence "[explore] query=$((qi + 1)) citations=$n_citations bytes=$bytes chars=$chars"
+  done
 }
 
+# run_full(repo): runs both sides over the same query set, computes the
+# per-query delta + median byte-savings percentage, and applies the D-03
+# net-savings gate to the aggregate byte totals (D-03's "shows net savings >
+# 0" is an aggregate/total check across the whole query set; the median
+# per-query percentage is reported alongside it as an additional statistic,
+# not the gate's input - the gate signature takes byte totals, not a
+# percentage).
 run_full() {
-  echo "FATAL: run_full not yet implemented (Task 2)" >&2
+  local repo="$1"
+  local qi native_b explore_b native_c explore_c delta_b delta_c est_delta pct
+  local total_native=0 total_explore=0
+  local -a pct_list=()
+
+  run_native "$repo"
+  if ! run_explore "$repo"; then
+    return 1
+  fi
+
+  append_evidence "=== per-query delta ($(date -u +%FT%TZ)) ==="
+  for qi in "${!QUERIES[@]}"; do
+    native_b="${NATIVE_QUERY_BYTES[$qi]}"
+    explore_b="${EXPLORE_QUERY_BYTES[$qi]}"
+    native_c="${NATIVE_QUERY_CHARS[$qi]}"
+    explore_c="${EXPLORE_QUERY_CHARS[$qi]}"
+    delta_b=$((native_b - explore_b))
+    delta_c=$((native_c - explore_c))
+    est_delta=$(( $(est_tokens "$native_c") - $(est_tokens "$explore_c") ))
+
+    if [[ "$native_b" -gt 0 ]]; then
+      pct=$(( delta_b * 100 / native_b ))
+    else
+      pct=0
+    fi
+    pct_list+=("$pct")
+
+    total_native=$((total_native + native_b))
+    total_explore=$((total_explore + explore_b))
+
+    local line="[delta] query=$((qi + 1)) native_bytes=$native_b explore_bytes=$explore_b byte_delta=$delta_b char_delta=$delta_c token_delta_est=$est_delta savings_pct=${pct}%"
+    echo "$line"
+    append_evidence "$line"
+  done
+
+  local median_pct
+  median_pct=$(median "${pct_list[@]}")
+  echo "[median] byte-savings percentage across queries: ${median_pct}%"
+  append_evidence "[median] byte-savings percentage across queries: ${median_pct}%"
+
+  local verdict_line
+  if net_savings_gate "$total_native" "$total_explore"; then
+    verdict_line="[verdict] PASS: net savings > 0 (total_native=$total_native total_explore=$total_explore) (D-03)"
+    echo "$verdict_line"
+    append_evidence "$verdict_line"
+    append_evidence "[scrub-check] this log never contains an endpoint host/IP, model alias, or binary path"
+    return 0
+  fi
+  append_evidence "[scrub-check] this log never contains an endpoint host/IP, model alias, or binary path"
   return 1
 }
 
