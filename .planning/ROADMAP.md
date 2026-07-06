@@ -82,7 +82,12 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   2. The operating docs' description of the routing surface and the token-miser relationship matches the Phase 10 shipped code with no drift between prose and behavior.
   3. A full-repo no-private-references scan (code, comments, docs) returns zero hits, run and recorded as an explicit milestone gate.
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+- [ ] 11-01-PLAN.md — no-private-references guard + docs-parity gate scripts (SC-02/SC-03)
+- [ ] 11-02-PLAN.md — clean-slate publish token-miser as a public cairnkeep-org sibling (SC-01)
+- [ ] 11-03-PLAN.md — cairnkeep docs sweep + public-sibling positioning (SC-01/SC-02)
+- [ ] 11-04-PLAN.md — run + record the no-private-references milestone gate (SC-03)
 
 ### Phase 12: Context Exploration Maturation
 
