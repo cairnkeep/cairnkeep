@@ -57,6 +57,7 @@ SELF_PATH="scripts/verify-no-private-references.sh"
 DETECTOR_DOCS=(
   ".planning/phases/11-self-consistency-public-positioning/11-RESEARCH.md"
   ".planning/phases/11-self-consistency-public-positioning/11-PATTERNS.md"
+  ".planning/phases/11-self-consistency-public-positioning/11-01-SUMMARY.md"
 )
 
 # Generic, committed AI-authorship pattern (D-06 Stage 1 + Stage 3).
