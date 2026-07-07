@@ -95,11 +95,15 @@ done
 HOOK_LIVE_DIR="$LIVE_ROOT/hooks"
 SETTINGS_FILE="$LIVE_ROOT/settings.json"
 
-# Map hook filename -> "event[:matcher]". matcher only for PreToolUse-style events.
+# Map hook filename -> "event[:matcher][@timeout]". matcher only for
+# PreToolUse-style events; an optional trailing "@timeout" (seconds) threads
+# an explicit per-hook timeout into the settings.json registration entry so
+# Claude Code's kill budget is documented, not assumed (Pitfall 1).
 declare -A HOOK_EVENTS=(
   ["memory-wakeup.sh"]="SessionStart"
   ["memory-capture.sh"]="SessionEnd"
   ["memory-recall.sh"]="PreToolUse:Edit|Write|MultiEdit"
+  ["context-explore-pretask.sh"]="UserPromptSubmit@25"
 )
 
 for hook_src in "$CLAUDE_SOURCE"/hooks/*.sh; do
@@ -118,6 +122,11 @@ for hook_src in "$CLAUDE_SOURCE"/hooks/*.sh; do
     fi
     continue
   fi
+  hook_timeout=""
+  if [[ "$event_spec" == *"@"* ]]; then
+    hook_timeout="${event_spec##*@}"
+    event_spec="${event_spec%@*}"
+  fi
   event="${event_spec%%:*}"
   matcher="${event_spec#*:}"
   [[ "$matcher" == "$event_spec" ]] && matcher=""
@@ -128,7 +137,7 @@ for hook_src in "$CLAUDE_SOURCE"/hooks/*.sh; do
     echo "installed: hooks/$hook_name"
     node -e '
 const fs = require("fs");
-const [p, cmd, token, event, matcher] = process.argv.slice(1);
+const [p, cmd, token, event, matcher, timeoutStr] = process.argv.slice(1);
 let s = {};
 if (fs.existsSync(p)) {
   try { s = JSON.parse(fs.readFileSync(p, "utf8")); }
@@ -140,13 +149,15 @@ const already = s.hooks[event].some((entry) =>
   Array.isArray(entry.hooks) && entry.hooks.some((h) => typeof h.command === "string" && h.command.includes(token)));
 if (already) { console.log(`ok: ${event} hook already registered`); process.exit(0); }
 if (fs.existsSync(p)) fs.copyFileSync(p, p + ".bak");
+const hookObj = { type: "command", command: cmd };
+if (timeoutStr) hookObj.timeout = parseInt(timeoutStr, 10);
 const entry = matcher
-  ? { matcher, hooks: [{ type: "command", command: cmd }] }
-  : { hooks: [{ type: "command", command: cmd }] };
+  ? { matcher, hooks: [hookObj] }
+  : { hooks: [hookObj] };
 s.hooks[event].push(entry);
 fs.writeFileSync(p, JSON.stringify(s, null, 2) + "\n");
-console.log(`registered: ${event} hook${matcher ? " (" + matcher + ")" : ""}`);
-' "$SETTINGS_FILE" "$hook_cmd" "$hook_dst" "$event" "$matcher" || status=1
+console.log(`registered: ${event} hook${matcher ? " (" + matcher + ")" : ""}${timeoutStr ? " (timeout=" + timeoutStr + "s)" : ""}`);
+' "$SETTINGS_FILE" "$hook_cmd" "$hook_dst" "$event" "$matcher" "$hook_timeout" || status=1
   else
     if [[ -f "$hook_dst" ]] && grep -qF "$hook_name" "$SETTINGS_FILE" 2>/dev/null; then
       echo "ok: hooks/$hook_name"
