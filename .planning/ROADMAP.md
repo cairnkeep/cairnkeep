@@ -50,7 +50,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 
 - [x] **Phase 10: Routing Seam** - Thin, documented delegate to token-miser's routing/tiering surface; no proxy, endpoint, or model config in the core (completed 2026-07-06)
 - [x] **Phase 11: Self-Consistency & Public Positioning** - token-miser positioned as a public sibling, docs matched to shipped code, no-private-references guard re-run as a milestone gate (completed 2026-07-06)
-- [ ] **Phase 12: Context Exploration Maturation** - `context_explore` becomes memory-aware, auto-invoked pre-task, and cache-backed
+- [x] **Phase 12: Context Exploration Maturation** - `context_explore` becomes memory-aware, auto-invoked pre-task, and cache-backed (completed 2026-07-07)
 - [ ] **Phase 13: Headless Harness Hardening** - The OpenCode `/remember`→`/recall` round-trip reproduces reliably headless, closing the v1.1 OCP-06 gap
 
 ## Phase Details
@@ -110,7 +110,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   2. A pre-task hook auto-invokes `context_explore` for a task's query with no manual `/context-explore` call required.
   3. An identical query against an unchanged repo (same HEAD + dirty-state) returns a cached result instead of re-invoking token-miser; changing the repo invalidates the cache and triggers a fresh call.
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans complete
 
 **Wave 1**
 
@@ -122,7 +122,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 
 **Wave 3** *(depends on 12-02)*
 
-- [ ] 12-03-PLAN.md — CTX-09: UserPromptSubmit auto-invoke hook + composed verify-explore-maturation.sh + docs (env keys, OpenCode parity gap)
+- [x] 12-03-PLAN.md — CTX-09: UserPromptSubmit auto-invoke hook + composed verify-explore-maturation.sh + docs (env keys, OpenCode parity gap)
 
 ### Phase 13: Headless Harness Hardening
 
@@ -152,5 +152,5 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 9. Live Verification + A/B Token-Savings | v1.2 | Complete | 2026-07-06 |
 | 10. Routing Seam | 2/2 | Complete    | 2026-07-06 |
 | 11. Self-Consistency & Public Positioning | 4/4 | Complete    | 2026-07-06 |
-| 12. Context Exploration Maturation | 2/3 | In Progress|  |
+| 12. Context Exploration Maturation | 3/3 | Complete   | 2026-07-07 |
 | 13. Headless Harness Hardening | v1.3 | Not started | - |
