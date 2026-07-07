@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -20,6 +20,14 @@ import {
     getEmbeddingConfig,
     hashText,
 } from "./embeddings.js";
+import {
+    type ExploreEvidence,
+    computeRepoState,
+    exploreCacheKey,
+    normalizeExploreQuery,
+    readExploreCache,
+    writeExploreCache,
+} from "./explore-cache.js";
 
 type MemoryConfig = {
     scopes?: string[];
@@ -614,6 +622,123 @@ function renderCitations(evidence: {
         .join("\n");
 }
 
+// Shared handler body for context_explore (D-06): both the registered MCP
+// tool callback and the `explore` CLI subcommand call this, so cache (CTX-10)
+// behaves identically from either invocation path. `repoRoot` passed in is
+// ALREADY the resolved absolute path -- callers own resolving repo_root from
+// their own param/env/cwd conventions before calling this.
+async function runContextExplore(args: {
+    query: string;
+    repoRoot: string;
+    timeoutSeconds?: number;
+}): Promise<{ payload: Record<string, unknown>; text: string }> {
+    const { query, repoRoot, timeoutSeconds } = args;
+
+    // --- Precondition tier: throw (config/environment problems, D-04) ---
+    const binaryPath = process.env.CAIRN_EXPLORE_BINARY;
+    if (!binaryPath) {
+        throw new Error("CAIRN_EXPLORE_BINARY is not set.");
+    }
+    if (!existsSync(binaryPath)) {
+        throw new Error(`CAIRN_EXPLORE_BINARY does not exist: ${binaryPath}`);
+    }
+    if (!existsSync(repoRoot)) {
+        throw new Error(`repo_root does not exist: ${repoRoot}`);
+    }
+
+    // --- Cache check (D-09/CTX-10): wraps the spawn, BEFORE it happens.
+    // CAIRN_EXPLORE_CACHE=0 is the kill-switch (always spawn, cached:false).
+    // Cache key/read/write errors fail open to a normal spawn -- never throw
+    // into the execution tier below.
+    const cacheEnabled = process.env.CAIRN_EXPLORE_CACHE !== "0";
+    let probe: { key: string; head: string; dirtyHash: string } | undefined;
+    if (cacheEnabled) {
+        try {
+            const normalizedQuery = normalizeExploreQuery(query);
+            const { head, dirtyHash } = computeRepoState(repoRoot);
+            probe = { key: exploreCacheKey(normalizedQuery, repoRoot, head, dirtyHash), head, dirtyHash };
+        } catch {
+            probe = undefined;
+        }
+    }
+
+    let evidence: ExploreEvidence | undefined;
+    let cached = false;
+    if (probe) {
+        const hit = readExploreCache(probe.key);
+        if (hit) {
+            evidence = hit.evidence;
+            cached = true;
+        }
+    }
+
+    // --- Execution tier: return { ok: false, ... } (runtime problems, D-04) ---
+    if (!evidence) {
+        const result = await runCommand(
+            binaryPath,
+            ["explore", "--query", query, "--repo-root", repoRoot],
+            (timeoutSeconds ?? 120) * 1000,
+            { ...process.env, NO_COLOR: "1" },
+        );
+
+        if (result.timedOut || result.exitCode !== 0) {
+            const payload = {
+                ok: false,
+                error: result.timedOut
+                    ? "token_miser explore timed out"
+                    : "token_miser explore exited non-zero",
+                stderr: result.stderr,
+                exitCode: result.exitCode,
+                timedOut: result.timedOut,
+            };
+            return { payload, text: asToolText(payload) };
+        }
+
+        try {
+            evidence = JSON.parse(result.stdout.trim());
+        } catch {
+            const payload = {
+                ok: false,
+                error: "malformed Evidence JSON",
+                stderr: result.stderr,
+                exitCode: result.exitCode,
+            };
+            return { payload, text: asToolText(payload) };
+        }
+
+        if (probe) {
+            writeExploreCache(probe.key, {
+                createdAt: new Date().toISOString(),
+                query: normalizeExploreQuery(query),
+                repoRoot,
+                head: probe.head,
+                dirtyHash: probe.dirtyHash,
+                evidence: evidence as ExploreEvidence,
+            });
+        }
+    }
+
+    // --- Success shaping (D-02 dual output; cached flag per CTX-10) ---
+    // By this point evidence is always assigned: either a cache hit set it
+    // above, or the execution tier above returned early on failure.
+    const finalEvidence = evidence as ExploreEvidence;
+    const payload = { ok: true, ...finalEvidence, cached };
+    return { payload, text: renderCitations(finalEvidence) };
+}
+
+// Resolves the repo root for the `explore` CLI subcommand when
+// CAIRN_EXPLORE_REPO_ROOT is unset -- mirrors `git rev-parse --show-toplevel`,
+// argv-array only (V5), never a shell string.
+function gitToplevel(cwd: string): string {
+    // stdio ignores the child's stderr so a non-git cwd doesn't leak git's
+    // "fatal: not a git repository" diagnostic onto the server's own stderr;
+    // the caller's try/catch already surfaces a clean error message instead.
+    return execFileSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+}
+
 // Factory: each MCP client/session needs its own McpServer instance (the SDK
 // only allows one connected transport per server). All instances share the
 // module-level helpers + AgentFS below. Enables a single long-lived process to
@@ -1008,15 +1133,10 @@ server.registerTool(
         }),
     },
     async ({ query, repo_root, timeout_seconds }) => {
-        // --- Precondition tier: throw (config/environment problems, D-04) ---
-        const binaryPath = process.env.CAIRN_EXPLORE_BINARY;
-        if (!binaryPath) {
-            throw new Error("CAIRN_EXPLORE_BINARY is not set.");
-        }
-        if (!existsSync(binaryPath)) {
-            throw new Error(`CAIRN_EXPLORE_BINARY does not exist: ${binaryPath}`);
-        }
-
+        // repo_root resolution stays here (tool-specific: per-call param vs
+        // CAIRN_EXPLORE_REPO_ROOT env) -- runContextExplore receives an
+        // already-resolved absolute path and owns the shared precondition/
+        // execution/cache tiers (D-06).
         const rawRoot = repo_root ?? process.env.CAIRN_EXPLORE_REPO_ROOT;
         if (!rawRoot) {
             throw new Error(
@@ -1027,58 +1147,15 @@ server.registerTool(
         // boundary (Pitfall #3, D-01) — a relative repo_root would resolve
         // against runCommand's hardcoded cwd (infraRoot), not the caller's intent.
         const resolvedRoot = resolve(expandHome(rawRoot));
-        if (!existsSync(resolvedRoot)) {
-            throw new Error(`repo_root does not exist: ${resolvedRoot}`);
-        }
 
-        // --- Execution tier: return { ok: false, ... } (runtime problems, D-04) ---
-        const result = await runCommand(
-            binaryPath,
-            ["explore", "--query", query, "--repo-root", resolvedRoot],
-            (timeout_seconds ?? 120) * 1000,
-            { ...process.env, NO_COLOR: "1" },
-        );
+        const { payload, text } = await runContextExplore({
+            query,
+            repoRoot: resolvedRoot,
+            timeoutSeconds: timeout_seconds,
+        });
 
-        if (result.timedOut || result.exitCode !== 0) {
-            const payload = {
-                ok: false,
-                error: result.timedOut
-                    ? "token_miser explore timed out"
-                    : "token_miser explore exited non-zero",
-                stderr: result.stderr,
-                exitCode: result.exitCode,
-                timedOut: result.timedOut,
-            };
-            return {
-                content: [{ type: "text", text: asToolText(payload) }],
-                structuredContent: payload,
-            };
-        }
-
-        let evidence: {
-            citations: Array<{ path: string; start_line: number; end_line: number }>;
-            expanded_snippets: unknown[];
-            stats: { turns: number; tool_calls: number };
-        };
-        try {
-            evidence = JSON.parse(result.stdout.trim());
-        } catch {
-            const payload = {
-                ok: false,
-                error: "malformed Evidence JSON",
-                stderr: result.stderr,
-                exitCode: result.exitCode,
-            };
-            return {
-                content: [{ type: "text", text: asToolText(payload) }],
-                structuredContent: payload,
-            };
-        }
-
-        // --- Success shaping (D-02 dual output) ---
-        const payload = { ok: true, ...evidence };
         return {
-            content: [{ type: "text", text: renderCitations(evidence) }],
+            content: [{ type: "text", text }],
             structuredContent: payload,
         };
     },
@@ -1202,6 +1279,28 @@ if (cliCommand === "extract") {
             count: extracted.candidates.length,
             candidates: extracted.candidates,
         }, null, 2)}\n`);
+        process.exit(0);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        process.stderr.write(`${message}\n`);
+        process.exit(1);
+    }
+}
+
+// One-shot CLI: `node dist/index.js explore "<query>"` runs the SAME
+// runContextExplore path as the MCP tool handler (D-06) -- a pre-task hook
+// invokes this without an MCP session. Short internal timeout (well inside a
+// hook's own budget) so a cache-miss query never outlives the caller's patience.
+if (cliCommand === "explore") {
+    try {
+        const query = process.argv[3];
+        if (!query) {
+            throw new Error('Usage: node dist/index.js explore "<query>"');
+        }
+        const rawRoot = process.env.CAIRN_EXPLORE_REPO_ROOT;
+        const repoRoot = rawRoot ? resolve(expandHome(rawRoot)) : gitToplevel(process.cwd());
+        const { payload } = await runContextExplore({ query, repoRoot, timeoutSeconds: 20 });
+        process.stdout.write(`${JSON.stringify(payload)}\n`);
         process.exit(0);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

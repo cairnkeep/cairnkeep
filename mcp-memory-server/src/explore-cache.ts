@@ -71,20 +71,23 @@ export function exploreCacheKey(
 // runCommand, whose 12000-char truncateOutput cap would silently erode
 // content-sensitivity for a large diff (D-10 is load-bearing, not stylistic).
 export function computeRepoState(repoRoot: string): RepoState {
-    const head = execFileSync("git", ["-C", repoRoot, "rev-parse", "HEAD"], {
+    // stdio ignores the child's stderr so a non-git repoRoot (or any git
+    // failure) doesn't leak "fatal: not a git repository" noise onto the
+    // server's own stderr -- callers already fail this open to a cache miss.
+    const gitOpts: { encoding: "utf8"; maxBuffer: number; stdio: ["ignore", "pipe", "ignore"] } = {
         encoding: "utf8",
         maxBuffer: MAX_BUFFER,
-    }).trim();
+        stdio: ["ignore", "pipe", "ignore"],
+    };
 
-    const diff = execFileSync("git", ["-C", repoRoot, "diff", "HEAD"], {
-        encoding: "utf8",
-        maxBuffer: MAX_BUFFER,
-    });
+    const head = execFileSync("git", ["-C", repoRoot, "rev-parse", "HEAD"], gitOpts).trim();
+
+    const diff = execFileSync("git", ["-C", repoRoot, "diff", "HEAD"], gitOpts);
 
     const untrackedRaw = execFileSync(
         "git",
         ["-C", repoRoot, "ls-files", "--others", "--exclude-standard", "-z"],
-        { encoding: "utf8", maxBuffer: MAX_BUFFER },
+        gitOpts,
     );
     const untrackedPaths = untrackedRaw.split("\0").filter(Boolean).sort();
     const untrackedStatLines = untrackedPaths.map((path) => {
