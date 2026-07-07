@@ -22,7 +22,7 @@ Requirements for the v1.3 milestone. Each maps to exactly one roadmap phase (see
 ### Context Exploration (matured)
 
 - [ ] **CTX-08**: `context_explore` cross-references its citations against memory (`memory_search`) and the wiki, surfacing which cited ranges have related memory/wiki context. _(from CTX-F1)_
-- [ ] **CTX-09**: A pre-task hook can auto-invoke `context_explore` for a task's query, so exploration runs without a manual `/context-explore` call. _(from CTX-F2)_
+- [x] **CTX-09**: A pre-task hook can auto-invoke `context_explore` for a task's query, so exploration runs without a manual `/context-explore` call. _(from CTX-F2)_
 - [x] **CTX-10**: `context_explore` caches results keyed on (query, repo HEAD + dirty-state), reusing them on a cache hit and invalidating when the repo changes. _(from CTX-F3)_
 
 ### OpenCode Reliability
@@ -57,7 +57,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | SC-02 | Phase 11 | Complete |
 | SC-03 | Phase 11 | Complete |
 | CTX-08 | Phase 12 | Pending |
-| CTX-09 | Phase 12 | Pending |
+| CTX-09 | Phase 12 | Complete |
 | CTX-10 | Phase 12 | Complete |
 | OCP-07 | Phase 13 | Pending |
 

@@ -108,6 +108,7 @@ vendor or host.
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws at call time) |
 | `CAIRN_EXPLORE_REPO_ROOT` | Default repo root for `context_explore` when no per-call `repo_root` is given (unset + no param → the tool throws) |
 | `CAIRN_EXPLORE_CACHE` | Caches `context_explore` results keyed on query + repo HEAD + dirty-state; default ON, set to `0` to disable |
+| `CAIRN_EXPLORE_AUTOINVOKE` | Opt-in flag for the `UserPromptSubmit` pre-task hook; set to `1` together with `CAIRN_EXPLORE_BINARY` to let the hook auto-invoke `context_explore` for each task prompt (unset -> inert, no hook behavior) |
 
 ### Routing seam (`route_check`, opt-in)
 
@@ -159,6 +160,40 @@ returned — nothing else is layered on top of a cached entry.
 MCP tool (shared `runContextExplore()`), so a pre-task hook or any other
 script-driven caller gets identical cache behavior without an MCP session.
 
+### Citation cross-referencing (`context_explore`, always on)
+
+Every `context_explore` citation is cross-referenced against the explored
+repo's own project memory and `.planning/wiki/sources/*.md` pages: for each
+cited path with a basename stem of at least 4 characters, a case-insensitive
+substring match against memory entries and wiki pages attaches `memory_refs`/
+`wiki_refs` to that citation and appends a compact `<- memory: ... - wiki: ...`
+marker to its rendered line. Cross-refs are recomputed on every call (cache
+hit or miss alike, since memory/wiki evolve independently of repo HEAD) and
+fail open — a missing `.agentfs` database or wiki directory, or any read
+error, simply yields no refs. A citation with no hits gets no marker at all,
+so a result with zero cross-ref hits renders byte-identical to a result from
+before this feature existed.
+
+### Pre-task auto-invoke hook (`context_explore`, opt-in, Claude Code only)
+
+Claude Code's `UserPromptSubmit` hook `context-explore-pretask.sh` can
+auto-invoke `context_explore` for a task's prompt with no manual
+`/context-explore` call — it supplements the manual command, it does not
+replace it. It is double opt-in: inert unless both `CAIRN_EXPLORE_BINARY`
+and `CAIRN_EXPLORE_AUTOINVOKE=1` are set. When active, it also skips
+low-signal prompts (too short, a slash command, or a bare acknowledgement
+like "ok"/"thanks") so it only fires on task-shaped prompts. It shells out to
+the same `explore` CLI subcommand described above with an explicit ~20s
+timeout — well inside Claude Code's own hook budget — and injects only
+compact `path:start-end` citations plus their cross-ref flags (never the
+full expanded snippets) as `additionalContext`, prefixed so the model knows
+the context was auto-invoked. Any error (timeout, missing binary, malformed
+output) injects nothing; the hook always exits 0.
+
+**Known gap:** OpenCode currently exposes no plugin event that delivers the
+user's message text before the LLM call runs, so this auto-invoke hook is a
+Claude-Code-only path this milestone — there is no OpenCode parity plugin.
+
 ### HTTP transport (opt-in, network-facing)
 
 The server runs over stdio by default. Setting `MCP_HTTP_PORT` switches it to a
@@ -205,6 +240,11 @@ Once installed, the operating layer gives you:
   subprocess and relays compact path:line-range citations; owned by
   [token-miser](https://github.com/cairnkeep/token-miser), the public
   cairnkeep-org sibling, and holds no endpoint/model config of its own.
+- Citations are cross-referenced against project memory and the wiki, results
+  are cached keyed on the query + repo HEAD/dirty-state, and (Claude Code
+  only, opt-in) a pre-task hook can auto-invoke exploration for a task's
+  prompt with no manual call — see "Citation cross-referencing",
+  "Exploration cache", and "Pre-task auto-invoke hook" above.
 
 **Security and review.**
 - `/security-audit` — a governed local audit (target-selector → investigator →
