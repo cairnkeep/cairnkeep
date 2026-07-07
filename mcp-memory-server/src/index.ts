@@ -186,8 +186,8 @@ function normalizeValue(value: unknown): string {
     return JSON.stringify(value);
 }
 
-async function openScope(scope: string, create: boolean): Promise<AgentFS | null> {
-    const dbPath = resolveScopePath(scope);
+async function openScope(scope: string, create: boolean, cwd?: string): Promise<AgentFS | null> {
+    const dbPath = resolveScopePath(scope, cwd);
 
     if (!create && !existsSync(dbPath)) {
         return null;
@@ -223,9 +223,9 @@ function visibleEntries(entries: MemoryEntry[], includeHistory: boolean): Memory
 async function listEntries(
     scope: string,
     prefix: string = "",
-    options: { includeHistory?: boolean } = {},
+    options: { includeHistory?: boolean; cwd?: string } = {},
 ): Promise<MemoryEntry[]> {
-    const agent = await openScope(scope, false);
+    const agent = await openScope(scope, false, options.cwd);
 
     if (!agent) {
         return [];
