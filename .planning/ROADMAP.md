@@ -110,11 +110,11 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   2. A pre-task hook auto-invokes `context_explore` for a task's query with no manual `/context-explore` call required.
   3. An identical query against an unchanged repo (same HEAD + dirty-state) returns a cached result instead of re-invoking token-miser; changing the repo invalidates the cache and triggers a fresh call.
 
-**Plans**: 3 plans (sequential — all funnel through the shared `runContextExplore` handler in `index.ts` and the composed verify script)
+**Plans**: 1/3 plans executed
 
 **Wave 1**
 
-- [ ] 12-01-PLAN.md — CTX-10: result cache (query + HEAD + dirty-state) + shared `runContextExplore` extraction + `explore` CLI subcommand
+- [x] 12-01-PLAN.md — CTX-10: result cache (query + HEAD + dirty-state) + shared `runContextExplore` extraction + `explore` CLI subcommand
 
 **Wave 2** *(depends on 12-01)*
 
@@ -152,5 +152,5 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 9. Live Verification + A/B Token-Savings | v1.2 | Complete | 2026-07-06 |
 | 10. Routing Seam | 2/2 | Complete    | 2026-07-06 |
 | 11. Self-Consistency & Public Positioning | 4/4 | Complete    | 2026-07-06 |
-| 12. Context Exploration Maturation | v1.3 | Not started | - |
+| 12. Context Exploration Maturation | 1/3 | In Progress|  |
 | 13. Headless Harness Hardening | v1.3 | Not started | - |
