@@ -110,7 +110,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   2. A pre-task hook auto-invokes `context_explore` for a task's query with no manual `/context-explore` call required.
   3. An identical query against an unchanged repo (same HEAD + dirty-state) returns a cached result instead of re-invoking token-miser; changing the repo invalidates the cache and triggers a fresh call.
 
-**Plans**: 1/3 plans executed
+**Plans**: 2/3 plans executed
 
 **Wave 1**
 
@@ -118,7 +118,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 
 **Wave 2** *(depends on 12-01)*
 
-- [ ] 12-02-PLAN.md — CTX-08: citation cross-referencing against memory + wiki (cwd-threaded, fail-open, byte-identical zero-hit)
+- [x] 12-02-PLAN.md — CTX-08: citation cross-referencing against memory + wiki (cwd-threaded, fail-open, byte-identical zero-hit)
 
 **Wave 3** *(depends on 12-02)*
 
@@ -152,5 +152,5 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 9. Live Verification + A/B Token-Savings | v1.2 | Complete | 2026-07-06 |
 | 10. Routing Seam | 2/2 | Complete    | 2026-07-06 |
 | 11. Self-Consistency & Public Positioning | 4/4 | Complete    | 2026-07-06 |
-| 12. Context Exploration Maturation | 1/3 | In Progress|  |
+| 12. Context Exploration Maturation | 2/3 | In Progress|  |
 | 13. Headless Harness Hardening | v1.3 | Not started | - |
