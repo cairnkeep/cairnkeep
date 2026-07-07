@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -604,13 +604,121 @@ async function semanticSearch(
     }
 }
 
+// Confines a candidate wiki source file to inside `<repoRoot>/.planning/wiki/sources`
+// via relative()-based containment (Phase 2 SEC-0001 idiom, reused from
+// opencode/plugins/memory-recall.ts) — `resolve() === join()` misses `../`
+// traversal, so this checks the relative path instead.
+function isContained(baseDir: string, candidate: string): boolean {
+    const rel = relative(baseDir, candidate);
+    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+}
+
+const CROSSREF_MIN_STEM_LENGTH = 4;
+
+// Basename minus extension, lowercased. Mirrors memory-recall.sh's stem
+// derivation (Security V12): a citation path is used ONLY to derive this
+// search token, never concatenated into a filesystem read path.
+function citationStem(citationPath: string): string {
+    const base = citationPath.split("/").pop() ?? citationPath;
+    const dot = base.lastIndexOf(".");
+    return (dot > 0 ? base.slice(0, dot) : base).toLowerCase();
+}
+
+type EnrichedCitation = ExploreEvidence["citations"][number] & {
+    memory_refs?: string[];
+    wiki_refs?: string[];
+};
+
+// Cross-ref enrichment (D-01/D-02/D-04, CTX-08): per-citation deterministic
+// stem match against the EXPLORED repo's project memory + wiki -- never the
+// server's own cwd (Pitfall 2, hence the cwd passthrough into listEntries).
+// Wrapped end-to-end in try/catch: any failure (missing db, missing wiki
+// dir, read error) returns the citations unchanged with no refs -- fail-open,
+// never degrades or fails the exploration result itself.
+async function crossReferenceCitations(
+    citations: ExploreEvidence["citations"],
+    repoRoot: string,
+): Promise<EnrichedCitation[]> {
+    try {
+        const stemByPath = new Map<string, string>();
+        for (const citation of citations) {
+            const stem = citationStem(citation.path);
+            if (stem.length >= CROSSREF_MIN_STEM_LENGTH) {
+                stemByPath.set(citation.path, stem);
+            }
+        }
+
+        if (stemByPath.size === 0) {
+            return citations;
+        }
+
+        let memoryEntries: MemoryEntry[] = [];
+        try {
+            memoryEntries = await listEntries("project", "", { cwd: repoRoot });
+        } catch {
+            memoryEntries = [];
+        }
+
+        let wikiPages: Array<{ name: string; content: string }> = [];
+        try {
+            const wikiDir = join(repoRoot, ".planning", "wiki", "sources");
+            wikiPages = readdirSync(wikiDir)
+                .filter((name) => name.endsWith(".md"))
+                .map((name) => join(wikiDir, name))
+                .filter((fullPath) => isContained(wikiDir, fullPath))
+                .map((fullPath) => ({ name: fullPath.split("/").pop() as string, content: readFileSync(fullPath, "utf8") }));
+        } catch {
+            wikiPages = [];
+        }
+
+        return citations.map((citation): EnrichedCitation => {
+            const stem = stemByPath.get(citation.path);
+            if (!stem) {
+                return citation;
+            }
+
+            const memoryRefs = memoryEntries
+                .filter((entry) => entry.key.toLowerCase().includes(stem) || entry.value.toLowerCase().includes(stem))
+                .map((entry) => entry.key);
+            const wikiRefs = wikiPages
+                .filter((page) => page.name.toLowerCase().includes(stem) || page.content.toLowerCase().includes(stem))
+                .map((page) => page.name);
+
+            const enriched: EnrichedCitation = { ...citation };
+            if (memoryRefs.length > 0) {
+                enriched.memory_refs = memoryRefs;
+            }
+            if (wikiRefs.length > 0) {
+                enriched.wiki_refs = wikiRefs;
+            }
+            return enriched;
+        });
+    } catch {
+        return citations;
+    }
+}
+
+// Compact marker appended to a citation's rendered line only when it has at
+// least one memory or wiki ref (D-03) -- a ref-less citation's rendering is
+// byte-for-byte unchanged from the pre-phase output.
+function renderCrossRefMarker(memoryRefs?: string[], wikiRefs?: string[]): string {
+    const parts: string[] = [];
+    if (memoryRefs && memoryRefs.length > 0) {
+        parts.push(`memory: ${memoryRefs.join(", ")}`);
+    }
+    if (wikiRefs && wikiRefs.length > 0) {
+        parts.push(`wiki: ${wikiRefs.join(", ")}`);
+    }
+    return parts.length > 0 ? ` <- ${parts.join(" - ")}` : "";
+}
+
 // Compact citation rendering (D-02): reduce the full Evidence.citations array
 // to the lean `path:start-end` text list — the actual token-economy payoff of
 // this tool. Empty citations from a successful run are first-class (D-04),
 // never conflated with failure; surface turns/tool_calls for transparency
 // (Pitfall #1 — an unreachable-but-configured endpoint looks identical).
 function renderCitations(evidence: {
-    citations: Array<{ path: string; start_line: number; end_line: number }>;
+    citations: Array<{ path: string; start_line: number; end_line: number; memory_refs?: string[]; wiki_refs?: string[] }>;
     stats: { turns: number; tool_calls: number };
 }): string {
     if (evidence.citations.length === 0) {
@@ -618,7 +726,7 @@ function renderCitations(evidence: {
             `tool_calls=${evidence.stats.tool_calls})`;
     }
     return evidence.citations
-        .map((c) => `${c.path}:${c.start_line}-${c.end_line}`)
+        .map((c) => `${c.path}:${c.start_line}-${c.end_line}${renderCrossRefMarker(c.memory_refs, c.wiki_refs)}`)
         .join("\n");
 }
 
@@ -722,8 +830,15 @@ async function runContextExplore(args: {
     // By this point evidence is always assigned: either a cache hit set it
     // above, or the execution tier above returned early on failure.
     const finalEvidence = evidence as ExploreEvidence;
-    const payload = { ok: true, ...finalEvidence, cached };
-    return { payload, text: renderCitations(finalEvidence) };
+
+    // --- Cross-ref enrichment (D-01/D-12, CTX-08): recomputed on EVERY
+    // return, cache hit and cache miss alike, since memory/wiki evolve
+    // independently of repo HEAD. Never part of the cached entry (D-12) --
+    // only the raw evidence above was written to cache.
+    const enrichedCitations = await crossReferenceCitations(finalEvidence.citations, repoRoot);
+
+    const payload = { ok: true, ...finalEvidence, citations: enrichedCitations, cached };
+    return { payload, text: renderCitations({ citations: enrichedCitations, stats: finalEvidence.stats }) };
 }
 
 // Resolves the repo root for the `explore` CLI subcommand when
