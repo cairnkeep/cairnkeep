@@ -107,6 +107,7 @@ vendor or host.
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → the `route_check` tool is inert) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws at call time) |
 | `CAIRN_EXPLORE_REPO_ROOT` | Default repo root for `context_explore` when no per-call `repo_root` is given (unset + no param → the tool throws) |
+| `CAIRN_EXPLORE_CACHE` | Caches `context_explore` results keyed on query + repo HEAD + dirty-state; default ON, set to `0` to disable |
 
 ### Routing seam (`route_check`, opt-in)
 
@@ -138,6 +139,25 @@ cairnkeep-org sibling project.
 
 `scripts/verify-routing-seam.sh` proves this against the real token_miser
 binary (not a mock) — see the script's `--help` for usage.
+
+### Exploration cache (`context_explore`, on by default)
+
+`context_explore` caches its result keyed on (normalized query, resolved
+repo_root, `git rev-parse HEAD`, and a content-sensitive dirty-state hash
+over `git diff HEAD` plus untracked-file size/mtime). A second identical
+call against an unchanged repo returns `cached: true` and never re-spawns
+the `token_miser` binary; any repo change — a tracked-file edit, a staged
+change, or a new untracked file — invalidates the entry and forces a fresh
+invocation. Entries live under `${XDG_CACHE_HOME:-~/.cache}/cairn/explore/`,
+never inside the explored repo, with an oldest-first prune once the
+directory holds more than ~200 entries. Set `CAIRN_EXPLORE_CACHE=0` to
+disable caching entirely (every call spawns the binary, always
+`cached: false`). The cache stores only the raw citations/stats the binary
+returned — nothing else is layered on top of a cached entry.
+
+`node dist/index.js explore "<query>"` runs the exact same code path as the
+MCP tool (shared `runContextExplore()`), so a pre-task hook or any other
+script-driven caller gets identical cache behavior without an MCP session.
 
 ### HTTP transport (opt-in, network-facing)
 
