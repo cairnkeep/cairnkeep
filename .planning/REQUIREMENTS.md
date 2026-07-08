@@ -27,7 +27,7 @@ Requirements for the v1.3 milestone. Each maps to exactly one roadmap phase (see
 
 ### OpenCode Reliability
 
-- [ ] **OCP-07**: The headless harness reliably reproduces the OpenCode `/remember`→`/recall` round-trip (serve/`--attach` + retry), closing the v1.1 OCP-06 override gap. Headless reproducibility only — interactive-TUI confirm is out of scope.
+- [x] **OCP-07**: The headless harness reliably reproduces the OpenCode `/remember`→`/recall` round-trip (serve/`--attach` + retry), closing the v1.1 OCP-06 override gap. Headless reproducibility only — interactive-TUI confirm is out of scope.
 
 ## Future Requirements
 
@@ -59,7 +59,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | CTX-08 | Phase 12 | Complete |
 | CTX-09 | Phase 12 | Complete |
 | CTX-10 | Phase 12 | Complete |
-| OCP-07 | Phase 13 | Pending |
+| OCP-07 | Phase 13 | Complete |
 
 **Coverage:**
 
@@ -69,4 +69,4 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 ---
 *Requirements defined: 2026-07-06*
-*Last updated: 2026-07-06 after roadmap creation (Phases 10-13, 100% coverage)*
+*Last updated: 2026-07-08 after Phase 13 closeout (OCP-07 complete — 100% v1.3 coverage delivered)*
