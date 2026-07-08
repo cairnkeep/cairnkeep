@@ -135,7 +135,19 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   2. The harness's retry logic absorbs the previously-identified opencode run-completion flakiness without manual operator intervention.
   3. The v1.1 OCP-06 known gap (reliable headless reproduction) is recorded as resolved in MILESTONES.md and REQUIREMENTS.md traceability.
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+**Wave 1**
+
+- [ ] 13-01-PLAN.md — NDJSON tool-event matcher + run_stage_remember_recall converted to serve/`--attach`, genuine tool-event assertions, infra-only retry (OCP-07; D-08/09/11/13)
+
+**Wave 2** *(depends on 13-01)*
+
+- [ ] 13-02-PLAN.md — preflight tool-call probe + `--repeat N` soak (fresh scratch per iteration, evidence table, 5/5 verdict) (OCP-07; D-01/02/03/04/06/12)
+
+**Wave 3** *(depends on 13-02)*
+
+- [ ] 13-03-PLAN.md — docs/operating.md trait-based model precondition + MILESTONES.md/REQUIREMENTS.md OCP-06 gap-resolution record (OCP-07; D-04/05/07)
 
 ## Progress
 
