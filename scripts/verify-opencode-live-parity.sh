@@ -69,6 +69,7 @@ PRE_CLAUDE_FINGERPRINT=""
 CAPTURE_SERVE_PID=""
 CAPTURE_SERVE_URL=""
 CAPTURE_SERVE_LOG=""
+LAST_ROUNDTRIP_RETRIES=0
 
 fingerprint_dir() {
   local dir="$1"
@@ -550,77 +551,126 @@ process.stdin.on("end", () => {
 '
 }
 
+# assert_tool_event(tool_name_regex, [canary]): bash wrapper around
+# scripts/lib/assert-tool-event.mjs (D-08/D-09). Reads NDJSON on stdin,
+# returns 0 only for a genuine completed tool_use event whose part.tool
+# matches tool_name_regex (and, if canary is given, whose part.state.output
+# contains it) -- never a narrated-but-unexecuted mention inside a text event.
+assert_tool_event() {
+  TOOL_EVENT_REGEX="$1" TOOL_EVENT_CANARY="${2:-}" node "$ROOT_DIR/scripts/lib/assert-tool-event.mjs"
+}
+
 # run_stage_remember_recall(project_dir, mode): mode="seeded" writes a fresh
-# canary via `/remember`, asserting a live cairn-memory_memory_write/
-# _supersede tool call, captures the sessionID from that call's JSON output,
-# then continues the SAME session with `/recall` for the topic, asserting a
-# live cairn-memory_memory_search/_read tool call whose output contains the
-# canary (OCP-03/OCP-04's write-then-read-back round trip). mode="unseeded"
-# only runs `/recall` (nothing was ever remembered there) and asserts the
-# canary is absent.
+# canary via `/remember`, asserting a genuine cairn-memory_memory_write/
+# _supersede tool_use event (D-08/D-09, via assert_tool_event), captures the
+# sessionID from that call's JSON output, then continues the SAME session
+# with `/recall` for the topic, asserting a genuine
+# cairn-memory_memory_search/_read tool_use event whose part.state.output
+# contains the canary (OCP-03/OCP-04's write-then-read-back round trip).
+# mode="unseeded" only runs `/recall` (nothing was ever remembered there)
+# and asserts no canary-linked tool_use event fires.
 #
-# Known live-verification finding (this phase): `/remember`-style prompts
-# reliably drove a real cairn-memory_memory_write tool call in every
-# instance observed. `/recall`-style prompts (both the literal `/recall`
-# command and a direct `--command recall` invocation) did NOT drive a real
-# cairn-memory_memory_search/_read tool call in any of ~9 live attempts —
-# the model narrated an intended search (or emitted malformed pseudo-tool
-# text) instead of issuing the actual call, while the local model endpoint
-# was independently confirmed reachable and responsive. This is a discovered
-# reliability limitation of the configured local model for read-oriented MCP
-# tool invocation in headless `opencode run`, not a defect in recall.md, the
-# cairn-memory server, or this harness; see 05-02-SUMMARY.md for the raw
-# evidence. The bounded retry below is a good-faith attempt; a FAIL here is
-# reported distinctly from a missing/errored remember() call so 05-03's
-# interactive session can pick this up with a human steering the model.
+# D-11: both halves drive through the persistent `opencode serve` via
+# --attach (start_capture_server must already be running) rather than bare
+# `opencode run`, matching run_stage_capture's transport.
+#
+# D-13 retry classification: a run's exit code is captured explicitly (never
+# swallowed by `|| true` before being read). A run is retried (bounded to 3
+# attempts per half, LAST_ROUNDTRIP_RETRIES incremented each retry) only on
+# an INFRA failure — a `timeout`-triggered kill (exit 124) or empty output
+# (extract_session_id yields nothing, i.e. no real events were emitted at
+# all). A run that completed cleanly (a real session_id exists) but whose
+# assert_tool_event check fails is a NARRATION failure: the iteration FAILs
+# immediately, no retry — this is the exact upstream race (Pitfall 4) vs.
+# model-narration distinction 13-RESEARCH.md pins down.
 run_stage_remember_recall() {
   local project_dir="$1" mode="$2"
   local topic="the ci pipeline canary token"
-  local canary out_remember out_recall session_id
+  local canary out_remember out_recall session_id rc
+
+  if [[ -z "$CAPTURE_SERVE_URL" ]]; then
+    echo "[run_stage_remember_recall:$mode] FAIL: capture server not running (call start_capture_server first)" >&2
+    return 1
+  fi
+
+  LAST_ROUNDTRIP_RETRIES=0
 
   if [[ "$mode" == "seeded" ]]; then
     canary="OCP-06-REMEMBER-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
-    out_remember=$(run_opencode "$project_dir" 60 "/remember ${topic} is ${canary}") || true
 
-    if ! echo "$out_remember" | grep -qE "cairn-memory_memory_write|cairn-memory_memory_supersede"; then
-      echo "[run_stage_remember_recall:$mode] FAIL: /remember did not perform a live memory_write/_supersede call" >&2
-      log_env_presence
-      echo "$out_remember" | tail -n 20 >&2
-      return 1
-    fi
-
-    session_id=$(echo "$out_remember" | extract_session_id)
-    if [[ -z "$session_id" ]]; then
-      echo "[run_stage_remember_recall:$mode] FAIL: could not extract sessionID from /remember's JSON output" >&2
-      return 1
-    fi
-    echo "[run_stage_remember_recall:$mode] OK: /remember wrote via a live MCP call (sessionID=$session_id)"
-
-    local found=0
     for _attempt in 1 2 3; do
-      out_recall=$( (cd "$project_dir" && timeout 60 opencode run "recall ${topic}" --dir "$project_dir" --format json --dangerously-skip-permissions --session "$session_id" 2>&1) ) || true
-      if echo "$out_recall" | grep -qE "cairn-memory_memory_search|cairn-memory_memory_read" && echo "$out_recall" | grep -qF "$canary"; then
-        found=1
+      rc=0
+      out_remember=$(run_opencode "$project_dir" 60 "/remember ${topic} is ${canary}" --attach "$CAPTURE_SERVE_URL") || rc=$?
+      session_id=$(printf '%s' "$out_remember" | extract_session_id)
+
+      if [[ "$rc" -eq 124 || -z "$session_id" ]]; then
+        if [[ "$_attempt" -lt 3 ]]; then
+          LAST_ROUNDTRIP_RETRIES=$((LAST_ROUNDTRIP_RETRIES + 1))
+          echo "[run_stage_remember_recall:$mode] INFRA retry: /remember attempt $_attempt (rc=$rc, no real events emitted)" >&2
+          continue
+        fi
+        echo "[run_stage_remember_recall:$mode] FAIL: /remember exhausted infra retries (rc=$rc, no session established)" >&2
+        log_env_presence
+        printf '%s' "$out_remember" | tail -n 20 >&2
+        return 1
+      fi
+
+      if printf '%s' "$out_remember" | assert_tool_event 'cairn-memory_memory_(write|supersede)'; then
         break
       fi
-    done
 
-    if [[ "$found" -eq 1 ]]; then
-      echo "[run_stage_remember_recall:$mode] OK: recall retrieved the canary via a live memory_search/_read call"
-      return 0
-    fi
-    echo "[run_stage_remember_recall:$mode] FAIL: recall did not perform a live memory_search/_read call returning the canary after 3 attempts (known model-reliability limitation for read-oriented tool calls — see 05-02-SUMMARY.md)" >&2
-    log_env_presence
-    echo "$out_recall" | tail -n 30 >&2
-    return 1
+      echo "[run_stage_remember_recall:$mode] FAIL: /remember completed but performed no genuine memory_write/_supersede tool_use event (narration failure, no retry)" >&2
+      log_env_presence
+      printf '%s' "$out_remember" | tail -n 20 >&2
+      return 1
+    done
+    echo "[run_stage_remember_recall:$mode] OK: /remember wrote via a genuine tool_use event (sessionID=$session_id, retries=$LAST_ROUNDTRIP_RETRIES)"
+
+    for _attempt in 1 2 3; do
+      rc=0
+      out_recall=$( (cd "$project_dir" && timeout 60 opencode run "recall ${topic}" --dir "$project_dir" --format json --dangerously-skip-permissions --session "$session_id" --attach "$CAPTURE_SERVE_URL" 2>&1) ) || rc=$?
+      local recall_session_id
+      recall_session_id=$(printf '%s' "$out_recall" | extract_session_id)
+
+      if [[ "$rc" -eq 124 || -z "$recall_session_id" ]]; then
+        if [[ "$_attempt" -lt 3 ]]; then
+          LAST_ROUNDTRIP_RETRIES=$((LAST_ROUNDTRIP_RETRIES + 1))
+          echo "[run_stage_remember_recall:$mode] INFRA retry: /recall attempt $_attempt (rc=$rc, no real events emitted)" >&2
+          continue
+        fi
+        echo "[run_stage_remember_recall:$mode] FAIL: /recall exhausted infra retries (rc=$rc, no real events emitted)" >&2
+        log_env_presence
+        printf '%s' "$out_recall" | tail -n 30 >&2
+        return 1
+      fi
+
+      if printf '%s' "$out_recall" | assert_tool_event 'cairn-memory_memory_(search|read)' "$canary"; then
+        echo "[run_stage_remember_recall:$mode] OK: recall retrieved the canary via a genuine memory_search/_read tool_use event (retries=$LAST_ROUNDTRIP_RETRIES)"
+        return 0
+      fi
+
+      echo "[run_stage_remember_recall:$mode] FAIL: /recall completed but performed no genuine memory_search/_read tool_use event returning the canary (narration failure, no retry)" >&2
+      log_env_presence
+      printf '%s' "$out_recall" | tail -n 30 >&2
+      return 1
+    done
   else
     canary="OCP-06-REMEMBER-unseeded-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
-    out_recall=$(run_opencode "$project_dir" 60 "recall ${topic}") || true
-    if echo "$out_recall" | grep -qF "$canary"; then
-      echo "[run_stage_remember_recall:$mode] FAIL: unseeded project unexpectedly returned a canary-shaped value" >&2
+    rc=0
+    out_recall=$(run_opencode "$project_dir" 60 "recall ${topic}" --attach "$CAPTURE_SERVE_URL") || rc=$?
+
+    if [[ "$rc" -eq 124 || -z "$(printf '%s' "$out_recall" | extract_session_id)" ]]; then
+      echo "[run_stage_remember_recall:$mode] FAIL: unseeded recall infra failure (rc=$rc, no real events emitted)" >&2
+      log_env_presence
+      printf '%s' "$out_recall" | tail -n 20 >&2
       return 1
     fi
-    echo "[run_stage_remember_recall:$mode] OK: unseeded project recall returned no canary (not-found)"
+
+    if printf '%s' "$out_recall" | assert_tool_event 'cairn-memory_memory_(search|read)' "$canary"; then
+      echo "[run_stage_remember_recall:$mode] FAIL: unseeded project unexpectedly returned a canary-linked memory_search/_read tool_use event" >&2
+      return 1
+    fi
+    echo "[run_stage_remember_recall:$mode] OK: unseeded project recall performed no canary-linked tool_use event (not-found)"
     return 0
   fi
 }
