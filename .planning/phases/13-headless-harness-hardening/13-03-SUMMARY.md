@@ -120,3 +120,13 @@ None - no external service configuration required. This plan is docs/records-onl
 ---
 *Phase: 13-headless-harness-hardening*
 *Completed: 2026-07-08*
+
+## Self-Check: PASSED
+
+- FOUND: docs/operating.md
+- FOUND: .planning/MILESTONES.md
+- FOUND: .planning/REQUIREMENTS.md
+- FOUND: .planning/phases/13-headless-harness-hardening/13-03-SUMMARY.md
+- FOUND: f302882 (Task 1 commit)
+- FOUND: d6467e5 (Task 2 commit)
+- FOUND: 5ec68f7 (SUMMARY commit)
