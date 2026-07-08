@@ -90,6 +90,30 @@ writing.
 of Claude assets — it surfaces AgentFS project memory natively via OpenCode's own
 `experimental.chat.system.transform` hook and never reads `~/.claude`.
 
+### Headless round-trip harness — model precondition
+
+`scripts/verify-opencode-live-parity.sh` proves the `/remember`→`/recall`
+round-trip against a real, registered `cairn-memory` MCP server. Reliable
+headless reproduction of that round-trip requires **a no-thinking,
+tool-call-reliable local model** — the publicly-known model that has passed
+is `qwen3.5-27b`. A thinking model that narrates pseudo-tool-call syntax
+instead of emitting real `tool_use` events will not pass, and no amount of
+retry fixes that — retry in this harness only absorbs opencode's own
+run-completion flakiness, never a model that fails to call tools for real.
+
+Model selection stays operator-env-driven through the existing
+`CAIRN_LLM_API_KEY` / `CAIRN_LLM_API_URL` / `CAIRN_LLM_EXTRACTION_MODEL`
+variables (see "Configuration" below) — the harness commits no default model
+and carries no known-good allowlist.
+
+Before burning a multi-run soak, a preflight probe drives one real tool call
+and fails fast with a trait-named message if the configured model is not
+tool-call-reliable. The harness keeps a three-tier speed structure:
+`--stage wakeup` (fastest per-commit signal), `--full` (one-shot regression
+of every stage), and `--repeat N` — e.g. `scripts/verify-opencode-live-parity.sh --repeat 5`
+— the slow reliability soak that runs N independent cold reproductions of the
+round-trip stage; run it to confirm reliability, not on every commit.
+
 ## Configuration
 
 All configuration is environment-based (in `.ai/.env`) — the core hardcodes no
