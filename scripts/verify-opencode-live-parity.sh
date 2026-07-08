@@ -675,6 +675,50 @@ run_stage_remember_recall() {
   fi
 }
 
+# preflight_tool_call_probe(): D-06 mechanical gate for the --repeat soak.
+# Step 1 (before ANY opencode call -- Pitfall 2): fails fast if any of
+# CAIRN_LLM_API_KEY/CAIRN_LLM_API_URL/CAIRN_LLM_EXTRACTION_MODEL is empty.
+# Note (load-bearing per Pitfall 3): opencode ships a bundled default model,
+# so this env-var presence check is the guard that prevents a false PASS
+# against opencode's own default when CAIRN_LLM_* is unset -- do not remove
+# it. Step 2: reuses the existing scratch bring-up so the probe drives the
+# REAL cairn-memory MCP tool (Open Question 2), then runs ONE cheap turn via
+# run_opencode with --attach forcing a single write-style tool call against a
+# disposable canary, asserted via assert_tool_event. Step 3: tears the
+# scratch environment down. Never echoes CAIRN_LLM_API_KEY.
+preflight_tool_call_probe() {
+  if [[ -z "${CAIRN_LLM_API_KEY:-}" || -z "${CAIRN_LLM_API_URL:-}" || -z "${CAIRN_LLM_EXTRACTION_MODEL:-}" ]]; then
+    log_env_presence
+    echo "[preflight] FAIL: CAIRN_LLM_* not fully set — see docs/operating.md" >&2
+    return 1
+  fi
+
+  capture_real_config_fingerprint
+  setup_scratch
+  seed_canary seeded
+  install_assets
+  write_scratch_config
+  start_capture_server
+
+  local canary out
+  canary="OCP-07-PREFLIGHT-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
+  out=$(run_opencode "$SCRATCH_PROJECT" 90 "/remember the preflight probe canary is ${canary}" --attach "$CAPTURE_SERVE_URL") || true
+
+  stop_capture_server
+  CLEANED_UP=0
+  cleanup
+
+  if printf '%s' "$out" | assert_tool_event 'cairn-memory_memory_(write|supersede)'; then
+    echo "[preflight] OK: model made a genuine tool call"
+    return 0
+  fi
+
+  echo "[preflight] FAIL: model is not tool-call-reliable (no-thinking required) — see docs/operating.md" >&2
+  log_env_presence
+  printf '%s' "$out" | tail -n 20 >&2
+  return 1
+}
+
 # run_negative_controls(): sweeps every stage against the unseeded
 # negative-control project as one pass — the D-04 proof that a surfaced
 # canary can only have come from injected memory, never model
