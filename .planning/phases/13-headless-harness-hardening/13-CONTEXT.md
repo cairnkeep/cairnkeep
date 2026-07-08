@@ -30,8 +30,8 @@ proven in v1.1 and are not the subject.
   operator intervention. A failed iteration resets the count. Rejected: M-of-N
   (tolerating flaky runs doesn't close a reliability gap) and 3/3 (thin margin
   over v1.1's "proven once").
-- **D-02: A `--repeat N` soak mode is added to
-  `scripts/verify-opencode-live-parity.sh`** (e.g. `--repeat 5`) that loops
+- **D-02: A `--repeat N` soak mode is added to `scripts/verify-opencode-live-parity.sh`**
+  (e.g. `--repeat 5`) that loops
   the round-trip stage N times and emits a per-iteration PASS/FAIL table plus
   an aggregate verdict — one command, one recorded output. Rejected: separate
   wrapper script, manual re-runs.
