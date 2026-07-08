@@ -8,17 +8,12 @@ A durable, harness-agnostic memory + context layer for coding agents (Claude Cod
 
 Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
 
-## Current Milestone: v1.3 Routing Seam & Context Maturation
+## Next Milestone Goals
 
-**Goal:** Wire cairnkeep to token-miser's routing/tiering surface as a thin, self-consistent public delegate, mature `context_explore` (memory-aware, auto-invoked, cached), and make the OpenCode remember→recall round-trip reliably reproducible headless — without breaching the thin-delegate or no-private-references boundaries.
-
-**Target features:**
-- Thin routing wire to token-miser's routing/tiering surface (no proxy, endpoint, or model config in the core); freezes the seam the private enterprise overlay will later drive
-- Self-consistency: token-miser positioned as a public cairnkeep-org sibling project, docs updated to match, and the no-private-references guard re-run as a milestone gate
-- Memory-aware exploration — cross-reference `context_explore` citations against `memory_search` / wiki-query
-- Pre-task hook auto-invoke of exploration
-- Result caching keyed on (query, repo HEAD/dirty-state)
-- Hardened headless harness so `/remember`→`/recall` reproduces reliably (serve/`--attach` + retry)
+Not yet scoped — define via `/gsd-new-milestone`. Known candidates carried forward:
+- Enterprise overlay (private remote only, never in this repo) — the v1.3 routing seam (RT-02) is now frozen for it to drive
+- token-miser routing-proxy surface, full hosting (TMISER-R1 remainder) — private track; the core keeps only the thin `route_check` wire
+- Interactive-TUI confirm of the OpenCode round-trip (carried from v1.1; needs a TTY operator)
 
 ## Current State
 
@@ -26,7 +21,7 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 
 **Shipped:** v1.2 Context Exploration (token-miser + FastContext) — complete 2026-07-06. All four phases landed: FastContext reliability spike (Phase 6, live 15/15 `tool_calls`, GO), the `context_explore` MCP tool (Phase 7, CTX-01/02/03), Claude Code + OpenCode operating-layer wiring (Phase 8, CTX-04/05), and the live A/B token-savings verification (Phase 9, CTX-07). CTX-07 was closed against cairnkeep's **own measured number** via `scripts/verify-token-savings-ab.sh`: a live, independently-verified tight-query A/B anchor at ~99.9% byte-savings (D-03 **PASS**), with the small model's unreliability on broad/loosely-worded queries documented transparently (09-AB.md — hallucinated/wander citations disclosed, never counted as the headline). Full requirement traceability in REQUIREMENTS.md.
 
-**Complete (pending archive):** v1.3 Routing Seam & Context Maturation — all four phases (10–13) complete. Phase 11 (2026-07-07) made the public story true and self-consistent: token-miser is live at github.com/cairnkeep/token-miser as a public sibling, the three-doc sweep closed all code-vs-docs drift, and two new verify-by-execution gates (`scripts/verify-no-private-references.sh`, `scripts/verify-docs-parity.sh`) passed live and are recorded as the milestone gate. Phase 12 (2026-07-07) matured `context_explore`: results are cache-backed (query + HEAD + content-sensitive dirty-state keys, CTX-10), citations are cross-referenced against project memory and the wiki with byte-identical zero-hit output (CTX-08), and a double-opt-in UserPromptSubmit hook auto-invokes exploration at task start, fail-open with a short timeout (CTX-09) — all proven by the composed `scripts/verify-explore-maturation.sh` gate (3/3 success criteria verified). Phase 13 (2026-07-08) hardened the headless OpenCode harness (OCP-07): the `/remember`→`/recall` round-trip now runs via serve/`--attach` with genuine NDJSON tool-event assertions and infra-only retry, gated by a preflight tool-call probe, and the `--repeat 5` soak passed live 5/5 consecutive round-trips against a local qwen3.5-27b (retries=0 on every iteration; recorded in 13-UAT.md) — closing the v1.1 OCP-06 known gap.
+**Shipped:** v1.3 Routing Seam & Context Maturation (2026-07-08, tag `v1.3`) — all four phases (10–13) complete, verified closeout (9/9 requirements, audit passed). Phase 11 (2026-07-07) made the public story true and self-consistent: token-miser is live at github.com/cairnkeep/token-miser as a public sibling, the three-doc sweep closed all code-vs-docs drift, and two new verify-by-execution gates (`scripts/verify-no-private-references.sh`, `scripts/verify-docs-parity.sh`) passed live and are recorded as the milestone gate. Phase 12 (2026-07-07) matured `context_explore`: results are cache-backed (query + HEAD + content-sensitive dirty-state keys, CTX-10), citations are cross-referenced against project memory and the wiki with byte-identical zero-hit output (CTX-08), and a double-opt-in UserPromptSubmit hook auto-invokes exploration at task start, fail-open with a short timeout (CTX-09) — all proven by the composed `scripts/verify-explore-maturation.sh` gate (3/3 success criteria verified). Phase 13 (2026-07-08) hardened the headless OpenCode harness (OCP-07): the `/remember`→`/recall` round-trip now runs via serve/`--attach` with genuine NDJSON tool-event assertions and infra-only retry, gated by a preflight tool-call probe, and the `--repeat 5` soak passed live 5/5 consecutive round-trips against a local qwen3.5-27b (retries=0 on every iteration; recorded in 13-UAT.md) — closing the v1.1 OCP-06 known gap.
 
 ## Requirements
 
@@ -70,7 +65,8 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 - Layout: `mcp-memory-server/` (the `cairn-memory` MCP server), `bin/cairn` + `scripts/` (CLI, bootstrap, utilities), `templates/` (project scaffolding + derived-knowledge templates), `claude/` + `opencode/` (commands, agents, hooks, and plugins — the operating layer)
 - Target runtime: Node.js/TypeScript for the MCP server; the operating layer targets the Claude Code and OpenCode harnesses
 - Milestone "OSS core → parity" **shipped 2026-07-03** (all 3 phases, 6/6 requirements validated; baseline tag `v1.0.0`)
-- Milestone "OpenCode parity" **shipped 2026-07-04** (phases 4-5, 6/6 requirements; baseline tag `v1.1`; override closeout). OpenCode now has native memory-capture/recall plugins, `remember`/`recall` commands, and self-sufficient wakeup — installed via `sync-opencode-*-assets.sh`. Next milestone not yet scoped.
+- Milestone "OpenCode parity" **shipped 2026-07-04** (phases 4-5, 6/6 requirements; baseline tag `v1.1`; override closeout). OpenCode now has native memory-capture/recall plugins, `remember`/`recall` commands, and self-sufficient wakeup — installed via `sync-opencode-*-assets.sh`.
+- Milestone "Routing Seam & Context Maturation" **shipped 2026-07-08** (phases 10-13, 9/9 requirements; tag `v1.3`; verified closeout). The core now carries the frozen `route_check` seam, the two hygiene gates, the matured `context_explore` (cache + cross-ref + auto-invoke hook), and the hardened headless OpenCode harness. Next milestone not yet scoped.
 - CI (build + smoke-test of the memory server) exists and passes on push/PR; smoke suite covers scope-guard, http-guard, extract-cli, search-e2e, embeddings
 - v1.1 override gap RESOLVED (v1.3 Phase 13): reliable headless reproduction of the OpenCode `/remember`→`/recall` round-trip proven live 5/5 via the hardened harness. Remaining from that closeout: the interactive TUI confirm still awaits a TTY operator. Enterprise overlay and token-miser proxy hosting carried to future milestones.
 
@@ -110,10 +106,16 @@ Additional constraints:
 | Opt-in HTTP transport fails closed (bearer auth + per-origin CORS + Host validation) | The `MCP_HTTP_PORT` mode must not be exploitable by default | ✓ Good (Phase 2) |
 | OpenCode memory lifecycle built on native plugins, not Claude's shell hooks | OpenCode has a plugin/event model (`session.idle`, `tool.execute.before`); reusing shell hooks would not be idiomatic parity | ✓ Good (Phase 4, OCP-01/02) |
 | Live parity verified by a scratch-isolated harness with fingerprint guards + negative controls | Same verify-by-execution bar v1.0 used; scratch HOME prevents polluting the real `~/.config/opencode` / `~/.claude` | ✓ Good (Phase 5) |
-| OCP-04 recall read-back blocker was the local model's tool-calling, not cairnkeep code | Thinking-config + strip-proxy were proven dead ends; a no-thinking, tool-call-reliable model (qwen3.5-27b) cleared it in one live round-trip | ⚠️ Revisit (reliable headless reproduction still open — v1.1 known gap) |
+| OCP-04 recall read-back blocker was the local model's tool-calling, not cairnkeep code | Thinking-config + strip-proxy were proven dead ends; a no-thinking, tool-call-reliable model (qwen3.5-27b) cleared it in one live round-trip | ✓ Good (headless reproduction closed v1.3 Phase 13 — 5/5 live soak) |
 | `context_explore` is a thin subprocess delegate to `token_miser explore`, not a reimplementation of FastContext's loop/sandbox/serving | token-miser already owns and tests these in Rust; cairnkeep stays provider-neutral and holds no endpoint/model config | ✓ Good (Phase 7, CTX-01/03) |
 | FastContext reliability spike made a standalone hard gate before any wiring | Same failure class as OCP-04 — building atop an unverified local model's tool-calling is the expensive way to find a narration failure | ✓ Good (Phase 6 — live 15/15 `tool_calls`, GO) |
 | CTX-07 reported as cairnkeep's own live measured number, broad-query model unreliability disclosed rather than hidden | The verify-by-execution bar demands a real number; honest disclosure beats a flattering headline | ✓ Good (Phase 9 — tight-query ~99.9% byte-savings, D-03 PASS) |
+| `route_check` is a fetch-based HTTP delegate (not a subprocess), pinned to exactly one `GET /health` and one env key | token-miser routing is proxy-only HTTP — no CLI subcommand exists; D-10 pinning freezes the seam so refactors can't silently drift it | ✓ Good (v1.3 Phase 10) |
+| Health-only proof is the routing seam's required bar; full `/v1/chat/completions` round-trip is an optional `--full` stretch | The seam's promise is "the surface is reachable and real", not "cairnkeep drives routing" — that stays out of the core | ✓ Good (v1.3 Phase 10) |
+| token-miser published as a single clean-history commit after a guard-verified scrub | A public sibling must carry zero private/AI-authorship residue from its private origin; one commit removes the whole history risk class | ✓ Good (v1.3 Phase 11) |
+| Explore cache keyed on (query, HEAD, content-sensitive dirty-state) with a shared `runContextExplore()` for MCP tool + CLI | Cache correctness needs the dirty-state hash, not just HEAD; one shared handler keeps hook and tool behavior identical | ✓ Good (v1.3 Phase 12) |
+| Auto-invoke hook is double-opt-in (binary + flag), fail-open, timeout-bounded | A pre-task hook that can block or surprise the operator would cost more than it saves; silence is the safe default | ✓ Good (v1.3 Phase 12) |
+| Harness asserts genuine NDJSON `tool_use` events (canary-linked) and retries only on infra failure | Substring greps pass on narrated pseudo-tool-calls — the exact failure OCP-04 root-caused; narration must FAIL, never retry | ✓ Good (v1.3 Phase 13) |
 
 ## Evolution
 
@@ -133,4 +135,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-08 after Phase 13 — Headless Harness Hardening shipped (OCP-07 validated: live 5/5 headless round-trip soak). Milestone v1.3 complete, ready to archive.*
+*Last updated: 2026-07-08 after v1.3 milestone (Routing Seam & Context Maturation shipped — archived to milestones/, tagged v1.3).*

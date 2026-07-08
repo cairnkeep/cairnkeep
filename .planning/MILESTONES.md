@@ -1,6 +1,23 @@
 # Milestones
 
-## v1.3 Routing Seam & Context Maturation (in progress) — Phase 11 self-consistency gate
+## v1.3 Routing Seam & Context Maturation (Shipped: 2026-07-08)
+
+**Delivered:** A thin, frozen routing seam to token-miser, a self-consistent public story (token-miser live as a public sibling, zero-drift docs, guard-verified hygiene), a matured `context_explore` (cached, memory/wiki-aware, auto-invoked), and a headless OpenCode harness that reproduces the `/remember`→`/recall` round-trip reliably — closing the v1.1 OCP-06 gap.
+
+**Stats:** 4 phases (10–13), 12 plans, 29 tasks · 128 commits (`a817f26`→`0305bcd`) · 78 files changed, +12,440/−177 · 3 days (2026-07-06 → 2026-07-08)
+**Closeout:** verified_closeout — 9/9 requirements satisfied, audit passed (`milestones/v1.3-MILESTONE-AUDIT.md`), all human-check items closed in UAT.
+
+**Key accomplishments:**
+
+- `route_check` routing seam (RT-01/02): a thin fetch-based MCP delegate probing token-miser's `GET /health`, fail-closed on every network/status/parse error, proven by an offline MCP round-trip guard plus a real-binary proof script, with the `CAIRN_ROUTE_ENDPOINT` seam contract frozen in `docs/operating.md`.
+- token-miser published as a public cairnkeep-org sibling (SC-01): github.com/cairnkeep/token-miser is live and PUBLIC — scrubbed, Apache-2.0, single-clean-commit tree that passed the guard and `cargo build` before push.
+- Two fail-loud hygiene gates (SC-02/03): a three-stage no-private-references guard (tree, env-gated denylist, commit-log) and a docs-vs-code parity checker — both run live against the final tree and recorded as the milestone gate.
+- `context_explore` matured (CTX-08/09/10): content-sensitive result cache keyed on (query, HEAD, dirty-state), citations cross-referenced against project memory and the wiki (byte-identical zero-hit output), and a double-opt-in fail-open `UserPromptSubmit` hook auto-invoking exploration pre-task — all proven by the composed `verify-explore-maturation.sh` gate.
+- Headless harness hardened (OCP-07): genuine NDJSON tool-event assertions replace substring greps, both round-trip halves run via `opencode serve`/`--attach` with infra-only retry, and a preflight-gated `--repeat 5` soak passed 5/5 consecutive live round-trips against qwen3.5-27b — resolving the v1.1 OCP-06 headless-reproduction gap.
+
+---
+
+## v1.3 Routing Seam & Context Maturation — Phase 11 self-consistency gate
 
 **Run date:** 2026-07-06
 
@@ -10,10 +27,12 @@ after the Plan 03 docs sweep and the Plan 01 guard/Plan 02 publish work:
 - `scripts/verify-no-private-references.sh` run with `CAIRN_GUARD_DENYLIST` set
   (operator specific-term list) — exited 0: `[guard] OK: no private/vendor/
   AI-authorship references found in tracked tree or commit-message history`
+
 - `scripts/verify-docs-parity.sh` — exited 0: `[env-keys] OK: every
   mcp-memory-server/src env key is named in docs/operating.md or README.md`,
   `[commands] OK: every claude/commands/*.md command is named in
   docs/operating.md`, `[parity] OK: docs match shipped code -- no drift found`
+
 - `gh repo view cairnkeep/token-miser --json visibility` — `{"visibility":
   "PUBLIC"}`
 

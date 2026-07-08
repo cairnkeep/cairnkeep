@@ -115,6 +115,48 @@
 
 ---
 
+## Milestone: v1.3 — Routing Seam & Context Maturation
+
+**Shipped:** 2026-07-08
+**Phases:** 4 (10-13) | **Plans:** 12 | **Sessions:** ~3 (2026-07-06 → 2026-07-08)
+
+### What Was Built
+- `route_check` MCP tool — a thin fetch-based delegate probing token-miser's `GET /health`, fail-closed at both the precondition and execution tiers, D-10-pinned to exactly one request/one env key; real-binary proof via `scripts/verify-routing-seam.sh` and the seam contract frozen in `docs/operating.md`
+- token-miser published PUBLIC at github.com/cairnkeep/token-miser (Apache-2.0, single clean-history commit) plus two fail-loud hygiene gates: `verify-no-private-references.sh` (tree + denylist + commit-log) and `verify-docs-parity.sh` (one-directional code→docs drift)
+- `context_explore` maturation — content-sensitive result cache (query + HEAD + dirty-state), memory/wiki citation cross-referencing with byte-identical zero-hit output, double-opt-in fail-open `UserPromptSubmit` auto-invoke hook, all through one shared `runContextExplore()` (MCP tool + `explore` CLI)
+- Headless OpenCode harness hardening — NDJSON `tool_use` event assertions (canary-linked) replacing substring greps, serve/`--attach` transport, infra-only retry, preflight tool-call probe, `--repeat N` soak; live 5/5 consecutive round-trips closed the v1.1 OCP-06 gap
+
+### What Worked
+- Verify-by-execution at every layer: offline MCP round-trip guards for each new tool, composed proof scripts per phase (`verify-routing-seam.sh`, `verify-explore-maturation.sh`), and live UAT closing the human-check items — the milestone audit passed with zero gaps on the first run
+- The fetch-not-subprocess call for `route_check` was decided from token-miser's actual surface (proxy-only HTTP, no CLI subcommand) rather than pattern-copying the `context_explore` delegate — right seam, one env key, frozen by guard assertions
+- Clean-slate single-commit publish for token-miser removed the entire private-history risk class in one move; the guard verified the tree before push
+- Phase 13 directly cashed in the v1.1 OCP-04 root-cause: narrated pseudo-tool-calls now hard-FAIL (never retry), and only infra failures retry — the live soak then passed 5/5 with zero retries
+
+### What Was Inefficient
+- REQUIREMENTS.md checkboxes drifted twice (SC-01/02/03 and CTX-08 left Pending after their phases closed) and had to be caught by verifiers — the ledger flip isn't part of the plan-close motion yet
+- Pre-existing AI-authorship trailers in history surfaced twice (Phase 11 guard, Phase 12 deferred item) and needed operator history-rewrites mid-milestone — hygiene debt from before the gates existed
+- The `--repeat` soak's real-`~/.claude` tamper guard false-positives when driven from inside a live Claude Code session (transcript writes trip the mtime fingerprint) — cosmetic, but it cost a diagnosis round
+- 12-VALIDATION.md was left as an unfilled template; the phase's actual proof lived in the PLAN verify blocks and the composed script — the artifact added nothing
+
+### Patterns Established
+- Pin a seam with guard assertions (exactly N requests, exactly these env keys), not just docs — refactors can't silently drift a contract a test physically checks
+- Publish a private-origin sibling as a single scrubbed commit, gated by the same guard the consuming repo runs as its milestone gate
+- Double-opt-in + fail-open + timeout for any hook that auto-runs on user prompts; silence is the default
+- Assert protocol-level events (NDJSON `tool_use` with canary linkage), never model narration, when verifying agent behavior; classify retries by failure type (infra vs behavioral)
+
+### Key Lessons
+1. Freeze contracts in executable form: the D-10 pinning assertions are the reason the seam can be trusted by an overlay that never reads the source.
+2. Requirements-ledger updates must ride the same commit as the work that satisfies them — trailing bookkeeping is the milestone audit's most common false alarm.
+3. Retry logic must be scoped to the failure class it absorbs: retrying behavioral failures (narration) would have masked the exact regression the harness exists to catch.
+4. Run history-hygiene gates from milestone one — retrofitting them surfaces old violations at the least convenient time.
+
+### Cost Observations
+- Model mix: predominantly opus orchestration with sonnet subagents (verification-heavy)
+- Sessions: ~3; live verification against local qwen3.5-27b (llama.cpp) for the OpenCode soak, real token_miser binary for the routing proof
+- Notable: 12,440 insertions in 3 days with a first-run clean milestone audit — the composed per-phase proof scripts made closeout nearly free
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -124,6 +166,7 @@
 | v1.0 | ~2 | 3 | Retroactive audit-against-code closeout for a pre-plan-tracking codebase |
 | v1.1 | ~2 | 2 | Scratch-isolated live-parity harness; first override closeout (gap gated on external model reliability) |
 | v1.2 | ~2 | 4 | Spike-as-hard-gate before wiring; verify-by-execution with the project's own measured number (bounded to the verified slice, unreliable slice disclosed) |
+| v1.3 | ~3 | 4 | Executable seam contracts (guard-pinned); first fully verified closeout (audit passed, zero gaps, human checks closed in UAT) |
 
 ### Cumulative Quality
 
@@ -132,6 +175,7 @@
 | v1.0 | 5 smoke checks | build clean, flows verified | provider-neutral core (no vendor deps) |
 | v1.1 | live-parity harness (5 stages + negative controls) | 4/6 reqs proven live, 2/6 proven-achievable | native OpenCode plugins (no new runtime deps) |
 | v1.2 | 2 offline self-test harnesses + live A/B | 7/7 reqs complete; CTX-07 live-measured (~99.9% tight-query byte-savings) | subprocess delegation to token-miser (no new runtime deps) |
+| v1.3 | 3 offline smoke guards + 3 composed proof scripts + live 5/5 soak | 9/9 reqs complete; verified closeout | fetch-based delegate + bash gates (no new runtime deps) |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -139,3 +183,4 @@
 2. Fail closed on any opt-in network surface.
 3. Trust only structural, server-side evidence when verifying against a variable-reliability local model — not grep matches on model free-text.
 4. Probe a local model's tool-calling reliability against the actually-deployed quant + server flags in a standalone gated phase before building wiring on it (OCP-04 → CTX-06).
+5. Pin seam contracts with executable guard assertions (exact request count, exact env-key set) so drift is a test failure, not a docs archaeology exercise (v1.3 D-10).

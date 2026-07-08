@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Routing Seam & Context Maturation
-current_phase: 13
-status: milestone complete
-stopped_at: Phase 13 complete — milestone v1.3 100%
-last_updated: "2026-07-08T14:57:28.896Z"
+current_phase: 3
+status: Awaiting next milestone
+stopped_at: Phase 13 complete — milestone v1.3 100% (4/4 phases)
+last_updated: "2026-07-08T15:20:03.527Z"
 last_activity: 2026-07-08
-last_activity_desc: Phase 13 complete
+last_activity_desc: Milestone v1.3 completed and archived
 progress:
   total_phases: 4
   completed_phases: 4
@@ -21,19 +21,17 @@ current_phase_name: headless-harness-hardening
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-08 after Phase 13)
+See: .planning/PROJECT.md (updated 2026-07-08 after v1.3 milestone)
 
 **Core value:** Drop-in parity — a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
-**Current focus:** Milestone v1.3 complete — ready to archive (`/gsd-complete-milestone v1.3`)
+**Current focus:** Planning next milestone (`/gsd-new-milestone`)
 
 ## Current Position
 
-Phase: 13 (complete)
-Plan: 3/3 complete
-Status: Milestone v1.3 complete — all 4 phases done
-Last activity: 2026-07-08 — Phase 13 complete (UAT 2/2 passed, live 5/5 soak)
-
-Progress: [█████████████████░░░] 12/14 plans (86%)
+Phase: — (between milestones)
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-08 — Milestone v1.3 shipped, archived, and tagged (verified closeout)
 
 ### v1.3 roadmap (2026-07-06)
 
@@ -138,4 +136,4 @@ Resume file: None
 
 ## Operator Next Steps
 
-- Run `/gsd-complete-milestone v1.3` to archive the milestone and prepare for the next
+- Start the next milestone with /gsd-new-milestone
