@@ -135,11 +135,11 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   2. The harness's retry logic absorbs the previously-identified opencode run-completion flakiness without manual operator intervention.
   3. The v1.1 OCP-06 known gap (reliable headless reproduction) is recorded as resolved in MILESTONES.md and REQUIREMENTS.md traceability.
 
-**Plans**: 3 plans
+**Plans**: 1/3 plans executed
 
 **Wave 1**
 
-- [ ] 13-01-PLAN.md — NDJSON tool-event matcher + run_stage_remember_recall converted to serve/`--attach`, genuine tool-event assertions, infra-only retry (OCP-07; D-08/09/11/13)
+- [x] 13-01-PLAN.md — NDJSON tool-event matcher + run_stage_remember_recall converted to serve/`--attach`, genuine tool-event assertions, infra-only retry (OCP-07; D-08/09/11/13)
 
 **Wave 2** *(depends on 13-01)*
 
@@ -165,4 +165,4 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 10. Routing Seam | 2/2 | Complete    | 2026-07-06 |
 | 11. Self-Consistency & Public Positioning | 4/4 | Complete    | 2026-07-06 |
 | 12. Context Exploration Maturation | 3/3 | Complete    | 2026-07-07 |
-| 13. Headless Harness Hardening | v1.3 | Not started | - |
+| 13. Headless Harness Hardening | 1/3 | In Progress|  |
