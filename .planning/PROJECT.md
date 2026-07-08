@@ -26,7 +26,7 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 
 **Shipped:** v1.2 Context Exploration (token-miser + FastContext) — complete 2026-07-06. All four phases landed: FastContext reliability spike (Phase 6, live 15/15 `tool_calls`, GO), the `context_explore` MCP tool (Phase 7, CTX-01/02/03), Claude Code + OpenCode operating-layer wiring (Phase 8, CTX-04/05), and the live A/B token-savings verification (Phase 9, CTX-07). CTX-07 was closed against cairnkeep's **own measured number** via `scripts/verify-token-savings-ab.sh`: a live, independently-verified tight-query A/B anchor at ~99.9% byte-savings (D-03 **PASS**), with the small model's unreliability on broad/loosely-worded queries documented transparently (09-AB.md — hallucinated/wander citations disclosed, never counted as the headline). Full requirement traceability in REQUIREMENTS.md.
 
-**In progress:** v1.3 Routing Seam & Context Maturation — Phases 10–12 complete. Phase 11 (2026-07-07) made the public story true and self-consistent: token-miser is live at github.com/cairnkeep/token-miser as a public sibling, the three-doc sweep closed all code-vs-docs drift, and two new verify-by-execution gates (`scripts/verify-no-private-references.sh`, `scripts/verify-docs-parity.sh`) passed live and are recorded as the milestone gate. Phase 12 (2026-07-07) matured `context_explore`: results are cache-backed (query + HEAD + content-sensitive dirty-state keys, CTX-10), citations are cross-referenced against project memory and the wiki with byte-identical zero-hit output (CTX-08), and a double-opt-in UserPromptSubmit hook auto-invokes exploration at task start, fail-open with a short timeout (CTX-09) — all proven by the composed `scripts/verify-explore-maturation.sh` gate (3/3 success criteria verified). Remaining: Phase 13 (headless harness hardening).
+**Complete (pending archive):** v1.3 Routing Seam & Context Maturation — all four phases (10–13) complete. Phase 11 (2026-07-07) made the public story true and self-consistent: token-miser is live at github.com/cairnkeep/token-miser as a public sibling, the three-doc sweep closed all code-vs-docs drift, and two new verify-by-execution gates (`scripts/verify-no-private-references.sh`, `scripts/verify-docs-parity.sh`) passed live and are recorded as the milestone gate. Phase 12 (2026-07-07) matured `context_explore`: results are cache-backed (query + HEAD + content-sensitive dirty-state keys, CTX-10), citations are cross-referenced against project memory and the wiki with byte-identical zero-hit output (CTX-08), and a double-opt-in UserPromptSubmit hook auto-invokes exploration at task start, fail-open with a short timeout (CTX-09) — all proven by the composed `scripts/verify-explore-maturation.sh` gate (3/3 success criteria verified). Phase 13 (2026-07-08) hardened the headless OpenCode harness (OCP-07): the `/remember`→`/recall` round-trip now runs via serve/`--attach` with genuine NDJSON tool-event assertions and infra-only retry, gated by a preflight tool-call probe, and the `--repeat 5` soak passed live 5/5 consecutive round-trips against a local qwen3.5-27b (retries=0 on every iteration; recorded in 13-UAT.md) — closing the v1.1 OCP-06 known gap.
 
 ## Requirements
 
@@ -52,13 +52,12 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 
 - ✓ **SC-01 / SC-02 / SC-03** — token-miser published as a public cairnkeep-org sibling (github.com/cairnkeep/token-miser, Apache-2.0, single clean-history commit, guard-zero-hit tree); README + operating docs matched to shipped Phase 10 code (`verify-docs-parity.sh` green); no-private-references guard run live with the operator denylist and recorded as an explicit milestone gate in MILESTONES.md — v1.3 Phase 11
 
+- ✓ **CTX-08 / CTX-09 / CTX-10** — `context_explore` maturation: memory/wiki cross-referenced citations, double-opt-in pre-task auto-invoke hook (fail-open), content-sensitive result cache keyed on (query, HEAD, dirty-state) — v1.3 Phase 12 (`scripts/verify-explore-maturation.sh` 3/3)
+- ✓ **OCP-07** — Headless harness hardened: `/remember`→`/recall` reproduces reliably headless (serve/`--attach`, NDJSON tool-event assertions, infra-only retry, preflight probe, `--repeat` soak) — v1.3 Phase 13 (live 5/5 consecutive round-trips, 13-UAT.md; closes the v1.1 OCP-06 gap)
+
 ### Active
 
-<!-- v1.3 scope — REQ-IDs assigned in REQUIREMENTS.md -->
-- [ ] Memory-aware exploration (`context_explore` citations cross-referenced against `memory_search` / wiki-query)
-- [ ] Pre-task hook auto-invoke of exploration
-- [ ] `context_explore` result caching keyed on (query, repo HEAD/dirty-state)
-- [ ] Headless harness hardened for a reliable `/remember`→`/recall` round-trip
+(none — v1.3 scope fully validated)
 
 ### Out of Scope
 
@@ -73,7 +72,7 @@ Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and 
 - Milestone "OSS core → parity" **shipped 2026-07-03** (all 3 phases, 6/6 requirements validated; baseline tag `v1.0.0`)
 - Milestone "OpenCode parity" **shipped 2026-07-04** (phases 4-5, 6/6 requirements; baseline tag `v1.1`; override closeout). OpenCode now has native memory-capture/recall plugins, `remember`/`recall` commands, and self-sufficient wakeup — installed via `sync-opencode-*-assets.sh`. Next milestone not yet scoped.
 - CI (build + smoke-test of the memory server) exists and passes on push/PR; smoke suite covers scope-guard, http-guard, extract-cli, search-e2e, embeddings
-- Known deferred (v1.1 override gap): reliable headless reproduction of the OpenCode `/remember`→`/recall` round-trip is blocked by opencode run-completion flakiness + local thinking-model tool-call variance (external, not a code defect); the interactive TUI confirm awaits a TTY operator. Enterprise overlay and token-miser integration carried to future milestones.
+- v1.1 override gap RESOLVED (v1.3 Phase 13): reliable headless reproduction of the OpenCode `/remember`→`/recall` round-trip proven live 5/5 via the hardened harness. Remaining from that closeout: the interactive TUI confirm still awaits a TTY operator. Enterprise overlay and token-miser proxy hosting carried to future milestones.
 
 ## Constraints (hard rules)
 
@@ -134,4 +133,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-07 after Phase 12 — Context Exploration Maturation shipped (CTX-08/09/10 validated: memory/wiki cross-referencing, pre-task auto-invoke hook, content-sensitive result cache). Milestone v1.3 concludes with Phase 13, the headless OpenCode harness hardening.*
+*Last updated: 2026-07-08 after Phase 13 — Headless Harness Hardening shipped (OCP-07 validated: live 5/5 headless round-trip soak). Milestone v1.3 complete, ready to archive.*

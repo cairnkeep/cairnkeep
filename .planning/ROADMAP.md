@@ -165,4 +165,4 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 10. Routing Seam | 2/2 | Complete    | 2026-07-06 |
 | 11. Self-Consistency & Public Positioning | 4/4 | Complete    | 2026-07-06 |
 | 12. Context Exploration Maturation | 3/3 | Complete    | 2026-07-07 |
-| 13. Headless Harness Hardening | 3/3 | Complete   | 2026-07-08 |
+| 13. Headless Harness Hardening | 3/3 | Complete    | 2026-07-08 |
