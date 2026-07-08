@@ -21,6 +21,7 @@ usage() {
 Usage: verify-opencode-live-parity.sh --setup-only [seeded|unseeded]
        verify-opencode-live-parity.sh --stage wakeup
        verify-opencode-live-parity.sh --full
+       verify-opencode-live-parity.sh --repeat N
 
 Stands up a fresh scratch OpenCode HOME, registers cairn-memory as a local
 stdio MCP server pointing at the real mcp-memory-server/dist/index.js,
@@ -40,6 +41,18 @@ Options:
       The full suite: wakeup, recall-on-edit, capture, remember->recall
       against a seeded project, then the full negative-control sweep
       against a fresh unseeded project. Exits non-zero if any stage fails.
+  --repeat N
+      Soak the hardened remember->recall round-trip stage N times (default
+      5), each iteration with its own fresh scratch environment (setup,
+      canary, asset install, config, capture server, and teardown -- no
+      state bleed between runs). Gated by a preflight tool-call-reliability
+      probe that runs once before the loop and aborts before any iteration
+      if the configured model isn't tool-call-reliable. Prints a
+      per-iteration PASS/FAIL row with its retry count, plus an aggregate
+      N/N verdict; exits non-zero unless every iteration passes. This is the
+      explicit slow reliability mode -- distinct from --stage wakeup
+      (fastest per-commit signal) and --full (one-shot regression of every
+      stage).
   -h, --help
       Show this help text.
 
@@ -675,6 +688,50 @@ run_stage_remember_recall() {
   fi
 }
 
+# preflight_tool_call_probe(): D-06 mechanical gate for the --repeat soak.
+# Step 1 (before ANY opencode call -- Pitfall 2): fails fast if any of
+# CAIRN_LLM_API_KEY/CAIRN_LLM_API_URL/CAIRN_LLM_EXTRACTION_MODEL is empty.
+# Note (load-bearing per Pitfall 3): opencode ships a bundled default model,
+# so this env-var presence check is the guard that prevents a false PASS
+# against opencode's own default when CAIRN_LLM_* is unset -- do not remove
+# it. Step 2: reuses the existing scratch bring-up so the probe drives the
+# REAL cairn-memory MCP tool (Open Question 2), then runs ONE cheap turn via
+# run_opencode with --attach forcing a single write-style tool call against a
+# disposable canary, asserted via assert_tool_event. Step 3: tears the
+# scratch environment down. Never echoes CAIRN_LLM_API_KEY.
+preflight_tool_call_probe() {
+  if [[ -z "${CAIRN_LLM_API_KEY:-}" || -z "${CAIRN_LLM_API_URL:-}" || -z "${CAIRN_LLM_EXTRACTION_MODEL:-}" ]]; then
+    log_env_presence
+    echo "[preflight] FAIL: CAIRN_LLM_* not fully set — see docs/operating.md" >&2
+    return 1
+  fi
+
+  capture_real_config_fingerprint
+  setup_scratch
+  seed_canary seeded
+  install_assets
+  write_scratch_config
+  start_capture_server
+
+  local canary out
+  canary="OCP-07-PREFLIGHT-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
+  out=$(run_opencode "$SCRATCH_PROJECT" 90 "/remember the preflight probe canary is ${canary}" --attach "$CAPTURE_SERVE_URL") || true
+
+  stop_capture_server
+  CLEANED_UP=0
+  cleanup
+
+  if printf '%s' "$out" | assert_tool_event 'cairn-memory_memory_(write|supersede)'; then
+    echo "[preflight] OK: model made a genuine tool call"
+    return 0
+  fi
+
+  echo "[preflight] FAIL: model is not tool-call-reliable (no-thinking required) — see docs/operating.md" >&2
+  log_env_presence
+  printf '%s' "$out" | tail -n 20 >&2
+  return 1
+}
+
 # run_negative_controls(): sweeps every stage against the unseeded
 # negative-control project as one pass — the D-04 proof that a surfaced
 # canary can only have come from injected memory, never model
@@ -747,6 +804,52 @@ main() {
         return 1
       fi
       echo "[main:--full] ALL STAGES PASSED"
+      ;;
+    --repeat)
+      # D-01/D-02/D-03/D-04 soak: 5/5 (default) independent cold
+      # reproductions of the hardened round-trip stage, gated by the
+      # preflight probe (D-06 -- never burn N setups against a
+      # non-tool-call-reliable model).
+      local repeat_n="${2:-5}"
+      if ! [[ "$repeat_n" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Usage: verify-opencode-live-parity.sh --repeat N (N must be a positive integer)" >&2
+        exit 2
+      fi
+
+      echo "[repeat] running preflight_tool_call_probe before the $repeat_n-iteration soak..."
+      if ! preflight_tool_call_probe; then
+        echo "[repeat] ABORT: preflight probe failed — not starting the $repeat_n-iteration soak" >&2
+        exit 1
+      fi
+
+      local repeat_passes=0
+      for repeat_i in $(seq 1 "$repeat_n"); do
+        capture_real_config_fingerprint
+        setup_scratch
+        seed_canary seeded
+        install_assets
+        write_scratch_config
+        positive_load_check
+        start_capture_server
+
+        if run_stage_remember_recall "$SCRATCH_PROJECT" seeded; then
+          echo "[repeat:$repeat_i/$repeat_n] PASS (retries=$LAST_ROUNDTRIP_RETRIES)"
+          repeat_passes=$((repeat_passes + 1))
+        else
+          echo "[repeat:$repeat_i/$repeat_n] FAIL (retries=$LAST_ROUNDTRIP_RETRIES)"
+        fi
+
+        stop_capture_server
+        CLEANED_UP=0
+        cleanup
+      done
+
+      echo "[repeat] $repeat_passes/$repeat_n PASSED"
+      if [[ "$repeat_passes" -ne "$repeat_n" ]]; then
+        echo "[repeat] FAIL" >&2
+        return 1
+      fi
+      echo "[repeat] OK: $repeat_n/$repeat_n consecutive round-trips"
       ;;
     -h|--help)
       usage
