@@ -51,7 +51,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 - [x] **Phase 10: Routing Seam** - Thin, documented delegate to token-miser's routing/tiering surface; no proxy, endpoint, or model config in the core (completed 2026-07-06)
 - [x] **Phase 11: Self-Consistency & Public Positioning** - token-miser positioned as a public sibling, docs matched to shipped code, no-private-references guard re-run as a milestone gate (completed 2026-07-06)
 - [x] **Phase 12: Context Exploration Maturation** - `context_explore` becomes memory-aware, auto-invoked pre-task, and cache-backed (completed 2026-07-07)
-- [ ] **Phase 13: Headless Harness Hardening** - The OpenCode `/remember`→`/recall` round-trip reproduces reliably headless, closing the v1.1 OCP-06 gap
+- [x] **Phase 13: Headless Harness Hardening** - The OpenCode `/remember`→`/recall` round-trip reproduces reliably headless, closing the v1.1 OCP-06 gap (completed 2026-07-08)
 
 ## Phase Details
 
@@ -135,7 +135,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
   2. The harness's retry logic absorbs the previously-identified opencode run-completion flakiness without manual operator intervention.
   3. The v1.1 OCP-06 known gap (reliable headless reproduction) is recorded as resolved in MILESTONES.md and REQUIREMENTS.md traceability.
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans complete
 
 **Wave 1**
 
@@ -147,7 +147,7 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 
 **Wave 3** *(depends on 13-02)*
 
-- [ ] 13-03-PLAN.md — docs/operating.md trait-based model precondition + MILESTONES.md/REQUIREMENTS.md OCP-06 gap-resolution record (OCP-07; D-04/05/07)
+- [x] 13-03-PLAN.md — docs/operating.md trait-based model precondition + MILESTONES.md/REQUIREMENTS.md OCP-06 gap-resolution record (OCP-07; D-04/05/07)
 
 ## Progress
 
@@ -165,4 +165,4 @@ Full detail archived in [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 10. Routing Seam | 2/2 | Complete    | 2026-07-06 |
 | 11. Self-Consistency & Public Positioning | 4/4 | Complete    | 2026-07-06 |
 | 12. Context Exploration Maturation | 3/3 | Complete    | 2026-07-07 |
-| 13. Headless Harness Hardening | 2/3 | In Progress|  |
+| 13. Headless Harness Hardening | 3/3 | Complete   | 2026-07-08 |
