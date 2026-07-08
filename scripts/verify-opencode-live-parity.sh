@@ -21,6 +21,7 @@ usage() {
 Usage: verify-opencode-live-parity.sh --setup-only [seeded|unseeded]
        verify-opencode-live-parity.sh --stage wakeup
        verify-opencode-live-parity.sh --full
+       verify-opencode-live-parity.sh --repeat N
 
 Stands up a fresh scratch OpenCode HOME, registers cairn-memory as a local
 stdio MCP server pointing at the real mcp-memory-server/dist/index.js,
@@ -40,6 +41,18 @@ Options:
       The full suite: wakeup, recall-on-edit, capture, remember->recall
       against a seeded project, then the full negative-control sweep
       against a fresh unseeded project. Exits non-zero if any stage fails.
+  --repeat N
+      Soak the hardened remember->recall round-trip stage N times (default
+      5), each iteration with its own fresh scratch environment (setup,
+      canary, asset install, config, capture server, and teardown -- no
+      state bleed between runs). Gated by a preflight tool-call-reliability
+      probe that runs once before the loop and aborts before any iteration
+      if the configured model isn't tool-call-reliable. Prints a
+      per-iteration PASS/FAIL row with its retry count, plus an aggregate
+      N/N verdict; exits non-zero unless every iteration passes. This is the
+      explicit slow reliability mode -- distinct from --stage wakeup
+      (fastest per-commit signal) and --full (one-shot regression of every
+      stage).
   -h, --help
       Show this help text.
 
@@ -791,6 +804,52 @@ main() {
         return 1
       fi
       echo "[main:--full] ALL STAGES PASSED"
+      ;;
+    --repeat)
+      # D-01/D-02/D-03/D-04 soak: 5/5 (default) independent cold
+      # reproductions of the hardened round-trip stage, gated by the
+      # preflight probe (D-06 -- never burn N setups against a
+      # non-tool-call-reliable model).
+      local repeat_n="${2:-5}"
+      if ! [[ "$repeat_n" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Usage: verify-opencode-live-parity.sh --repeat N (N must be a positive integer)" >&2
+        exit 2
+      fi
+
+      echo "[repeat] running preflight_tool_call_probe before the $repeat_n-iteration soak..."
+      if ! preflight_tool_call_probe; then
+        echo "[repeat] ABORT: preflight probe failed — not starting the $repeat_n-iteration soak" >&2
+        exit 1
+      fi
+
+      local repeat_passes=0
+      for repeat_i in $(seq 1 "$repeat_n"); do
+        capture_real_config_fingerprint
+        setup_scratch
+        seed_canary seeded
+        install_assets
+        write_scratch_config
+        positive_load_check
+        start_capture_server
+
+        if run_stage_remember_recall "$SCRATCH_PROJECT" seeded; then
+          echo "[repeat:$repeat_i/$repeat_n] PASS (retries=$LAST_ROUNDTRIP_RETRIES)"
+          repeat_passes=$((repeat_passes + 1))
+        else
+          echo "[repeat:$repeat_i/$repeat_n] FAIL (retries=$LAST_ROUNDTRIP_RETRIES)"
+        fi
+
+        stop_capture_server
+        CLEANED_UP=0
+        cleanup
+      done
+
+      echo "[repeat] $repeat_passes/$repeat_n PASSED"
+      if [[ "$repeat_passes" -ne "$repeat_n" ]]; then
+        echo "[repeat] FAIL" >&2
+        return 1
+      fi
+      echo "[repeat] OK: $repeat_n/$repeat_n consecutive round-trips"
       ;;
     -h|--help)
       usage
