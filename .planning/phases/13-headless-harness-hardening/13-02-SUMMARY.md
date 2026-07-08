@@ -121,3 +121,11 @@ None - no external service configuration required. Live execution of the `--repe
 ---
 *Phase: 13-headless-harness-hardening*
 *Completed: 2026-07-08*
+
+## Self-Check: PASSED
+
+- FOUND: scripts/verify-opencode-live-parity.sh
+- FOUND: .planning/phases/13-headless-harness-hardening/13-02-SUMMARY.md
+- FOUND: 8e46a95 (Task 1 commit)
+- FOUND: ae77e46 (Task 2 commit)
+- FOUND: 74ad77d (docs/summary commit)
