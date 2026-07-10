@@ -37,7 +37,8 @@ case "$cmd" in
     exec "$CAIRN_ROOT/scripts/install-audit-timer.sh" "$@"
     ;;
   version | --version | -v)
-    echo "cairnkeep (development)"
+    v=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$CAIRN_ROOT/package.json" 2>/dev/null | head -1)
+    echo "cairnkeep ${v:-unknown}"
     ;;
   help | --help | -h | *)
     cat <<'USAGE'
