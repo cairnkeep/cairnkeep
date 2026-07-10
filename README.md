@@ -67,6 +67,14 @@ or `/repo-review` commands (and no memory hooks) exist. OpenCode uses the
 The launchers load `.ai/.env` and start the harness in the repo root. They stay
 deliberately minimal — provider/profile specifics belong in your own wrapper.
 
+**Contributor mode.** Working on a repo you don't own? `cairn bootstrap
+--untracked /path/to/project` additionally writes the scaffolded paths
+(`.ai/`, `.planning/`) into the repo's `.git/info/exclude`, so the workflow
+files stay purely local: nothing to commit or push, invisible to every other
+contributor, and no edit to the shared `.gitignore`. The trade-off is that
+untracked planning state lives only on that clone — deleting the clone
+deletes it.
+
 ## Configuration
 
 The memory server and collaboration commands are configured entirely through

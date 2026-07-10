@@ -44,6 +44,8 @@ scripts/sync-claude-assets.sh --apply
 cairn bootstrap /path/to/project
 cp /path/to/project/.ai/env.example /path/to/project/.ai/.env
 $EDITOR /path/to/project/.ai/.env    # see "Configuration" below
+# Not the repo's owner? Add --untracked to keep the scaffold out of git
+# entirely (written to .git/info/exclude; local-only, nothing to commit).
 
 # 5. Launch the harness in the project
 /path/to/project/.ai/start-claude.sh
