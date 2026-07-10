@@ -9,8 +9,9 @@ across sessions, projects, and harnesses (Claude Code, OpenCode, …).
 
 ## Status
 
-Shipped: the memory server, the `cairn` CLI (`bootstrap`, `doctor`, `memory`,
-`audit-timer`) and project bootstrapper, and the operating layer (commands,
+Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync`,
+`doctor`, `memory`, `audit-timer`) installable via `npm i -g cairnkeep`, and the
+operating layer (commands,
 agents, hooks) installed on both Claude Code and OpenCode. The generic launchers
 expose wrapper seams (`.ai/pre-launch.sh`, `CAIRN_EXTRA_SETTINGS`,
 `.ai/post-exit.sh`) so an enterprise wrapper can add provider/credential setup
@@ -46,15 +47,15 @@ operating layer (commands, agents, hooks) installed into your harness, and a
 bootstrapped project. `cairn bootstrap` does only the last of these — the full
 ordered walkthrough is in **[docs/operating.md](docs/operating.md)**.
 
-The short version for Claude Code, from a clone of this repo:
+The short version for Claude Code:
 
 ```bash
-# 1. Build + register the memory server (server name: cairn-memory)
-cd mcp-memory-server && npm install && npm run build && npm test && cd ..
-claude mcp add cairn-memory -s user -- node "$PWD/mcp-memory-server/dist/index.js"
+# 1. Install cairnkeep and register the memory server (server name: cairn-memory)
+npm install -g cairnkeep
+claude mcp add cairn-memory -s user -- cairn memory-server
 
 # 2. Install the operating layer (commands, agents, hooks, scaffold templates)
-scripts/sync-claude-assets.sh --apply
+cairn sync --apply                       # add --live-root <proj>/.claude to scope it
 
 # 3. Scaffold a project and configure it
 cairn bootstrap /path/to/project
@@ -64,6 +65,10 @@ cp /path/to/project/.ai/env.example /path/to/project/.ai/.env   # then edit
 cd /path/to/project && cairn doctor
 ./.ai/start-claude.sh
 ```
+
+Prefer working from a clone? Build the server with `cd mcp-memory-server && npm
+install && npm run build`, then use `scripts/sync-claude-assets.sh` and
+`bin/cairn` in place of the installed `cairn`.
 
 Step 2 is easy to miss and load-bearing: without it the memory server is
 registered but none of the `/remember`, `/recall`, `/wiki-*`, `/security-audit`,
@@ -117,6 +122,13 @@ search):
 | `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` | Override path to the domain-knowledge sync script (when the integration lives outside the repo) |
 
 Without an API key, search degrades gracefully to substring matching.
+
+## More
+
+- **Optional document RAG** (`domain_knowledge_*` via AnythingLLM) — [docs/domain-knowledge.md](docs/domain-knowledge.md)
+- **Building a private overlay** (wrap cairnkeep for your org/provider) — [docs/building-an-overlay.md](docs/building-an-overlay.md)
+- **Full operating guide** — [docs/operating.md](docs/operating.md)
+- **Git providers** — [docs/git-providers.md](docs/git-providers.md)
 
 ## License
 

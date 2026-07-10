@@ -24,7 +24,18 @@ installs. This guide covers all three in order.
 
 ## Setup order (Claude Code)
 
-This is the verified, primary path. Run it from a clone of this repo.
+**Via npm** (simplest — everything is on `PATH` as `cairn`):
+
+```bash
+npm install -g cairnkeep
+claude mcp add cairn-memory -s user -- cairn memory-server
+cairn sync --apply                       # operating layer into ~/.claude
+cairn bootstrap /path/to/project         # add --untracked if you don't own the repo
+cp /path/to/project/.ai/env.example /path/to/project/.ai/.env && $EDITOR "$_"
+cd /path/to/project && cairn doctor && ./.ai/start-claude.sh
+```
+
+**From a clone** (equivalent; use the in-repo scripts):
 
 ```bash
 # 1. Build the memory server
@@ -135,6 +146,16 @@ vendor or host.
 | `CAIRN_EXPLORE_REPO_ROOT` | Default repo root for `context_explore` when no per-call `repo_root` is given (unset + no param → the tool throws) |
 | `CAIRN_EXPLORE_CACHE` | Caches `context_explore` results keyed on query + repo HEAD + dirty-state; default ON, set to `0` to disable |
 | `CAIRN_EXPLORE_AUTOINVOKE` | Opt-in flag for the `UserPromptSubmit` pre-task hook; set to `1` together with `CAIRN_EXPLORE_BINARY` to let the hook auto-invoke `context_explore` for each task prompt (unset -> inert, no hook behavior) |
+| `ANYTHINGLLM_API_KEY` | Required to enable the optional `domain_knowledge_*` RAG tools (unset → those tools error at call time; nothing else affected). See [domain-knowledge.md](domain-knowledge.md) |
+| `ANYTHINGLLM_BASE_URL` | AnythingLLM base URL for `domain_knowledge_*` (default `http://localhost:3001`) |
+| `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` | Override path to the `domain_knowledge_sync` document-sync script (unset → in-repo default) |
+
+### Domain knowledge (RAG via AnythingLLM, opt-in)
+
+`domain_knowledge_query` / `domain_knowledge_sync` bridge to an optional
+[AnythingLLM](https://anythingllm.com/) instance for document RAG. Off unless
+configured — full setup, workspaces, and the memory-config format are in
+[domain-knowledge.md](domain-knowledge.md).
 
 ### Routing seam (`route_check`, opt-in)
 
