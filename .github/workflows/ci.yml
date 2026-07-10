@@ -21,3 +21,9 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/test-bootstrap-untracked.sh

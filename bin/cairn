@@ -19,7 +19,11 @@ case "$cmd" in
 cairn — Cairnkeep CLI
 
 Usage:
-  cairn bootstrap [path]   Scaffold .ai/ launchers + env into a project (default: .)
+  cairn bootstrap [--untracked] [path]
+                           Scaffold .ai/ launchers + env into a project (default: .).
+                           --untracked keeps the scaffold out of git via the repo's
+                           .git/info/exclude (contributor mode: nothing to commit,
+                           invisible to other contributors, local-only).
   cairn version            Print version
   cairn help               Show this help
 USAGE
