@@ -9,10 +9,13 @@ across sessions, projects, and harnesses (Claude Code, OpenCode, …).
 
 ## Status
 
-Shipped: the memory server, the `cairn` CLI and project bootstrapper, and the
-operating layer (commands, agents, hooks) installed on both Claude Code and
-OpenCode. Also shipped: context exploration (`/context-explore`) and a thin
-routing seam (`route_check`), both of which delegate to
+Shipped: the memory server, the `cairn` CLI (`bootstrap`, `doctor`, `memory`,
+`audit-timer`) and project bootstrapper, and the operating layer (commands,
+agents, hooks) installed on both Claude Code and OpenCode. The generic launchers
+expose wrapper seams (`.ai/pre-launch.sh`, `CAIRN_EXTRA_SETTINGS`,
+`.ai/post-exit.sh`) so an enterprise wrapper can add provider/credential setup
+without forking them. Also shipped: context exploration (`/context-explore`) and
+a thin routing seam (`route_check`), both of which delegate to
 [token-miser](https://github.com/cairnkeep/token-miser), a public
 cairnkeep-org sibling project.
 
@@ -22,7 +25,9 @@ cairnkeep-org sibling project.
   (`memory_write`, `memory_search`, …) backed by AgentFS, with optional
   embedding-ranked search against any OpenAI-compatible endpoint.
 - **`bin/cairn`** — the CLI. `cairn bootstrap [path]` scaffolds a project's
-  `.ai/` launchers + env from the bundled templates.
+  `.ai/` launchers + env; `cairn doctor` health-checks the configured pieces;
+  `cairn memory export|import` relocates the durable store between machines;
+  `cairn audit-timer` installs the scheduled memory+wiki audit.
 - **`templates/`** — project scaffolding (generic launchers, env) plus the
   derived-knowledge layer (wiki, alignment, graph, security, planning).
 - **`scripts/`** — asset-sync and maintenance utilities.
@@ -55,8 +60,9 @@ scripts/sync-claude-assets.sh --apply
 cairn bootstrap /path/to/project
 cp /path/to/project/.ai/env.example /path/to/project/.ai/.env   # then edit
 
-# 4. Launch
-/path/to/project/.ai/start-claude.sh
+# 4. Launch (and, optionally, check the wiring first)
+cd /path/to/project && cairn doctor
+./.ai/start-claude.sh
 ```
 
 Step 2 is easy to miss and load-bearing: without it the memory server is
@@ -65,7 +71,20 @@ or `/repo-review` commands (and no memory hooks) exist. OpenCode uses the
 `sync-opencode-*.sh` scripts instead — see the operating guide.
 
 The launchers load `.ai/.env` and start the harness in the repo root. They stay
-deliberately minimal — provider/profile specifics belong in your own wrapper.
+deliberately minimal — provider/profile specifics belong in your own wrapper,
+which plugs in through the launcher seams below.
+
+**Wrapper seams.** The generic launchers are no-ops beyond loading `.ai/.env`
+unless a wrapper opts in:
+
+- **`.ai/pre-launch.sh`** — sourced after `.env`, before the harness starts. May
+  export env (e.g. a provider base URL) or abort the launch by returning
+  non-zero. This is where credential refresh / connectivity setup lives.
+- **`CAIRN_EXTRA_SETTINGS`** — path to a settings file layered onto the harness
+  (`--settings` for Claude Code, `--config` for OpenCode). Process env still
+  wins, so an inline value beats the profile.
+- **`.ai/post-exit.sh`** — sourced after the harness exits, with
+  `CAIRN_EXIT_STATUS` set to its exit code.
 
 **Contributor mode.** Working on a repo you don't own? `cairn bootstrap
 --untracked /path/to/project` additionally writes the scaffolded paths
@@ -73,7 +92,8 @@ deliberately minimal — provider/profile specifics belong in your own wrapper.
 files stay purely local: nothing to commit or push, invisible to every other
 contributor, and no edit to the shared `.gitignore`. The trade-off is that
 untracked planning state lives only on that clone — deleting the clone
-deletes it.
+deletes it. To move the durable memory itself between machines, use
+`cairn memory export` / `cairn memory import`.
 
 ## Configuration
 
@@ -93,6 +113,7 @@ search):
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → `route_check` is inert) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws) |
 | `CAIRN_EXPLORE_REPO_ROOT` | Default repo root for `context_explore` when no per-call `repo_root` is given |
+| `CAIRN_EXTRA_SETTINGS` | Optional settings/config file the launcher layers onto the harness (wrapper seam) |
 
 Without an API key, search degrades gracefully to substring matching.
 

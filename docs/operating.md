@@ -292,3 +292,54 @@ wiki and memory layers are derived and never overrule them.
 - End to end: launch the harness in a bootstrapped project; the SessionStart
   hook should surface a project-memory section, and `/recall test` should return
   from the `cairn-memory` MCP.
+
+## Wrapper & operations seams
+
+These let an enterprise wrapper add provider/credential specifics — and let you
+maintain a running install — without forking the core. All are opt-in.
+
+### Launcher seams
+
+The generic launchers (`.ai/start-claude.sh`, `.ai/start-opencode.sh`) run three
+optional hooks around the harness, each a no-op when absent:
+
+| Seam | When | Purpose |
+|---|---|---|
+| `.ai/pre-launch.sh` | sourced after `.env`, before launch | export env (e.g. a provider base URL / auth), refresh credentials, or abort by returning non-zero |
+| `CAIRN_EXTRA_SETTINGS` | read just before launch | path to a settings file layered on the harness (`--settings` / `--config`); process env still wins over it |
+| `.ai/post-exit.sh` | sourced after the harness exits | teardown; `CAIRN_EXIT_STATUS` holds the exit code |
+
+A wrapper that needs a non-default provider drops a `pre-launch.sh` that renders
+its settings file and exports `CAIRN_EXTRA_SETTINGS` — no change to the launcher.
+
+### `cairn doctor`
+
+Health-checks the configured pieces, reading only `./.ai/.env` (or the current
+env). Unconfigured optional dependencies are skipped; it exits non-zero only when
+a configured dependency (LLM/embedding endpoint, writable store) is unreachable.
+
+```bash
+cd /path/to/project && cairn doctor
+```
+
+### `cairn memory export|import|path`
+
+Relocate the durable memory store (one SQLite `.db` per scope under
+`CAIRN_AGENTFS_BASE_DIR`) between machines or backends:
+
+```bash
+cairn memory path                    # print the store location
+cairn memory export store.tgz        # WAL-safe snapshot of every scope db
+cairn memory import store.tgz        # restore on another machine (backs up existing)
+```
+
+### `cairn audit-timer`
+
+`memory-wiki-audit.sh` is the deterministic invalidation backstop meant to run on
+a schedule. `cairn audit-timer` installs it as a systemd user timer (opt-in):
+
+```bash
+cairn audit-timer --on-calendar daily            # install + enable the timer
+cairn audit-timer --render-only ./units          # just render the unit files
+# no systemd? cron:  @daily .../scripts/memory-wiki-audit.sh --para-root "$HOME/PARA" --report ...
+```

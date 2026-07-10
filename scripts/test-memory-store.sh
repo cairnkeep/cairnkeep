@@ -21,8 +21,8 @@ fi
 
 # Seed a store with two scopes and known rows.
 mkdir -p "$tmp/store"
-sqlite3 "$tmp/store/identity.db" "CREATE TABLE m(k TEXT, v TEXT); INSERT INTO m VALUES('who','stefano');"
-sqlite3 "$tmp/store/work-memory.db" "CREATE TABLE m(k TEXT, v TEXT); INSERT INTO m VALUES('proj','triumvir');"
+sqlite3 "$tmp/store/identity.db" "CREATE TABLE m(k TEXT, v TEXT); INSERT INTO m VALUES('alpha','one');"
+sqlite3 "$tmp/store/work-memory.db" "CREATE TABLE m(k TEXT, v TEXT); INSERT INTO m VALUES('beta','two');"
 
 # Export from store A.
 CAIRN_AGENTFS_BASE_DIR="$tmp/store" "$mem" export "$tmp/export.tgz" >/dev/null
@@ -32,10 +32,10 @@ CAIRN_AGENTFS_BASE_DIR="$tmp/store" "$mem" export "$tmp/export.tgz" >/dev/null
 CAIRN_AGENTFS_BASE_DIR="$tmp/store2" "$mem" import "$tmp/export.tgz" >/dev/null
 [[ -f "$tmp/store2/identity.db" ]] || fail "identity.db missing after import"
 [[ -f "$tmp/store2/work-memory.db" ]] || fail "work-memory.db missing after import"
-got=$(sqlite3 "$tmp/store2/identity.db" "SELECT v FROM m WHERE k='who';")
-[[ "$got" == "stefano" ]] || fail "identity row not preserved (got '$got')"
-got=$(sqlite3 "$tmp/store2/work-memory.db" "SELECT v FROM m WHERE k='proj';")
-[[ "$got" == "triumvir" ]] || fail "work-memory row not preserved (got '$got')"
+got=$(sqlite3 "$tmp/store2/identity.db" "SELECT v FROM m WHERE k='alpha';")
+[[ "$got" == "one" ]] || fail "identity row not preserved (got '$got')"
+got=$(sqlite3 "$tmp/store2/work-memory.db" "SELECT v FROM m WHERE k='beta';")
+[[ "$got" == "two" ]] || fail "work-memory row not preserved (got '$got')"
 
 # Import over an existing store backs up the prior file.
 CAIRN_AGENTFS_BASE_DIR="$tmp/store2" "$mem" import "$tmp/export.tgz" >/dev/null

@@ -11,6 +11,15 @@ case "$cmd" in
   bootstrap)
     exec "$CAIRN_ROOT/scripts/bootstrap.sh" "$@"
     ;;
+  doctor)
+    exec "$CAIRN_ROOT/scripts/doctor.sh" "$@"
+    ;;
+  memory)
+    exec "$CAIRN_ROOT/scripts/memory-store.sh" "$@"
+    ;;
+  audit-timer)
+    exec "$CAIRN_ROOT/scripts/install-audit-timer.sh" "$@"
+    ;;
   version | --version | -v)
     echo "cairnkeep (development)"
     ;;
@@ -24,6 +33,16 @@ Usage:
                            --untracked keeps the scaffold out of git via the repo's
                            .git/info/exclude (contributor mode: nothing to commit,
                            invisible to other contributors, local-only).
+  cairn doctor             Health-check the configured pieces (memory server, LLM /
+                           embedding endpoints, git provider, store); skips what is
+                           unconfigured, fails only on a configured-but-unreachable dep.
+  cairn memory <path|export|import>
+                           Relocate the durable memory store. `path` prints its
+                           location; `export <file.tgz>` takes a WAL-safe snapshot;
+                           `import <file.tgz>` restores it on another machine.
+  cairn audit-timer [--on-calendar SPEC] [--para-root PATH] [--render-only DIR]
+                           Install (opt-in) a systemd user timer that runs the
+                           memory+wiki audit on a schedule; prints a cron alternative.
   cairn version            Print version
   cairn help               Show this help
 USAGE
