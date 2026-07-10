@@ -27,7 +27,7 @@ installs. This guide covers all three in order.
 **Via npm** (simplest — everything is on `PATH` as `cairn`):
 
 ```bash
-npm install -g cairnkeep
+npm install -g @cairnkeep/cli
 claude mcp add cairn-memory -s user -- cairn memory-server
 cairn sync --apply                       # operating layer into ~/.claude
 cairn bootstrap /path/to/project         # add --untracked if you don't own the repo

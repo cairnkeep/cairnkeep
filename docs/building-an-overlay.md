@@ -9,7 +9,7 @@ This guide shows the pattern.
 ## Principles
 
 1. **Consume, don't fork.** Treat cairnkeep as an upstream dependency: install it
-   from npm (`npm i -g cairnkeep`) or clone it at a **pinned tag**. Never copy or
+   from npm (`npm i -g @cairnkeep/cli`) or clone it at a **pinned tag**. Never copy or
    patch core files — if core behaviour must change, request it upstream. That way
    you pick up fixes by bumping one version.
 2. **One-way references.** Your overlay may reference cairnkeep freely. Nothing
@@ -54,7 +54,7 @@ Make it one idempotent command from a fresh machine:
 
 ```bash
 # 1. Get cairnkeep at a pinned version (npm or a pinned clone)
-npm i -g cairnkeep@1.0.0            # or: git clone … && git checkout v1.0.0
+npm i -g @cairnkeep/cli@1.0.0      # or: git clone … && git checkout v1.0.0
 
 # 2. Register the memory server with your harness
 claude mcp add cairn-memory -s user -- cairn memory-server

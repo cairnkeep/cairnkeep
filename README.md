@@ -10,7 +10,7 @@ across sessions, projects, and harnesses (Claude Code, OpenCode, …).
 ## Status
 
 Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync`,
-`doctor`, `memory`, `audit-timer`) installable via `npm i -g cairnkeep`, and the
+`doctor`, `memory`, `audit-timer`) installable via `npm i -g @cairnkeep/cli`, and the
 operating layer (commands,
 agents, hooks) installed on both Claude Code and OpenCode. The generic launchers
 expose wrapper seams (`.ai/pre-launch.sh`, `CAIRN_EXTRA_SETTINGS`,
@@ -51,7 +51,7 @@ The short version for Claude Code:
 
 ```bash
 # 1. Install cairnkeep and register the memory server (server name: cairn-memory)
-npm install -g cairnkeep
+npm install -g @cairnkeep/cli
 claude mcp add cairn-memory -s user -- cairn memory-server
 
 # 2. Install the operating layer (commands, agents, hooks, scaffold templates)
