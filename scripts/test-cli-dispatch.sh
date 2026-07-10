@@ -8,6 +8,9 @@ cairn="$ROOT/bin/cairn"
 "$cairn" help | grep -q "cairn doctor" || fail "help missing doctor"
 "$cairn" help | grep -q "cairn memory" || fail "help missing memory"
 "$cairn" help | grep -q "cairn audit-timer" || fail "help missing audit-timer"
+"$cairn" help | grep -q "cairn sync" || fail "help missing sync"
+"$cairn" help | grep -q "cairn memory-server" || fail "help missing memory-server"
+"$cairn" sync --help >/dev/null 2>&1 || fail "cairn sync dispatch"
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 CAIRN_AGENTFS_BASE_DIR="$tmp/store" "$cairn" memory path | grep -qx "$tmp/store" || fail "cairn memory path dispatch"

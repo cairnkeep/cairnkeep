@@ -1,0 +1,49 @@
+{
+  "name": "cairnkeep",
+  "version": "1.0.0",
+  "description": "A durable, harness-agnostic memory + context layer for coding agents (Claude Code, OpenCode).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "cairn": "bin/cairn"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "templates/",
+    "claude/",
+    "opencode/",
+    "docs/",
+    "mcp-memory-server/dist/",
+    "mcp-memory-server/package.json",
+    "AGENTS.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "agentfs-sdk": "^0.6.4",
+    "zod": "^3.25.76"
+  },
+  "scripts": {
+    "prepublishOnly": "cd mcp-memory-server && npm ci && npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cairnkeep/cairnkeep.git"
+  },
+  "homepage": "https://github.com/cairnkeep/cairnkeep#readme",
+  "bugs": {
+    "url": "https://github.com/cairnkeep/cairnkeep/issues"
+  },
+  "keywords": [
+    "mcp",
+    "memory",
+    "agent",
+    "claude-code",
+    "opencode",
+    "context",
+    "rag"
+  ]
+}
