@@ -2,6 +2,17 @@
 # Cairnkeep launcher for Claude Code. Loads this repo's .ai/.env (if present),
 # then launches Claude Code in the repo root. Keep provider/profile specifics in
 # your own wrapper; this stays minimal and generic.
+#
+# Wrapper seams (all optional, all no-ops when absent):
+#   .ai/pre-launch.sh        sourced after .env, before launch. May export env
+#                            (e.g. a provider base URL) or abort the launch by
+#                            returning / exiting non-zero.
+#   CAIRN_EXTRA_SETTINGS     path to a settings JSON layered on top of the
+#                            harness defaults (passed as --settings). Process env
+#                            still wins over this file, so an inline value beats
+#                            the profile.
+#   .ai/post-exit.sh         sourced after the harness exits (normal or not),
+#                            with $CAIRN_EXIT_STATUS set to the harness exit code.
 set -euo pipefail
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 if [[ -f "$ROOT_DIR/.ai/.env" ]]; then
@@ -10,5 +21,26 @@ if [[ -f "$ROOT_DIR/.ai/.env" ]]; then
   . "$ROOT_DIR/.ai/.env"
   set +a
 fi
+if [[ -f "$ROOT_DIR/.ai/pre-launch.sh" ]]; then
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/pre-launch.sh"
+fi
 cd "$ROOT_DIR"
-exec claude "$@"
+
+launch_args=()
+if [[ -n "${CAIRN_EXTRA_SETTINGS:-}" ]]; then
+  launch_args+=(--settings "$CAIRN_EXTRA_SETTINGS")
+fi
+
+if [[ -f "$ROOT_DIR/.ai/post-exit.sh" ]]; then
+  # Run (not exec) so the post-exit hook fires after the harness returns.
+  set +e
+  claude "${launch_args[@]}" "$@"
+  CAIRN_EXIT_STATUS=$?
+  set -e
+  export CAIRN_EXIT_STATUS
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/post-exit.sh" || true
+  exit "$CAIRN_EXIT_STATUS"
+fi
+exec claude "${launch_args[@]}" "$@"
