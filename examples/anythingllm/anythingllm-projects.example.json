@@ -1,0 +1,30 @@
+{
+  "projects": [
+    {
+      "slug": "my-project",
+      "display_name": "My Project Documentation",
+      "path": "/abs/path/to/my-project",
+      "patterns": [
+        "README.md",
+        "docs/**/*.md"
+      ],
+      "exclude_patterns": [
+        "CHANGELOG.md",
+        "LICENSE.md"
+      ]
+    },
+    {
+      "slug": "another-project",
+      "display_name": "Another Project Docs",
+      "path": "/abs/path/to/another-project",
+      "patterns": [
+        "AGENTS.md",
+        "docs/**/*.md",
+        ".planning/wiki/**/*.md"
+      ],
+      "exclude_patterns": [
+        ".planning/wiki/tmp/**"
+      ]
+    }
+  ]
+}

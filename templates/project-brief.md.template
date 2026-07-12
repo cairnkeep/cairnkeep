@@ -1,0 +1,40 @@
+# REPLACE_WITH_PROJECT_NAME Project Brief
+
+Fill this brief before running `/gsd-new-project --auto @.planning/PROJECT-BRIEF.md`.
+
+## Problem
+
+Describe the user or business problem this project solves.
+
+## Outcomes
+
+- Primary outcome:
+- Secondary outcomes:
+
+## Users And Stakeholders
+
+- Primary users:
+- Operators or maintainers:
+- Reviewers or approvers:
+
+## Constraints
+
+- Technical constraints:
+- Security or compliance constraints:
+- Runtime or deployment constraints:
+
+## Non-Goals
+
+-
+
+## Initial Architecture Expectations
+
+-
+
+## Acceptance Signals
+
+-
+
+## Source Material
+
+- Link or reference the idea doc, PRD, standards, or notes that should inform `/gsd-new-project`.

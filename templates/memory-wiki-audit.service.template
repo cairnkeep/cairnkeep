@@ -1,0 +1,6 @@
+[Unit]
+Description=Cairnkeep memory + wiki invalidation audit
+
+[Service]
+Type=oneshot
+ExecStart=@@AUDIT_SCRIPT@@ --para-root @@PARA_ROOT@@ --report @@REPORT_PATH@@

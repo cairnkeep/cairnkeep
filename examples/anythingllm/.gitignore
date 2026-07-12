@@ -1,0 +1,7 @@
+# Your real project config and machine-local sync state stay out of git.
+anythingllm-projects.json
+.anythingllm-sync.json
+
+# Python bytecode
+__pycache__/
+*.pyc

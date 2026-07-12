@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# cairn — Cairnkeep CLI. Thin dispatcher over the core scripts.
+set -euo pipefail
+
+# Resolve through symlinks so this works when installed as an npm global bin
+# (which symlinks <prefix>/bin/cairn -> the packaged bin/cairn).
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR=$(cd -P "$(dirname "$SOURCE")" && pwd)
+  SOURCE=$(readlink "$SOURCE")
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+CAIRN_ROOT=$(cd -P "$(dirname "$SOURCE")/.." && pwd)
+
+cmd="${1:-help}"
+[[ $# -gt 0 ]] && shift
+
+case "$cmd" in
+  bootstrap)
+    exec "$CAIRN_ROOT/scripts/bootstrap.sh" "$@"
+    ;;
+  doctor)
+    exec "$CAIRN_ROOT/scripts/doctor.sh" "$@"
+    ;;
+  memory)
+    exec "$CAIRN_ROOT/scripts/memory-store.sh" "$@"
+    ;;
+  memory-server)
+    # Run the memory MCP server (stdio by default). Use with your harness, e.g.
+    #   claude mcp add cairn-memory -s user -- cairn memory-server
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/index.js" "$@"
+    ;;
+  sync)
+    exec "$CAIRN_ROOT/scripts/sync-claude-assets.sh" "$@"
+    ;;
+  audit-timer)
+    exec "$CAIRN_ROOT/scripts/install-audit-timer.sh" "$@"
+    ;;
+  version | --version | -v)
+    v=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$CAIRN_ROOT/package.json" 2>/dev/null | head -1)
+    echo "cairnkeep ${v:-unknown}"
+    ;;
+  help | --help | -h | *)
+    cat <<'USAGE'
+cairn — Cairnkeep CLI
+
+Usage:
+  cairn bootstrap [--untracked] [path]
+                           Scaffold .ai/ launchers + env into a project (default: .).
+                           --untracked keeps the scaffold out of git via the repo's
+                           .git/info/exclude (contributor mode: nothing to commit,
+                           invisible to other contributors, local-only).
+  cairn memory-server      Run the memory MCP server (stdio). Register it with your
+                           harness, e.g. claude mcp add cairn-memory -s user -- cairn memory-server.
+  cairn sync [--apply] [--live-root DIR]
+                           Install/update the Claude Code operating layer (commands,
+                           agents, hooks) into ~/.claude, or into DIR for a single
+                           project (--live-root <project>/.claude).
+  cairn doctor             Health-check the configured pieces (memory server, LLM /
+                           embedding endpoints, git provider, store); skips what is
+                           unconfigured, fails only on a configured-but-unreachable dep.
+  cairn memory <path|export|import>
+                           Relocate the durable memory store. `path` prints its
+                           location; `export <file.tgz>` takes a WAL-safe snapshot;
+                           `import <file.tgz>` restores it on another machine.
+  cairn audit-timer [--on-calendar SPEC] [--para-root PATH] [--render-only DIR]
+                           Install (opt-in) a systemd user timer that runs the
+                           memory+wiki audit on a schedule; prints a cron alternative.
+  cairn version            Print version
+  cairn help               Show this help
+USAGE
+    ;;
+esac

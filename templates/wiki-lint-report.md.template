@@ -1,0 +1,38 @@
+# Wiki Lint Report
+
+- Project: REPLACE_WITH_PROJECT_NAME
+- Generated at: REPLACE_WITH_TIMESTAMP
+- Scope: REPLACE_WITH_SCOPE
+- Advisory status: Raw repository docs, tests, interfaces, config, and code remain canonical.
+
+## Summary
+
+- Missing citations: 0
+- Orphan pages: 0
+- Stale claims: 0
+- Contradicted claims: 0 (hard: 0 / scope-mismatch: 0 / soft: 0)
+- Missing obvious pages: 0
+- Broken cross-references: 0
+
+> Contradiction entries are also written to `.planning/wiki/CONTRADICTIONS.md`,
+> the persistent register. This report is a snapshot; the register is durable.
+
+## Contradictions (severity-tagged)
+
+- None.
+
+## High Signal Findings
+
+- None.
+
+## Medium Signal Findings
+
+- None.
+
+## Low Signal Findings
+
+- None.
+
+## Suggested Next Steps
+
+- Keep the wiki sparse, citation-heavy, and aligned to canonical raw sources.

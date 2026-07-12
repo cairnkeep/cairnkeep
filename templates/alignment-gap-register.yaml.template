@@ -1,0 +1,56 @@
+version: 1
+project: REPLACE_WITH_PROJECT_NAME
+default_branch: main
+last_full_audit:
+  commit: null
+  at: null
+  report: null
+gaps: []
+
+# Gap entry shape:
+# - id: GAP-0001
+#   title: README still advertises unsupported SPDX 2.3 output mode
+#   kind: code_ahead_of_docs
+#   severity: high
+#   status: new
+#   truth_source: code
+#   resolution_type: docs_and_memory
+#   opened_by: alignment-audit
+#   opened_at: 2026-04-16T12:30:00Z
+#   claimed_by: null
+#   claimed_at: null
+#   branch: null
+#   pr: null
+#   proposal_type: primary
+#   evidence:
+#     code:
+#       - src/convert/mod.rs
+#     docs:
+#       - README.md
+#     memory:
+#       - project/capabilities/export-mode
+#   notes: >-
+#     The code no longer exposes the documented mode. README and memory should be updated.
+#   supersedes: []
+#   superseded_by: null
+#   quorum:
+#     machine_checks:
+#       - alignment-audit
+#     human_approvals_required: 1
+#     owner_roles: []
+#   planning:
+#     status: unplanned
+#     plan_path: null
+#     planned_at: null
+#     planned_by: null
+#     task_type: null
+#   resolution:
+#     commit: null
+#     merged_at: null
+#     verified_at: null
+#   promotion:
+#     promoted_at: null
+#     promoted_by: null
+#     report_path: null
+#     anythingllm_workspace: null
+#     anythingllm_reembedded_at: null
