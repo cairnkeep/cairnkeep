@@ -1,0 +1,11 @@
+# Wiki Log
+
+This log records wiki ingests, reusable query writebacks, and advisory lint runs.
+
+Raw repository docs, tests, interfaces, config, and code remain canonical.
+
+## Entries
+
+<!-- wiki:entries:start -->
+- Scaffold initialized. Append timestamped `wiki-ingest`, `wiki-query --writeback`, and `wiki-lint` entries below.
+<!-- wiki:entries:end -->

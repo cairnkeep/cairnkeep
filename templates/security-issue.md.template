@@ -1,0 +1,43 @@
+# Confidential Security Issue Draft
+
+- Project: REPLACE_WITH_PROJECT_NAME
+- Provider project: REPLACE_WITH_PROVIDER_PROJECT
+- Finding ID: REPLACE_WITH_FINDING_ID
+- Severity: REPLACE_WITH_SEVERITY
+- Kind: REPLACE_WITH_KIND
+- Selected file: REPLACE_WITH_SELECTED_FILE
+- Investigation target: REPLACE_WITH_INVESTIGATION_TARGET
+- Threat model: REPLACE_WITH_THREAT_MODEL
+- Branch: REPLACE_WITH_BRANCH
+- Generated at: REPLACE_WITH_TIMESTAMP
+- Source command: /security-audit
+- Source report: REPLACE_WITH_REPORT_PATH
+
+## Summary
+
+REPLACE_WITH_SUMMARY
+
+## Reachability And Impact
+
+REPLACE_WITH_REACHABILITY_AND_IMPACT
+
+## Evidence
+
+REPLACE_WITH_EVIDENCE
+
+## Minimal Reproduction Or Exploit Sketch
+
+REPLACE_WITH_REPRODUCTION
+
+## Recommended Remediation
+
+REPLACE_WITH_REMEDIATION
+
+## Local Artifact References
+
+- Validated report: REPLACE_WITH_VALIDATED_REPORT
+- Audit report: REPLACE_WITH_AUDIT_REPORT
+
+## Confidentiality Note
+
+This issue was generated from a governed local security assessment and should remain confidential until remediation and disclosure decisions are made.

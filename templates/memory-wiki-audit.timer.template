@@ -1,0 +1,9 @@
+[Unit]
+Description=Schedule the Cairnkeep memory + wiki audit
+
+[Timer]
+OnCalendar=@@ON_CALENDAR@@
+Persistent=true
+
+[Install]
+WantedBy=timers.target

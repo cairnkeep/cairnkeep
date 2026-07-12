@@ -1,0 +1,22 @@
+{
+  "source_path": ".planning/ROADMAP.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Cairnkeep — roadmap",
+  "summary": "Phased roadmap to bring the Cairnkeep OSS core to feature parity, covering git-provider abstraction, operating-layer verification, and docs sign-off.",
+  "scope": [
+    "git-provider abstraction",
+    "collaboration commands (memory-sync, repo-review/code-review, security-audit)",
+    "cairn-memory MCP server",
+    "memory hooks (wakeup/capture/review)",
+    "operating guide docs",
+    "cairn bootstrap",
+    "enterprise overlay",
+    "token-miser integration"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": 1,
+  "notes": "Type set by manifest (SPEC, precedence 1). Content reads as a roadmap/planning doc (would heuristically be DOC); no markdown links to other documents found."
+}

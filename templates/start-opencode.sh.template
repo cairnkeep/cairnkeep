@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Cairnkeep launcher for OpenCode. Loads this repo's .ai/.env (if present), then
+# launches OpenCode in the repo root. Keep provider/profile specifics in your own
+# wrapper; this stays minimal and generic.
+#
+# Wrapper seams (all optional, all no-ops when absent):
+#   .ai/pre-launch.sh        sourced after .env, before launch. May export env
+#                            or abort the launch by returning / exiting non-zero.
+#   CAIRN_EXTRA_SETTINGS     path to an OpenCode config file layered via --config.
+#   .ai/post-exit.sh         sourced after OpenCode exits, with $CAIRN_EXIT_STATUS
+#                            set to the exit code.
+set -euo pipefail
+ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ -f "$ROOT_DIR/.ai/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/.env"
+  set +a
+fi
+if [[ -f "$ROOT_DIR/.ai/pre-launch.sh" ]]; then
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/pre-launch.sh"
+fi
+cd "$ROOT_DIR"
+
+launch_args=()
+if [[ -n "${CAIRN_EXTRA_SETTINGS:-}" ]]; then
+  launch_args+=(--config "$CAIRN_EXTRA_SETTINGS")
+fi
+
+if [[ -f "$ROOT_DIR/.ai/post-exit.sh" ]]; then
+  set +e
+  opencode "${launch_args[@]}" "$@"
+  CAIRN_EXIT_STATUS=$?
+  set -e
+  export CAIRN_EXIT_STATUS
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/post-exit.sh" || true
+  exit "$CAIRN_EXIT_STATUS"
+fi
+exec opencode "${launch_args[@]}" "$@"
