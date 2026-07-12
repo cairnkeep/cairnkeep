@@ -40,6 +40,18 @@ cairnkeep-org sibling project.
   cairnkeep's `context_explore` and `route_check` tools are thin delegates
   to it.
 
+## Optional companion tools
+
+cairnkeep runs standalone — none of the tools below are required. Its memory
+server, `cairn bootstrap`, and derived-knowledge features work with none of
+them. These are the accelerators the author pairs cairnkeep with; each is opt-in.
+
+| Tool | What it adds | How it plugs in |
+|------|--------------|-----------------|
+| [lean-ctx](https://github.com/yvgude/lean-ctx) | Compressed reads/searches/shell/dir-maps — large token savings on exploration | Register as an MCP server in your harness |
+| [token-miser](https://github.com/cairnkeep/token-miser) | Model routing (`route_check`) + codebase mapping (`context_explore`) | Already integrated, env-gated: `CAIRN_ROUTE_ENDPOINT` / `CAIRN_EXPLORE_BINARY` |
+| [rtk](https://github.com/rtk-ai/rtk) | "Rust Token Killer": token-reduced proxy for git/npm/cargo output | Shell-level, no wiring needed |
+
 ## Setup
 
 A working workflow needs three things: the memory server registered, the
