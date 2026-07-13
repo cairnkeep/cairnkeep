@@ -15,7 +15,7 @@ jobs:
       run:
         working-directory: mcp-memory-server
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -28,7 +28,7 @@ jobs:
   repository:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The public-safety guard scans the complete commit-message history.
           fetch-depth: 0
@@ -44,7 +44,7 @@ jobs:
   shell-portability:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: scripts/smoke-bash32.sh   # ubuntu-latest has docker preinstalled
 
   # Install the packed tarball on a clean, minimal node:18 box (the engines floor)
@@ -53,7 +53,7 @@ jobs:
   server-boot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "18"
@@ -78,7 +78,7 @@ jobs:
   fresh-install-macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "18"
