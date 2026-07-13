@@ -11,6 +11,9 @@ cairn="$ROOT/bin/cairn"
 "$cairn" help | grep -q "cairn sync" || fail "help missing sync"
 "$cairn" help | grep -q "cairn memory-server" || fail "help missing memory-server"
 "$cairn" sync --help >/dev/null 2>&1 || fail "cairn sync dispatch"
+if "$cairn" not-a-command >/dev/null 2>&1; then
+  fail "unknown command should exit non-zero"
+fi
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 CAIRN_AGENTFS_BASE_DIR="$tmp/store" "$cairn" memory path | grep -qx "$tmp/store" || fail "cairn memory path dispatch"
