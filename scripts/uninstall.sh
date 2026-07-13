@@ -10,7 +10,8 @@
 # Undoes: the operating layer (`cairn sync --apply` — commands, agents,
 # templates, hooks + their settings.json registrations), the MCP registration
 # (`claude mcp add cairn-memory`), the opt-in audit timer, and — for any project
-# paths you pass — the `cairn bootstrap` scaffold. The npm package itself is
+# paths you pass — the `cairn bootstrap` scaffold. Project `.agentfs/` memory is
+# retained unless `--purge-memory` is given. The npm package itself is
 # npm's to remove; the final step is printed, not run (it would delete this
 # script mid-execution).
 set -uo pipefail
@@ -39,9 +40,8 @@ $HOME/.cairnkeep-uninstall-<ts>/ with a revert.sh before any change.
 
   --dry-run        Print what would happen; touch nothing.
   --yes            Do not prompt for confirmation.
-  --purge-memory   Also remove the durable memory store ($HOME/.cairnkeep or
-                   $CAIRN_AGENTFS_BASE_DIR). Backed up first, but this is your
-                   accumulated memory — off by default.
+  --purge-memory   Also remove the global memory store and .agentfs/ memory in
+                   each PROJECT. Backed up first; off by default.
   --live-root PATH Claude root to clean (default: $CLAUDE_CONFIG_DIR or ~/.claude).
   PROJECT ...      Also revert `cairn bootstrap` in these project dirs
                    (.ai/, .planning/, and any .git/info/exclude entries).
@@ -209,16 +209,26 @@ for proj in "${PROJECTS[@]:-}"; do
   echo "Project scaffold: $proj"
   remove_path "$proj/.ai"
   remove_path "$proj/.planning"
+  if [[ $PURGE_MEMORY -eq 1 ]]; then
+    remove_path "$proj/.agentfs"
+  elif [[ -d "$proj/.agentfs" ]]; then
+    echo "  kept project memory: $proj/.agentfs"
+  fi
   # Strip the .git/info/exclude lines contributor-mode bootstrap added.
   if excl=$(cd "$proj" && git rev-parse --git-path info/exclude 2>/dev/null); then
     [[ "$excl" == /* ]] || excl="$proj/$excl"
     prefix=$(cd "$proj" && git rev-parse --show-prefix 2>/dev/null)
     if [[ -f "$excl" ]] && grep -qxF "/${prefix}.ai/" "$excl" 2>/dev/null; then
       if [[ $DRY_RUN -eq 1 ]]; then
-        echo "  would strip .ai/ + .planning/ from ${excl}"
+        echo "  would strip scaffold entries from ${excl}"
       else
         back_up "$excl"
-        grep -vxF -e "/${prefix}.ai/" -e "/${prefix}.planning/" "$excl" >"$excl.tmp" && mv "$excl.tmp" "$excl"
+        if [[ $PURGE_MEMORY -eq 1 ]]; then
+          grep -vxF -e "/${prefix}.ai/" -e "/${prefix}.planning/" -e "/${prefix}.agentfs/" "$excl" >"$excl.tmp" || true
+        else
+          grep -vxF -e "/${prefix}.ai/" -e "/${prefix}.planning/" "$excl" >"$excl.tmp" || true
+        fi
+        mv "$excl.tmp" "$excl"
         echo "  stripped exclude entries from ${excl}"
       fi
     fi

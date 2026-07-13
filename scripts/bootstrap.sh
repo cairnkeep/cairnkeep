@@ -57,6 +57,10 @@ install_file "$TPL/start-claude.sh.template"   "$target/.ai/start-claude.sh"   0
 install_file "$TPL/start-opencode.sh.template" "$target/.ai/start-opencode.sh" 0755
 install_file "$TPL/env.example.template"       "$target/.ai/env.example"       0644
 
+# Project-scope memory is private runtime data. Keep it out of version control
+# even before the first .agentfs/project.db is created.
+install_file "$TPL/agentfs-gitignore.template" "$target/.agentfs/.gitignore" 0644
+
 # .planning/ derived-knowledge layer  (template : destination)
 planning_pairs=(
   "planning-config.json.template:.planning/config.json"
@@ -77,7 +81,7 @@ done
 
 if [[ $untracked -eq 1 ]]; then
   mkdir -p "$(dirname "$exclude_file")"
-  for entry in "/${exclude_prefix}.ai/" "/${exclude_prefix}.planning/"; do
+  for entry in "/${exclude_prefix}.ai/" "/${exclude_prefix}.planning/" "/${exclude_prefix}.agentfs/"; do
     if grep -qxF "$entry" "$exclude_file" 2>/dev/null; then
       echo "skip (already excluded): $entry"
     else

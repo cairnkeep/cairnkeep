@@ -24,18 +24,22 @@ git -C "$tmp/repo" init -q
 "$ROOT/scripts/bootstrap.sh" --untracked "$tmp/repo" >/dev/null
 [[ -f "$tmp/repo/.ai/start-claude.sh" ]] || fail "scaffold missing"
 [[ -f "$tmp/repo/.planning/config.json" ]] || fail "planning layer missing"
+[[ -f "$tmp/repo/.agentfs/.gitignore" ]] || fail "project-memory ignore guard missing"
 [[ -z "$(git -C "$tmp/repo" status --porcelain)" ]] || fail "scaffold visible to git"
 grep -qxF "/.ai/" "$tmp/repo/.git/info/exclude" || fail "missing /.ai/ exclude entry"
 grep -qxF "/.planning/" "$tmp/repo/.git/info/exclude" || fail "missing /.planning/ exclude entry"
+grep -qxF "/.agentfs/" "$tmp/repo/.git/info/exclude" || fail "missing /.agentfs/ exclude entry"
 
 # Re-run is idempotent: no duplicate exclude entries
 "$ROOT/scripts/bootstrap.sh" --untracked "$tmp/repo" >/dev/null
 [[ $(grep -cxF "/.ai/" "$tmp/repo/.git/info/exclude") -eq 1 ]] || fail "duplicate exclude entries"
+[[ $(grep -cxF "/.agentfs/" "$tmp/repo/.git/info/exclude") -eq 1 ]] || fail "duplicate .agentfs exclude entry"
 
 # Default mode is unchanged: scaffold stays visible to git
 mkdir "$tmp/repo2"
 git -C "$tmp/repo2" init -q
 "$ROOT/scripts/bootstrap.sh" "$tmp/repo2" >/dev/null
 git -C "$tmp/repo2" status --porcelain | grep -q "\.ai/" || fail "default mode should leave the scaffold tracked"
+git -C "$tmp/repo2" status --porcelain | grep -q "\.agentfs/" || fail "default mode should track the memory ignore guard"
 
 echo "PASS: bootstrap --untracked contributor mode"

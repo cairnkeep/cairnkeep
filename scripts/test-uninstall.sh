@@ -58,11 +58,13 @@ EXCL="$PROJ/.git/info/exclude"
 mkdir -p "$SB/home/.cairnkeep"; echo data >"$SB/home/.cairnkeep/db"
 "$ROOT_DIR/scripts/uninstall.sh" --yes --purge-memory --live-root "$SB/home/.claude" "$PROJ" >/dev/null 2>&1
 check "project .ai removed"      "$([[ -e "$PROJ/.ai" ]] && echo no || echo yes)" "yes"
-check "exclude lines stripped"   "$(grep -cE '\.ai/|\.planning/' "$EXCL" 2>/dev/null || true)" "0"
+check "project .agentfs removed" "$([[ -e "$PROJ/.agentfs" ]] && echo no || echo yes)" "yes"
+check "exclude lines stripped"   "$(grep -cE '\.ai/|\.planning/|\.agentfs/' "$EXCL" 2>/dev/null || true)" "0"
 check "memory store purged"      "$([[ -e "$SB/home/.cairnkeep" ]] && echo no || echo yes)" "yes"
 BK2=$(ls -dt "$SB/home/.cairnkeep-uninstall-"* 2>/dev/null | head -1)
 bash "$BK2/revert.sh" >/dev/null 2>&1
 check "project scaffold restored" "$([[ -d "$PROJ/.ai" ]] && echo yes || echo no)" "yes"
+check "project ignore restored"   "$([[ -f "$PROJ/.agentfs/.gitignore" ]] && echo yes || echo no)" "yes"
 check "memory store restored"     "$(cat "$SB/home/.cairnkeep/db" 2>/dev/null)" "data"
 
 echo
