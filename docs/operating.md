@@ -18,6 +18,8 @@ installs. This guide covers all three in order.
 
 - Node.js (for the memory server) and a supported harness: Claude Code or
   OpenCode.
+- Optional: the `sqlite3` CLI for `cairn memory export`. Runtime memory and
+  `cairn memory import` do not require it.
 - Optional: an OpenAI-compatible LLM endpoint for memory extraction and
   embedding-ranked search. Without it, memory search degrades to substring
   matching — everything else still works.
@@ -354,6 +356,9 @@ cairn memory path                    # print the store location
 cairn memory export store.tgz        # WAL-safe snapshot of every scope db
 cairn memory import store.tgz        # restore on another machine (backs up existing)
 ```
+
+`cairn memory export` requires the `sqlite3` CLI so it can use SQLite's online
+backup operation and produce a consistent snapshot while WAL mode is active.
 
 ### `cairn audit-timer`
 
