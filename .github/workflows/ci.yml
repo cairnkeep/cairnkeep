@@ -37,3 +37,61 @@ jobs:
           node-version: "20"
       - run: npm run check:public
       - run: npm pack --dry-run --ignore-scripts
+
+  # macOS ships bash 3.2; `#!/usr/bin/env bash` picks it up. Run the sync scripts
+  # under a real bash 3.2 (container) so bash-4-only regressions fail here, not on
+  # a contributor's Mac. CI runs on bash 5, so nothing else catches this.
+  shell-portability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/smoke-bash32.sh   # ubuntu-latest has docker preinstalled
+
+  # Install the packed tarball on a clean, minimal node:18 box (the engines floor)
+  # and boot the server — catches missing `files` entries, an unbuilt dist, deps
+  # that don't resolve under a global install, and a server that won't start.
+  server-boot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+      - name: Build + pack
+        run: |
+          npm --prefix mcp-memory-server ci
+          npm --prefix mcp-memory-server run build
+          npm pack
+      - name: Global install + boot on a clean node:18-slim container
+        run: |
+          docker run --rm -v "$PWD":/w -w /w node:18-slim bash -c '
+            set -e
+            npm i -g ./cairnkeep-cli-*.tgz
+            cairn version
+            cairn doctor
+            scripts/smoke-mcp-boot.sh
+          '
+
+  # The highest-fidelity fresh-system check: GitHub's macOS runners are real macOS
+  # with bash 3.2 — the exact environment a contributor hit. Force /bin/bash first
+  # on PATH so `env bash` resolves to 3.2, then run the documented install verbatim.
+  fresh-install-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+      - name: Install per the README on real macOS bash 3.2
+        run: |
+          export PATH="/bin:$PATH"          # make `env bash` pick macOS's 3.2
+          bash --version | head -1
+          npm --prefix mcp-memory-server ci
+          npm --prefix mcp-memory-server run build
+          npm pack
+          npm i -g ./cairnkeep-cli-*.tgz
+          cairn version
+          cairn sync --apply --live-root "$RUNNER_TEMP/claude"
+          cairn bootstrap "$RUNNER_TEMP/proj"
+          ( cd "$RUNNER_TEMP/proj" && cairn doctor )
+          scripts/smoke-mcp-boot.sh
