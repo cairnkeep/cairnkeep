@@ -22,6 +22,9 @@ case "$cmd" in
   doctor)
     exec "$CAIRN_ROOT/scripts/doctor.sh" "$@"
     ;;
+  uninstall)
+    exec "$CAIRN_ROOT/scripts/uninstall.sh" "$@"
+    ;;
   memory)
     exec "$CAIRN_ROOT/scripts/memory-store.sh" "$@"
     ;;
@@ -66,6 +69,12 @@ Usage:
   cairn audit-timer [--on-calendar SPEC] [--para-root PATH] [--render-only DIR]
                            Install (opt-in) a systemd user timer that runs the
                            memory+wiki audit on a schedule; prints a cron alternative.
+  cairn uninstall [--dry-run] [--yes] [--purge-memory] [--live-root DIR] [PROJECT ...]
+                           Reverse what cairnkeep installed/modified (operating
+                           layer, hook registrations, MCP registration, audit
+                           timer, and any given projects' bootstrap scaffold).
+                           Backs everything up first with a revert.sh; keeps the
+                           durable memory store unless --purge-memory is given.
   cairn version            Print version
   cairn help               Show this help
 USAGE
