@@ -99,19 +99,27 @@ SETTINGS_FILE="$LIVE_ROOT/settings.json"
 # PreToolUse-style events; an optional trailing "@timeout" (seconds) threads
 # an explicit per-hook timeout into the settings.json registration entry so
 # Claude Code's kill budget is documented, not assumed (Pitfall 1).
-declare -A HOOK_EVENTS=(
-  ["memory-wakeup.sh"]="SessionStart"
-  ["memory-capture.sh"]="SessionEnd"
-  ["memory-recall.sh"]="PreToolUse:Edit|Write|MultiEdit"
-  ["context-explore-pretask.sh"]="UserPromptSubmit@25"
-)
+#
+# A case lookup, not `declare -A`: associative arrays are bash 4+, but macOS
+# still ships bash 3.2 as /bin/bash, where `declare -A HOOK_EVENTS=([k]=v)`
+# is parsed as a numeric-index assignment and dies under `set -u`
+# ("k: unbound variable"). Portable to 3.2; empty string = "not a hook".
+hook_event_for() {
+  case "$1" in
+    memory-wakeup.sh)           echo "SessionStart" ;;
+    memory-capture.sh)          echo "SessionEnd" ;;
+    memory-recall.sh)           echo "PreToolUse:Edit|Write|MultiEdit" ;;
+    context-explore-pretask.sh) echo "UserPromptSubmit@25" ;;
+    *)                          echo "" ;;
+  esac
+}
 
 for hook_src in "$CLAUDE_SOURCE"/hooks/*.sh; do
   [[ -f "$hook_src" ]] || continue
   hook_name="$(basename "$hook_src")"
   hook_dst="$HOOK_LIVE_DIR/$hook_name"
   hook_cmd="bash \"$hook_dst\""
-  event_spec="${HOOK_EVENTS[$hook_name]:-}"
+  event_spec="$(hook_event_for "$hook_name")"
   if [[ -z "$event_spec" ]]; then
     # Unknown hook: still render it, but do not auto-register (avoid stomping settings).
     if [[ "$MODE" == "apply" ]]; then

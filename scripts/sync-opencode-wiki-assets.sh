@@ -133,7 +133,11 @@ report_extra_live_assets() {
     return
   fi
 
-  mapfile -t extras < <(collect_extra_live_assets "$LIVE_ROOT")
+  # read loop, not `mapfile`: mapfile is bash 4+, absent from macOS bash 3.2.
+  local line
+  while IFS= read -r line; do
+    extras+=("$line")
+  done < <(collect_extra_live_assets "$LIVE_ROOT")
   if ((${#extras[@]} == 0)); then
     return
   fi
