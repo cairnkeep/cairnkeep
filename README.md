@@ -10,7 +10,7 @@ across sessions, projects, and harnesses (Claude Code, OpenCode, …).
 ## Status
 
 Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync`,
-`doctor`, `memory`, `audit-timer`) installable via `npm i -g @cairnkeep/cli`, and the
+`doctor`, `memory`, `audit-timer`, `uninstall`) installable via `npm i -g @cairnkeep/cli`, and the
 operating layer (commands,
 agents, hooks) installed on both Claude Code and OpenCode. The generic launchers
 expose wrapper seams (`.ai/pre-launch.sh`, `CAIRN_EXTRA_SETTINGS`,
@@ -28,7 +28,8 @@ cairnkeep-org sibling project.
 - **`bin/cairn`** — the CLI. `cairn bootstrap [path]` scaffolds a project's
   `.ai/` launchers + env; `cairn doctor` health-checks the configured pieces;
   `cairn memory export|import` relocates the durable store between machines;
-  `cairn audit-timer` installs the scheduled memory+wiki audit.
+  `cairn audit-timer` installs the scheduled memory+wiki audit; `cairn uninstall`
+  reverses the install (backup-first, revertible).
 - **`templates/`** — project scaffolding (generic launchers, env) plus the
   derived-knowledge layer (wiki, alignment, graph, security, planning).
 - **`scripts/`** — asset-sync and maintenance utilities.
