@@ -27,7 +27,8 @@ cairnkeep-org sibling project.
   embedding-ranked search against any OpenAI-compatible endpoint.
 - **`bin/cairn`** — the CLI. `cairn bootstrap [path]` scaffolds a project's
   `.ai/` launchers + env; `cairn doctor` health-checks the configured pieces;
-  `cairn memory export|import` relocates the durable store between machines;
+  `cairn memory export|import` relocates the durable store between machines
+  (`export` requires the optional `sqlite3` CLI);
   `cairn audit-timer` installs the scheduled memory+wiki audit; `cairn uninstall`
   reverses the install (backup-first, revertible).
 - **`templates/`** — project scaffolding (generic launchers, env) plus the

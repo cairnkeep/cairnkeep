@@ -90,6 +90,14 @@ else
   else fail "memory store parent not writable: $parent"; fi
 fi
 
+# 6. Optional backup dependency. Runtime memory and imports do not need it,
+#    but exports use sqlite3's .backup command for a consistent WAL snapshot.
+if command -v sqlite3 >/dev/null 2>&1; then
+  pass "sqlite3 available (memory export enabled)"
+else
+  warn "sqlite3 not found — memory export unavailable (runtime and import unaffected)"
+fi
+
 echo
 if [[ "$fails" -gt 0 ]]; then
   echo "cairn doctor: $fails configured dependency check(s) failed."

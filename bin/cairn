@@ -35,8 +35,8 @@ Usage:
                            embedding endpoints, git provider, and store.
   cairn memory <path|export|import>
                            Relocate the durable memory store. `path` prints its
-                           location; `export <file.tgz>` takes a WAL-safe snapshot;
-                           `import <file.tgz>` restores it on another machine.
+                           location; `export <file.tgz>` takes a WAL-safe snapshot
+                           (requires sqlite3); `import <file.tgz>` restores it.
   cairn audit-timer [--on-calendar SPEC] [--para-root PATH] [--render-only DIR]
                            Install (opt-in) a systemd user timer that runs the
                            memory+wiki audit on a schedule; prints a cron alternative.
