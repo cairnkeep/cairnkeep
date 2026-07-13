@@ -52,7 +52,7 @@ claude mcp add cairn-memory -s user -- node "$PWD/mcp-memory-server/dist/index.j
 scripts/sync-claude-assets.sh --apply
 
 # 4. Scaffold a target project
-cairn bootstrap /path/to/project
+bin/cairn bootstrap /path/to/project
 cp /path/to/project/.ai/env.example /path/to/project/.ai/.env
 $EDITOR /path/to/project/.ai/.env    # see "Configuration" below
 # Not the repo's owner? Add --untracked to keep the scaffold out of git
@@ -335,9 +335,10 @@ its settings file and exports `CAIRN_EXTRA_SETTINGS` — no change to the launch
 
 ### `cairn doctor`
 
-Health-checks the configured pieces, reading only `./.ai/.env` (or the current
-env). Unconfigured optional dependencies are skipped; it exits non-zero only when
-a configured dependency (LLM/embedding endpoint, writable store) is unreachable.
+Health-checks the required memory server with a real MCP stdio handshake, then
+checks `./.ai/.env` (or the current environment). Unconfigured optional
+dependencies are skipped; it exits non-zero when the server probe fails or a
+configured dependency (LLM/embedding endpoint, writable store) is unreachable.
 
 ```bash
 cd /path/to/project && cairn doctor

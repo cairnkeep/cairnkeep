@@ -3,9 +3,9 @@
 #
 # Reports pass/warn/skip/fail for the pieces cairnkeep needs, reading only what
 # is already configured in ./.ai/.env (or the current environment). Unconfigured
-# optional dependencies are SKIPPED, never failed. Exits non-zero only if a
-# CONFIGURED dependency is unreachable, so a green run means "the things you
-# turned on actually work".
+# optional dependencies are SKIPPED, never failed. The required memory server
+# is checked with a real MCP initialize exchange. Exits non-zero if that probe
+# fails or a configured dependency is unreachable.
 set -uo pipefail
 
 CAIRN_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -30,11 +30,18 @@ reachable() { curl -sS -m 5 -o /dev/null "$1" >/dev/null 2>&1; }
 
 echo "cairn doctor"
 
-# 1. Memory server built (local prerequisite; actionable warning, not a failure).
-if [[ -f "$CAIRN_ROOT/mcp-memory-server/dist/index.js" ]]; then
-  pass "memory server built (mcp-memory-server/dist/index.js)"
+# 1. Required memory server: prove that the shipped build and dependencies can
+#    complete an MCP stdio handshake, rather than only checking for one file.
+server="$CAIRN_ROOT/mcp-memory-server/dist/index.js"
+probe="$CAIRN_ROOT/scripts/probe-memory-server.mjs"
+if ! command -v node >/dev/null 2>&1; then
+  fail "Node.js not found (Node.js 18 or newer is required)"
+elif [[ ! -f "$server" ]]; then
+  fail "memory server not built — run: (cd \"$CAIRN_ROOT/mcp-memory-server\" && npm install && npm run build)"
+elif node "$probe" "$server" >/dev/null 2>&1; then
+  pass "memory server responds over MCP stdio"
 else
-  warn "memory server not built — run: (cd \"$CAIRN_ROOT/mcp-memory-server\" && npm install && npm run build)"
+  fail "memory server failed its MCP stdio probe — reinstall cairnkeep or rebuild mcp-memory-server"
 fi
 
 # 2. LLM extraction endpoint (optional; unset → substring-only memory search).

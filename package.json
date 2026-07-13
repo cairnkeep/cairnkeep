@@ -32,10 +32,12 @@
     "zod": "^3.25.76"
   },
   "scripts": {
-    "prepack": "git ls-files -s | awk '$1==\"100755\"{print $4}' | xargs chmod 755",
+    "build:server": "npm --prefix mcp-memory-server ci --include=dev --global=false --dry-run=false && npm --prefix mcp-memory-server run build --global=false --dry-run=false",
+    "fix:perms": "git ls-files -s | awk '$1==\"100755\"{print $4}' | xargs chmod 755",
+    "prepack": "npm run build:server && npm run fix:perms",
     "test": "for test in scripts/test-*.sh; do \"$test\" || exit 1; done",
     "check:public": "scripts/verify-no-private-references.sh && scripts/verify-docs-parity.sh && npm test",
-    "prepublishOnly": "npm run check:public && npm --prefix mcp-memory-server ci && npm --prefix mcp-memory-server test"
+    "prepublishOnly": "npm run check:public && npm run build:server && npm --prefix mcp-memory-server test --global=false --dry-run=false"
   },
   "repository": {
     "type": "git",
