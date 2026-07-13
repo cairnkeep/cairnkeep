@@ -21,7 +21,8 @@ cairn — Cairnkeep CLI
 
 Usage:
   cairn bootstrap [--untracked] [path]
-                           Scaffold .ai/ launchers + env into a project (default: .).
+                           Scaffold launchers, planning files, and the private
+                           project-memory ignore guard (default path: .).
                            --untracked keeps the scaffold out of git via the repo's
                            .git/info/exclude (contributor mode: nothing to commit,
                            invisible to other contributors, local-only).
@@ -34,9 +35,9 @@ Usage:
   cairn doctor             Health-check the memory server and configured LLM /
                            embedding endpoints, git provider, and store.
   cairn memory <path|export|import>
-                           Relocate the durable memory store. `path` prints its
-                           location; `export <file.tgz>` takes a WAL-safe snapshot
-                           (requires sqlite3); `import <file.tgz>` restores it.
+                           Relocate global-scope memory. `path` prints its location;
+                           `export <file.tgz>` takes a WAL-safe snapshot (requires
+                           sqlite3); `import <file.tgz>` restores it.
   cairn audit-timer [--on-calendar SPEC] [--para-root PATH] [--render-only DIR]
                            Install (opt-in) a systemd user timer that runs the
                            memory+wiki audit on a schedule; prints a cron alternative.

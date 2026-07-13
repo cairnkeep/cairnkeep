@@ -61,6 +61,11 @@ operating layer (commands, agents, hooks) installed into your harness, and a
 bootstrapped project. `cairn bootstrap` does only the last of these — the full
 ordered walkthrough is in **[docs/operating.md](docs/operating.md)**.
 
+This setup is local by default: the registered stdio server stores memory on
+the user's computer. Cairnkeep never discovers or selects a remote host.
+Remote HTTP storage requires an explicit server deployment and client URL; see
+**[Memory storage and deployment](docs/storage.md)** before enabling it.
+
 The short version for Claude Code:
 
 ```bash
@@ -107,7 +112,7 @@ unless a wrapper opts in:
 
 **Contributor mode.** Working on a repo you don't own? `cairn bootstrap
 --untracked /path/to/project` additionally writes the scaffolded paths
-(`.ai/`, `.planning/`) into the repo's `.git/info/exclude`, so the workflow
+(`.ai/`, `.planning/`, `.agentfs/`) into the repo's `.git/info/exclude`, so the workflow
 files stay purely local: nothing to commit or push, invisible to every other
 contributor, and no edit to the shared `.gitignore`. The trade-off is that
 untracked planning state lives only on that clone — deleting the clone
@@ -142,6 +147,7 @@ Without an API key, search degrades gracefully to substring matching.
 - **Optional document RAG** (`domain_knowledge_*` via AnythingLLM) — [docs/domain-knowledge.md](docs/domain-knowledge.md)
 - **Building a private overlay** (wrap cairnkeep for your org/provider) — [docs/building-an-overlay.md](docs/building-an-overlay.md)
 - **Full operating guide** — [docs/operating.md](docs/operating.md)
+- **Memory storage and deployment** — [docs/storage.md](docs/storage.md)
 - **Git providers** — [docs/git-providers.md](docs/git-providers.md)
 - **Contributing** — [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Security policy** — [SECURITY.md](SECURITY.md)

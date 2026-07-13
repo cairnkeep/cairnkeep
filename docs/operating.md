@@ -26,6 +26,11 @@ installs. This guide covers all three in order.
 
 ## Setup order (Claude Code)
 
+The commands below install the default local topology: `cairn-memory` runs as a
+stdio child process and writes SQLite databases on this computer. Nothing in
+the installer discovers or selects a remote host. Read
+[Memory storage and deployment](storage.md) before choosing remote HTTP mode.
+
 **Via npm** (simplest — everything is on `PATH` as `cairn`):
 
 ```bash
@@ -141,7 +146,7 @@ vendor or host.
 | `CAIRN_LLM_EXTRACTION_MODEL` | Chat model for `memory-capture` extraction |
 | `CAIRN_MEMORY_EMBEDDING_URL` | Embeddings endpoint (falls back to `CAIRN_LLM_API_URL`) |
 | `CAIRN_MEMORY_EMBEDDING_MODEL` | Embedding model name (required for semantic search) |
-| `CAIRN_AGENTFS_BASE_DIR` | Base dir for global memory scopes (default `~/.cairnkeep`) |
+| `CAIRN_AGENTFS_BASE_DIR` | Server-side base dir for named/global memory scopes (default `~/.cairnkeep`); it does not affect `project` scope |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none`. See [git-providers.md](git-providers.md) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → the `route_check` tool is inert) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws at call time) |
@@ -245,10 +250,11 @@ Claude-Code-only path this milestone — there is no OpenCode parity plugin.
 
 ### HTTP transport (opt-in, network-facing)
 
-The server runs over stdio by default. Setting `MCP_HTTP_PORT` switches it to a
-streamable HTTP transport so one long-lived process can serve many clients — but
-because that exposes every memory tool over the network, HTTP mode is guarded and
-**fails closed**:
+The server runs locally over stdio by default. Setting `MCP_HTTP_PORT` switches
+it to a streamable HTTP transport so one long-lived process can serve many
+clients within one trusted storage domain. The databases then live on the HTTP
+server host. Because that exposes every memory tool over the network, HTTP mode
+is guarded and **fails closed**:
 
 | Variable | Purpose |
 |---|---|
@@ -260,7 +266,10 @@ because that exposes every memory tool over the network, HTTP mode is guarded an
 
 Requests without a valid bearer token get `401`; requests with an unexpected
 `Host` header get `403`. Keep HTTP mode bound to `127.0.0.1` unless you have a
-specific reason to expose it, and use a long random token.
+specific reason to expose it, and use a long random token. HTTP mode has no
+per-user ACL or tenant isolation, and every client shares the server process's
+`project` database. See [Memory storage and deployment](storage.md) for the
+placement rules, client registration, TLS requirements, and backup boundaries.
 
 ## The workflow
 
@@ -337,10 +346,11 @@ its settings file and exports `CAIRN_EXTRA_SETTINGS` — no change to the launch
 
 ### `cairn doctor`
 
-Health-checks the required memory server with a real MCP stdio handshake, then
-checks `./.ai/.env` (or the current environment). Unconfigured optional
-dependencies are skipped; it exits non-zero when the server probe fails or a
-configured dependency (LLM/embedding endpoint, writable store) is unreachable.
+Health-checks the bundled local memory server with a real MCP stdio handshake,
+then checks `./.ai/.env` (or the current environment). It does not inspect a
+harness's remote HTTP registration. Unconfigured optional dependencies are
+skipped; it exits non-zero when the local server probe fails or a configured
+dependency (LLM/embedding endpoint, writable store) is unreachable.
 
 ```bash
 cd /path/to/project && cairn doctor
@@ -348,7 +358,7 @@ cd /path/to/project && cairn doctor
 
 ### `cairn memory export|import|path`
 
-Relocate the durable memory store (one SQLite `.db` per scope under
+Relocate named/global memory (one SQLite `.db` per scope under
 `CAIRN_AGENTFS_BASE_DIR`) between machines or backends:
 
 ```bash
@@ -359,6 +369,8 @@ cairn memory import store.tgz        # restore on another machine (backs up exis
 
 `cairn memory export` requires the `sqlite3` CLI so it can use SQLite's online
 backup operation and produce a consistent snapshot while WAL mode is active.
+It does not include project memory at `<project>/.agentfs/project.db`; see
+[Memory storage and deployment](storage.md) for project backup instructions.
 
 ### `cairn audit-timer`
 

@@ -862,7 +862,7 @@ function gitToplevel(cwd: string): string {
 // Factory: each MCP client/session needs its own McpServer instance (the SDK
 // only allows one connected transport per server). All instances share the
 // module-level helpers + AgentFS below. Enables a single long-lived process to
-// serve many concurrent clients (centralized AgentFS on the VPS).
+// serve many concurrent clients within one trusted server-side storage domain.
 function createMemoryServer(): McpServer {
     const server = new McpServer({ name: "cairn-memory", version: "0.1.0" });
 

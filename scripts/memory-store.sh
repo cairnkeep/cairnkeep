@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# cairn memory <path|export|import> — relocate the durable memory store between
-# machines or backends.
+# cairn memory <path|export|import> — relocate global-scope memory between
+# machines or backends. Project-scope memory lives in <project>/.agentfs/ and
+# is intentionally outside this command's base directory.
 #
-# The store is one SQLite .db per scope under CAIRN_AGENTFS_BASE_DIR
-# (default ~/.cairnkeep). `export` takes a WAL-safe snapshot of every scope db
-# into a portable archive; `import` restores them on another machine; `path`
-# prints the store location so nothing has to guess where it lives.
+# The global store is one SQLite .db per named scope under
+# CAIRN_AGENTFS_BASE_DIR (default ~/.cairnkeep). `export` takes a WAL-safe
+# snapshot of every global-scope db into a portable archive; `import` restores
+# them on another machine; `path` prints the global store location.
 set -euo pipefail
 
 base="${CAIRN_AGENTFS_BASE_DIR:-$HOME/.cairnkeep}"
@@ -14,9 +15,9 @@ base="${base/#\~/$HOME}"
 usage() {
   cat <<'EOF'
 Usage: cairn memory <path|export|import>
-  path                 Print the memory store base directory.
-  export <file.tgz>    WAL-safe snapshot of every scope .db into a portable archive.
-  import <file.tgz>    Restore scope .db files from an archive (backs up existing).
+  path                 Print the global-scope memory base directory.
+  export <file.tgz>    WAL-safe snapshot of every global-scope .db.
+  import <file.tgz>    Restore global-scope .db files (backs up existing).
 EOF
 }
 

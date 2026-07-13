@@ -39,7 +39,7 @@ if ! command -v node >/dev/null 2>&1; then
 elif [[ ! -f "$server" ]]; then
   fail "memory server not built — run: (cd \"$CAIRN_ROOT/mcp-memory-server\" && npm install && npm run build)"
 elif node "$probe" "$server" >/dev/null 2>&1; then
-  pass "memory server responds over MCP stdio"
+  pass "bundled local memory server responds over MCP stdio"
 else
   fail "memory server failed its MCP stdio probe — reinstall cairnkeep or rebuild mcp-memory-server"
 fi
