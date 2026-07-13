@@ -1,6 +1,6 @@
 {
   "name": "@cairnkeep/cli",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A durable, harness-agnostic memory + context layer for coding agents (Claude Code, OpenCode).",
   "license": "Apache-2.0",
   "type": "module",
