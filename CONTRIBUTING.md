@@ -15,7 +15,9 @@ Contributions are welcome through GitHub issues and pull requests.
 
 ## Development setup
 
-The memory server requires Node.js 18 or newer. Node.js 20 is used in CI.
+The memory server requires Node.js 18 or newer. Node.js 22 or 24 is recommended
+for development; current CI uses Node.js 24 and retains a clean Node.js 18
+compatibility boot check.
 
 ```bash
 git clone https://github.com/cairnkeep/cairnkeep.git
@@ -47,3 +49,6 @@ endpoints. They are not part of the default offline test suite.
 
 By contributing, you agree that your contribution is licensed under the
 Apache License 2.0 found in [LICENSE](LICENSE).
+
+Release publishing is maintainer-only and documented in
+[docs/releasing.md](docs/releasing.md).

@@ -28,7 +28,9 @@ work exactly the same without them.
 |---|---|
 | `ANYTHINGLLM_API_KEY` | **Required** for the domain-knowledge tools. Unset → the tools error at call time (everything else works). |
 | `ANYTHINGLLM_BASE_URL` | AnythingLLM base URL. Default `http://localhost:3001`. |
-| `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` | Path to the document-sync script used by `domain_knowledge_sync`. The core does not bundle one — point this at your own (see below). Unset → `domain_knowledge_sync` uses the in-repo default path. |
+| `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` | Optional path to a custom document-sync script. Unset -> `domain_knowledge_sync` uses the bundled deployment-neutral example. |
+| `CAIRN_ANYTHINGLLM_PROJECTS_FILE` | Optional config path for the bundled sync script. Default `${XDG_CONFIG_HOME:-~/.config}/cairnkeep/anythingllm-projects.json`. |
+| `CAIRN_ANYTHINGLLM_STATE_FILE` | Optional state path for the bundled sync script. Default `${XDG_STATE_HOME:-~/.local/state}/cairnkeep/anythingllm-sync.json`. |
 
 The workspaces the tools target come from the project's **memory config** — the
 first of `.agent/memory.json`, `.opencode/memory.json`, `.claude/memory.json`, or
@@ -73,10 +75,10 @@ returns a grounded answer.
 
 ## Setup (sync / embedding)
 
-`domain_knowledge_sync` shells out to a document-upload/embed script. Because the
-scripts that talk to your AnythingLLM (and any include/exclude rules) are
-deployment-specific, they live in **your** wrapper, not the core — point cairnkeep
-at yours:
+`domain_knowledge_sync` shells out to a document-upload/embed script. Cairnkeep
+ships a deployment-neutral example that reads its project mapping from a config
+file. For deployment-specific authentication, checkout rules, or document
+selection, keep a customized script in your overlay and point Cairnkeep at it:
 
 ```bash
 CAIRN_ANYTHINGLLM_SYNC_SCRIPT=/abs/path/to/your/sync_to_anythingllm.py
@@ -86,11 +88,13 @@ The script receives the workspace slug and is expected to upload + embed the
 project's documents into that AnythingLLM workspace. See
 [building-an-overlay.md](building-an-overlay.md) for the wrapper pattern.
 
-A working, deployment-agnostic starting point lives in
-[`examples/anythingllm/`](../examples/anythingllm/): an incremental
-(sha256-tracked) multi-project sync script plus a config schema. Copy it, adapt
-`anythingllm-projects.json`, and point `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` at your
-copy.
+The bundled default lives in
+[`examples/anythingllm/`](../examples/anythingllm/): an incremental,
+SHA-256-tracked multi-project sync script plus a config schema. Put a customized
+copy of the example JSON at the default user config path, or set
+`CAIRN_ANYTHINGLLM_PROJECTS_FILE`. Existing custom scripts with configuration
+and state beside the script retain that legacy behavior. To customize the
+implementation itself, set `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` to the adapted copy.
 
 ## Not using RAG?
 

@@ -1,0 +1,72 @@
+name: Bug report
+description: Report a reproducible Cairnkeep defect
+title: "[Bug]: "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not include credentials, private endpoints, memory databases, or
+        proprietary data. Use synthetic examples and redact diagnostics.
+  - type: input
+    id: version
+    attributes:
+      label: Cairnkeep version
+      description: Output of `cairn version` or the package version.
+      placeholder: 1.1.1
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: Client
+      options:
+        - Claude Code
+        - OpenCode
+        - Codex CLI
+        - Other MCP client
+        - Cairn CLI only
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Node.js version, shell, and local or remote memory mode.
+      placeholder: Linux, Node.js 24, Bash 5, local stdio
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Include the smallest safe sequence that reproduces the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Redacted diagnostics
+      description: Add relevant logs or `cairn doctor` output after removing sensitive values.
+      render: shell
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets, private endpoints, memory content, and proprietary data.
+          required: true
+        - label: I searched existing issues and tested the latest release.
+          required: true

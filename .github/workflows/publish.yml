@@ -1,0 +1,90 @@
+name: Publish release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the released tag
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify release identity
+        id: identity
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          test "$RELEASE_TAG" = "v$version"
+          case "$version:$RELEASE_PRERELEASE" in
+            *-*:true) dist_tag=next ;;
+            *-*:false) echo "A prerelease version requires a prerelease GitHub release" >&2; exit 1 ;;
+            *:true) echo "A stable version requires a stable GitHub release" >&2; exit 1 ;;
+            *) dist_tag=latest ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Install and verify
+        run: |
+          npm ci
+          npm run check:public
+          npm --prefix mcp-memory-server ci
+          npm --prefix mcp-memory-server test
+
+      - name: Check registry state
+        id: registry
+        env:
+          VERSION: ${{ steps.identity.outputs.version }}
+        run: |
+          if npm view "@cairnkeep/cli@$VERSION" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm with provenance
+        if: steps.registry.outputs.exists != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DIST_TAG: ${{ steps.identity.outputs.dist_tag }}
+        run: npm publish --access public --provenance --tag "$DIST_TAG"
+
+      - name: Build release artifacts
+        env:
+          VERSION: ${{ steps.identity.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          npm pack --pack-destination artifacts >/dev/null
+          npm sbom --omit=dev --sbom-format cyclonedx \
+            > "artifacts/cairnkeep-cli-$VERSION.cdx.json"
+          (cd artifacts && sha256sum ./* > SHA256SUMS)
+
+      - name: Attach package and SBOM to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" artifacts/* --clobber

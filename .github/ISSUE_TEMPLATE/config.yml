@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and usage help
+    url: https://github.com/cairnkeep/cairnkeep/discussions
+    about: Ask configuration and usage questions in Discussions.
+  - name: Security vulnerability
+    url: https://github.com/cairnkeep/cairnkeep/security/advisories/new
+    about: Report security issues privately. Never include them in a public issue.

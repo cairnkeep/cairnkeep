@@ -156,6 +156,8 @@ vendor or host.
 | `ANYTHINGLLM_API_KEY` | Required to enable the optional `domain_knowledge_*` RAG tools (unset → those tools error at call time; nothing else affected). See [domain-knowledge.md](domain-knowledge.md) |
 | `ANYTHINGLLM_BASE_URL` | AnythingLLM base URL for `domain_knowledge_*` (default `http://localhost:3001`) |
 | `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` | Override path to the `domain_knowledge_sync` document-sync script (unset → in-repo default) |
+| `CAIRN_ANYTHINGLLM_PROJECTS_FILE` | Override path to the bundled sync script's project configuration |
+| `CAIRN_ANYTHINGLLM_STATE_FILE` | Override path to the bundled sync script's incremental state |
 
 ### Domain knowledge (RAG via AnythingLLM, opt-in)
 
