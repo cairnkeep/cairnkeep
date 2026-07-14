@@ -186,6 +186,7 @@ enabling them.
 
 - **Optional document RAG** (`domain_knowledge_*` via AnythingLLM) — [docs/domain-knowledge.md](docs/domain-knowledge.md)
 - **Building a private overlay** (wrap cairnkeep for your org/provider) — [docs/building-an-overlay.md](docs/building-an-overlay.md)
+- **Managed overlay distributions** (wrapper CLI, policy lock, private registry, rollback) — [docs/overlay-distributions.md](docs/overlay-distributions.md)
 - **Full operating guide** — [docs/operating.md](docs/operating.md)
 - **Memory storage and deployment** — [docs/storage.md](docs/storage.md)
 - **Privacy and data flow** — [docs/privacy-and-data-flow.md](docs/privacy-and-data-flow.md)

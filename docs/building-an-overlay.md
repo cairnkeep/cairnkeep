@@ -6,6 +6,11 @@ credentials, and no organization-specific launchers. Everything specific to
 launchers, policy — belongs in a small private **overlay** that wraps cairnkeep.
 This guide shows the pattern.
 
+For multi-machine or organization-wide use, package the overlay as a managed
+distribution that owns the enrolled machine's `cairn` command. See
+[Managed Cairnkeep distributions](overlay-distributions.md) for the command,
+manifest, profile-lock, private-registry, and rollback contract.
+
 ## Principles
 
 1. **Consume, don't fork.** Treat cairnkeep as an upstream dependency: install it
@@ -122,3 +127,7 @@ secret storage, not generated project files.
 - [ ] Operating layer scoped as intended (global vs `--live-root`)
 - [ ] Optional integrations wired only where wanted
 - [ ] A single documented command takes a fresh machine to a working setup
+- [ ] Managed machines resolve `cairn` to the overlay distribution, not raw core
+- [ ] `cairn config explain` reports memory and RAG destinations without secrets
+- [ ] A project profile lock prevents silent cross-overlay reconfiguration
+- [ ] Private packages reject public-registry publication and exclude runtime data

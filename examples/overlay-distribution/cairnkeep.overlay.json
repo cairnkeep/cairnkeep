@@ -1,0 +1,25 @@
+{
+  "$schema": "../../schemas/cairnkeep-overlay.schema.json",
+  "schemaVersion": 1,
+  "id": "team-managed",
+  "name": "Example managed Cairnkeep distribution",
+  "version": "1.0.0",
+  "core": {
+    "package": "@cairnkeep/cli",
+    "version": "1.1.2"
+  },
+  "policy": {
+    "memory": {
+      "transport": "stdio",
+      "storage": "local",
+      "baseDir": "${HOME}/.cairnkeep"
+    },
+    "rag": {"mode": "disabled"},
+    "gitProvider": "none"
+  },
+  "bootstrap": {
+    "defaultMode": "untracked",
+    "launcher": ".ai/start-managed-agent.sh",
+    "profileLock": ".ai/cairnkeep-profile.json"
+  }
+}
