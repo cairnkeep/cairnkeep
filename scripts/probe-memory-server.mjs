@@ -1,13 +1,21 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 
-const serverPath = process.argv[2];
-if (!serverPath) {
-  console.error("usage: probe-memory-server.mjs PATH_TO_SERVER");
+const probeArgs = process.argv.slice(2);
+if (probeArgs.length === 0) {
+  console.error("usage: probe-memory-server.mjs PATH_TO_SERVER | --command COMMAND [ARGS...]");
   process.exit(2);
 }
 
-const child = spawn(process.execPath, [serverPath], {
+const commandMode = probeArgs[0] === "--command";
+const command = commandMode ? probeArgs[1] : process.execPath;
+const commandArgs = commandMode ? probeArgs.slice(2) : [probeArgs[0]];
+if (!command) {
+  console.error("probe-memory-server.mjs: --command requires a command");
+  process.exit(2);
+}
+
+const child = spawn(command, commandArgs, {
   env: process.env,
   stdio: ["pipe", "pipe", "pipe"],
 });
@@ -29,7 +37,11 @@ const response = new Promise((resolve, reject) => {
       if (!line.trim()) continue;
       try {
         const message = JSON.parse(line);
-        if (message.id === 1 && message.result?.serverInfo?.name === "cairn-memory") {
+        if (
+          message.id === 1 &&
+          message.result?.serverInfo?.name === "cairn-memory" &&
+          message.result?.capabilities?.tools
+        ) {
           resolve();
           return;
         }

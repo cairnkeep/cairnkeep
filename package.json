@@ -38,8 +38,8 @@
     "fix:perms": "git ls-files -s | awk '$1==\"100755\"{print $4}' | xargs chmod 755",
     "prepack": "npm run build:server && npm run fix:perms",
     "test": "for test in scripts/test-*.sh; do \"$test\" || exit 1; done",
-    "check:public": "scripts/verify-no-private-references.sh && scripts/verify-docs-parity.sh && npm test",
-    "prepublishOnly": "npm run check:public && npm run build:server && npm --prefix mcp-memory-server test --global=false --dry-run=false"
+    "check:public": "scripts/verify-no-private-references.sh && scripts/verify-docs-parity.sh && npm run build:server && npm test",
+    "prepublishOnly": "npm run check:public && npm --prefix mcp-memory-server test --global=false --dry-run=false"
   },
   "repository": {
     "type": "git",
