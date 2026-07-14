@@ -16,6 +16,9 @@ if (schema.properties.schemaVersion.const !== 1) throw new Error("unexpected sch
 for (const field of schema.required) {
   if (!(field in example)) throw new Error(`example missing required field: ${field}`);
 }
+for (const field of Object.keys(example)) {
+  if (!(field in schema.properties)) throw new Error(`example uses undeclared field: ${field}`);
+}
 if (example.core.package !== "@cairnkeep/cli") throw new Error("example must consume the public core");
 if (example.policy.memory.storage !== "local") throw new Error("example must remain local-first");
 if (example.policy.memory.transport !== "stdio") throw new Error("example must remain local-first");

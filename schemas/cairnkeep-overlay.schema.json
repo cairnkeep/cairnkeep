@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": ["schemaVersion", "id", "name", "version", "core", "policy", "bootstrap"],
   "properties": {
+    "$schema": {"type": "string", "format": "uri-reference"},
     "schemaVersion": {"const": 1},
     "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$"},
     "name": {"type": "string", "minLength": 1, "maxLength": 120},
