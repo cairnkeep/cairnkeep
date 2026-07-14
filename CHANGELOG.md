@@ -3,6 +3,15 @@
 All notable user-facing changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.2] - 2026-07-14
+
+### Added
+
+- Define a provider-neutral managed-distribution contract for private overlays.
+- Ship a versioned overlay manifest schema and local-first example.
+- Document wrapper commands, profile locks, data-routing diagnostics, private
+  registry delivery, package hygiene, fleet migration, and rollback practices.
+
 ## [1.1.1] - 2026-07-14
 
 ### Fixed

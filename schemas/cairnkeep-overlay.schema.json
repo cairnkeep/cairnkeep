@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/cairnkeep-overlay.schema.json",
+  "title": "Cairnkeep distribution profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "name", "version", "core", "policy", "bootstrap"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 120},
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "core": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "version"],
+      "properties": {
+        "package": {"const": "@cairnkeep/cli"},
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["memory", "rag", "gitProvider"],
+      "properties": {
+        "memory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["transport", "storage"],
+          "properties": {
+            "transport": {"enum": ["stdio", "http"]},
+            "storage": {"enum": ["local", "remote"]},
+            "baseDir": {"type": "string", "minLength": 1},
+            "endpoint": {"type": "string", "format": "uri"}
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"storage": {"const": "local"}}},
+              "then": {"required": ["baseDir"]}
+            },
+            {
+              "if": {"properties": {"storage": {"const": "remote"}}},
+              "then": {"required": ["endpoint"]}
+            }
+          ]
+        },
+        "rag": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode"],
+          "properties": {
+            "mode": {"enum": ["disabled", "local", "remote"]},
+            "baseUrl": {"type": "string", "format": "uri"}
+          },
+          "if": {"properties": {"mode": {"enum": ["local", "remote"]}}},
+          "then": {"required": ["baseUrl"]}
+        },
+        "gitProvider": {"type": "string", "minLength": 1}
+      }
+    },
+    "bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["defaultMode", "launcher", "profileLock"],
+      "properties": {
+        "defaultMode": {"enum": ["tracked", "untracked"]},
+        "launcher": {"type": "string", "minLength": 1},
+        "profileLock": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}
