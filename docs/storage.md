@@ -129,7 +129,17 @@ claude mcp remove cairn-memory -s user 2>/dev/null || true
 claude mcp add --transport http -s user \
   cairn-memory "$CAIRN_MEMORY_REMOTE_URL" \
   --header "Authorization: Bearer $CAIRN_MEMORY_HTTP_TOKEN"
+
+codex mcp remove cairn-memory 2>/dev/null || true
+codex mcp add cairn-memory \
+  --url "$CAIRN_MEMORY_REMOTE_URL" \
+  --bearer-token-env-var CAIRN_MEMORY_HTTP_TOKEN
 ```
+
+Codex reads the bearer token from the named environment variable when it
+starts. Do not run `codex mcp login cairn-memory`: that command starts an OAuth
+flow, while Cairnkeep intentionally uses a static bearer token and advertises
+no OAuth authorization endpoint.
 
 OpenCode is configured separately in its per-user `opencode.json`. It supports
 environment references in remote MCP headers, so the token does not need to be
@@ -161,3 +171,17 @@ expands `${VAR}` references in project `.mcp.json` URL and header values;
 OpenCode uses `{env:VAR}` references. A private overlay should generate and
 merge these files so secrets remain in the process environment rather than the
 repository.
+
+For Codex, put the routing configuration in the trusted project's private
+`.codex/config.toml` and exclude it from version control:
+
+```toml
+[mcp_servers.cairn-memory]
+url = "https://memory.example.com/mcp"
+bearer_token_env_var = "CAIRN_MEMORY_HTTP_TOKEN"
+
+[mcp_servers.cairn-memory.http_headers]
+"X-Cairn-Project" = "example-project"
+"X-Cairn-Scopes" = "identity,personal,project"
+"X-Cairn-AnythingLLM-Workspaces" = "engineering-patterns"
+```
