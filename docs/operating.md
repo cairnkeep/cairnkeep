@@ -16,8 +16,8 @@ installs. This guide covers all three in order.
 
 ## Prerequisites
 
-- Node.js (for the memory server) and a supported harness: Claude Code or
-  OpenCode.
+- Node.js 22 or newer (for the memory server) and a supported harness: Claude
+  Code or OpenCode.
 - Optional: the `sqlite3` CLI for `cairn memory export`. Runtime memory and
   `cairn memory import` do not require it.
 - Optional: an OpenAI-compatible LLM endpoint for memory extraction and

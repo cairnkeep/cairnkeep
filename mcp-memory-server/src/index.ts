@@ -29,6 +29,15 @@ import {
     writeExploreCache,
 } from "./explore-cache.js";
 
+const MINIMUM_NODE_MAJOR = 22;
+const nodeMajor = Number.parseInt(process.versions.node, 10);
+if (!Number.isInteger(nodeMajor) || nodeMajor < MINIMUM_NODE_MAJOR) {
+    process.stderr.write(
+        `cairn-memory requires Node.js ${MINIMUM_NODE_MAJOR} or newer; found ${process.versions.node}\n`,
+    );
+    process.exit(1);
+}
+
 type MemoryConfig = {
     scopes?: string[];
     anythingllm_workspaces?: string[];

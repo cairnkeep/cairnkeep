@@ -5,6 +5,9 @@
     "description": "Durable, harness-agnostic memory MCP server for coding agents — the core of Cairnkeep.",
     "license": "Apache-2.0",
     "type": "module",
+    "engines": {
+        "node": ">=22"
+    },
     "scripts": {
         "build": "tsc -p tsconfig.json",
         "start": "node dist/index.js",
@@ -28,10 +31,10 @@
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.29.0",
         "agentfs-sdk": "^0.6.4",
-        "zod": "^3.25.76"
+        "zod": "^4.4.3"
     },
     "devDependencies": {
-        "@types/node": "^22.15.21",
-        "typescript": "^5.8.3"
+        "@types/node": "^22.20.1",
+        "typescript": "^7.0.2"
     }
 }

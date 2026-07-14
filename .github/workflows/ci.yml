@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: ["22", "24"]
+        node: ["22", "24", "26"]
     defaults:
       run:
         working-directory: mcp-memory-server
@@ -52,7 +52,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - run: scripts/smoke-bash32.sh   # ubuntu-latest has docker preinstalled
 
-  # Install the packed tarball on a clean, minimal node:18 box (the engines floor)
+  # Install the packed tarball on a clean, minimal node:22 box (the engines floor)
   # and boot the server — catches missing `files` entries, an unbuilt dist, deps
   # that don't resolve under a global install, and a server that won't start.
   server-boot:
@@ -61,15 +61,15 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "18"
+          node-version: "22"
       - name: Build + pack
         run: |
           npm --prefix mcp-memory-server ci
           npm --prefix mcp-memory-server run build
           npm pack
-      - name: Global install + boot on a clean node:18-slim container
+      - name: Global install + boot on a clean node:22-slim container
         run: |
-          docker run --rm -v "$PWD":/w -w /w node:18-slim bash -c '
+          docker run --rm -v "$PWD":/w -w /w node:22-slim bash -c '
             set -e
             npm i -g ./cairnkeep-cli-*.tgz
             cairn version
@@ -86,7 +86,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "18"
+          node-version: "22"
       - name: Install per the README on real macOS bash 3.2
         run: |
           export PATH="/bin:$PATH"          # make `env bash` pick macOS's 3.2

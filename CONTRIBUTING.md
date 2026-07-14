@@ -15,9 +15,9 @@ Contributions are welcome through GitHub issues and pull requests.
 
 ## Development setup
 
-The memory server requires Node.js 18 or newer. Node.js 22 or 24 is recommended
-for development; current CI uses Node.js 24 and retains a clean Node.js 18
-compatibility boot check.
+The memory server requires Node.js 22 or newer. CI builds and tests on Node.js
+22, 24, and 26, including a clean packed-install boot check at the Node.js 22
+runtime floor.
 
 ```bash
 git clone https://github.com/cairnkeep/cairnkeep.git
