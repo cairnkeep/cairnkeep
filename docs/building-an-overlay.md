@@ -107,6 +107,13 @@ All optional, all env-gated — a wrapper turns them on by setting the env:
 Point the RAG sync script at your own copy (`CAIRN_ANYTHINGLLM_SYNC_SCRIPT`) so the
 integration scripts live in your overlay, not the core.
 
+For a fleet that shares one trusted HTTP service, have the overlay generate
+project-local Claude Code and OpenCode MCP entries with `X-Cairn-Project`,
+`X-Cairn-Scopes`, and `X-Cairn-AnythingLLM-Workspaces`. This preserves local
+project isolation and workspace defaults while keeping the databases and RAG
+credentials on the server host. Keep bearer tokens in environment-backed
+secret storage, not generated project files.
+
 ## Checklist
 
 - [ ] cairnkeep pinned to a version; no core files copied or patched
