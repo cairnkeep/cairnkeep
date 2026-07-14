@@ -3,6 +3,13 @@
 All notable user-facing changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.3] - 2026-07-14
+
+### Fixed
+
+- Allow the standard `$schema` self-reference in strict overlay manifests and
+  verify that the shipped example uses only declared top-level properties.
+
 ## [1.1.2] - 2026-07-14
 
 ### Added
