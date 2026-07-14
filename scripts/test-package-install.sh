@@ -29,4 +29,8 @@ bootstrap_output=$(cairn bootstrap "$tmp/project")
 
 (cd "$tmp/project" && cairn doctor) >/dev/null || fail "installed package failed cairn doctor"
 
+installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
+[[ -f "$installed_root/examples/anythingllm/sync_to_anythingllm.py" ]] || \
+  fail "npm tarball omitted the default AnythingLLM sync script"
+
 echo "PASS: npm tarball installs a self-contained CLI and MCP server"

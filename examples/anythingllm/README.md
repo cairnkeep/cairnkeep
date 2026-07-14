@@ -1,9 +1,9 @@
 # AnythingLLM sync — reference example
 
-A reference implementation of the document-sync script that cairnkeep's
-`domain_knowledge_sync` tool shells out to. cairnkeep ships **no** sync script
-in core (endpoints and include/exclude rules are deployment-specific); this is
-an optional starting point you copy and adapt.
+The bundled reference implementation of the document-sync script that
+Cairnkeep's `domain_knowledge_sync` tool shells out to. It is a usable,
+deployment-neutral starting point; copy and adapt it when endpoint,
+authentication, or include/exclude rules are deployment-specific.
 
 See [`../../docs/domain-knowledge.md`](../../docs/domain-knowledge.md) for the
 full RAG picture.
@@ -18,9 +18,12 @@ embeds them, and removes docs that disappeared. Supports `--dry-run`, `--full`,
 ## Setup
 
 1. Requires Python 3 and `requests` (`pip install requests`).
-2. Copy the config and fill in your projects:
+2. Copy the config to the default user config location and fill in your
+   projects:
    ```bash
-   cp anythingllm-projects.example.json anythingllm-projects.json
+   mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/cairnkeep"
+   cp anythingllm-projects.example.json \
+     "${XDG_CONFIG_HOME:-$HOME/.config}/cairnkeep/anythingllm-projects.json"
    # edit: set each project's absolute path, slug, and include/exclude globs
    ```
 3. Point at your AnythingLLM instance:
@@ -36,11 +39,22 @@ embeds them, and removes docs that disappeared. Supports `--dry-run`, `--full`,
 
 ## Wiring into cairnkeep
 
-Point the memory server's sync tool at your copy:
+The installed server uses this script by default. To use an adapted copy, set:
 
 ```bash
 CAIRN_ANYTHINGLLM_SYNC_SCRIPT=/abs/path/to/sync_to_anythingllm.py
 ```
+
+Override the user-owned configuration or state locations when needed:
+
+```bash
+CAIRN_ANYTHINGLLM_PROJECTS_FILE=/abs/path/to/anythingllm-projects.json
+CAIRN_ANYTHINGLLM_STATE_FILE=/abs/path/to/anythingllm-sync.json
+```
+
+For backward compatibility, an existing `anythingllm-projects.json` beside a
+customized script and its `.anythingllm-sync.json` state are still used when the
+override variables are unset.
 
 ## Files
 
@@ -48,5 +62,5 @@ CAIRN_ANYTHINGLLM_SYNC_SCRIPT=/abs/path/to/sync_to_anythingllm.py
 |---|---|---|
 | `sync_to_anythingllm.py` | yes | the script |
 | `anythingllm-projects.example.json` | yes | schema template |
-| `anythingllm-projects.json` | **no** | your real config (paths) — gitignored |
-| `.anythingllm-sync.json` | **no** | machine-local sha256 state — gitignored |
+| `anythingllm-projects.json` | **no** | User-owned config; defaults under the XDG config directory |
+| `anythingllm-sync.json` | **no** | Machine-local SHA-256 state; defaults under the XDG state directory |

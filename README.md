@@ -1,5 +1,9 @@
 # Cairnkeep
 
+[![CI](https://github.com/cairnkeep/cairnkeep/actions/workflows/ci.yml/badge.svg)](https://github.com/cairnkeep/cairnkeep/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@cairnkeep/cli)](https://www.npmjs.com/package/@cairnkeep/cli)
+[![license](https://img.shields.io/npm/l/@cairnkeep/cli)](LICENSE)
+
 > A durable, harness-agnostic **memory + context layer** for coding agents.
 
 A *cairn* is a stack of stones left as a trail marker for whoever follows; a
@@ -19,6 +23,23 @@ without forking them. Also shipped: context exploration (`/context-explore`) and
 a thin routing seam (`route_check`), both of which delegate to
 [token-miser](https://github.com/cairnkeep/token-miser), a public
 cairnkeep-org sibling project.
+
+## Compatibility
+
+Node.js 22 or 24 is recommended. Node.js 18 and 20 remain compatible for the
+1.x line but are end-of-life upstream; the minimum will move in the next major
+release.
+
+| Client or platform | Support level |
+|---|---|
+| Claude Code on Linux/macOS | Memory server plus commands, agents, hooks, and launchers |
+| OpenCode on Linux/macOS | Memory server plus commands, plugins, hooks, and launchers |
+| Codex CLI | Memory MCP server; no Cairnkeep operating-layer assets |
+| Other MCP clients | Memory and optional domain-knowledge MCP tools |
+| Native Windows | Not supported by the Bash-based installer; use WSL (not yet CI-verified) |
+
+Linux, macOS, Bash 3.2 portability, and a clean Node 18 compatibility install
+are exercised in CI.
 
 ## Components
 
@@ -85,6 +106,19 @@ cd /path/to/project && cairn doctor
 ./.ai/start-claude.sh
 ```
 
+After setup, the basic workflow is intentionally small:
+
+```text
+> /remember Use transactional migrations for schema changes
+Stored as patterns/transactional-migrations.
+
+> /recall transactional migrations
+patterns/transactional-migrations: Use transactional migrations for schema changes
+```
+
+The exact command rendering depends on the client. Any MCP client can call
+`memory_write` and `memory_search` directly.
+
 Prefer working from a clone? Build the server with `cd mcp-memory-server && npm
 install && npm run build`, then use `scripts/sync-claude-assets.sh` and
 `bin/cairn` in place of the installed `cairn`.
@@ -139,8 +173,14 @@ search):
 | `CAIRN_EXPLORE_REPO_ROOT` | Default repo root for `context_explore` when no per-call `repo_root` is given |
 | `CAIRN_EXTRA_SETTINGS` | Optional settings/config file the launcher layers onto the harness (wrapper seam) |
 | `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` | Override path to the domain-knowledge sync script (when the integration lives outside the repo) |
+| `CAIRN_ANYTHINGLLM_PROJECTS_FILE` | Override path to the bundled sync script's project configuration |
+| `CAIRN_ANYTHINGLLM_STATE_FILE` | Override path to the bundled sync script's incremental state |
 
 Without an API key, search degrades gracefully to substring matching.
+There is no Cairnkeep telemetry. Optional extraction, embeddings, document RAG,
+remote memory, and delegated exploration can send content to endpoints you
+configure. Review [Privacy and data flow](docs/privacy-and-data-flow.md) before
+enabling them.
 
 ## More
 
@@ -148,7 +188,9 @@ Without an API key, search degrades gracefully to substring matching.
 - **Building a private overlay** (wrap cairnkeep for your org/provider) — [docs/building-an-overlay.md](docs/building-an-overlay.md)
 - **Full operating guide** — [docs/operating.md](docs/operating.md)
 - **Memory storage and deployment** — [docs/storage.md](docs/storage.md)
+- **Privacy and data flow** — [docs/privacy-and-data-flow.md](docs/privacy-and-data-flow.md)
 - **Git providers** — [docs/git-providers.md](docs/git-providers.md)
+- **Support** — [SUPPORT.md](SUPPORT.md)
 - **Contributing** — [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Security policy** — [SECURITY.md](SECURITY.md)
 
