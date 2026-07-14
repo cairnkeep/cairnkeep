@@ -35,7 +35,12 @@ echo "cairn doctor"
 server="$CAIRN_ROOT/mcp-memory-server/dist/index.js"
 probe="$CAIRN_ROOT/scripts/probe-memory-server.mjs"
 if ! command -v node >/dev/null 2>&1; then
-  fail "Node.js not found (Node.js 18 or newer is required)"
+  fail "Node.js not found (Node.js 22 or newer is required)"
+elif ! node_major=$(node -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null) ||
+     [[ ! "$node_major" =~ ^[0-9]+$ ]]; then
+  fail "could not determine the Node.js version (Node.js 22 or newer is required)"
+elif [[ "$node_major" -lt 22 ]]; then
+  fail "Node.js $(node --version 2>/dev/null || printf unknown) is unsupported (Node.js 22 or newer is required)"
 elif [[ ! -f "$server" ]]; then
   fail "memory server not built — run: (cd \"$CAIRN_ROOT/mcp-memory-server\" && npm install && npm run build)"
 elif node "$probe" "$server" >/dev/null 2>&1; then

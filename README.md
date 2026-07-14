@@ -26,9 +26,9 @@ cairnkeep-org sibling project.
 
 ## Compatibility
 
-Node.js 22 or 24 is recommended. Node.js 18 and 20 remain compatible for the
-1.x line but are end-of-life upstream; the minimum will move in the next major
-release.
+Node.js 22, 24, and 26 are supported. Cairnkeep 2.x requires Node.js 22 or
+newer; Cairnkeep 1.x remains available for older runtimes, although Node.js 18
+and 20 are end-of-life upstream.
 
 | Client or platform | Support level |
 |---|---|
@@ -38,7 +38,7 @@ release.
 | Other MCP clients | Memory and optional domain-knowledge MCP tools |
 | Native Windows | Not supported by the Bash-based installer; use WSL (not yet CI-verified) |
 
-Linux, macOS, Bash 3.2 portability, and a clean Node 18 compatibility install
+Linux, macOS, Bash 3.2 portability, and clean Node 22/24/26 runtime checks
 are exercised in CI.
 
 ## Components

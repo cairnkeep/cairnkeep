@@ -3,6 +3,24 @@
 All notable user-facing changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - 2026-07-15
+
+### Breaking
+
+- Require Node.js 22 or newer. Node.js 18 and 20 are end-of-life upstream;
+  Cairnkeep 1.x remains available for machines that cannot upgrade yet.
+
+### Changed
+
+- Upgrade the runtime schema dependency to Zod 4 in both package manifests.
+- Build with TypeScript 7 against Node.js 22 type definitions.
+- Exercise Node.js 22, 24, and 26 on Linux, retain real macOS installation
+  coverage, and verify the packed package at the Node.js 22 runtime floor.
+
+The memory database format, default storage location, remote HTTP protocol,
+and project scaffold format are unchanged. Upgrading does not migrate or delete
+stored memories.
+
 ## [1.1.3] - 2026-07-14
 
 ### Fixed
@@ -51,6 +69,9 @@ All notable user-facing changes are documented here. This project follows
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
+[2.0.0]: https://github.com/cairnkeep/cairnkeep/compare/v1.1.3...v2.0.0
+[1.1.3]: https://github.com/cairnkeep/cairnkeep/compare/v1.1.2...v1.1.3
+[1.1.2]: https://github.com/cairnkeep/cairnkeep/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/cairnkeep/cairnkeep/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/cairnkeep/cairnkeep/compare/v1.0.5...v1.1.0
 [1.0.5]: https://github.com/cairnkeep/cairnkeep/compare/v1.0.4...v1.0.5

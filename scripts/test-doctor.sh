@@ -17,7 +17,24 @@ proj="$tmp/clean"; mkdir -p "$proj"
 ( cd "$proj" && "$doctor" ) >"$tmp/out1" 2>&1 || fail "doctor exited non-zero with nothing configured:\n$(cat "$tmp/out1")"
 grep -q "\[SKIP\]" "$tmp/out1" || fail "expected SKIP lines when nothing is configured"
 
-# 2. A configured but unreachable endpoint → FAIL + non-zero exit.
+# 2. An unsupported runtime is diagnosed before the server probe.
+mkdir -p "$tmp/old-node"
+cat > "$tmp/old-node/node" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  -p) echo 20 ;;
+  --version) echo v20.19.0 ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod 755 "$tmp/old-node/node"
+if ( cd "$proj" && PATH="$tmp/old-node:$PATH" "$doctor" ) >"$tmp/out-old-node" 2>&1; then
+  fail "doctor should exit non-zero for an unsupported Node.js runtime:\n$(cat "$tmp/out-old-node")"
+fi
+grep -q "Node.js v20.19.0 is unsupported" "$tmp/out-old-node" ||
+  fail "expected a clear unsupported-Node.js diagnostic"
+
+# 3. A configured but unreachable endpoint → FAIL + non-zero exit.
 if command -v curl >/dev/null 2>&1; then
   proj2="$tmp/broken"; mkdir -p "$proj2/.ai"
   echo 'CAIRN_LLM_API_URL=http://127.0.0.1:1' > "$proj2/.ai/.env"
