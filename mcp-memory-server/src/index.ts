@@ -34,6 +34,13 @@ type MemoryConfig = {
     anythingllm_workspaces?: string[];
 };
 
+type ServerContext = {
+    projectId?: string;
+    memoryConfig?: MemoryConfig;
+};
+
+class ClientContextError extends Error {}
+
 type MemoryEntry = {
     scope: string;
     key: string;
@@ -63,6 +70,8 @@ const anythingllmSyncScript = process.env.CAIRN_ANYTHINGLLM_SYNC_SCRIPT
     ? resolve(expandHome(process.env.CAIRN_ANYTHINGLLM_SYNC_SCRIPT))
     : join(infraRoot, "anythingllm", "sync_to_anythingllm.py");
 const HISTORY_NAMESPACE = "__history__";
+const PROJECT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const WORKSPACE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 function expandHome(value: string): string {
     if (value === "~") {
@@ -145,9 +154,64 @@ function assertSafeScope(scope: string): void {
     }
 }
 
-function resolveScopePath(scope: string, cwd: string = process.cwd()): string {
+function parseHeaderList(
+    headers: Headers,
+    name: string,
+    validate: (value: string) => boolean,
+): string[] | undefined {
+    const raw = headers.get(name)?.trim();
+    if (!raw) {
+        return undefined;
+    }
+    if (raw.length > 4096) {
+        throw new ClientContextError(`${name} is too long.`);
+    }
+
+    const values = Array.from(new Set(raw.split(",").map((value) => value.trim()).filter(Boolean)));
+    if (values.length > 32 || values.some((value) => !validate(value))) {
+        throw new ClientContextError(`${name} contains an invalid value.`);
+    }
+    return values;
+}
+
+function parseServerContext(headers: Headers): ServerContext {
+    const rawProjectId = headers.get("x-cairn-project")?.trim();
+    if (rawProjectId && !PROJECT_ID_PATTERN.test(rawProjectId)) {
+        throw new ClientContextError("X-Cairn-Project must be a kebab-case identifier of at most 64 characters.");
+    }
+
+    const scopes = parseHeaderList(
+        headers,
+        "X-Cairn-Scopes",
+        (value) => value !== "all" && (value === "project" || SCOPE_PATTERN.test(value)),
+    );
+    const anythingllmWorkspaces = parseHeaderList(
+        headers,
+        "X-Cairn-AnythingLLM-Workspaces",
+        (value) => WORKSPACE_PATTERN.test(value),
+    );
+    const memoryConfig = scopes || anythingllmWorkspaces
+        ? {
+            scopes: scopes ?? ["identity"],
+            anythingllm_workspaces: anythingllmWorkspaces ?? [],
+        }
+        : undefined;
+
+    return {
+        projectId: rawProjectId || undefined,
+        memoryConfig,
+    };
+}
+
+function resolveScopePath(
+    scope: string,
+    options: { cwd?: string; projectId?: string } = {},
+): string {
     if (scope === "project") {
-        return resolve(cwd, ".agentfs", "project.db");
+        if (options.projectId) {
+            return resolve(getBaseDir(), "projects", `${options.projectId}.db`);
+        }
+        return resolve(options.cwd ?? process.cwd(), ".agentfs", "project.db");
     }
 
     // "all" is a read-only virtual scope: memory_read/memory_search fan it out
@@ -191,8 +255,12 @@ function normalizeValue(value: unknown): string {
     return JSON.stringify(value);
 }
 
-async function openScope(scope: string, create: boolean, cwd?: string): Promise<AgentFS | null> {
-    const dbPath = resolveScopePath(scope, cwd);
+async function openScope(
+    scope: string,
+    create: boolean,
+    options: { cwd?: string; projectId?: string } = {},
+): Promise<AgentFS | null> {
+    const dbPath = resolveScopePath(scope, options);
 
     if (!create && !existsSync(dbPath)) {
         return null;
@@ -228,9 +296,9 @@ function visibleEntries(entries: MemoryEntry[], includeHistory: boolean): Memory
 async function listEntries(
     scope: string,
     prefix: string = "",
-    options: { includeHistory?: boolean; cwd?: string } = {},
+    options: { includeHistory?: boolean; cwd?: string; projectId?: string } = {},
 ): Promise<MemoryEntry[]> {
-    const agent = await openScope(scope, false, options.cwd);
+    const agent = await openScope(scope, false, options);
 
     if (!agent) {
         return [];
@@ -248,8 +316,12 @@ async function listEntries(
     }
 }
 
-async function readKey(scope: string, key: string): Promise<MemoryEntry[]> {
-    const agent = await openScope(scope, false);
+async function readKey(
+    scope: string,
+    key: string,
+    options: { projectId?: string } = {},
+): Promise<MemoryEntry[]> {
+    const agent = await openScope(scope, false, options);
 
     if (!agent) {
         return [];
@@ -521,8 +593,8 @@ function entryText(entry: MemoryEntry): string {
     return entry.value ? `${entry.key}\n${entry.value}` : entry.key;
 }
 
-function embeddingCachePath(scope: string): string {
-    return join(getBaseDir(), ".embeddings", `${hashText(resolveScopePath(scope))}.json`);
+function embeddingCachePath(scope: string, projectId?: string): string {
+    return join(getBaseDir(), ".embeddings", `${hashText(resolveScopePath(scope, { projectId }))}.json`);
 }
 
 async function semanticSearch(
@@ -530,13 +602,17 @@ async function semanticSearch(
     query: string,
     topK: number,
     minScore: number,
+    config: MemoryConfig = getMemoryConfig(),
+    projectId?: string,
 ): Promise<{ results: ScoredEntry[]; mode: "semantic" | "substring"; model?: string }> {
-    const config = getMemoryConfig();
     const scopes = getSearchScopes(scope, config);
     const embeddingConfig = getEmbeddingConfig();
 
     const perScopeEntries = await Promise.all(
-        scopes.map(async (candidate) => ({ scope: candidate, entries: await listEntries(candidate) })),
+        scopes.map(async (candidate) => ({
+            scope: candidate,
+            entries: await listEntries(candidate, "", { projectId }),
+        })),
     );
     const allEntries = perScopeEntries.flatMap((group) => group.entries);
 
@@ -560,7 +636,7 @@ async function semanticSearch(
         const vectors = new Map<MemoryEntry, number[]>();
 
         for (const group of perScopeEntries) {
-            const cache = new EmbeddingCache(embeddingCachePath(group.scope), embeddingConfig.model);
+            const cache = new EmbeddingCache(embeddingCachePath(group.scope, projectId), embeddingConfig.model);
             caches.push(cache);
 
             const misses: { entry: MemoryEntry; text: string; hash: string }[] = [];
@@ -863,8 +939,10 @@ function gitToplevel(cwd: string): string {
 // only allows one connected transport per server). All instances share the
 // module-level helpers + AgentFS below. Enables a single long-lived process to
 // serve many concurrent clients within one trusted server-side storage domain.
-function createMemoryServer(): McpServer {
+function createMemoryServer(context: ServerContext = {}): McpServer {
     const server = new McpServer({ name: "cairn-memory", version: "0.1.0" });
+    const memoryConfig = (): MemoryConfig => context.memoryConfig ?? getMemoryConfig();
+    const scopeOptions = { projectId: context.projectId };
 
 server.registerTool(
     "memory_read",
@@ -886,12 +964,12 @@ server.registerTool(
         if (Boolean(key) === Boolean(query)) {
             throw new Error("Provide exactly one of key or query.");
         }
-        const config = getMemoryConfig();
+        const config = memoryConfig();
         const scopes = getSearchScopes(scope, config);
         const results = key
-            ? (await Promise.all(scopes.map((candidate) => readKey(candidate, key)))).flat()
+            ? (await Promise.all(scopes.map((candidate) => readKey(candidate, key, scopeOptions)))).flat()
             : searchEntries(
-                (await Promise.all(scopes.map((candidate) => listEntries(candidate)))).flat(),
+                (await Promise.all(scopes.map((candidate) => listEntries(candidate, "", scopeOptions)))).flat(),
                 query ?? "",
             );
 
@@ -931,7 +1009,7 @@ server.registerTool(
         const collisions: Array<{ scope: string; snapshot_key: string; previous_value: string }> = [];
 
         for (const target of targets) {
-            const agent = await openScope(target, true);
+            const agent = await openScope(target, true, scopeOptions);
             if (!agent) {
                 throw new Error(`Unable to open scope ${target}.`);
             }
@@ -977,7 +1055,7 @@ server.registerTool(
         },
     },
     async ({ scope, prefix }) => {
-        const entries = await listEntries(scope, prefix ?? "");
+        const entries = await listEntries(scope, prefix ?? "", scopeOptions);
         const keys = entries.map((entry) => entry.key).sort();
 
         return {
@@ -997,7 +1075,7 @@ server.registerTool(
         }),
     },
     async ({ scope, key }) => {
-        const agent = await openScope(scope, false);
+        const agent = await openScope(scope, false, scopeOptions);
 
         if (agent) {
             try {
@@ -1034,6 +1112,8 @@ server.registerTool(
             query,
             top_k ?? 8,
             min_score ?? 0,
+            memoryConfig(),
+            context.projectId,
         );
         const payload = { mode, model, count: results.length, results };
 
@@ -1087,7 +1167,7 @@ server.registerTool(
             throw new Error(`Keys under ${HISTORY_NAMESPACE}/ are reserved for memory history.`);
         }
 
-        const agent = await openScope(scope, true);
+        const agent = await openScope(scope, true, scopeOptions);
         if (!agent) {
             throw new Error(`Unable to open scope ${scope}.`);
         }
@@ -1144,8 +1224,11 @@ server.registerTool(
         },
     },
     async ({ scope, key }) => {
-        const current = await readKey(scope, key);
-        const history = (await listEntries(scope, historyPrefix(key), { includeHistory: true }))
+        const current = await readKey(scope, key, scopeOptions);
+        const history = (await listEntries(scope, historyPrefix(key), {
+            includeHistory: true,
+            ...scopeOptions,
+        }))
             .sort((left, right) => left.key.localeCompare(right.key));
 
         const payload = {
@@ -1167,7 +1250,7 @@ server.registerTool(
     {
         description: "Query an AnythingLLM workspace in query mode for domain knowledge.",
         inputSchema: z.object({
-            workspace: z.string().min(1),
+            workspace: z.string().min(1).optional(),
             query: z.string().min(1),
         }),
         annotations: {
@@ -1175,11 +1258,15 @@ server.registerTool(
         },
     },
     async ({ workspace, query }) => {
-        const answer = await callAnythingLLM(workspace, query);
+        const workspaceSlug = workspace ?? defaultAnythingLLMWorkspace(memoryConfig());
+        if (!workspaceSlug) {
+            throw new Error("No AnythingLLM workspace provided and no project workspace found in memory config.");
+        }
+        const answer = await callAnythingLLM(workspaceSlug, query);
 
         return {
             content: [{ type: "text", text: answer }],
-            structuredContent: { workspace, answer },
+            structuredContent: { workspace: workspaceSlug, answer },
         };
     },
 );
@@ -1197,7 +1284,7 @@ server.registerTool(
     },
     async ({ workspace, mode, confirm_replace, timeout_seconds }) => {
         const syncMode = mode ?? "incremental";
-        const config = getMemoryConfig();
+        const config = memoryConfig();
         const workspaceSlug = workspace ?? defaultAnythingLLMWorkspace(config);
 
         if (!workspaceSlug) {
@@ -1482,12 +1569,13 @@ if (httpPort > 0) {
         }
         // New session (first request = initialize). The transport mints a session
         // id and the SDK returns it via the response header; client echoes it back.
+        const context = parseServerContext(request.headers);
         const transport = new WebStandardStreamableHTTPServerTransport({
             sessionIdGenerator: (): string => randomUUID(),
             onsessioninitialized: (id: string): void => { sessions.set(id, transport); },
             onsessionclosed: (id: string): void => { sessions.delete(id); },
         });
-        const session = createMemoryServer();
+        const session = createMemoryServer(context);
         await session.connect(transport);
         return transport.handleRequest(request);
     };
@@ -1498,7 +1586,10 @@ if (httpPort > 0) {
             res.setHeader("Access-Control-Allow-Origin", allowOrigin);
             res.setHeader("Vary", "Origin");
             res.setHeader("Access-Control-Allow-Methods", "POST, GET, DELETE, OPTIONS");
-            res.setHeader("Access-Control-Allow-Headers", "Content-Type, mcp-session-id, Accept, Authorization");
+            res.setHeader(
+                "Access-Control-Allow-Headers",
+                "Content-Type, mcp-session-id, Accept, Authorization, X-Cairn-Project, X-Cairn-Scopes, X-Cairn-AnythingLLM-Workspaces",
+            );
         }
         if (req.method === "OPTIONS") { res.writeHead(allowOrigin ? 204 : 403).end(); return; }
 
@@ -1531,7 +1622,8 @@ if (httpPort > 0) {
             res.writeHead(response.status, outHeaders);
             res.end(Buffer.from(await response.arrayBuffer()));
         } catch (err) {
-            res.writeHead(500).end(err instanceof Error ? err.message : String(err));
+            const status = err instanceof ClientContextError ? 400 : 500;
+            res.writeHead(status).end(err instanceof Error ? err.message : String(err));
         }
     });
 

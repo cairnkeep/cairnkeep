@@ -45,6 +45,18 @@ first of `.agent/memory.json`, `.opencode/memory.json`, `.claude/memory.json`, o
 configured workspace that is not `engineering-patterns` (the conventional shared
 workspace). With no workspace given and none configured, it errors.
 
+In local stdio mode, that config is read from the client project's working
+directory. In remote HTTP mode, the server cannot read files from the client
+PC. Configure `ANYTHINGLLM_BASE_URL`, `ANYTHINGLLM_API_KEY`, and any sync script
+on the HTTP server host, then send the project workspaces in the
+`X-Cairn-AnythingLLM-Workspaces` session header. See
+[Memory storage and deployment](storage.md#per-project-remote-sessions).
+
+The HTTP server performs queries and runs the sync script on its own host. A
+remote sync script must therefore obtain project documents from a server-side
+checkout, object store, or git host; it cannot read an arbitrary client PC's
+working tree.
+
 ## Setup (query)
 
 ```bash

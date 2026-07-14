@@ -53,12 +53,34 @@ With this topology, the databases are on the server host, not the client PC.
 Setting `CAIRN_AGENTFS_BASE_DIR` on the client does not redirect a remote
 server; set it in the server service environment.
 
+### Per-project remote sessions
+
+Remote clients can bind an MCP session to a stable project identity and send
+the memory configuration that a local server would read from `memory.json`:
+
+| Header | Purpose |
+|---|---|
+| `X-Cairn-Project` | Kebab-case project identity, up to 64 characters |
+| `X-Cairn-Scopes` | Comma-separated scopes used when a tool reads scope `all` |
+| `X-Cairn-AnythingLLM-Workspaces` | Comma-separated AnythingLLM workspace slugs; the first non-`engineering-patterns` workspace is the default |
+
+When `X-Cairn-Project` is present, `project` scope is stored at
+`${CAIRN_AGENTFS_BASE_DIR}/projects/<project-id>.db`. Sessions with different
+project identities therefore do not share project memory. Without the header,
+HTTP mode retains the legacy behavior and resolves `project` from the server
+working directory.
+
+These headers are session routing metadata, not authorization. The bearer
+token still grants access to the entire server, including the ability to choose
+another valid project identity. Use separate server instances for separate
+trust domains.
+
 HTTP mode is one trusted storage domain:
 
 - One bearer token grants access to every exposed memory tool.
 - There is no per-user ACL, tenant isolation, or client-specific filesystem.
-- `project` scope resolves from the server process's working directory, so all
-  HTTP clients of that process share the same `project.db`.
+- Sessions without `X-Cairn-Project` share the project database resolved from
+  the server process's working directory.
 - Use one server instance per isolation boundary. Do not offer one instance to
   mutually untrusted users.
 - Keep the Cairnkeep listener on loopback behind a TLS reverse proxy, or use an
@@ -132,3 +154,10 @@ Ensure the secret-manager bootstrap exports `CAIRN_MEMORY_HTTP_TOKEN` before
 OpenCode starts. Preserve any other keys already present in `opencode.json`
 rather than replacing the whole file. The URL, token, private host names, and
 device-specific configuration must never be committed to this public project.
+
+For distinct project memory, install a project-local MCP entry with the same
+URL and authorization header plus the three routing headers. Claude Code
+expands `${VAR}` references in project `.mcp.json` URL and header values;
+OpenCode uses `{env:VAR}` references. A private overlay should generate and
+merge these files so secrets remain in the process environment rather than the
+repository.

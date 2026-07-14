@@ -267,9 +267,11 @@ is guarded and **fails closed**:
 Requests without a valid bearer token get `401`; requests with an unexpected
 `Host` header get `403`. Keep HTTP mode bound to `127.0.0.1` unless you have a
 specific reason to expose it, and use a long random token. HTTP mode has no
-per-user ACL or tenant isolation, and every client shares the server process's
-`project` database. See [Memory storage and deployment](storage.md) for the
-placement rules, client registration, TLS requirements, and backup boundaries.
+per-user ACL or tenant isolation. Clients may bind sessions to separate project
+databases with validated `X-Cairn-Project` routing metadata, but that metadata
+is not an authorization boundary. See [Memory storage and deployment](storage.md)
+for the placement rules, client registration, TLS requirements, project headers,
+and backup boundaries.
 
 ## The workflow
 
