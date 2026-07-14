@@ -2,12 +2,12 @@
 """
 Multi-project incremental sync into AnythingLLM.
 
-Each project repo gets its own AnythingLLM workspace. All projects are
-configured in anythingllm-projects.json alongside this script.
+Each project repo gets its own AnythingLLM workspace. Projects are configured
+in the file selected by CAIRN_ANYTHINGLLM_PROJECTS_FILE, the legacy file next to
+this script when present, or the XDG user config directory.
 
-This is a reference example wired to cairnkeep's `domain_knowledge_sync`
-tool via the `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` env var. Copy it, adjust the
-config, and point cairnkeep at your copy. See ../../docs/domain-knowledge.md.
+This is the bundled reference implementation wired to Cairnkeep's
+`domain_knowledge_sync` tool. See ../../docs/domain-knowledge.md.
 
 Usage:
     # Sync all configured projects (normal workflow after git pull):
@@ -31,8 +31,8 @@ Usage:
     # List all configured projects and file counts:
     python3 sync_to_anythingllm.py --list
 
-Config:  anythingllm-projects.json   (alongside this script; see the .example)
-State:   .anythingllm-sync.json      (git-ignored, machine-local)
+Config:  ${XDG_CONFIG_HOME:-~/.config}/cairnkeep/anythingllm-projects.json
+State:   ${XDG_STATE_HOME:-~/.local/state}/cairnkeep/anythingllm-sync.json
 
 State file format:
     {
@@ -61,8 +61,23 @@ BASE_URL = f"{os.environ.get('ANYTHINGLLM_BASE_URL', 'http://localhost:3001').rs
 API_KEY = os.environ.get("ANYTHINGLLM_API_KEY", "")
 
 SCRIPT_DIR = Path(__file__).parent
-CONFIG_FILE = SCRIPT_DIR / "anythingllm-projects.json"
-STATE_FILE = SCRIPT_DIR / ".anythingllm-sync.json"
+LEGACY_CONFIG_FILE = SCRIPT_DIR / "anythingllm-projects.json"
+CONFIG_HOME = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+STATE_HOME = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+
+if os.environ.get("CAIRN_ANYTHINGLLM_PROJECTS_FILE"):
+    CONFIG_FILE = Path(os.environ["CAIRN_ANYTHINGLLM_PROJECTS_FILE"]).expanduser()
+elif LEGACY_CONFIG_FILE.exists():
+    CONFIG_FILE = LEGACY_CONFIG_FILE
+else:
+    CONFIG_FILE = CONFIG_HOME / "cairnkeep" / "anythingllm-projects.json"
+
+if os.environ.get("CAIRN_ANYTHINGLLM_STATE_FILE"):
+    STATE_FILE = Path(os.environ["CAIRN_ANYTHINGLLM_STATE_FILE"]).expanduser()
+elif CONFIG_FILE == LEGACY_CONFIG_FILE:
+    STATE_FILE = SCRIPT_DIR / ".anythingllm-sync.json"
+else:
+    STATE_FILE = STATE_HOME / "cairnkeep" / "anythingllm-sync.json"
 
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 JSON_HEADERS = {**HEADERS, "Content-Type": "application/json"}
@@ -128,6 +143,7 @@ def load_state() -> dict:
 
 
 def save_state(state: dict) -> None:
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps(state, indent=2))
 
 

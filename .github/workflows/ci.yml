@@ -11,14 +11,17 @@ on:
 jobs:
   memory-server:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ["22", "24"]
     defaults:
       run:
         working-directory: mcp-memory-server
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "20"
+          node-version: ${{ matrix.node }}
           cache: npm
           cache-dependency-path: mcp-memory-server/package-lock.json
       - run: npm ci
@@ -28,13 +31,15 @@ jobs:
   repository:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           # The public-safety guard scans the complete commit-message history.
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "20"
+          node-version: "24"
+          cache: npm
+      - run: npm ci
       - run: npm run check:public
       - run: npm pack --dry-run --ignore-scripts
 
@@ -44,7 +49,7 @@ jobs:
   shell-portability:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - run: scripts/smoke-bash32.sh   # ubuntu-latest has docker preinstalled
 
   # Install the packed tarball on a clean, minimal node:18 box (the engines floor)
@@ -53,8 +58,8 @@ jobs:
   server-boot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "18"
       - name: Build + pack
@@ -78,8 +83,8 @@ jobs:
   fresh-install-macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "18"
       - name: Install per the README on real macOS bash 3.2
@@ -92,6 +97,7 @@ jobs:
           npm i -g ./cairnkeep-cli-*.tgz
           cairn version
           cairn sync --apply --live-root "$RUNNER_TEMP/claude"
+          mkdir -p "$RUNNER_TEMP/proj"
           cairn bootstrap "$RUNNER_TEMP/proj"
           ( cd "$RUNNER_TEMP/proj" && cairn doctor )
           scripts/smoke-mcp-boot.sh

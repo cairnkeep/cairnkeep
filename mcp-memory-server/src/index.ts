@@ -63,12 +63,11 @@ type CommandResult = {
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const infraRoot = resolve(moduleDir, "..", "..");
-// Path to the domain-knowledge sync script. Defaults to a script bundled next to
-// this repo, but a wrapper can point CAIRN_ANYTHINGLLM_SYNC_SCRIPT at its own copy
-// (the integration scripts often live in the wrapper, not the core).
+// Path to the bundled deployment-neutral sync script. An overlay can replace it
+// with a deployment-specific implementation.
 const anythingllmSyncScript = process.env.CAIRN_ANYTHINGLLM_SYNC_SCRIPT
     ? resolve(expandHome(process.env.CAIRN_ANYTHINGLLM_SYNC_SCRIPT))
-    : join(infraRoot, "anythingllm", "sync_to_anythingllm.py");
+    : join(infraRoot, "examples", "anythingllm", "sync_to_anythingllm.py");
 const HISTORY_NAMESPACE = "__history__";
 const PROJECT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const WORKSPACE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
