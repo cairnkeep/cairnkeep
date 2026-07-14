@@ -28,7 +28,7 @@
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.29.0",
         "agentfs-sdk": "^0.6.4",
-        "zod": "^3.25.76"
+        "zod": "^4.4.3"
     },
     "devDependencies": {
         "@types/node": "^22.15.21",
