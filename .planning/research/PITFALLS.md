@@ -58,7 +58,7 @@ The phase that implements the `context_explore` MCP tool itself, before it is wi
 ### Pitfall 3: Provider-neutral core accidentally hardcodes the mitkox/HF model id, a local host/IP, or an `endpoint.md` default in committed code or docs
 
 **What goes wrong:**
-"Provider-neutral, defaults to the mitkox FastContext GGUF on local infra" (as stated in PROJECT.md's v1.2 goal) is easy to implement backwards: instead of "no default, must configure," a PR bakes in `mitkox/FastContext-1.0-4B-RL-Q8_0-GGUF`, a literal `http://127.0.0.1:8084` / `192.0.2.10` endpoint, or a comment referencing the operator's specific GPU host/service name (`model.service`, `build-host.example`, the Tailscale IP) into `src/`, docs, or a commit message. This simultaneously violates **DEC-no-private-references [LOCKED]** (no internal host/IP in code/comments/commits/docs) and the **provider-neutral core** constraint (no vendor/model hardcoding), and DEC-commit-scanning means it would be caught at commit time — but only if the scan actually covers the new files, and only after the violation was already typed.
+"Provider-neutral, defaults to a tested model on local infra" is easy to implement backwards: instead of "no default, must configure," a PR bakes in a concrete model identifier, a private-network endpoint, or a comment referencing the operator's specific host or service name into `src/`, docs, or a commit message. This simultaneously violates **DEC-no-private-references [LOCKED]** (no internal host/IP in code/comments/commits/docs) and the **provider-neutral core** constraint (no vendor/model hardcoding), and DEC-commit-scanning means it would be caught at commit time - but only if the scan actually covers the new files, and only after the violation was already typed.
 
 **Why it happens:**
 This is the single most natural way to "make FastContext work" quickly: the operator's own local infra (documented in project memory `local-inference-infra`) already has a working FastContext-capable llama.cpp endpoint, a real model file path, and a specific `--hf-repo mitkox/...` invocation from research — the shortest path to a demo is to paste that in. This is precisely the anti-pattern the `embeddings.ts` precedent explicitly avoids: `getEmbeddingConfig()` requires `CAIRN_MEMORY_EMBEDDING_MODEL` to be set explicitly and returns `null` (fall back to substring search) if unset — "the core ships no vendor default." The comment in that file ("the core ships no vendor default... unset means semantic search degrades") is the exact pattern `context_explore`'s config must copy, and it's easy to skip because FastContext feels more like "infrastructure" than "an LLM call," making it feel exempt from the same discipline.
@@ -71,7 +71,7 @@ This is the single most natural way to "make FastContext work" quickly: the oper
 
 **Warning signs:**
 - Any `src/*.ts` file contains a literal `http://` URL that isn't `127.0.0.1`/`localhost`, or a literal `mitkox/...`/`microsoft/fastcontext` string used as a runtime default (vs. a comment/doc example).
-- A commit message or code comment names a specific host (`build-host.example`, `192.0.2.10`, `fedora`) or service unit (`model.service`).
+- A commit message or code comment names an operator-specific host, private IP address, workstation, or service unit.
 - Config requires zero environment variables to "just work" for FastContext — that's the tell that a default snuck in.
 
 **Phase to address:**
