@@ -22,8 +22,9 @@
         "check:explore-cache": "node scripts/smoke-explore-cache.mjs",
         "check:explore-crossref": "node scripts/smoke-explore-crossref.mjs",
         "check:route-guard": "node scripts/smoke-route-guard.mjs",
+        "check:reviewed-memory": "node scripts/smoke-reviewed-memory.mjs",
         "test": "npm run test:smoke",
-        "test:smoke": "npm run build && npm run check:embeddings && npm run check:extract && npm run check:scope-guard && npm run check:http-guard && npm run check:remote-context && npm run check:explore-guard && npm run check:explore-cache && npm run check:explore-crossref && npm run check:route-guard",
+        "test:smoke": "npm run build && npm run check:embeddings && npm run check:extract && npm run check:scope-guard && npm run check:http-guard && npm run check:remote-context && npm run check:explore-guard && npm run check:explore-cache && npm run check:explore-crossref && npm run check:route-guard && npm run check:reviewed-memory",
         "test:search": "npm run build && npm run check:search",
         "test:memory": "npm run build && npm run check:embeddings && npm run check:extract && npm run check:search",
         "test:all": "npm run test:memory"
