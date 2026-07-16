@@ -78,6 +78,8 @@ const anythingllmSyncScript = process.env.CAIRN_ANYTHINGLLM_SYNC_SCRIPT
     ? resolve(expandHome(process.env.CAIRN_ANYTHINGLLM_SYNC_SCRIPT))
     : join(infraRoot, "examples", "anythingllm", "sync_to_anythingllm.py");
 const HISTORY_NAMESPACE = "__history__";
+const REVIEWED_NAMESPACE = "__reviewed__";
+const REVIEW_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const PROJECT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const WORKSPACE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
@@ -285,12 +287,55 @@ function isHistoryKey(key: string): boolean {
     return key === HISTORY_NAMESPACE || key.startsWith(`${HISTORY_NAMESPACE}/`);
 }
 
+function isReviewedKey(key: string): boolean {
+    return key === REVIEWED_NAMESPACE || key.startsWith(`${REVIEWED_NAMESPACE}/`);
+}
+
+function assertWritableMemoryKey(key: string): void {
+    if (isHistoryKey(key) || isReviewedKey(key)) {
+        throw new Error(`Keys under ${HISTORY_NAMESPACE}/ and ${REVIEWED_NAMESPACE}/ are reserved.`);
+    }
+}
+
 function historyPrefix(baseKey: string): string {
     return `${HISTORY_NAMESPACE}/${baseKey}/`;
 }
 
 function historySnapshotKey(baseKey: string, timestamp: string): string {
-    return `${historyPrefix(baseKey)}${timestamp}`;
+    return `${historyPrefix(baseKey)}${timestamp}-${randomUUID()}`;
+}
+
+const reviewedRecordSchema = z.object({
+    schema_version: z.literal(1),
+    review_id: z.string(),
+    key: z.string(),
+    value_hash: z.string(),
+    state: z.enum(["active", "superseded", "invalidated"]),
+    applied_at: z.string(),
+    superseded_at: z.string().optional(),
+    superseded_by: z.string().optional(),
+    invalidated_at: z.string().optional(),
+    invalidation_reason: z.string().optional(),
+});
+
+type ReviewedRecord = z.infer<typeof reviewedRecordSchema>;
+
+function reviewedRecordKey(reviewId: string): string {
+    return `${REVIEWED_NAMESPACE}/${reviewId}`;
+}
+
+function parseReviewedRecord(value: unknown): ReviewedRecord {
+    const parsed = reviewedRecordSchema.safeParse(value);
+    if (!parsed.success) {
+        throw new Error("Stored reviewed-memory provenance is invalid; refusing to continue.");
+    }
+    return parsed.data;
+}
+
+async function inImmediateScopeTransaction<T>(agent: AgentFS, operation: () => Promise<T>): Promise<T> {
+    const transaction = agent.getDatabase().transaction(operation);
+    const immediate = (transaction as typeof transaction & { immediate: typeof transaction }).immediate;
+    return immediate();
 }
 
 function visibleEntries(entries: MemoryEntry[], includeHistory: boolean): MemoryEntry[] {
@@ -298,7 +343,7 @@ function visibleEntries(entries: MemoryEntry[], includeHistory: boolean): Memory
         return entries;
     }
 
-    return entries.filter((entry) => !isHistoryKey(entry.key));
+    return entries.filter((entry) => !isHistoryKey(entry.key) && !isReviewedKey(entry.key));
 }
 
 async function listEntries(
@@ -1004,9 +1049,7 @@ server.registerTool(
         }),
     },
     async ({ scope, key, value, promote_to }) => {
-        if (isHistoryKey(key)) {
-            throw new Error(`Keys under ${HISTORY_NAMESPACE}/ are reserved for memory history.`);
-        }
+        assertWritableMemoryKey(key);
 
         const targets = promote_to && promote_to !== scope ? [scope, promote_to] : [scope];
         // Collision-safe: in the unified store, writes from different repos/machines
@@ -1083,6 +1126,9 @@ server.registerTool(
         }),
     },
     async ({ scope, key }) => {
+        if (isReviewedKey(key)) {
+            throw new Error(`Keys under ${REVIEWED_NAMESPACE}/ are reserved for reviewed-memory provenance.`);
+        }
         const agent = await openScope(scope, false, scopeOptions);
 
         if (agent) {
@@ -1171,9 +1217,7 @@ server.registerTool(
         }),
     },
     async ({ scope, key, value, reason }) => {
-        if (isHistoryKey(key)) {
-            throw new Error(`Keys under ${HISTORY_NAMESPACE}/ are reserved for memory history.`);
-        }
+        assertWritableMemoryKey(key);
 
         const agent = await openScope(scope, true, scopeOptions);
         if (!agent) {
@@ -1208,6 +1252,226 @@ server.registerTool(
                 snapshot_key: snapshotKey,
                 previous_value: normalizeValue(previous),
             };
+            return {
+                content: [{ type: "text", text: asToolText(payload) }],
+                structuredContent: payload,
+            };
+        } finally {
+            await agent.close();
+        }
+    },
+);
+
+server.registerTool(
+    "memory_apply_reviewed",
+    {
+        description: "Idempotently apply a human-reviewed memory revision with durable provenance.",
+        inputSchema: z.object({
+            scope: z.string(),
+            review_id: z.string().regex(REVIEW_ID_PATTERN),
+            key: z.string().min(1),
+            value: z.string(),
+        }),
+    },
+    async ({ scope, review_id, key, value }) => {
+        assertWritableMemoryKey(key);
+        const agent = await openScope(scope, true, scopeOptions);
+        if (!agent) {
+            throw new Error(`Unable to open scope ${scope}.`);
+        }
+
+        try {
+            const payload = await inImmediateScopeTransaction(agent, async () => {
+                const recordKey = reviewedRecordKey(review_id);
+                const valueHash = hashText(value);
+                const stored = await agent.kv.get(recordKey);
+                if (stored !== undefined) {
+                    const existing = parseReviewedRecord(stored);
+                    if (existing.key !== key || existing.value_hash !== valueHash) {
+                        throw new Error(`Review id ${review_id} was already used with different content.`);
+                    }
+                    if (existing.state !== "active") {
+                        throw new Error(`Review id ${review_id} is ${existing.state} and cannot be reapplied.`);
+                    }
+                    return {
+                        ok: true,
+                        scope,
+                        review_id,
+                        key,
+                        applied: false,
+                        idempotent: true,
+                        snapshot_key: null,
+                    };
+                }
+
+                const appliedAt = new Date().toISOString();
+                const provenance = await agent.kv.list(`${REVIEWED_NAMESPACE}/`);
+                for (const entry of provenance) {
+                    const previousRecord = parseReviewedRecord(entry.value);
+                    if (previousRecord.state === "active" && previousRecord.key === key) {
+                        await agent.kv.set(entry.key, {
+                            ...previousRecord,
+                            state: "superseded",
+                            superseded_at: appliedAt,
+                            superseded_by: review_id,
+                        } satisfies ReviewedRecord);
+                    }
+                }
+
+                const previous = await agent.kv.get(key);
+                const previousValue = previous === undefined ? undefined : normalizeValue(previous);
+                let snapshotKey: string | null = null;
+                if (previousValue !== undefined && previousValue !== value) {
+                    snapshotKey = historySnapshotKey(key, appliedAt);
+                    await agent.kv.set(snapshotKey, {
+                        value: previousValue,
+                        superseded_at: appliedAt,
+                        superseded_reason: `reviewed memory ${review_id}`,
+                    });
+                }
+
+                await agent.kv.set(key, value);
+                await agent.kv.set(recordKey, {
+                    schema_version: 1,
+                    review_id,
+                    key,
+                    value_hash: valueHash,
+                    state: "active",
+                    applied_at: appliedAt,
+                } satisfies ReviewedRecord);
+
+                return {
+                    ok: true,
+                    scope,
+                    review_id,
+                    key,
+                    applied: true,
+                    idempotent: false,
+                    snapshot_key: snapshotKey,
+                };
+            });
+
+            return {
+                content: [{ type: "text", text: asToolText(payload) }],
+                structuredContent: payload,
+            };
+        } finally {
+            await agent.close();
+        }
+    },
+);
+
+server.registerTool(
+    "memory_invalidate_reviewed",
+    {
+        description: "Invalidate a reviewed revision, removing it only when the live value still matches.",
+        inputSchema: z.object({
+            scope: z.string(),
+            review_id: z.string().regex(REVIEW_ID_PATTERN),
+            key: z.string().min(1),
+            reason: z.string().max(512).optional(),
+        }),
+    },
+    async ({ scope, review_id, key, reason }) => {
+        assertWritableMemoryKey(key);
+        const agent = await openScope(scope, true, scopeOptions);
+        if (!agent) {
+            throw new Error(`Unable to open scope ${scope}.`);
+        }
+
+        try {
+            const payload = await inImmediateScopeTransaction(agent, async () => {
+                const recordKey = reviewedRecordKey(review_id);
+                const stored = await agent.kv.get(recordKey);
+                if (stored === undefined) {
+                    const invalidatedAt = new Date().toISOString();
+                    await agent.kv.set(recordKey, {
+                        schema_version: 1,
+                        review_id,
+                        key,
+                        value_hash: "",
+                        state: "invalidated",
+                        applied_at: invalidatedAt,
+                        invalidated_at: invalidatedAt,
+                        ...(reason ? { invalidation_reason: reason } : {}),
+                    } satisfies ReviewedRecord);
+                    return {
+                        ok: true,
+                        scope,
+                        review_id,
+                        key,
+                        invalidated: true,
+                        idempotent: false,
+                        missing: true,
+                        removed: false,
+                        current_changed: false,
+                        snapshot_key: null,
+                    };
+                }
+
+                const record = parseReviewedRecord(stored);
+                if (record.key !== key) {
+                    throw new Error(`Review id ${review_id} belongs to a different memory key.`);
+                }
+                if (record.state === "invalidated") {
+                    return {
+                        ok: true,
+                        scope,
+                        review_id,
+                        key: record.key,
+                        invalidated: false,
+                        idempotent: true,
+                        missing: record.value_hash === "",
+                        removed: false,
+                        current_changed: false,
+                        snapshot_key: null,
+                    };
+                }
+
+                const invalidatedAt = new Date().toISOString();
+                let currentChanged = false;
+                let removed = false;
+                let snapshotKey: string | null = null;
+                if (record.state === "active") {
+                    const current = await agent.kv.get(record.key);
+                    if (current !== undefined) {
+                        const currentValue = normalizeValue(current);
+                        if (hashText(currentValue) === record.value_hash) {
+                            snapshotKey = historySnapshotKey(record.key, invalidatedAt);
+                            await agent.kv.set(snapshotKey, {
+                                value: currentValue,
+                                superseded_at: invalidatedAt,
+                                superseded_reason: reason ?? `reviewed memory ${review_id} invalidated`,
+                            });
+                            await agent.kv.delete(record.key);
+                            removed = true;
+                        } else {
+                            currentChanged = true;
+                        }
+                    }
+                }
+
+                await agent.kv.set(recordKey, {
+                    ...record,
+                    state: "invalidated",
+                    invalidated_at: invalidatedAt,
+                    ...(reason ? { invalidation_reason: reason } : {}),
+                } satisfies ReviewedRecord);
+
+                return {
+                    ok: true,
+                    scope,
+                    review_id,
+                    key: record.key,
+                    invalidated: true,
+                    idempotent: false,
+                    missing: false,
+                    removed,
+                    current_changed: currentChanged,
+                    snapshot_key: snapshotKey,
+                };
+            });
+
             return {
                 content: [{ type: "text", text: asToolText(payload) }],
                 structuredContent: payload,

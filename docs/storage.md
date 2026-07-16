@@ -112,6 +112,31 @@ sqlite3 /path/to/project/.agentfs/project.db \
 Treat every database and export archive as sensitive. They may contain source
 paths, decisions, incident details, and other project context.
 
+## Reviewed-memory integration
+
+External review systems should not compose `memory_write`, `memory_read`, and
+`memory_delete` into their own promotion protocol. That sequence is not atomic
+and can delete a newer manual revision during lifecycle invalidation.
+
+Cairnkeep exposes two additive MCP tools for reviewed integrations:
+
+- `memory_apply_reviewed` takes `scope`, `review_id`, `key`, and `value`. It is
+  idempotent for the same review and content, preserves a displaced live value
+  in memory history, and rejects reuse of the review ID with different content.
+- `memory_invalidate_reviewed` takes `scope`, `review_id`, `key`, and an optional
+  `reason`. It removes the live value only when it still matches that reviewed
+  revision. If apply has not arrived yet, it records a tombstone so a delayed
+  apply cannot resurrect invalid memory.
+
+Provenance and tombstones use a hidden reserved namespace in the same scoped
+database. Generic memory writes and deletes cannot modify those records. Review
+IDs must be stable, non-secret idempotency identifiers; evidence payloads and
+credentials do not belong in them.
+
+These tools are for an explicit, trusted integration. Cairnkeep itself does not
+approve candidates, discover an evidence service, or promote memory
+automatically. Existing clients and the original memory tools remain unchanged.
+
 ## Automating trusted personal clients
 
 Keep fleet-specific values in a private dotfiles repository or secret manager,

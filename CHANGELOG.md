@@ -3,6 +3,26 @@
 All notable user-facing changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-07-16
+
+### Added
+
+- Add `memory_apply_reviewed` for idempotent application of externally reviewed
+  memory revisions with durable provenance and collision-safe history.
+- Add `memory_invalidate_reviewed` for revision-matched retraction and durable
+  tombstones that prevent delayed writes from resurrecting invalid memory.
+- Add end-to-end checks for replay, supersession, manual changes, retraction,
+  tombstones, and reserved provenance records.
+
+### Changed
+
+- Make history snapshot keys unique when multiple revisions occur in the same
+  millisecond.
+
+The existing memory tools, database locations, and remote HTTP routing contract
+are unchanged. Existing clients remain compatible and reviewed-memory records
+are created only when an integration explicitly invokes the new tools.
+
 ## [2.0.0] - 2026-07-15
 
 ### Breaking
@@ -69,6 +89,7 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
+[2.1.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/cairnkeep/cairnkeep/compare/v1.1.3...v2.0.0
 [1.1.3]: https://github.com/cairnkeep/cairnkeep/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/cairnkeep/cairnkeep/compare/v1.1.1...v1.1.2
