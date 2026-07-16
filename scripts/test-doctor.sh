@@ -5,7 +5,12 @@ set -uo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
+server_pid=""
+cleanup() {
+  [[ -n "$server_pid" ]] && kill "$server_pid" 2>/dev/null || true
+  rm -rf "$tmp"
+}
+trap cleanup EXIT
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
 doctor="$ROOT/scripts/doctor.sh"
@@ -46,4 +51,59 @@ else
   echo "  (curl absent — skipped the unreachable-endpoint case)"
 fi
 
-echo "PASS: cairn doctor (skip unconfigured, fail configured-unreachable)"
+# 4. The embedding check performs a real authenticated model request.
+if command -v curl >/dev/null 2>&1; then
+  cat > "$tmp/embedding-server.mjs" <<'EOF'
+import { createServer } from "node:http";
+import { writeFileSync } from "node:fs";
+
+const server = createServer((request, response) => {
+  const chunks = [];
+  request.on("data", (chunk) => chunks.push(chunk));
+  request.on("end", () => {
+    let body = {};
+    try { body = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch {}
+    const valid = request.url === "/v1/embeddings"
+      && request.headers.authorization === "Bearer test-key"
+      && body.model === "test-embedding";
+    response.writeHead(valid ? 200 : 404, { "Content-Type": "application/json" });
+    response.end(JSON.stringify(valid
+      ? { data: [{ index: 0, embedding: [1, 0] }] }
+      : { error: "invalid request" }));
+  });
+});
+server.listen(0, "127.0.0.1", () => {
+  writeFileSync(process.argv[2], String(server.address().port));
+});
+EOF
+  node "$tmp/embedding-server.mjs" "$tmp/embedding-port" &
+  server_pid=$!
+  for _ in $(seq 1 50); do [[ -s "$tmp/embedding-port" ]] && break; sleep 0.1; done
+  [[ -s "$tmp/embedding-port" ]] || fail "embedding test server did not start"
+  port=$(cat "$tmp/embedding-port")
+
+  proj3="$tmp/embedding-ok"; mkdir -p "$proj3/.ai"
+  cat > "$proj3/.ai/.env" <<EOF
+CAIRN_MEMORY_EMBEDDING_URL=http://127.0.0.1:$port/v1
+CAIRN_MEMORY_EMBEDDING_MODEL=test-embedding
+CAIRN_LLM_API_KEY=test-key
+EOF
+  ( cd "$proj3" && "$doctor" ) >"$tmp/out3" 2>&1 ||
+    fail "doctor rejected a working embedding endpoint:\n$(cat "$tmp/out3")"
+  grep -q "\[PASS\] embedding endpoint accepted model test-embedding" "$tmp/out3" ||
+    fail "expected a functional embedding PASS line"
+
+  proj4="$tmp/embedding-wrong-model"; mkdir -p "$proj4/.ai"
+  cat > "$proj4/.ai/.env" <<EOF
+CAIRN_MEMORY_EMBEDDING_URL=http://127.0.0.1:$port/v1
+CAIRN_MEMORY_EMBEDDING_MODEL=missing-model
+CAIRN_LLM_API_KEY=test-key
+EOF
+  if ( cd "$proj4" && "$doctor" ) >"$tmp/out4" 2>&1; then
+    fail "doctor should reject a missing embedding model:\n$(cat "$tmp/out4")"
+  fi
+  grep -q "\[FAIL\] embedding request failed for model missing-model" "$tmp/out4" ||
+    fail "expected a functional embedding FAIL line"
+fi
+
+echo "PASS: cairn doctor (skip unconfigured, fail unreachable, probe embeddings)"

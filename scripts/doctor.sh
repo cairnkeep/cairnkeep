@@ -28,6 +28,17 @@ fail() { printf '  [FAIL] %s\n' "$1"; fails=$((fails + 1)); }
 # reachable); a connect/timeout failure returns non-zero.
 reachable() { curl -sS -m 5 -o /dev/null "$1" >/dev/null 2>&1; }
 
+embedding_works() {
+  local payload
+  payload=$(node -e 'process.stdout.write(JSON.stringify({ model: process.argv[1], input: ["cairnkeep health check"] }))' \
+    "$CAIRN_MEMORY_EMBEDDING_MODEL") || return 1
+  curl -fsS -m 10 -o /dev/null \
+    -H "Authorization: Bearer $CAIRN_LLM_API_KEY" \
+    -H "Content-Type: application/json" \
+    --data "$payload" \
+    "${CAIRN_MEMORY_EMBEDDING_URL%/}/embeddings" >/dev/null 2>&1
+}
+
 echo "cairn doctor"
 
 # 1. Required memory server: prove that the shipped build and dependencies can
@@ -66,10 +77,12 @@ fi
 if [[ -n "${CAIRN_MEMORY_EMBEDDING_URL:-}" ]]; then
   if ! command -v curl >/dev/null 2>&1; then
     skip "embedding endpoint: curl not installed, cannot probe ${CAIRN_MEMORY_EMBEDDING_URL}"
-  elif reachable "$CAIRN_MEMORY_EMBEDDING_URL"; then
-    pass "embedding endpoint reachable (${CAIRN_MEMORY_EMBEDDING_URL})"
+  elif [[ -z "${CAIRN_LLM_API_KEY:-}" || -z "${CAIRN_MEMORY_EMBEDDING_MODEL:-}" ]]; then
+    fail "embedding configuration incomplete (CAIRN_LLM_API_KEY and CAIRN_MEMORY_EMBEDDING_MODEL are required)"
+  elif embedding_works; then
+    pass "embedding endpoint accepted model ${CAIRN_MEMORY_EMBEDDING_MODEL} (${CAIRN_MEMORY_EMBEDDING_URL})"
   else
-    fail "embedding endpoint unreachable (${CAIRN_MEMORY_EMBEDDING_URL})"
+    fail "embedding request failed for model ${CAIRN_MEMORY_EMBEDDING_MODEL} (${CAIRN_MEMORY_EMBEDDING_URL})"
   fi
 else
   skip "embedding endpoint (CAIRN_MEMORY_EMBEDDING_URL unset)"

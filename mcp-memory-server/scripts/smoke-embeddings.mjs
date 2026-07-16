@@ -4,6 +4,7 @@
 //
 // Run: node scripts/smoke-embeddings.mjs   (after `npm run build`)
 import { mkdtempSync, rmSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -59,6 +60,7 @@ try {
         key: process.env.CAIRN_LLM_API_KEY,
         url: process.env.CAIRN_MEMORY_EMBEDDING_URL,
         model: process.env.CAIRN_MEMORY_EMBEDDING_MODEL,
+        timeout: process.env.CAIRN_MEMORY_EMBEDDING_TIMEOUT_MS,
     };
     process.env.CAIRN_LLM_API_KEY = "smoke-key";
     process.env.CAIRN_MEMORY_EMBEDDING_URL = "http://127.0.0.1:9/v1";
@@ -66,13 +68,40 @@ try {
     check("config null without explicit model", getEmbeddingConfig() === null);
     process.env.CAIRN_MEMORY_EMBEDDING_MODEL = "smoke-model";
     check("config uses explicit model", getEmbeddingConfig()?.model === "smoke-model");
+    check("config uses default timeout", getEmbeddingConfig()?.timeoutMs === 15000);
+    process.env.CAIRN_MEMORY_EMBEDDING_TIMEOUT_MS = "2500";
+    check("config uses explicit timeout", getEmbeddingConfig()?.timeoutMs === 2500);
     for (const [env, value] of [
         ["CAIRN_LLM_API_KEY", saved.key],
         ["CAIRN_MEMORY_EMBEDDING_URL", saved.url],
         ["CAIRN_MEMORY_EMBEDDING_MODEL", saved.model],
+        ["CAIRN_MEMORY_EMBEDDING_TIMEOUT_MS", saved.timeout],
     ]) {
         if (value === undefined) delete process.env[env];
         else process.env[env] = value;
+    }
+}
+
+// 3c. A stalled endpoint is aborted using the configured timeout.
+{
+    const stalled = createServer(() => {});
+    await new Promise((resolve) => stalled.listen(0, "127.0.0.1", resolve));
+    const address = stalled.address();
+    try {
+        let timedOut = false;
+        try {
+            await embedTexts({
+                apiUrl: `http://127.0.0.1:${address.port}`,
+                apiKey: "smoke-key",
+                model: "smoke-model",
+                timeoutMs: 50,
+            }, ["timeout probe"]);
+        } catch (error) {
+            timedOut = error?.name === "TimeoutError";
+        }
+        check("configured timeout aborts stalled endpoint", timedOut);
+    } finally {
+        await new Promise((resolve) => stalled.close(resolve));
     }
 }
 
