@@ -6,7 +6,10 @@ export type EmbeddingConfig = {
     apiUrl: string;
     apiKey: string;
     model: string;
+    timeoutMs: number;
 };
+
+const DEFAULT_EMBEDDING_TIMEOUT_MS = 15000;
 
 // Resolve the embeddings endpoint from the environment. Returns null when the
 // API key, URL, or model name is not configured, so callers can fall back to
@@ -31,7 +34,12 @@ export function getEmbeddingConfig(): EmbeddingConfig | null {
         return null;
     }
 
-    return { apiUrl, apiKey, model };
+    const rawTimeout = Number(process.env.CAIRN_MEMORY_EMBEDDING_TIMEOUT_MS);
+    const timeoutMs = Number.isFinite(rawTimeout) && rawTimeout >= 100 && rawTimeout <= 120000
+        ? Math.floor(rawTimeout)
+        : DEFAULT_EMBEDDING_TIMEOUT_MS;
+
+    return { apiUrl, apiKey, model, timeoutMs };
 }
 
 export function hashText(text: string): string {
@@ -80,7 +88,7 @@ export async function embedTexts(
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({ model: config.model, input: chunk }),
-            signal: AbortSignal.timeout(120000),
+            signal: AbortSignal.timeout(config.timeoutMs),
         });
 
         if (!response.ok) {
