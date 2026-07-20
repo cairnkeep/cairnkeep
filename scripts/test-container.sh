@@ -131,7 +131,8 @@ if [[ "$ENGINE" == podman ]]; then
     --env CAIRN_WORKSPACE_MODE=shared \
     "$workspace_image" sh -c 'printf shared > shared.txt'
 else
-  chmod 755 "$tmp" "$tmp/repo"
+  chmod 755 "$tmp"
+  chmod 777 "$tmp/repo"
   chmod 666 "$tmp/repo/source.txt"
   "$ENGINE" run --rm \
     --volume "$tmp/repo:/workspace" \
