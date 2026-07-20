@@ -11,6 +11,10 @@ case "$mode" in
       exit 66
     fi
     if [ ! -e /workspace/.cairnkeep-sandbox-ready ]; then
+      if find /workspace -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+        echo "cairnkeep: refusing to initialize a non-empty unmarked workspace volume" >&2
+        exit 65
+      fi
       cp -a /source/. /workspace/
       : > /workspace/.cairnkeep-sandbox-ready
     fi

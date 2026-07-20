@@ -154,8 +154,14 @@ cairn-container workspace --repo /path/to/repository
 ```
 
 Rerunning the command with the same workspace volume resumes the copy. Use
-`--workspace-volume` when repositories have the same basename or when an
-explicit lifecycle is preferable.
+`--workspace-volume` when an explicit lifecycle is preferable. Default volume
+names include both the repository basename and a checksum of its absolute path,
+so same-named repositories do not share a sandbox accidentally.
+
+The initial copy includes tracked and untracked files. Treat the workspace
+volume as sensitive local data and remove it when it is no longer needed.
+Cairnkeep refuses to initialize a non-empty volume that lacks its sandbox
+marker rather than merging unrelated content.
 
 `shared` mode is opt-in and bind-mounts the checkout read/write:
 

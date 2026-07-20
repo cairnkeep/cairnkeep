@@ -171,7 +171,8 @@ run_workspace() {
   repo=$(absolute_dir "$repo")
   case "$mode" in sandbox | shared) ;; *) fail "--mode must be sandbox or shared" ;; esac
   if [ -z "$workspace_volume" ]; then
-    workspace_volume="cairnkeep-workspace-$(safe_name "$(basename "$repo")")"
+    repo_id=$(printf '%s' "$repo" | cksum | awk '{print $1}')
+    workspace_volume="cairnkeep-workspace-$(safe_name "$(basename "$repo")")-$repo_id"
   fi
 
   require_engine

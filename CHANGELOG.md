@@ -3,6 +3,17 @@
 All notable user-facing changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [2.2.1] - 2026-07-20
+
+### Fixed
+
+- Make default sandbox-volume names path-specific so same-named repositories
+  cannot share a workspace accidentally.
+- Refuse to merge repository content into a non-empty unmarked workspace
+  volume.
+- Document that sandbox copies include untracked files and must be treated as
+  sensitive persistent data.
+
 ## [2.2.0] - 2026-07-20
 
 ### Added

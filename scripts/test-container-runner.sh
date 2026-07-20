@@ -80,4 +80,8 @@ has_arg CAIRN_WORKSPACE_MODE=shared
 lacks_arg "$repo:/source:ro,Z"
 has_arg bash
 
+repo_id=$(printf '%s' "$repo" | cksum | awk '{print $1}')
+run_launcher workspace --repo "$repo" --image example/workspace:1
+has_arg "cairnkeep-workspace-repository-$repo_id:/workspace:Z,U"
+
 echo "PASS: container launcher security and workspace contracts"

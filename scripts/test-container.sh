@@ -21,12 +21,13 @@ server_image="localhost/cairnkeep-test-server:$suffix"
 workspace_image="localhost/cairnkeep-test-workspace:$suffix"
 volume="cairnkeep-test-data-$suffix"
 sandbox_volume="cairnkeep-test-workspace-$suffix"
+conflict_volume="cairnkeep-test-conflict-$suffix"
 name="cairnkeep-test-$suffix"
 tmp=$(mktemp -d)
 
 cleanup() {
   "$ENGINE" rm -f "$name" >/dev/null 2>&1 || true
-  "$ENGINE" volume rm -f "$volume" "$sandbox_volume" >/dev/null 2>&1 || true
+  "$ENGINE" volume rm -f "$volume" "$sandbox_volume" "$conflict_volume" >/dev/null 2>&1 || true
   "$ENGINE" image rm -f "$server_image" "$workspace_image" >/dev/null 2>&1 || true
   rm -rf "$tmp"
 }
@@ -178,6 +179,36 @@ else
     --volume "$sandbox_volume:/workspace" \
     --env CAIRN_WORKSPACE_MODE=sandbox \
     "$workspace_image" sh -c 'test "$(cat sandbox.txt)" = sandbox'
+fi
+
+# A pre-populated, unmarked volume must not be merged with repository content.
+"$ENGINE" volume create "$conflict_volume" >/dev/null
+if [[ "$ENGINE" == podman ]]; then
+  "$ENGINE" run --rm --userns=keep-id:uid=10001,gid=10001 \
+    --volume "$conflict_volume:/workspace:Z,U" \
+    --env CAIRN_WORKSPACE_MODE=shared \
+    "$workspace_image" sh -c 'printf unrelated > unrelated.txt'
+else
+  "$ENGINE" run --rm --user root --entrypoint sh \
+    --volume "$conflict_volume:/workspace" "$workspace_image" \
+    -c 'printf unrelated > /workspace/unrelated.txt; chown -R 10001:10001 /workspace'
+fi
+if [[ "$ENGINE" == podman ]]; then
+  conflict_mounts=(
+    --userns=keep-id:uid=10001,gid=10001
+    --volume "$tmp/repo:/source:ro,Z"
+    --volume "$conflict_volume:/workspace:Z,U"
+  )
+else
+  conflict_mounts=(
+    --volume "$tmp/repo:/source:ro"
+    --volume "$conflict_volume:/workspace"
+  )
+fi
+if "$ENGINE" run --rm "${conflict_mounts[@]}" \
+  --env CAIRN_WORKSPACE_MODE=sandbox "$workspace_image" true >/dev/null 2>&1; then
+  echo "FAIL: sandbox merged into a non-empty unmarked volume" >&2
+  exit 1
 fi
 
 echo "PASS: container stdio, guarded HTTP, persistence, shared, and sandbox modes"
