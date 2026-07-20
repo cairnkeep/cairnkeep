@@ -36,6 +36,12 @@ Project-scoped and named/global database locations are documented in
 the remote server host; changing a storage environment variable on the client
 does not relocate that server's databases.
 
+The official container stores all databases below `/data`. A named volume
+persists them after container replacement and remains sensitive data. Sandbox
+workspace mode also retains a repository copy in its named volume. Neither
+volume is encrypted by Cairnkeep; remove it explicitly when its retention
+period ends. See [Containers](containers.md).
+
 ## Credentials and transport
 
 Keep API keys and bearer tokens out of repositories and command output. Load

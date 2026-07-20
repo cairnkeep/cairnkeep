@@ -1,0 +1,29 @@
+services:
+  cairnkeep:
+    image: ghcr.io/cairnkeep/cairnkeep:${CAIRNKEEP_VERSION:-latest}
+    command: ["http"]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      MCP_HTTP_HOST: 0.0.0.0
+      MCP_HTTP_PORT: "7801"
+      CAIRN_MEMORY_HTTP_ALLOWED_HOSTS: ${CAIRN_MEMORY_HTTP_ALLOWED_HOSTS:-localhost:7801,127.0.0.1:7801}
+      CAIRN_MEMORY_HTTP_TOKEN_FILE: /run/secrets/http-token
+    ports:
+      - "127.0.0.1:${CAIRNKEEP_PORT:-7801}:7801"
+    volumes:
+      - cairnkeep-data:/data
+    secrets:
+      - http-token
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+volumes:
+  cairnkeep-data:
+
+secrets:
+  http-token:
+    file: ${CAIRNKEEP_HTTP_TOKEN_FILE:-./secrets/http-token}

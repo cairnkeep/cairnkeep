@@ -77,6 +77,21 @@ jobs:
             scripts/smoke-mcp-boot.sh
           '
 
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - name: Verify OCI runtime modes
+        env:
+          CAIRN_TEST_CONTAINERS: "1"
+          CONTAINER_ENGINE: docker
+        run: scripts/test-container.sh
+
   # The highest-fidelity fresh-system check: GitHub's macOS runners are real macOS
   # with bash 3.2 — the exact environment a contributor hit. Force /bin/bash first
   # on PATH so `env bash` resolves to 3.2, then run the documented install verbatim.

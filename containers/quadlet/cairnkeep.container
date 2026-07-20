@@ -1,0 +1,32 @@
+[Unit]
+Description=Cairnkeep memory server
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=ghcr.io/cairnkeep/cairnkeep:latest
+ContainerName=cairnkeep
+Exec=http
+UserNS=keep-id:uid=10001,gid=10001
+Volume=cairnkeep-data.volume:/data:Z
+Secret=cairnkeep-http-token,type=mount,target=http-token
+Environment=MCP_HTTP_HOST=0.0.0.0
+Environment=MCP_HTTP_PORT=7801
+Environment=CAIRN_MEMORY_HTTP_ALLOWED_HOSTS=localhost:7801,127.0.0.1:7801
+Environment=CAIRN_MEMORY_HTTP_TOKEN_FILE=/run/secrets/http-token
+PublishPort=127.0.0.1:7801:7801
+ReadOnly=true
+DropCapability=all
+HealthCmd=node /usr/local/lib/cairnkeep/container-healthcheck.mjs
+HealthInterval=30s
+HealthTimeout=5s
+HealthStartPeriod=10s
+HealthRetries=3
+PodmanArgs=--security-opt=no-new-privileges
+
+[Service]
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -23,6 +23,8 @@ installs. This guide covers all three in order.
 - Optional: an OpenAI-compatible LLM endpoint for memory extraction and
   embedding-ranked search. Without it, memory search degrades to substring
   matching — everything else still works.
+- Optional: rootless Podman for the containerized memory server and isolated
+  workspace base described in [Containers](containers.md).
 
 ## Setup order (Claude Code)
 
@@ -86,6 +88,17 @@ Step 3 installs into `~/.claude` (override with `CLAUDE_CONFIG_DIR` or
 
 Re-running `sync-claude-assets.sh --apply` is idempotent; use `--check` to see
 drift without writing. Run it again whenever you pull changes to `claude/`.
+
+To keep the memory-server runtime in a container, install the npm package for
+the launcher and replace the registration command with:
+
+```bash
+claude mcp add cairn-memory -s user -- cairn-container stdio
+```
+
+This still stores memory locally, in the `cairnkeep-data` Podman volume. It
+does not configure remote HTTP storage or containerize the harness. See
+[Containers](containers.md) for those separate deployment choices.
 
 ## Setup order (OpenCode)
 
