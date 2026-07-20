@@ -3,6 +3,17 @@ name: Publish release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to resume
+        required: true
+        type: string
+      prerelease:
+        description: Publish to the prerelease channel
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -11,7 +22,7 @@ permissions:
   attestations: write
 
 concurrency:
-  group: publish-${{ github.event.release.tag_name }}
+  group: publish-${{ github.event.release.tag_name || inputs.release_tag }}
   cancel-in-progress: false
 
 jobs:
@@ -24,7 +35,7 @@ jobs:
       - name: Check out the released tag
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.release_tag }}
           fetch-depth: 0
 
       - name: Set up Node.js
@@ -37,8 +48,8 @@ jobs:
       - name: Verify release identity
         id: identity
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+          RELEASE_PRERELEASE: ${{ github.event_name == 'release' && github.event.release.prerelease || inputs.prerelease }}
         run: |
           set -euo pipefail
           version=$(node -p "require('./package.json').version")
@@ -91,7 +102,7 @@ jobs:
       - name: Attach package and SBOM to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: gh release upload "$RELEASE_TAG" artifacts/* --clobber
 
   containers:
@@ -101,7 +112,7 @@ jobs:
       - name: Check out the released tag
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.release_tag }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
@@ -165,7 +176,7 @@ jobs:
         run: |
           set -euo pipefail
           digest=$(docker buildx imagetools inspect "$IMAGE:$VERSION" |
-            awk '$1 == "Digest:" { print $2; exit }')
+            awk '$1 == "Digest:" && digest == "" { digest = $2 } END { print digest }')
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           docker buildx imagetools create \
             --tag "$IMAGE:$DIST_TAG" "$IMAGE@$digest"
@@ -227,7 +238,7 @@ jobs:
         run: |
           set -euo pipefail
           digest=$(docker buildx imagetools inspect "$IMAGE:$VERSION" |
-            awk '$1 == "Digest:" { print $2; exit }')
+            awk '$1 == "Digest:" && digest == "" { digest = $2 } END { print digest }')
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           docker buildx imagetools create \
             --tag "$IMAGE:$DIST_TAG" "$IMAGE@$digest"
