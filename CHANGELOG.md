@@ -3,6 +3,17 @@
 All notable user-facing changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Add unprivileged memory-server and workspace OCI images with rootless Podman
+  launchers, authenticated HTTP deployment examples, and persistent storage.
+- Add isolated-copy and explicit shared-checkout workspace modes for private
+  derived distributions.
+- Verify stdio startup, HTTP authentication, memory persistence across
+  replacement, and both workspace modes in container CI.
+
 ## [2.1.0] - 2026-07-16
 
 ### Added

@@ -77,6 +77,14 @@ checkout. Avoid `postinstall` enrollment: installing a package must not silently
 replace machine policy. Provide an explicit enrollment command with a retained
 rollback target.
 
+For container delivery, derive from an exact
+`ghcr.io/cairnkeep/cairnkeep-workspace:<version>` tag and publish only to the
+approved private registry. Install approved harnesses and non-secret policy in
+the derived image, but inject credentials at runtime through the platform's
+secret mechanism. The public image deliberately contains no organization
+profile and never selects a remote memory service. See
+[Containers](containers.md) for the base-image and workspace contracts.
+
 ## Release and fleet safety
 
 Every release should verify:

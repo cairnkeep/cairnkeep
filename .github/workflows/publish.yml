@@ -7,6 +7,8 @@ on:
 permissions:
   contents: write
   id-token: write
+  packages: write
+  attestations: write
 
 concurrency:
   group: publish-${{ github.event.release.tag_name }}
@@ -15,6 +17,9 @@ concurrency:
 jobs:
   npm:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+      dist_tag: ${{ steps.identity.outputs.dist_tag }}
     steps:
       - name: Check out the released tag
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -88,3 +93,149 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: gh release upload "$RELEASE_TAG" artifacts/* --clobber
+
+  containers:
+    needs: npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the released tag
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to the GitHub Container Registry
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate memory-server image metadata
+        id: server-meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/cairnkeep
+          tags: |
+            type=raw,value=${{ needs.npm.outputs.version }}
+          labels: |
+            org.opencontainers.image.title=Cairnkeep memory server
+            org.opencontainers.image.description=Durable MCP memory server
+
+      - name: Check memory-server registry state
+        id: server-registry
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/cairnkeep
+          VERSION: ${{ needs.npm.outputs.version }}
+        run: |
+          if docker buildx imagetools inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and publish memory-server image
+        if: steps.server-registry.outputs.exists != 'true'
+        id: server
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Containerfile
+          target: server
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.server-meta.outputs.tags }}
+          labels: ${{ steps.server-meta.outputs.labels }}
+          provenance: false
+          sbom: true
+          cache-from: type=gha,scope=cairnkeep-server
+          cache-to: type=gha,mode=max,scope=cairnkeep-server
+
+      - name: Resolve memory-server digest and channel tag
+        id: server-published
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/cairnkeep
+          VERSION: ${{ needs.npm.outputs.version }}
+          DIST_TAG: ${{ needs.npm.outputs.dist_tag }}
+        run: |
+          set -euo pipefail
+          digest=$(docker buildx imagetools inspect "$IMAGE:$VERSION" |
+            awk '$1 == "Digest:" { print $2; exit }')
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          docker buildx imagetools create \
+            --tag "$IMAGE:$DIST_TAG" "$IMAGE@$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Attest memory-server image
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/cairnkeep
+          subject-digest: ${{ steps.server-published.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate workspace image metadata
+        id: workspace-meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/cairnkeep-workspace
+          tags: |
+            type=raw,value=${{ needs.npm.outputs.version }}
+          labels: |
+            org.opencontainers.image.title=Cairnkeep workspace
+            org.opencontainers.image.description=Base image for managed Cairnkeep workspaces
+
+      - name: Check workspace registry state
+        id: workspace-registry
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/cairnkeep-workspace
+          VERSION: ${{ needs.npm.outputs.version }}
+        run: |
+          if docker buildx imagetools inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and publish workspace image
+        if: steps.workspace-registry.outputs.exists != 'true'
+        id: workspace
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Containerfile
+          target: workspace
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.workspace-meta.outputs.tags }}
+          labels: ${{ steps.workspace-meta.outputs.labels }}
+          provenance: false
+          sbom: true
+          cache-from: type=gha,scope=cairnkeep-workspace
+          cache-to: type=gha,mode=max,scope=cairnkeep-workspace
+
+      - name: Resolve workspace digest and channel tag
+        id: workspace-published
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/cairnkeep-workspace
+          VERSION: ${{ needs.npm.outputs.version }}
+          DIST_TAG: ${{ needs.npm.outputs.dist_tag }}
+        run: |
+          set -euo pipefail
+          digest=$(docker buildx imagetools inspect "$IMAGE:$VERSION" |
+            awk '$1 == "Digest:" { print $2; exit }')
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          docker buildx imagetools create \
+            --tag "$IMAGE:$DIST_TAG" "$IMAGE@$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Attest workspace image
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/cairnkeep-workspace
+          subject-digest: ${{ steps.workspace-published.outputs.digest }}
+          push-to-registry: true

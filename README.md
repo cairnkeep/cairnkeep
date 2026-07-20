@@ -41,6 +41,24 @@ and 20 are end-of-life upstream.
 Linux, macOS, Bash 3.2 portability, and clean Node 22/24/26 runtime checks
 are exercised in CI.
 
+## Try with Podman
+
+The minimal OCI image runs the memory server as an unprivileged user and keeps
+all databases in a named volume:
+
+```bash
+podman run --rm -i \
+  --userns=keep-id:uid=10001,gid=10001 \
+  --read-only --cap-drop=all --security-opt=no-new-privileges \
+  --tmpfs=/tmp:rw,noexec,nosuid,size=64m,mode=1777 \
+  --volume cairnkeep-data:/data:Z,U \
+  ghcr.io/cairnkeep/cairnkeep:latest stdio
+```
+
+For persistent authenticated HTTP, rootless Quadlet, isolated workspace mode,
+storage paths, secrets, and private derived images, see
+**[Containers](docs/containers.md)**.
+
 ## Components
 
 - **`mcp-memory-server/`** — an MCP server exposing durable, scoped memory
@@ -190,6 +208,7 @@ enabling them.
 - **Managed overlay distributions** (wrapper CLI, policy lock, private registry, rollback) — [docs/overlay-distributions.md](docs/overlay-distributions.md)
 - **Full operating guide** — [docs/operating.md](docs/operating.md)
 - **Memory storage and deployment** — [docs/storage.md](docs/storage.md)
+- **Podman and OCI containers** — [docs/containers.md](docs/containers.md)
 - **Privacy and data flow** — [docs/privacy-and-data-flow.md](docs/privacy-and-data-flow.md)
 - **Git providers** — [docs/git-providers.md](docs/git-providers.md)
 - **Support** — [SUPPORT.md](SUPPORT.md)

@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$ROOT/package.json" | head -1)
+ENGINE=${CONTAINER_ENGINE:-podman}
+SERVER_IMAGE=${CAIRNKEEP_CONTAINER_IMAGE:-ghcr.io/cairnkeep/cairnkeep:${VERSION:-latest}}
+WORKSPACE_IMAGE=${CAIRNKEEP_WORKSPACE_IMAGE:-ghcr.io/cairnkeep/cairnkeep-workspace:${VERSION:-latest}}
+
+usage() {
+  cat <<'EOF'
+Usage:
+  cairn-container stdio [--image IMAGE] [--volume VOLUME]
+  cairn-container http --token-file FILE [--port PORT] [--name NAME]
+                       [--allowed-hosts HOSTS] [--image IMAGE]
+                       [--volume VOLUME] [--env-file FILE]
+  cairn-container workspace --repo PATH [--mode sandbox|shared]
+                            [--image IMAGE] [--data-volume VOLUME]
+                            [--workspace-volume VOLUME] [--home-volume VOLUME]
+                            [--env-file FILE] [--secret NAME=FILE]... [--] [COMMAND...]
+
+`sandbox` copies the selected repository into a named volume and leaves the
+host checkout untouched. `shared` bind-mounts the selected repository read/write.
+Secret files are mounted read-only and exposed through NAME_FILE variables.
+EOF
+}
+
+fail() {
+  echo "cairn-container: $*" >&2
+  exit 2
+}
+
+require_engine() {
+  command -v "$ENGINE" >/dev/null 2>&1 || fail "$ENGINE is not installed"
+}
+
+absolute_dir() {
+  [ -d "$1" ] || fail "not a directory: $1"
+  (cd "$1" && pwd -P)
+}
+
+absolute_file() {
+  [ -f "$1" ] || fail "not a regular file: $1"
+  [ ! -L "$1" ] || fail "refusing symlink: $1"
+  dir=$(dirname "$1")
+  base=$(basename "$1")
+  printf '%s/%s\n' "$(cd "$dir" && pwd -P)" "$base"
+}
+
+check_secret_mode() {
+  file=$1
+  if stat -c '%a' "$file" >/dev/null 2>&1; then
+    mode=$(stat -c '%a' "$file")
+  else
+    mode=$(stat -f '%Lp' "$file")
+  fi
+  case "$mode" in
+    400 | 600) ;;
+    *) fail "secret file must have mode 400 or 600: $file" ;;
+  esac
+}
+
+safe_name() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_.-' '-'
+}
+
+podman_base_args() {
+  PODMAN_ARGS=(
+    run --rm
+    --userns=keep-id:uid=10001,gid=10001
+    --cap-drop=all
+    --security-opt=no-new-privileges
+    --read-only
+    --tmpfs=/tmp:rw,noexec,nosuid,size=64m,mode=1777
+  )
+}
+
+run_stdio() {
+  image=$SERVER_IMAGE
+  volume=cairnkeep-data
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --image) [ "$#" -ge 2 ] || fail "--image requires a value"; image=$2; shift 2 ;;
+      --volume) [ "$#" -ge 2 ] || fail "--volume requires a value"; volume=$2; shift 2 ;;
+      -h | --help) usage; exit 0 ;;
+      *) fail "unknown stdio option: $1" ;;
+    esac
+  done
+
+  require_engine
+  podman_base_args
+  exec "$ENGINE" "${PODMAN_ARGS[@]}" -i \
+    --volume "$volume:/data:Z,U" \
+    "$image" stdio
+}
+
+run_http() {
+  image=$SERVER_IMAGE
+  volume=cairnkeep-data
+  name=cairnkeep
+  port=7801
+  token_file=
+  env_file=
+  allowed_hosts=
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --image) [ "$#" -ge 2 ] || fail "--image requires a value"; image=$2; shift 2 ;;
+      --volume) [ "$#" -ge 2 ] || fail "--volume requires a value"; volume=$2; shift 2 ;;
+      --name) [ "$#" -ge 2 ] || fail "--name requires a value"; name=$2; shift 2 ;;
+      --port) [ "$#" -ge 2 ] || fail "--port requires a value"; port=$2; shift 2 ;;
+      --token-file) [ "$#" -ge 2 ] || fail "--token-file requires a value"; token_file=$2; shift 2 ;;
+      --env-file) [ "$#" -ge 2 ] || fail "--env-file requires a value"; env_file=$2; shift 2 ;;
+      --allowed-hosts) [ "$#" -ge 2 ] || fail "--allowed-hosts requires a value"; allowed_hosts=$2; shift 2 ;;
+      -h | --help) usage; exit 0 ;;
+      *) fail "unknown http option: $1" ;;
+    esac
+  done
+
+  [ -n "$token_file" ] || fail "http mode requires --token-file"
+  token_file=$(absolute_file "$token_file")
+  check_secret_mode "$token_file"
+  case "$port" in *[!0-9]* | "") fail "invalid port: $port" ;; esac
+
+  require_engine
+  podman_base_args
+  PODMAN_ARGS+=(--detach --replace --name "$name")
+  [ -z "$env_file" ] || PODMAN_ARGS+=(--env-file "$(absolute_file "$env_file")")
+  if [ -z "$allowed_hosts" ]; then
+    allowed_hosts="localhost:${port},127.0.0.1:${port},localhost:7801,127.0.0.1:7801"
+  fi
+
+  exec "$ENGINE" "${PODMAN_ARGS[@]}" \
+    --publish "127.0.0.1:${port}:7801" \
+    --volume "$volume:/data:Z,U" \
+    --volume "$token_file:/run/secrets/http-token:ro,Z" \
+    --env MCP_HTTP_HOST=0.0.0.0 \
+    --env MCP_HTTP_PORT=7801 \
+    --env "CAIRN_MEMORY_HTTP_ALLOWED_HOSTS=$allowed_hosts" \
+    --env CAIRN_MEMORY_HTTP_TOKEN_FILE=/run/secrets/http-token \
+    "$image" http
+}
+
+run_workspace() {
+  image=$WORKSPACE_IMAGE
+  mode=sandbox
+  repo=
+  data_volume=cairnkeep-data
+  home_volume=cairnkeep-home
+  workspace_volume=
+  env_file=
+  secret_specs=()
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --repo) [ "$#" -ge 2 ] || fail "--repo requires a value"; repo=$2; shift 2 ;;
+      --mode) [ "$#" -ge 2 ] || fail "--mode requires a value"; mode=$2; shift 2 ;;
+      --image) [ "$#" -ge 2 ] || fail "--image requires a value"; image=$2; shift 2 ;;
+      --data-volume) [ "$#" -ge 2 ] || fail "--data-volume requires a value"; data_volume=$2; shift 2 ;;
+      --home-volume) [ "$#" -ge 2 ] || fail "--home-volume requires a value"; home_volume=$2; shift 2 ;;
+      --workspace-volume) [ "$#" -ge 2 ] || fail "--workspace-volume requires a value"; workspace_volume=$2; shift 2 ;;
+      --env-file) [ "$#" -ge 2 ] || fail "--env-file requires a value"; env_file=$2; shift 2 ;;
+      --secret) [ "$#" -ge 2 ] || fail "--secret requires NAME=FILE"; secret_specs+=("$2"); shift 2 ;;
+      --) shift; break ;;
+      -h | --help) usage; exit 0 ;;
+      *) break ;;
+    esac
+  done
+
+  [ -n "$repo" ] || fail "workspace mode requires --repo"
+  repo=$(absolute_dir "$repo")
+  case "$mode" in sandbox | shared) ;; *) fail "--mode must be sandbox or shared" ;; esac
+  if [ -z "$workspace_volume" ]; then
+    workspace_volume="cairnkeep-workspace-$(safe_name "$(basename "$repo")")"
+  fi
+
+  require_engine
+  podman_base_args
+  PODMAN_ARGS+=(-i)
+  [ ! -t 0 ] || PODMAN_ARGS+=(-t)
+  PODMAN_ARGS+=(
+    --volume "$data_volume:/data:Z,U"
+    --volume "$home_volume:/home/cairn:Z,U"
+    --env "CAIRN_WORKSPACE_MODE=$mode"
+  )
+  if [ "$mode" = shared ]; then
+    PODMAN_ARGS+=(--volume "$repo:/workspace:rw,Z")
+  else
+    PODMAN_ARGS+=(
+      --volume "$repo:/source:ro,Z"
+      --volume "$workspace_volume:/workspace:Z,U"
+    )
+  fi
+  [ -z "$env_file" ] || PODMAN_ARGS+=(--env-file "$(absolute_file "$env_file")")
+
+  for spec in "${secret_specs[@]}"; do
+    name=${spec%%=*}
+    file=${spec#*=}
+    [ "$name" != "$spec" ] || fail "--secret requires NAME=FILE"
+    case "$name" in *[!A-Z0-9_]* | "") fail "invalid secret variable name: $name" ;; esac
+    file=$(absolute_file "$file")
+    check_secret_mode "$file"
+    target=$(safe_name "$name")
+    PODMAN_ARGS+=(
+      --volume "$file:/run/secrets/$target:ro,Z"
+      --env "${name}_FILE=/run/secrets/$target"
+    )
+  done
+
+  if [ "$#" -eq 0 ]; then
+    set -- bash
+  fi
+  exec "$ENGINE" "${PODMAN_ARGS[@]}" "$image" "$@"
+}
+
+cmd=${1:-help}
+[ "$#" -eq 0 ] || shift
+case "$cmd" in
+  stdio) run_stdio "$@" ;;
+  http) run_http "$@" ;;
+  workspace) run_workspace "$@" ;;
+  help | -h | --help) usage ;;
+  *) fail "unknown command: $cmd" ;;
+esac

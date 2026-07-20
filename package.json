@@ -8,7 +8,8 @@
     "access": "public"
   },
   "bin": {
-    "cairn": "bin/cairn"
+    "cairn": "bin/cairn",
+    "cairn-container": "scripts/cairn-container"
   },
   "files": [
     "bin/",
@@ -18,6 +19,7 @@
     "opencode/",
     "examples/anythingllm/",
     "examples/overlay-distribution/",
+    "containers/",
     "schemas/",
     "docs/",
     "CHANGELOG.md",

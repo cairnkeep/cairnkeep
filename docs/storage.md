@@ -29,6 +29,12 @@ services used to process/search memory. They do not change where the SQLite
 databases are stored. Git-provider and routing configuration do not change
 storage either.
 
+When the memory server runs in the official container, the same rule applies:
+the process stores databases below `/data`, normally backed by the
+`cairnkeep-data` named volume. Replacing the container preserves that volume;
+removing the volume removes the databases. See [Containers](containers.md) for
+the exact paths and backup boundary.
+
 ## Remote HTTP mode
 
 Remote storage is explicit. An operator starts Cairnkeep in HTTP mode on a
