@@ -203,6 +203,7 @@ enabling them.
 
 ## More
 
+- **Guided learning paths and video scripts** — [docs/learning/README.md](docs/learning/README.md)
 - **Optional document RAG** (`domain_knowledge_*` via AnythingLLM) — [docs/domain-knowledge.md](docs/domain-knowledge.md)
 - **Building a private overlay** (wrap cairnkeep for your org/provider) — [docs/building-an-overlay.md](docs/building-an-overlay.md)
 - **Managed overlay distributions** (wrapper CLI, policy lock, private registry, rollback) — [docs/overlay-distributions.md](docs/overlay-distributions.md)
