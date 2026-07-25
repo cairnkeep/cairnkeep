@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart
 **Time:** 25 minutes
-**Tested with:** Cairnkeep 2.2.1 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.3.0 and Node.js 22 or newer
 
 ## Outcome
 
@@ -40,7 +40,7 @@ machine-level steps.
 2. Install Cairnkeep:
 
    ```bash
-   npm install --global @cairnkeep/cli@2.2.1
+   npm install --global @cairnkeep/cli@2.3.0
    cairn --version
    ```
 
