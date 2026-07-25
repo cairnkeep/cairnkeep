@@ -47,6 +47,8 @@ Usage:
                            timer, and any given projects' bootstrap scaffold).
                            Backs everything up first with a revert.sh; keeps the
                            durable memory store unless --purge-memory is given.
+  cairn completion bash|zsh|fish
+                           Generate completion definitions for a major shell.
   cairn version            Print version
   cairn help               Show this help
 USAGE
@@ -75,6 +77,9 @@ case "$cmd" in
     ;;
   audit-timer)
     exec "$CAIRN_ROOT/scripts/install-audit-timer.sh" "$@"
+    ;;
+  completion)
+    exec "$CAIRN_ROOT/scripts/completion.sh" "$@"
     ;;
   version | --version | -v)
     v=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$CAIRN_ROOT/package.json" 2>/dev/null | head -1)

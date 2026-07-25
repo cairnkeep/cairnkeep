@@ -26,6 +26,20 @@ installs. This guide covers all three in order.
 - Optional: rootless Podman for the containerized memory server and isolated
   workspace base described in [Containers](containers.md).
 
+## Shell completion
+
+Generate completion definitions directly from the CLI:
+
+```bash
+cairn completion bash
+cairn completion zsh
+cairn completion fish
+```
+
+Distributions can install these outputs into the platform's normal completion
+directories. They can also be loaded for the current shell, for example with
+`source <(cairn completion bash)`.
+
 ## Setup order (Claude Code)
 
 The commands below install the default local topology: `cairn-memory` runs as a
