@@ -3,6 +3,14 @@
 All notable user-facing changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [2.3.1] - 2026-07-25
+
+### Fixed
+
+- Refresh locked runtime dependencies to include the `fast-uri` host-confusion
+  fix and the `body-parser` request-limit fix used by the memory server build.
+- Reject high-severity runtime advisories in the public, CI, and release gates.
+
 ## [2.3.0] - 2026-07-25
 
 ### Added
@@ -121,6 +129,7 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
+[2.3.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.2.1...v2.3.0
 [2.2.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.1.0...v2.2.0

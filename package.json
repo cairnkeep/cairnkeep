@@ -1,6 +1,6 @@
 {
   "name": "@cairnkeep/cli",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "A durable, harness-agnostic memory + context layer for coding agents (Claude Code, OpenCode).",
   "license": "Apache-2.0",
   "type": "module",
@@ -42,7 +42,8 @@
     "fix:perms": "git ls-files -s | awk '$1==\"100755\"{print $4}' | xargs chmod 755",
     "prepack": "npm run build:server && npm run fix:perms",
     "test": "for test in scripts/test-*.sh; do \"$test\" || exit 1; done",
-    "check:public": "scripts/verify-no-private-references.sh && scripts/verify-docs-parity.sh && npm run build:server && npm test",
+    "audit:runtime": "npm audit --omit=dev --audit-level=high && npm --prefix mcp-memory-server audit --omit=dev --audit-level=high",
+    "check:public": "scripts/verify-no-private-references.sh && scripts/verify-docs-parity.sh && npm run audit:runtime && npm run build:server && npm test",
     "prepublishOnly": "npm run check:public && npm --prefix mcp-memory-server test --global=false --dry-run=false"
   },
   "repository": {
