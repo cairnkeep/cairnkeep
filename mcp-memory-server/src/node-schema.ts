@@ -136,7 +136,7 @@ export const memoryImportEnvelopeSchema = z.object({
     schema_version: z.literal(NODE_SCHEMA_VERSION),
     scope: z.string().min(1).refine((value) => value !== "all", 'Import scope must be concrete; "all" is read-only.'),
     address_space: z.enum(["memory", "project-notes", "shared-notes"]).default("memory"),
-    import_id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).optional(),
+    import_id: z.string().max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).optional(),
     conflict_policy: z.enum(["reject", "supersede"]).default("reject"),
     dry_run: z.boolean().default(false),
     nodes: z.array(memoryImportNodeSchema).min(1).max(MAX_IMPORT_NODES),
