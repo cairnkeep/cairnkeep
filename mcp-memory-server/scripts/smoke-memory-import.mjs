@@ -67,6 +67,22 @@ async function schemaChecks(client) {
     assert.deepEqual(schema.properties.address_space.enum, ["memory", "project-notes", "shared-notes"]);
 }
 
+async function directSchemaChecks() {
+    const schema = await import("../dist/node-schema.js");
+    const valid = schema.memoryImportEnvelopeSchema.parse(importRequest());
+    assert.equal(valid.schema_version, 1);
+    assert.equal(valid.address_space, "memory");
+    assert.deepEqual(valid.nodes[0].tags, ["import-batch", "release-train"]);
+    for (const request of [
+        importRequest({ scope: "all" }),
+        importRequest({ nodes: [] }),
+        importRequest({ nodes: Array.from({ length: 257 }, (_, index) => ({ key: `knowledge/${index}`, value: "x", node_type: "knowledge", tags: [] })) }),
+        importRequest({ nodes: [{ key: "knowledge/huge", value: "x".repeat(256 * 1024 + 1), node_type: "knowledge", tags: [] }] }),
+    ]) {
+        assert.equal(schema.memoryImportEnvelopeSchema.safeParse(request).success, false);
+    }
+}
+
 async function validationAndDryRun(client, baseDir) {
     const before = snapshot(baseDir);
     const dry = await call(client, "memory_import", importRequest({ dry_run: true }));
@@ -165,19 +181,21 @@ async function injectedFailureCheck() {
 }
 
 async function main() {
+    if (process.argv.includes("--schema-only")) {
+        await directSchemaChecks();
+        return;
+    }
     const baseDir = mkdtempSync(join(tmpdir(), "cairn-memory-import-"));
     const client = await connect(baseDir);
     try {
         await schemaChecks(client);
-        if (!process.argv.includes("--schema-only")) {
-            await validationAndDryRun(client, baseDir);
-            if (!process.argv.includes("--planning-only")) await serviceChecks(client);
-        }
+        await validationAndDryRun(client, baseDir);
+        if (!process.argv.includes("--planning-only")) await serviceChecks(client);
     } finally {
         await client.close();
         rmSync(baseDir, { recursive: true, force: true });
     }
-    if (!process.argv.includes("--schema-only") && !process.argv.includes("--planning-only")) await injectedFailureCheck();
+    if (!process.argv.includes("--planning-only")) await injectedFailureCheck();
 }
 
 try {

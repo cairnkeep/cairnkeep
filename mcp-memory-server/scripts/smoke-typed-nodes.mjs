@@ -46,6 +46,19 @@ async function schemaChecks(client) {
     }
 }
 
+async function directSchemaChecks() {
+    const schema = await import("../dist/node-schema.js");
+    assert.equal(schema.NODE_SCHEMA_VERSION, 1);
+    for (const type of ["memory", "knowledge", "hindsight", "shared", "provenance", "custom:runbook"]) {
+        assert.equal(schema.nodeTypeSchema.safeParse(type).success, true, `${type} was rejected`);
+    }
+    assert.equal(schema.nodeTypeSchema.safeParse("runbook").success, false);
+    assert.deepEqual(schema.canonicalTagsSchema.parse([" Release Train ", "release_train", "Zeta", "alpha", "alpha"]), ["alpha", "release-train", "zeta"]);
+    for (const path of ["/absolute", "trailing/", "empty//segment", "dot/./segment", "dot/../segment", "back\\slash", "__history__/x", ".cairnkeep/x"]) {
+        assert.equal(schema.nodePathSchema.safeParse(path).success, false, `${path} was accepted`);
+    }
+}
+
 async function lifecycleChecks(client) {
     const created = await call(client, "memory_write", {
         scope: "identity",
@@ -132,6 +145,10 @@ async function searchChecks(client) {
 }
 
 async function main() {
+    if (process.argv.includes("--schema-only")) {
+        await directSchemaChecks();
+        return;
+    }
     const baseDir = mkdtempSync(join(tmpdir(), "cairn-typed-nodes-"));
     const embeddingServer = createServer(async (request, response) => {
         let body = "";
@@ -153,7 +170,7 @@ async function main() {
     });
     try {
         await schemaChecks(client);
-        if (!process.argv.includes("--schema-only")) await lifecycleChecks(client);
+        await lifecycleChecks(client);
         if (process.argv.includes("--search-only") || (!process.argv.includes("--service-only") && !process.argv.includes("--lifecycle-only"))) await searchChecks(client);
     } finally {
         await client.close();
