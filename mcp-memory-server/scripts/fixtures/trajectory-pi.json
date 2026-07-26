@@ -43,8 +43,8 @@
             {
               "type": "toolCall",
               "id": "tool-1",
-              "name": "bash",
-              "arguments": { "command": "printf fixture" }
+              "name": "read_file",
+              "arguments": { "path": "README.md" }
             }
           ],
           "provider": "fixture-provider",
@@ -75,7 +75,7 @@
         "message": {
           "role": "toolResult",
           "toolCallId": "tool-1",
-          "toolName": "bash",
+          "toolName": "read_file",
           "content": [{ "type": "text", "text": "fixture output sk-live-pi-141414" }],
           "isError": false,
           "timestamp": 1785056402000

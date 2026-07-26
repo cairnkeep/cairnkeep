@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { fitTrajectoryToBytes, normalizeClaudeTranscript, normalizeOpenCodeSession } from "./trajectory-normalize.js";
+import { fitTrajectoryToBytes, normalizeClaudeTranscript, normalizeOpenCodeSession, normalizePiSession } from "./trajectory-normalize.js";
 import { redactTrajectory } from "./trajectory-redaction.js";
 import { getTrajectoryLimits } from "./trajectory-schema.js";
 import { doctorTrajectoryStore, listTrajectories, pruneTrajectories, putTrajectory, showTrajectory } from "./trajectory-store.js";
@@ -74,12 +74,23 @@ async function captureOpenCode(args: string[]): Promise<void> {
     await putTrajectory(projectRoot, fitted, limits);
 }
 
+async function capturePi(args: string[]): Promise<void> {
+    const [projectRoot] = args;
+    if (!projectRoot) throw new Error("capture-pi requires a project root.");
+    const limits = getTrajectoryLimits();
+    const normalized = normalizePiSession(JSON.parse(await readStdin()), projectRoot);
+    const redacted = redactTrajectory(normalized, projectRoot);
+    const fitted = fitTrajectoryToBytes(redacted, limits.sessionMaxBytes);
+    await putTrajectory(projectRoot, fitted, limits);
+}
+
 async function main(): Promise<void> {
     const [command = "help", ...args] = process.argv.slice(2);
-    if (command === "capture-claude" || command === "capture-opencode") {
+    if (command === "capture-claude" || command === "capture-opencode" || command === "capture-pi") {
         try {
             if (command === "capture-claude") await captureClaude(args);
-            else await captureOpenCode(args);
+            else if (command === "capture-opencode") await captureOpenCode(args);
+            else await capturePi(args);
         } catch {
             process.stderr.write("trajectory capture skipped: local validation or persistence failed\n");
         }

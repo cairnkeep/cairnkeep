@@ -23,12 +23,14 @@ function run(args, options = {}) {
 }
 
 function semanticProjection(session) {
-    return session.events.map((event) => ({
+    return session.events
+        .filter((event) => event.kind === "tool_invocation" || event.kind === "tool_result")
+        .map((event) => ({
         kind: event.kind,
         tool_name: event.payload?.tool_name,
         call_id: event.payload?.call_id,
         is_error: event.payload?.is_error,
-    }));
+        }));
 }
 
 try {
@@ -70,6 +72,7 @@ try {
 
     assert.deepEqual(semanticProjection(claude), semanticProjection(opencode));
     assert.deepEqual(semanticProjection(claude), semanticProjection(pi));
+    assert.ok(pi.events.some((event) => event.kind === "system_event" && event.payload.event === "model_change"));
     assert.doesNotMatch(JSON.stringify(pi), /sk-live-pi-141414/);
     assert.doesNotMatch(JSON.stringify(pi), /private pi reasoning/);
 

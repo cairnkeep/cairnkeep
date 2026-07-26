@@ -17,7 +17,7 @@
   "properties": {
     "schema_version": { "const": 1 },
     "session_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$" },
-    "harness": { "enum": ["claude-code", "opencode"] },
+    "harness": { "enum": ["claude-code", "opencode", "pi"] },
     "project_root": { "type": "string", "minLength": 1 },
     "started_at": { "type": "string", "format": "date-time" },
     "ended_at": { "type": "string", "format": "date-time" },

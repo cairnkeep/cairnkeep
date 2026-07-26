@@ -19,7 +19,7 @@ const INDEX_PREFIX = "trajectory/index/";
 const indexSchema = z.object({
     schema_version: z.literal(TRAJECTORY_SCHEMA_VERSION),
     session_id: z.string(),
-    harness: z.enum(["claude-code", "opencode"]),
+    harness: z.enum(["claude-code", "opencode", "pi"]),
     started_at: z.iso.datetime(),
     ended_at: z.iso.datetime(),
     event_count: z.number().int().nonnegative(),

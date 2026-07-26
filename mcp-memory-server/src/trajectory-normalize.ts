@@ -81,6 +81,19 @@ function usageFromOpenCode(value: unknown, cost?: unknown): TrajectoryUsage | un
     });
 }
 
+function usageFromPi(value: unknown): TrajectoryUsage | undefined {
+    const usage = object(value);
+    if (!usage) return undefined;
+    const cost = object(usage.cost);
+    return compactUsage({
+        input_tokens: number(usage.input),
+        output_tokens: number(usage.output),
+        cache_read_tokens: number(usage.cacheRead),
+        cache_write_tokens: number(usage.cacheWrite),
+        cost: number(cost?.total),
+    });
+}
+
 function createState(): CaptureState {
     return { events: [], usage: {}, timestamps: [], omittedReasoning: 0, omittedUnknown: 0 };
 }
@@ -304,6 +317,112 @@ export function normalizeOpenCodeSession(raw: unknown, projectRoot: string): Tra
         }
     }
     return finalize(state, sessionId, "opencode", projectRoot, explicitStart, explicitEnd);
+}
+
+function piTextContent(value: unknown, state: CaptureState): string[] {
+    if (typeof value === "string") return value.length > 0 ? [value] : [];
+    const texts: string[] = [];
+    for (const rawPart of array(value)) {
+        const part = object(rawPart);
+        if (string(part?.type) === "text") {
+            const text = string(part?.text);
+            if (text) texts.push(text);
+        } else {
+            state.omittedUnknown += 1;
+        }
+    }
+    return texts;
+}
+
+export function normalizePiSession(raw: unknown, projectRoot: string): TrajectorySession {
+    const root = object(raw);
+    const session = object(root?.session);
+    const sessionId = string(session?.id);
+    if (!sessionId) throw new Error("Pi session did not contain an ID.");
+    const state = createState();
+
+    for (const rawEntry of array(session?.entries)) {
+        const entry = object(rawEntry);
+        const type = string(entry?.type);
+        const timestamp = isoTimestamp(entry?.timestamp);
+        const nativeId = string(entry?.id);
+        const parentId = string(entry?.parentId);
+
+        if (type === "model_change") {
+            pushEvent(state, "system_event", {
+                event: "model_change",
+                provider: string(entry?.provider) ?? "unknown",
+                model: string(entry?.modelId) ?? "unknown",
+            }, timestamp, nativeId, parentId);
+            continue;
+        }
+        if (type === "thinking_level_change") {
+            pushEvent(state, "system_event", {
+                event: "thinking_level_change",
+                level: string(entry?.thinkingLevel) ?? "unknown",
+            }, timestamp, nativeId, parentId);
+            continue;
+        }
+        if (type !== "message") {
+            state.omittedUnknown += 1;
+            continue;
+        }
+
+        const message = object(entry?.message);
+        const role = string(message?.role);
+        const messageTimestamp = timestamp ?? isoTimestamp(message?.timestamp);
+
+        if (role === "user") {
+            for (const text of piTextContent(message?.content, state)) {
+                pushEvent(state, "user_message", { text }, messageTimestamp, nativeId, parentId);
+            }
+            continue;
+        }
+
+        if (role === "assistant") {
+            for (const rawPart of array(message?.content)) {
+                const part = object(rawPart);
+                const partType = string(part?.type);
+                if (partType === "thinking" || partType === "reasoning") {
+                    state.omittedReasoning += 1;
+                    continue;
+                }
+                if (partType === "text") {
+                    const text = string(part?.text);
+                    if (text) pushEvent(state, "model_output", { text }, messageTimestamp, nativeId, parentId);
+                    continue;
+                }
+                if (partType === "toolCall") {
+                    pushEvent(state, "tool_invocation", {
+                        call_id: string(part?.id) ?? "",
+                        tool_name: string(part?.name) ?? "unknown",
+                        input: part?.arguments ?? null,
+                    }, messageTimestamp, nativeId, parentId);
+                    continue;
+                }
+                state.omittedUnknown += 1;
+            }
+            const usage = usageFromPi(message?.usage);
+            if (usage) pushUsage(state, usage, messageTimestamp, nativeId);
+            continue;
+        }
+
+        if (role === "toolResult") {
+            const output = piTextContent(message?.content, state);
+            pushEvent(state, "tool_result", {
+                call_id: string(message?.toolCallId) ?? "",
+                output: output.join("\n"),
+                is_error: message?.isError === true,
+            }, messageTimestamp, nativeId, parentId);
+            const usage = usageFromPi(message?.usage);
+            if (usage) pushUsage(state, usage, messageTimestamp, nativeId);
+            continue;
+        }
+
+        state.omittedUnknown += 1;
+    }
+
+    return finalize(state, sessionId, "pi", projectRoot);
 }
 
 function truncateUtf8(value: string, maxBytes: number): string {
