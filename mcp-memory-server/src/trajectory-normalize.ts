@@ -402,6 +402,16 @@ export function normalizePiSession(raw: unknown, projectRoot: string): Trajector
                 }
                 state.omittedUnknown += 1;
             }
+            const errorMessage = string(message?.errorMessage);
+            if (errorMessage) {
+                pushEvent(state, "system_event", {
+                    event: "model_error",
+                    message: errorMessage,
+                    provider: string(message?.provider) ?? "unknown",
+                    model: string(message?.model) ?? "unknown",
+                    stop_reason: string(message?.stopReason) ?? "error",
+                }, messageTimestamp, nativeId, parentId);
+            }
             const usage = usageFromPi(message?.usage);
             if (usage) pushUsage(state, usage, messageTimestamp, nativeId);
             continue;

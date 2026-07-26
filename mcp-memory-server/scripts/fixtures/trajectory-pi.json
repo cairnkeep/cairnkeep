@@ -110,9 +110,32 @@
         }
       },
       {
+        "type": "message",
+        "id": "pi-assistant-error-1",
+        "parentId": "pi-assistant-2",
+        "timestamp": "2026-07-26T09:00:03.500Z",
+        "message": {
+          "role": "assistant",
+          "content": [],
+          "provider": "fixture-provider",
+          "model": "fixture-model",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0 }
+          },
+          "stopReason": "error",
+          "errorMessage": "Connection error with sk-live-pi-error-141414",
+          "timestamp": 1785056403500
+        }
+      },
+      {
         "type": "fixture_unknown",
         "id": "pi-unknown-1",
-        "parentId": "pi-assistant-2",
+        "parentId": "pi-assistant-error-1",
         "timestamp": "2026-07-26T09:00:04.000Z",
         "raw": "raw unknown pi payload"
       }

@@ -58,7 +58,8 @@ by UTF-8 serialized size, and only then passed to AgentFS. Built-in rules redact
 secret-like object keys, bearer/API-key/password forms, credential-bearing URLs,
 private-key blocks, and exact values of secret-like environment variables.
 For Pi, model and thinking-level changes become system events; hidden thinking
-blocks are never written. Only the active branch is captured. The extension
+blocks are never written. Provider error messages become redacted system events
+so failed sessions remain useful to later hindsight processing. Only the active branch is captured. The extension
 passes the structured branch to the same local normalizer/store path, kills a
 stalled capture subprocess after three seconds, and always fails open so a
 capture error cannot change the Pi session's outcome.

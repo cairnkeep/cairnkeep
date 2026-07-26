@@ -45,6 +45,10 @@ node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
 node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));if(j.schema_version!==1||!Array.isArray(j.events))process.exit(1)' "$tmp/show.json" \
   || fail "trajectory show JSON is not a v1 session"
 
+if ! (set -o pipefail; cd "$repo" && "$cairn" trajectory show opencode-session-001 --json | head -c 0 >/dev/null); then
+  fail "trajectory CLI did not treat a closed output pipe as a normal consumer exit"
+fi
+
 (cd "$repo" && "$cairn" trajectory prune --dry-run --json) > "$tmp/prune.json"
 node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));if(!Array.isArray(j.removed)||j.dry_run!==true)process.exit(1)' "$tmp/prune.json" \
   || fail "trajectory prune dry-run JSON invalid"

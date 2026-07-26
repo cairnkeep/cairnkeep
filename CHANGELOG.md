@@ -16,6 +16,11 @@ All notable user-facing changes are documented here. This project follows
   `cairn sync-pi`, a generic Pi launcher, uninstall coverage, and the same
   opt-in local redaction, size, and retention boundary as other harnesses.
 
+### Fixed
+
+- Preserve redacted Pi provider failures as trajectory system events and treat
+  a closed trajectory CLI output pipe as a normal consumer exit.
+
 Capture remains disabled by default. Existing MCP tools, memory database paths,
 and remote HTTP behavior are unchanged.
 

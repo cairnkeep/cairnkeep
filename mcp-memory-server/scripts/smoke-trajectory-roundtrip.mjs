@@ -73,7 +73,11 @@ try {
     assert.deepEqual(semanticProjection(claude), semanticProjection(opencode));
     assert.deepEqual(semanticProjection(claude), semanticProjection(pi));
     assert.ok(pi.events.some((event) => event.kind === "system_event" && event.payload.event === "model_change"));
+    assert.ok(pi.events.some((event) => event.kind === "system_event"
+        && event.payload.event === "model_error"
+        && event.payload.message === "Connection error with [REDACTED:API_KEY]"));
     assert.doesNotMatch(JSON.stringify(pi), /sk-live-pi-141414/);
+    assert.doesNotMatch(JSON.stringify(pi), /sk-live-pi-error-141414/);
     assert.doesNotMatch(JSON.stringify(pi), /private pi reasoning/);
 
     const listed = JSON.parse(run(["list", "--json"], { cwd: claudeRepo }));

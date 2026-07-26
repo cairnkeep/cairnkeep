@@ -4,6 +4,11 @@ import { redactTrajectory } from "./trajectory-redaction.js";
 import { getTrajectoryLimits } from "./trajectory-schema.js";
 import { doctorTrajectoryStore, listTrajectories, pruneTrajectories, putTrajectory, showTrajectory } from "./trajectory-store.js";
 
+process.stdout.on("error", (error: NodeJS.ErrnoException) => {
+    if (error.code === "EPIPE") process.exit(0);
+    throw error;
+});
+
 function usage(): string {
     return `cairn trajectory — local structured session trajectories
 
