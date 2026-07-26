@@ -177,7 +177,10 @@ export async function normalizeClaudeTranscript(transcriptPath: string, projectR
         }
 
         const message = object(row.message);
-        const content = array(message?.content);
+        const rawContent = message?.content;
+        const content = typeof rawContent === "string"
+            ? [{ type: "text", text: rawContent }]
+            : array(rawContent);
         const isAssistant = type === "assistant";
         let emittedToolInvocation = false;
         let emittedToolResult = false;
