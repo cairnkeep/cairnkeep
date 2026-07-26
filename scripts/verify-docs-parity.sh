@@ -39,7 +39,7 @@ ENV_KEY_PATTERN='(CAIRN_[A-Z_]+|MCP_HTTP_[A-Z_]+)'
 check_env_keys() {
   local code_keys doc_keys missing
 
-  code_keys=$(grep -ohE "\\b${ENV_KEY_PATTERN}\\b" mcp-memory-server/src/*.ts | sort -u)
+  code_keys=$(grep -ohE "\\b${ENV_KEY_PATTERN}\\b" mcp-memory-server/src/*.ts | grep -v '^CAIRN_TEST_' | sort -u)
   doc_keys=$(grep -ohE "\\b${ENV_KEY_PATTERN}\\b" docs/operating.md README.md | sort -u)
 
   missing=$(comm -23 <(printf '%s\n' "$code_keys") <(printf '%s\n' "$doc_keys"))
@@ -83,6 +83,32 @@ check_commands() {
   return 0
 }
 
+check_typed_contract() {
+  local failed=0 term files
+  while IFS='|' read -r term files; do
+    [[ -n "$term" ]] || continue
+    if ! grep -qF "$term" $files; then
+      echo "FATAL: typed-memory public term '$term' is missing from $files" >&2
+      failed=1
+    fi
+  done <<'EOF'
+CAIRN_TYPED_MEMORY_NODES|README.md docs/operating.md
+memory_import|README.md docs/operating.md docs/privacy-and-data-flow.md
+address_space|README.md docs/operating.md docs/privacy-and-data-flow.md
+node_types|README.md docs/operating.md
+tags_all|README.md docs/operating.md
+tags_any|README.md docs/operating.md
+schemas/memory-node.schema.json|docs/storage.md
+cairn_node_metadata_v1|docs/storage.md
+cairn_node_import_replays_v1|docs/storage.md
+prepared|docs/storage.md docs/privacy-and-data-flow.md
+committing|docs/storage.md docs/privacy-and-data-flow.md
+committed-before-cleanup|docs/storage.md docs/privacy-and-data-flow.md
+EOF
+  [[ "$failed" -eq 0 ]] && echo "[typed-contract] OK: typed memory, import, and recovery terms are documented"
+  return "$failed"
+}
+
 main() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -100,6 +126,7 @@ main() {
   local failed=0
   check_env_keys || failed=1
   check_commands || failed=1
+  check_typed_contract || failed=1
 
   if [[ "$failed" -ne 0 ]]; then
     echo "FATAL: docs-parity check found drift (see above) -- SC-02 not yet satisfied" >&2

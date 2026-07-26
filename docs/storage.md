@@ -152,6 +152,55 @@ and the generated bundle's `revert.sh` restores the exact files. Back up both
 the global store and each project's `.agentfs/` when moving a complete setup;
 `cairn memory export` covers SQLite memory scopes, not the Markdown note tree.
 
+## Typed metadata, import replay, and history
+
+With `CAIRN_TYPED_MEMORY_NODES=1`, each concrete AgentFS database keeps raw
+live values in the existing `kv_store`. The same SQLite transaction stores
+only additive metadata in `cairn_node_metadata_v1` and optional import-ID
+bindings in `cairn_node_import_replays_v1`. A legacy row with no metadata is
+projected as schema-v1 type `memory` with no tags; reading it creates no table,
+row, cache, or rewritten value. There is no ORM or schema-push step: tables are
+created lazily only by enabled mutations.
+The public portable contract is `schemas/memory-node.schema.json`; matching
+runtime validation lives in the packaged server.
+
+Supersede, metadata-only supersede, reviewed changes, import replacement, and
+delete write complete value/type/tag snapshots under hidden `__history__` keys
+in the same immediate transaction. Delete removes the live metadata row but
+retains its final snapshot; recreating the key is supported. Import commit
+rechecks conflicts and replay inside one concrete store transaction. Dry-run
+does not create the database or metadata tables.
+
+SQLite backups and `cairn memory export` include metadata, replay bindings, and
+history. `cairn doctor` treats absent tables as healthy legacy state. Repair
+may remove provably orphaned derived metadata, but never rewrites raw KV,
+infers non-default types, discards corrupt authoritative metadata, or repairs
+a divergent replay digest.
+
+## Canonical note lifecycle and recovery
+
+Note address spaces remain file-backed. The canonical set includes Markdown
+leaves, `README.md` indexes, `.cairnkeep/manifest-v1.json`, typed history,
+`note-import-replays-v1.json`, and transaction directories below
+`notes/.cairnkeep/transactions/<transaction-id>/`. Create, supersede, delete,
+and import render immutable path/byte/pre-image/hash plans and install them
+through one journal primitive, with the manifest last. There is no AgentFS
+mirror and clients never supply filesystem paths.
+
+Staged same-filesystem bytes, backups, and a `prepared` journal are durable
+before live replacement. `committing` records completed paths; `committed`
+records intended final hashes. Any pending journal blocks later mutations.
+Doctor repair restores verified pre-images for prepared/committing state. For
+committed-before-cleanup state it verifies final hashes, preserves the completed
+operation, and removes only transaction artifacts. Failed verification leaves
+the journal and live state untouched; a committed operation is never treated
+as an uncommitted rollback candidate.
+
+Generated managed blocks may change, but unmarked maintainer bytes after the
+managed marker are preserved exactly. Default uninstall retains databases,
+note history, replay ledgers, and journals. `--purge-memory` uses the existing
+backup-first whole-store boundary; `revert.sh` restores their exact bytes.
+
 ## Reviewed-memory integration
 
 External review systems should not compose `memory_write`, `memory_read`, and

@@ -20,6 +20,10 @@ request unless the corresponding endpoint and credential are configured.
 | Opt-in trajectory capture | None | Local `<project>/.agentfs/trajectory.db` only; no model or HTTP path exists |
 | Opt-in deterministic note distillation | None | Reads redacted closed trajectories; writes local Markdown + manifest under `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/notes/` |
 | Separately opted-in note enrichment | `CAIRN_LLM_API_KEY` | Sends bounded redacted note evidence to the explicit `CAIRN_LLM_API_URL` chat endpoint |
+| Typed lifecycle and inline `memory_import` over local stdio | None | Values, metadata, digests, replay bindings, and history remain in the selected local store |
+| Typed lifecycle and inline `memory_import` over authenticated HTTP | MCP requests and responses, including supplied values | The explicitly registered Cairnkeep HTTP server; import results omit values |
+| Project/shared note lifecycle over local stdio | None | Canonical Markdown, history, replay, and journals remain in the server-controlled notes root |
+| Project/shared note lifecycle over authenticated HTTP | MCP requests and responses, including complete note records | The explicitly registered server; clients send logical keys, never server filesystem paths |
 
 Model endpoints may be local or remote. Cairnkeep cannot determine a provider's
 retention, training, or logging policy; verify it before sending confidential
@@ -38,6 +42,26 @@ Project-scoped and named/global database locations are documented in
 [Memory storage and deployment](storage.md). A remote client stores memory on
 the remote server host; changing a storage environment variable on the client
 does not relocate that server's databases.
+
+Typed metadata adds no default egress. Values, canonical types/tags, complete
+history snapshots, SHA-256 import digests, replay bindings, and note transaction
+backups/journals are sensitive local data at rest. Dry-run and commit responses
+contain scopes/address spaces, digests, keys, actions, and counts—not supplied
+or displaced values. No model, API key, endpoint, or network is required.
+
+The existing explicitly configured embedding search is the sole related egress:
+eligible key/value/type/tag text and the query may be sent to
+`CAIRN_MEMORY_EMBEDDING_URL` (or its documented fallback). Hard filters run
+before that request; endpoint failure returns to local substring search. Note
+search is always local and never uses embeddings.
+
+Canonical note storage includes manifest records, Markdown, indexes, history,
+import replay state, staged bytes, backups, and journals. Prepared/committing
+recovery restores verified pre-images. Committed-before-cleanup recovery
+verifies and preserves the completed mutation, then removes only transaction
+artifacts. Unverifiable committed state remains blocked and is not rolled back.
+Default uninstall retains this state; explicit `--purge-memory` backs it up
+before removal and its `revert.sh` restores it.
 
 ## Structured trajectory capture
 
