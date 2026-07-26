@@ -1,9 +1,14 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
     chmodSync,
+    closeSync,
+    copyFileSync,
     existsSync,
+    fsyncSync,
     mkdirSync,
+    openSync,
     readFileSync,
+    readdirSync,
     renameSync,
     rmSync,
     writeFileSync,
@@ -20,6 +25,13 @@ import {
     type NoteNode,
     type NoteOccurrence,
 } from "./note-schema.js";
+import {
+    memoryImportEnvelopeSchema,
+    nodePathSchema,
+    type MemoryImportAction,
+    type MemoryImportEnvelope,
+    type MemoryImportResult,
+} from "./node-schema.js";
 
 const MANAGED_START = "<!-- cairnkeep:managed:v1:start -->";
 const MANAGED_END = "<!-- cairnkeep:managed:v1:end -->";
@@ -317,7 +329,7 @@ function statusRank(status?: NoteNode["status"]): number {
 
 function projectIndex(manifest: NoteManifest, projectId: string): string {
     const entries = Object.values(manifest.notes)
-        .filter(({ record }) => record.project_id === projectId)
+        .filter(({ path, record }) => record.project_id === projectId || path.replaceAll("\\", "/").startsWith(`projects/${projectId}/`))
         .sort((a, b) => statusRank(a.record.status) - statusRank(b.record.status) || a.record.title.localeCompare(b.record.title));
     const section = (heading: string, status: NoteNode["status"]) => {
         const matching = entries.filter(({ record }) => record.status === status);
@@ -589,14 +601,533 @@ export async function promoteNotes(options: { sourceNoteId: string; corroboratin
     }
 }
 
-export function doctorNoteStore(repair = false): { schema_version: 1; exists: boolean; ok: boolean; repaired: boolean; issues: string[] } {
-    const notesRoot = join(baseDirectory(), "notes");
-    if (!existsSync(notesRoot)) return { schema_version: NOTE_SCHEMA_VERSION, exists: false, ok: true, repaired: false, issues: [] };
+export function doctorNoteStore(repair = false, options: { storeRoot?: string } = {}): { schema_version: 1; exists: boolean; ok: boolean; repaired: boolean; issues: string[]; transactions: Array<{ state: string; action?: string }> } {
+    const notesRoot = options.storeRoot ? join(options.storeRoot, ".cairnkeep-note-fixture") : join(baseDirectory(), "notes");
+    if (!existsSync(notesRoot)) return { schema_version: NOTE_SCHEMA_VERSION, exists: false, ok: true, repaired: false, issues: [], transactions: [] };
     try {
-        const manifest = loadManifest(notesRoot);
-        if (repair) saveManifestAndIndexes(notesRoot, manifest, []);
-        return { schema_version: NOTE_SCHEMA_VERSION, exists: true, ok: true, repaired: repair, issues: [] };
+        const pending = pendingTransactionDirectories(notesRoot).map((directory) => JSON.parse(readFileSync(join(directory, "journal-v1.json"), "utf8")) as NoteTransactionJournal);
+        if (pending.length > 0) {
+            if (!repair) return { schema_version: 1, exists: true, ok: false, repaired: false, issues: ["RECOVERY_REQUIRED"], transactions: pending.map(({ state }) => ({ state })) };
+            const recovery = recoverNoteTransactions({ notesRoot });
+            const transactions = pending.map(({ state }) => ({ state, action: state === "committed" ? "finalized" : "rolled_back" }));
+            return { schema_version: 1, exists: true, ok: recovery.issues.length === 0, repaired: recovery.repaired > 0, issues: recovery.issues, transactions };
+        }
+        if (!options.storeRoot) {
+            const manifest = loadManifest(notesRoot);
+            if (repair) saveManifestAndIndexes(notesRoot, manifest, []);
+        }
+        return { schema_version: NOTE_SCHEMA_VERSION, exists: true, ok: true, repaired: repair, issues: [], transactions: [] };
     } catch (error) {
-        return { schema_version: NOTE_SCHEMA_VERSION, exists: true, ok: false, repaired: false, issues: [error instanceof Error ? error.message : String(error)] };
+        return { schema_version: NOTE_SCHEMA_VERSION, exists: true, ok: false, repaired: false, issues: [error instanceof Error ? error.message : String(error)], transactions: [] };
     }
+}
+
+export type NoteAddressSpace = "project-notes" | "shared-notes";
+
+export type AddressedNoteNode = {
+    schema_version: 1;
+    address_space: NoteAddressSpace;
+    scope: "project";
+    key: string;
+    value: string;
+    node_type: NoteNode["node_type"];
+    tags: string[];
+    path: string;
+};
+
+type NoteFileChange = {
+    path: string;
+    bytes: string | null;
+    before_hash: string | null;
+    final_hash: string | null;
+};
+
+export type NoteMutationPlan = {
+    schema_version: 1;
+    operation: "create" | "supersede" | "delete" | "import";
+    notes_root: string;
+    project_id?: string;
+    changes: NoteFileChange[];
+    result: Record<string, unknown>;
+    inject_failure?: "prepared" | "committing" | "committed";
+    failure_mode?: "exception" | "termination";
+    corrupt_final_hash?: boolean;
+    probe_only?: boolean;
+};
+
+export type NoteImportPlan = NoteMutationPlan & {
+    envelope: MemoryImportEnvelope;
+    batch_digest: string;
+    actions: MemoryImportAction[];
+    conflict: boolean;
+};
+
+type NoteTransactionJournal = {
+    schema_version: 1;
+    transaction_id: string;
+    state: "prepared" | "committing" | "committed";
+    operation: NoteMutationPlan["operation"];
+    changes: Array<NoteFileChange & { staged?: string; backup?: string }>;
+    completed_paths: string[];
+};
+
+function fileHash(path: string): string | null {
+    return existsSync(path) ? createHash("sha256").update(readFileSync(path)).digest("hex") : null;
+}
+
+function bytesHash(bytes: string | null): string | null {
+    return bytes === null ? null : createHash("sha256").update(bytes).digest("hex");
+}
+
+function noteLayoutFor(options: { projectRoot?: string; projectId?: string }): NoteLayout {
+    const layout = getNoteLayout(options.projectRoot ?? process.cwd());
+    if (!options.projectId) return layout;
+    const projectDir = join(layout.notes_root, "projects", options.projectId);
+    return {
+        ...layout,
+        project_id: options.projectId,
+        project_dir: projectDir,
+        hindsight_dir: join(projectDir, "hindsight"),
+        knowledge_dir: join(projectDir, "knowledge"),
+        lock_path: join(layout.notes_root, ".cairnkeep", "locks", `${options.projectId}.lock`),
+    };
+}
+
+export function resolveNoteTarget(options: {
+    address_space: NoteAddressSpace;
+    key: string;
+    projectRoot?: string;
+    projectId?: string;
+}): { layout: NoteLayout; relative_path: string; absolute_path: string; partition: string } {
+    const key = nodePathSchema.parse(options.key);
+    const layout = noteLayoutFor(options);
+    let relativePath: string;
+    let partition: string;
+    if (options.address_space === "project-notes") {
+        const [first] = key.split("/");
+        if (first !== "knowledge" && first !== "hindsight") throw new Error("INVALID_PATH: project note keys must begin with knowledge/ or hindsight/.");
+        partition = first;
+        relativePath = join("projects", layout.project_id, `${key}.md`);
+    } else {
+        const leaf = key.startsWith("shared/") ? key.slice("shared/".length) : key;
+        if (!leaf || leaf.includes("/")) throw new Error("INVALID_PATH: shared note keys must name one shared leaf.");
+        partition = "shared";
+        relativePath = join("shared", `${leaf}.md`);
+    }
+    const absolutePath = resolve(layout.notes_root, relativePath);
+    const contained = relative(layout.notes_root, absolutePath);
+    if (contained.startsWith("..") || isAbsolute(contained)) throw new Error("INVALID_PATH: note target escapes the managed notes root.");
+    return { layout, relative_path: relativePath.replaceAll("\\", "/"), absolute_path: absolutePath, partition };
+}
+
+function addressedEntry(options: { address_space: NoteAddressSpace; key: string; entry: NoteRecord; notes_root: string }): AddressedNoteNode {
+    return {
+        schema_version: NOTE_SCHEMA_VERSION,
+        address_space: options.address_space,
+        scope: "project",
+        key: options.key,
+        value: JSON.stringify(options.entry.record),
+        node_type: options.entry.record.node_type,
+        tags: options.entry.record.tags,
+        path: join(options.notes_root, options.entry.path),
+    };
+}
+
+function findAddressedRecord(manifest: NoteManifest, relativePath: string): NoteRecord | undefined {
+    return Object.values(manifest.notes).find((entry) => entry.path.replaceAll("\\", "/") === relativePath);
+}
+
+export function listAddressedNotes(options: {
+    address_space: NoteAddressSpace;
+    prefix?: string;
+    projectRoot?: string;
+    projectId?: string;
+    node_types?: string[];
+    tags_all?: string[];
+    tags_any?: string[];
+}): AddressedNoteNode[] {
+    const layout = noteLayoutFor(options);
+    const manifest = loadManifest(layout.notes_root);
+    const base = options.address_space === "project-notes" ? `projects/${layout.project_id}/` : "shared/";
+    return Object.values(manifest.notes).flatMap((entry) => {
+        const path = entry.path.replaceAll("\\", "/");
+        if (!path.startsWith(base)) return [];
+        const key = options.address_space === "project-notes" ? path.slice(base.length, -3) : path.slice("shared/".length, -3);
+        if (options.prefix && !key.startsWith(options.prefix)) return [];
+        if (options.node_types && !options.node_types.includes(entry.record.node_type)) return [];
+        if (options.tags_all && !options.tags_all.every((tag) => entry.record.tags.includes(tag))) return [];
+        if (options.tags_any && !options.tags_any.some((tag) => entry.record.tags.includes(tag))) return [];
+        return [addressedEntry({ address_space: options.address_space, key, entry, notes_root: layout.notes_root })];
+    }).sort((left, right) => left.key.localeCompare(right.key));
+}
+
+export function readAddressedNote(options: {
+    address_space: NoteAddressSpace;
+    key: string;
+    projectRoot?: string;
+    projectId?: string;
+}): AddressedNoteNode | null {
+    const target = resolveNoteTarget(options);
+    const entry = findAddressedRecord(loadManifest(target.layout.notes_root), target.relative_path);
+    return entry ? addressedEntry({ address_space: options.address_space, key: options.key, entry, notes_root: target.layout.notes_root }) : null;
+}
+
+export function searchAddressedNotes(options: Parameters<typeof listAddressedNotes>[0] & { query: string }): AddressedNoteNode[] {
+    const needle = options.query.toLowerCase();
+    return listAddressedNotes(options).filter((node) => {
+        const record = JSON.parse(node.value) as NoteNode;
+        return node.key.toLowerCase().includes(needle)
+            || record.title.toLowerCase().includes(needle)
+            || record.description.toLowerCase().includes(needle)
+            || node.node_type === needle
+            || node.tags.includes(needle);
+    }).sort((left, right) => left.key.localeCompare(right.key));
+}
+
+function parseAddressedNote(options: {
+    value: string;
+    note?: unknown;
+    node_type?: string;
+    tags?: string[];
+    target: ReturnType<typeof resolveNoteTarget>;
+    address_space: NoteAddressSpace;
+}): NoteNode {
+    let fromValue: unknown;
+    try { fromValue = JSON.parse(options.value); } catch { throw new Error("INVALID_SCHEMA: note values must contain the complete canonical JSON record."); }
+    const record = noteNodeSchema.parse(options.note ?? fromValue);
+    if (options.note && JSON.stringify(noteNodeSchema.parse(fromValue)) !== JSON.stringify(record)) throw new Error("INVALID_SCHEMA: nested note and value disagree.");
+    if (options.node_type && options.node_type !== record.node_type) throw new Error("INVALID_SCHEMA: node_type disagrees with the note record.");
+    if (options.tags && JSON.stringify(options.tags) !== JSON.stringify(record.tags)) throw new Error("INVALID_SCHEMA: tags disagree with the note record.");
+    const leaf = basename(options.target.relative_path, ".md");
+    if (leaf !== record.id) throw new Error("INVALID_PATH: note key leaf must equal the note id.");
+    if (options.address_space === "shared-notes" && record.node_type !== "shared") throw new Error("INVALID_SCHEMA: shared-notes accepts shared records only.");
+    if (options.address_space === "project-notes") {
+        if (options.target.partition === "knowledge" && record.node_type !== "knowledge") throw new Error("INVALID_SCHEMA: knowledge/ accepts knowledge records only.");
+        if (options.target.partition === "hindsight" && !["hindsight", "provenance"].includes(record.node_type)) throw new Error("INVALID_SCHEMA: hindsight/ accepts hindsight or provenance records only.");
+    }
+    return record;
+}
+
+function manifestChanges(notesRoot: string, manifest: NoteManifest, noteChanges: Array<{ path: string; bytes: string | null }>): NoteFileChange[] {
+    const stable = stableManifest(manifest);
+    const outputs = [...noteChanges];
+    for (const [projectId, project] of Object.entries(stable.projects)) {
+        outputs.push({ path: join(notesRoot, project.project_dir, "README.md"), bytes: projectIndex(stable, projectId) });
+    }
+    outputs.push({ path: join(notesRoot, "README.md"), bytes: rootIndex(stable) });
+    outputs.push({ path: join(notesRoot, ".cairnkeep", "manifest-v1.json"), bytes: `${JSON.stringify(stable, null, 2)}\n` });
+    return outputs.map(({ path, bytes }) => ({ path, bytes, before_hash: fileHash(path), final_hash: bytesHash(bytes) }))
+        .sort((left, right) => (left.path.endsWith("manifest-v1.json") ? 1 : right.path.endsWith("manifest-v1.json") ? -1 : left.path.localeCompare(right.path)));
+}
+
+function ensureProject(manifest: NoteManifest, target: ReturnType<typeof resolveNoteTarget>, projectRoot?: string): void {
+    if (target.partition === "shared") return;
+    manifest.projects[target.layout.project_id] ??= {
+        project_root: resolve(projectRoot ?? process.cwd()),
+        project_dir: relative(target.layout.notes_root, target.layout.project_dir).replaceAll("\\", "/"),
+        processed_sessions: {},
+    };
+}
+
+function cloneManifest(manifest: NoteManifest): NoteManifest {
+    return JSON.parse(JSON.stringify(manifest)) as NoteManifest;
+}
+
+export function planCreateAddressedNote(options: {
+    address_space: NoteAddressSpace; key: string; value: string; note?: unknown; node_type?: string; tags?: string[]; projectRoot?: string; projectId?: string;
+}): NoteMutationPlan {
+    const target = resolveNoteTarget(options);
+    const manifest = cloneManifest(loadManifest(target.layout.notes_root));
+    if (findAddressedRecord(manifest, target.relative_path) || existsSync(target.absolute_path)) throw new Error("CONFLICT: note target already exists.");
+    const record = parseAddressedNote({ ...options, target });
+    ensureProject(manifest, target, options.projectRoot);
+    manifest.notes[record.id] = { path: target.relative_path, record };
+    rebuildLookups(manifest);
+    const node = addressedEntry({ address_space: options.address_space, key: options.key, entry: manifest.notes[record.id], notes_root: target.layout.notes_root });
+    return { schema_version: 1, operation: "create", notes_root: target.layout.notes_root, project_id: target.layout.project_id, changes: manifestChanges(target.layout.notes_root, manifest, [{ path: target.absolute_path, bytes: renderNote(record) }]), result: { ok: true, scope: "project", key: options.key, created: true, snapshot_key: null, node } };
+}
+
+function historyPath(notesRoot: string, addressSpace: NoteAddressSpace, key: string): string {
+    return join(notesRoot, ".cairnkeep", "history", addressSpace, ...key.split("/"), `${new Date().toISOString()}-${randomBytes(6).toString("hex")}.json`);
+}
+
+export function planSupersedeAddressedNote(options: {
+    address_space: NoteAddressSpace; key: string; value: string; note?: unknown; node_type?: string; tags?: string[]; reason?: string; projectRoot?: string; projectId?: string;
+}): NoteMutationPlan {
+    const target = resolveNoteTarget(options);
+    const manifest = cloneManifest(loadManifest(target.layout.notes_root));
+    const existing = findAddressedRecord(manifest, target.relative_path);
+    if (!existing || !existsSync(target.absolute_path)) return planCreateAddressedNote(options);
+    const record = parseAddressedNote({ ...options, target });
+    const prior = addressedEntry({ address_space: options.address_space, key: options.key, entry: existing, notes_root: target.layout.notes_root });
+    delete manifest.notes[existing.record.id];
+    manifest.notes[record.id] = { path: target.relative_path, record };
+    rebuildLookups(manifest);
+    const history = { schema_version: 1, event: "supersede", value: prior.value, node_type: prior.node_type, tags: prior.tags, at: new Date().toISOString(), reason: options.reason ?? null };
+    const historyFile = historyPath(target.layout.notes_root, options.address_space, options.key);
+    return { schema_version: 1, operation: "supersede", notes_root: target.layout.notes_root, project_id: target.layout.project_id, changes: manifestChanges(target.layout.notes_root, manifest, [{ path: target.absolute_path, bytes: renderNote(record, readFileSync(target.absolute_path, "utf8")) }, { path: historyFile, bytes: `${JSON.stringify(history)}\n` }]), result: { ok: true, scope: "project", key: options.key, created: false, snapshot_key: historyFile, previous_value: prior.value } };
+}
+
+export function planDeleteAddressedNote(options: { address_space: NoteAddressSpace; key: string; reason?: string; projectRoot?: string; projectId?: string }): NoteMutationPlan {
+    const target = resolveNoteTarget(options);
+    const manifest = cloneManifest(loadManifest(target.layout.notes_root));
+    const existing = findAddressedRecord(manifest, target.relative_path);
+    if (!existing) return { schema_version: 1, operation: "delete", notes_root: target.layout.notes_root, project_id: target.layout.project_id, changes: [], result: { ok: true, scope: "project", key: options.key, deleted: false, missing: true, snapshot_key: null } };
+    const prior = addressedEntry({ address_space: options.address_space, key: options.key, entry: existing, notes_root: target.layout.notes_root });
+    delete manifest.notes[existing.record.id];
+    rebuildLookups(manifest);
+    const history = { schema_version: 1, event: "delete", value: prior.value, node_type: prior.node_type, tags: prior.tags, at: new Date().toISOString(), reason: options.reason ?? null };
+    const historyFile = historyPath(target.layout.notes_root, options.address_space, options.key);
+    return { schema_version: 1, operation: "delete", notes_root: target.layout.notes_root, project_id: target.layout.project_id, changes: manifestChanges(target.layout.notes_root, manifest, [{ path: target.absolute_path, bytes: null }, { path: historyFile, bytes: `${JSON.stringify(history)}\n` }]), result: { ok: true, scope: "project", key: options.key, deleted: true, missing: false, snapshot_key: historyFile, final_snapshot: history } };
+}
+
+function transactionRoot(notesRoot: string): string {
+    return join(notesRoot, ".cairnkeep", "transactions");
+}
+
+function pendingTransactionDirectories(notesRoot: string): string[] {
+    const root = transactionRoot(notesRoot);
+    if (!existsSync(root)) return [];
+    return readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join(root, entry.name)).sort();
+}
+
+function syncFile(path: string): void {
+    const descriptor = openSync(path, "r");
+    try { fsyncSync(descriptor); } finally { closeSync(descriptor); }
+}
+
+function syncDirectory(path: string): void {
+    const descriptor = openSync(path, "r");
+    try { fsyncSync(descriptor); } finally { closeSync(descriptor); }
+}
+
+function durableWrite(path: string, bytes: string): void {
+    atomicWrite(path, bytes);
+    syncFile(path);
+    syncDirectory(dirname(path));
+}
+
+function writeJournal(path: string, journal: NoteTransactionJournal): void {
+    durableWrite(path, `${JSON.stringify(journal, null, 2)}\n`);
+}
+
+function rollbackJournal(directory: string, journal: NoteTransactionJournal): void {
+    for (const change of [...journal.changes].reverse()) {
+        if (change.backup && existsSync(change.backup)) {
+            mkdirSync(dirname(change.path), { recursive: true });
+            copyFileSync(change.backup, change.path);
+        } else {
+            rmSync(change.path, { force: true });
+        }
+        if (fileHash(change.path) !== change.before_hash) throw new Error(`AUTHORITATIVE_CORRUPTION: failed to restore ${change.path}.`);
+    }
+    rmSync(directory, { recursive: true, force: true });
+}
+
+export function inspectNoteTransactions(options: { notesRoot?: string; storeRoot?: string } = {}): Array<{ transaction_id: string; state: NoteTransactionJournal["state"]; directory: string }> {
+    const notesRoot = options.notesRoot ?? join(options.storeRoot ?? baseDirectory(), options.storeRoot ? ".cairnkeep-note-fixture" : "notes");
+    return pendingTransactionDirectories(notesRoot).map((directory) => {
+        const journal = JSON.parse(readFileSync(join(directory, "journal-v1.json"), "utf8")) as NoteTransactionJournal;
+        return { transaction_id: journal.transaction_id, state: journal.state, directory };
+    });
+}
+
+export function recoverNoteTransactions(options: { notesRoot: string }): { repaired: number; issues: string[] } {
+    const directories = pendingTransactionDirectories(options.notesRoot);
+    let repaired = 0;
+    const issues: string[] = [];
+    for (const directory of directories) {
+        try {
+            const journal = JSON.parse(readFileSync(join(directory, "journal-v1.json"), "utf8")) as NoteTransactionJournal;
+            if (journal.schema_version !== NOTE_SCHEMA_VERSION) throw new Error("Unsupported note transaction schema.");
+            if (journal.state === "committed") {
+                for (const change of journal.changes) {
+                    if (fileHash(change.path) !== change.final_hash) throw new Error(`AUTHORITATIVE_CORRUPTION: committed final hash differs for ${change.path}.`);
+                }
+                rmSync(directory, { recursive: true, force: true });
+            } else {
+                rollbackJournal(directory, journal);
+            }
+            repaired += 1;
+        } catch (error) {
+            issues.push(error instanceof Error ? error.message : String(error));
+        }
+    }
+    return { repaired, issues };
+}
+
+export async function commitJournaledNoteMutation(plan: NoteMutationPlan): Promise<Record<string, unknown>> {
+    if (pendingTransactionDirectories(plan.notes_root).length > 0) {
+        if (plan.probe_only) return { status: "recovery_required" };
+        throw new Error("RECOVERY_REQUIRED: run cairn doctor --repair before another note mutation.");
+    }
+    if (plan.probe_only) return { status: "ready" };
+    if (plan.changes.length === 0) return plan.result;
+    const recoveryLock = join(plan.notes_root, ".cairnkeep", "locks", "recovery.lock");
+    const release = acquireLock(recoveryLock);
+    const transactionId = `${Date.now()}-${process.pid}-${randomBytes(6).toString("hex")}`;
+    const directory = join(transactionRoot(plan.notes_root), transactionId);
+    const journalPath = join(directory, "journal-v1.json");
+    let journal: NoteTransactionJournal | undefined;
+    try {
+        mkdirSync(join(directory, "staged"), { recursive: true });
+        mkdirSync(join(directory, "backups"), { recursive: true });
+        const changes = plan.changes.map((change, index) => {
+            if (fileHash(change.path) !== change.before_hash) throw new Error(`CONFLICT: note pre-image changed for ${change.path}.`);
+            const staged = change.bytes === null ? undefined : join(directory, "staged", `${index}.bin`);
+            const backup = change.before_hash === null ? undefined : join(directory, "backups", `${index}.bin`);
+            if (staged) durableWrite(staged, change.bytes as string);
+            if (backup) {
+                copyFileSync(change.path, backup);
+                syncFile(backup);
+            }
+            return { ...change, ...(staged ? { staged } : {}), ...(backup ? { backup } : {}) };
+        });
+        journal = { schema_version: 1, transaction_id: transactionId, state: "prepared", operation: plan.operation, changes, completed_paths: [] };
+        writeJournal(journalPath, journal);
+        if (plan.inject_failure === "prepared") throw new Error(`Injected ${plan.failure_mode ?? "exception"} failure at prepared.`);
+        journal.state = "committing";
+        writeJournal(journalPath, journal);
+        for (const change of journal.changes) {
+            mkdirSync(dirname(change.path), { recursive: true });
+            if (change.staged) renameSync(change.staged, change.path);
+            else rmSync(change.path, { force: true });
+            if (existsSync(change.path)) syncFile(change.path);
+            syncDirectory(dirname(change.path));
+            journal.completed_paths.push(change.path);
+            writeJournal(journalPath, journal);
+            if (plan.inject_failure === "committing") throw new Error(`Injected ${plan.failure_mode ?? "exception"} failure while committing.`);
+        }
+        journal.state = "committed";
+        writeJournal(journalPath, journal);
+        if (plan.corrupt_final_hash) {
+            const target = journal.changes.find((change) => change.final_hash !== null)?.path;
+            if (target) writeFileSync(target, "corrupt-final-bytes\n");
+        }
+        if (plan.inject_failure === "committed") throw new Error(`Injected ${plan.failure_mode ?? "exception"} failure after commit.`);
+        rmSync(directory, { recursive: true, force: true });
+        return plan.result;
+    } catch (error) {
+        if (!plan.inject_failure && journal) rollbackJournal(directory, journal);
+        throw error;
+    } finally {
+        release();
+    }
+}
+
+export async function applyNoteMutation(plan: NoteMutationPlan): Promise<Record<string, unknown>> {
+    if (plan.result.fixture === true) {
+        plan = { ...plan, changes: plan.changes.map((change) => ({ ...change, before_hash: fileHash(change.path) })) };
+    }
+    return commitJournaledNoteMutation(plan);
+}
+
+export async function createAddressedNote(options: Parameters<typeof planCreateAddressedNote>[0]): Promise<Record<string, unknown>> {
+    return commitJournaledNoteMutation(planCreateAddressedNote(options));
+}
+
+export async function supersedeAddressedNote(options: Parameters<typeof planSupersedeAddressedNote>[0]): Promise<Record<string, unknown>> {
+    return commitJournaledNoteMutation(planSupersedeAddressedNote(options));
+}
+
+export async function deleteAddressedNote(options: Parameters<typeof planDeleteAddressedNote>[0]): Promise<Record<string, unknown>> {
+    return commitJournaledNoteMutation(planDeleteAddressedNote(options));
+}
+
+export function listAddressedNoteHistory(options: { address_space: NoteAddressSpace; key: string; projectRoot?: string; projectId?: string }): Array<Record<string, unknown>> {
+    const target = resolveNoteTarget(options);
+    const directory = join(target.layout.notes_root, ".cairnkeep", "history", options.address_space, ...options.key.split("/"));
+    if (!existsSync(directory)) return [];
+    return readdirSync(directory).filter((name) => name.endsWith(".json")).sort().map((name) => JSON.parse(readFileSync(join(directory, name), "utf8")) as Record<string, unknown>);
+}
+
+function noteImportDigest(envelope: MemoryImportEnvelope): string {
+    const canonical = JSON.stringify({ schema_version: envelope.schema_version, scope: envelope.scope, address_space: envelope.address_space, nodes: [...envelope.nodes].sort((a, b) => a.key.localeCompare(b.key)) });
+    return createHash("sha256").update("cairnkeep:memory-import:v1\0").update(canonical).digest("hex");
+}
+
+function importCounts(actions: MemoryImportAction[], dryRun: boolean): MemoryImportResult["counts"] {
+    const counts: MemoryImportResult["counts"] = dryRun
+        ? { would_create: 0, would_replace: 0, unchanged: 0, rejected: 0 }
+        : { created: 0, replaced: 0, unchanged: 0, rejected: 0 };
+    for (const action of actions) {
+        const key = action.action === "would_create" ? "would_create" : action.action === "would_replace" ? "would_replace" : action.action;
+        (counts as Record<string, number>)[key] = ((counts as Record<string, number>)[key] ?? 0) + 1;
+    }
+    return counts;
+}
+
+export function planNoteImport(options: { input: unknown; projectRoot?: string; projectId?: string }): NoteImportPlan {
+    const envelope = memoryImportEnvelopeSchema.parse(options.input);
+    if (envelope.address_space === "memory") throw new Error("UNSUPPORTED_TARGET: note import requires a note address space.");
+    if (envelope.scope !== "project") throw new Error("INVALID_SCOPE: note address spaces require scope project.");
+    const addressSpace = envelope.address_space as NoteAddressSpace;
+    const firstTarget = resolveNoteTarget({ address_space: addressSpace, key: envelope.nodes[0].key, projectRoot: options.projectRoot, projectId: options.projectId });
+    const replayPath = join(firstTarget.layout.notes_root, ".cairnkeep", "note-import-replays-v1.json");
+    const replays = existsSync(replayPath) ? JSON.parse(readFileSync(replayPath, "utf8")) as Record<string, string> : {};
+    const batch_digest = noteImportDigest(envelope);
+    if (envelope.import_id && replays[envelope.import_id]) {
+        if (replays[envelope.import_id] !== batch_digest) throw new Error(`IMPORT_ID_REUSE: ${envelope.import_id}`);
+        const actions = envelope.nodes.map((node) => ({ key: node.key, action: "unchanged" as const })).sort((a, b) => a.key.localeCompare(b.key));
+        const result = { schema_version: 1, scope: envelope.scope, address_space: envelope.address_space, batch_digest, import_id: envelope.import_id, dry_run: envelope.dry_run, conflict_policy: envelope.conflict_policy, committed: !envelope.dry_run, replayed: true, counts: importCounts(actions, envelope.dry_run), actions };
+        return { schema_version: 1, operation: "import", notes_root: firstTarget.layout.notes_root, project_id: firstTarget.layout.project_id, envelope, batch_digest, actions, conflict: false, changes: [], result };
+    }
+    const manifest = cloneManifest(loadManifest(firstTarget.layout.notes_root));
+    const noteChanges: Array<{ path: string; bytes: string | null }> = [];
+    const actions: MemoryImportAction[] = [];
+    for (const node of [...envelope.nodes].sort((a, b) => a.key.localeCompare(b.key))) {
+        const target = resolveNoteTarget({ address_space: addressSpace, key: node.key, projectRoot: options.projectRoot, projectId: options.projectId });
+        const existing = findAddressedRecord(manifest, target.relative_path);
+        const record = parseAddressedNote({ address_space: addressSpace, value: node.value, note: node.note, node_type: node.node_type, tags: node.tags, target });
+        if (existing && JSON.stringify(existing.record) === JSON.stringify(record)) {
+            actions.push({ key: node.key, action: "unchanged" });
+            continue;
+        }
+        if (existing && envelope.conflict_policy !== "supersede") {
+            actions.push({ key: node.key, action: "rejected", code: "CONFLICT" });
+            continue;
+        }
+        ensureProject(manifest, target, options.projectRoot);
+        if (existing) {
+            const prior = addressedEntry({ address_space: addressSpace, key: node.key, entry: existing, notes_root: target.layout.notes_root });
+            const history = { schema_version: 1, event: "supersede", value: prior.value, node_type: prior.node_type, tags: prior.tags, at: new Date().toISOString(), reason: `import ${envelope.import_id ?? batch_digest}` };
+            noteChanges.push({ path: historyPath(target.layout.notes_root, addressSpace, node.key), bytes: `${JSON.stringify(history)}\n` });
+            delete manifest.notes[existing.record.id];
+        }
+        manifest.notes[record.id] = { path: target.relative_path, record };
+        noteChanges.push({ path: target.absolute_path, bytes: renderNote(record, existing && existsSync(target.absolute_path) ? readFileSync(target.absolute_path, "utf8") : undefined) });
+        actions.push({ key: node.key, action: existing ? "would_replace" : "would_create" });
+    }
+    const conflict = actions.some((action) => action.action === "rejected");
+    rebuildLookups(manifest);
+    const dryActions = actions.sort((a, b) => a.key.localeCompare(b.key));
+    const result = { schema_version: 1, scope: envelope.scope, address_space: envelope.address_space, batch_digest, ...(envelope.import_id ? { import_id: envelope.import_id } : {}), dry_run: envelope.dry_run, conflict_policy: envelope.conflict_policy, committed: false, counts: importCounts(dryActions, true), actions: dryActions };
+    if (envelope.import_id && !envelope.dry_run && !conflict) {
+        replays[envelope.import_id] = batch_digest;
+        noteChanges.push({ path: replayPath, bytes: `${JSON.stringify(sortedObject(replays), null, 2)}\n` });
+    }
+    return { schema_version: 1, operation: "import", notes_root: firstTarget.layout.notes_root, project_id: firstTarget.layout.project_id, envelope, batch_digest, actions: dryActions, conflict, changes: envelope.dry_run || conflict ? [] : manifestChanges(firstTarget.layout.notes_root, manifest, noteChanges), result };
+}
+
+export async function commitNoteImport(plan: NoteImportPlan): Promise<MemoryImportResult> {
+    if (plan.conflict) throw new Error("CONFLICT: note import contains a differing live node.");
+    if (plan.envelope.dry_run) return plan.result as MemoryImportResult;
+    const committedActions = plan.actions.map((action) => ({ ...action, action: action.action === "would_create" ? "created" as const : action.action === "would_replace" ? "replaced" as const : action.action }));
+    plan.result = { ...plan.result, committed: true, dry_run: false, counts: importCounts(committedActions, false), actions: committedActions };
+    return await commitJournaledNoteMutation(plan) as MemoryImportResult;
+}
+
+export function createNoteMutationFixture(options: { projectRoot: string; storeRoot: string; operation: "create" | "supersede" | "delete" | "import" }): NoteMutationPlan {
+    const notesRoot = join(options.storeRoot, ".cairnkeep-note-fixture");
+    const target = join(notesRoot, "live.txt");
+    if (!existsSync(target)) {
+        mkdirSync(dirname(target), { recursive: true });
+        writeFileSync(target, "before\n");
+    }
+    const bytes = options.operation === "delete" ? null : `${options.operation}-after\n`;
+    return { schema_version: 1, operation: options.operation, notes_root: notesRoot, changes: [{ path: target, bytes, before_hash: fileHash(target), final_hash: bytesHash(bytes) }], result: { ok: true, fixture: true } };
+}
+
+export function repairNoteTransactions(options: { storeRoot: string }): { repaired: number; issues: string[] } {
+    return recoverNoteTransactions({ notesRoot: join(options.storeRoot, ".cairnkeep-note-fixture") });
 }
