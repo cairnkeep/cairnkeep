@@ -10,7 +10,7 @@ const cli = resolve(here, "../dist/trajectory-cli.js");
 const fixture = join(here, "fixtures", "trajectory-opencode.json");
 const scratch = mkdtempSync(join(tmpdir(), "cairn-trajectory-redaction-"));
 const repo = join(scratch, "project");
-const config = join(scratch, "redaction.json");
+const config = join(repo, ".ai", "trajectory-redaction.json");
 const sentinels = [
     "sk-redact-opencode-123",
     "hidden-opencode-bearer",
@@ -36,6 +36,7 @@ function run(args, options = {}) {
 
 try {
     mkdirSync(join(repo, ".agentfs"), { recursive: true });
+    mkdirSync(join(repo, ".ai"), { recursive: true });
     writeFileSync(config, JSON.stringify({
         version: 1,
         patterns: [{ pattern: "INTERNAL-[A-Z]+-[0-9]+", flags: "g", replacement: "[REDACTED:CUSTOM]" }],
