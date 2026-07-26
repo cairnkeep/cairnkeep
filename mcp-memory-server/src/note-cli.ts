@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readdirSync, statSync } from "node:fs";
+import type { Dirent } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { distillProject } from "./note-distiller.js";
@@ -52,8 +53,15 @@ async function readStdin(): Promise<string> {
 
 function findTrajectoryProjects(root: string): string[] {
     const projects: string[] = [];
-    const walk = (directory: string) => {
-        for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const walk = (directory: string, depth: number) => {
+        if (depth > 8) return;
+        let entries: Dirent[];
+        try {
+            entries = readdirSync(directory, { withFileTypes: true });
+        } catch {
+            return;
+        }
+        for (const entry of entries) {
             if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
             const child = join(directory, entry.name);
             if (entry.name === ".agentfs") {
@@ -62,10 +70,11 @@ function findTrajectoryProjects(root: string): string[] {
                 } catch { /* no trajectory store */ }
                 continue;
             }
-            walk(child);
+            if (entry.name.startsWith(".") || ["node_modules", "vendor"].includes(entry.name)) continue;
+            walk(child, depth + 1);
         }
     };
-    walk(resolve(root));
+    walk(resolve(root), 0);
     return [...new Set(projects.map((project) => resolve(project)))].sort();
 }
 
