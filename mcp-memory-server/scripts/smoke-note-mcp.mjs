@@ -81,7 +81,7 @@ async function addressedCapability(client) {
 async function crudChecks(client, storeRoot) {
     const record = baseRecord();
     const created = await call(client, "memory_write", noteArgs(record));
-    assert.equal(created.isError, false);
+    assert.notEqual(created.isError, true);
     const read = await call(client, "memory_read", { scope: "project", address_space: "project-notes", key: `knowledge/${record.id}` });
     assert.deepEqual(JSON.parse(read.structuredContent?.results?.[0]?.value), record);
     assert.deepEqual({ node_type: read.structuredContent.results[0].node_type, tags: read.structuredContent.results[0].tags }, { node_type: record.node_type, tags: record.tags });
@@ -95,14 +95,24 @@ async function crudChecks(client, storeRoot) {
 
     const replacement = { ...record, description: "Updated without losing nested fields.", updated_at: "2026-07-26T12:01:00.000Z" };
     const superseded = await call(client, "memory_supersede", noteArgs(replacement, { reason: "test update" }));
-    assert.equal(superseded.isError, false);
+    assert.notEqual(superseded.isError, true);
     assert.equal(readFileSync(notePath, "utf8").endsWith(MANUAL_SUFFIX), true);
     const history = await call(client, "memory_history", { scope: "project", address_space: "project-notes", key: `knowledge/${record.id}` });
     assert.deepEqual(JSON.parse(history.structuredContent?.history?.[0]?.value), record);
 
     const importedRecord = baseRecord("imported-note");
-    const imported = await call(client, "memory_import", { schema_version: 1, scope: "project", address_space: "notes", nodes: [{ key: `knowledge/${importedRecord.id}`, value: JSON.stringify(importedRecord), node_type: importedRecord.node_type, tags: importedRecord.tags }] });
-    assert.equal(imported.isError, false);
+    const importRequest = { schema_version: 1, scope: "project", address_space: "project-notes", import_id: "note-batch-1", nodes: [{ key: `knowledge/${importedRecord.id}`, value: JSON.stringify(importedRecord), node_type: importedRecord.node_type, tags: importedRecord.tags }] };
+    const imported = await call(client, "memory_import", importRequest);
+    assert.notEqual(imported.isError, true);
+    const replayed = await call(client, "memory_import", importRequest);
+    assert.equal(replayed.structuredContent?.replayed, true);
+    const divergentReplay = await call(client, "memory_import", { ...importRequest, nodes: [{ ...importRequest.nodes[0], value: JSON.stringify({ ...importedRecord, description: "Divergent replay." }) }] });
+    assert.equal(divergentReplay.isError, true);
+    const importedReplacement = { ...importedRecord, description: "Replaced through note import.", updated_at: "2026-07-26T12:02:00.000Z" };
+    const replacedImport = await call(client, "memory_import", { ...importRequest, import_id: "note-batch-2", conflict_policy: "supersede", nodes: [{ ...importRequest.nodes[0], value: JSON.stringify(importedReplacement) }] });
+    assert.notEqual(replacedImport.isError, true);
+    const importedHistory = await call(client, "memory_history", { scope: "project", address_space: "project-notes", key: `knowledge/${importedRecord.id}` });
+    assert.deepEqual(JSON.parse(importedHistory.structuredContent?.history?.[0]?.value), importedRecord);
 
     const unmanaged = join(storeRoot, "notes", "projects", "unmanaged-collision.md");
     mkdirSync(join(storeRoot, "notes", "projects"), { recursive: true });
@@ -180,7 +190,7 @@ async function httpProjectIdentityCheck(storeRoot) {
         await client.connect(transport);
         const record = baseRecord("http-note");
         const created = await call(client, "memory_write", noteArgs(record));
-        assert.equal(created.isError, false);
+        assert.notEqual(created.isError, true);
         const read = await call(client, "memory_read", { scope: "project", address_space: "project-notes", key: `knowledge/${record.id}` });
         assert.deepEqual(JSON.parse(read.structuredContent?.results?.[0]?.value), record);
         assert.match(read.structuredContent?.results?.[0]?.path, /note-http-project/);
