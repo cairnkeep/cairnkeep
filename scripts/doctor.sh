@@ -9,6 +9,14 @@
 set -uo pipefail
 
 CAIRN_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+REPAIR_TRAJECTORY=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --repair) REPAIR_TRAJECTORY=1; shift ;;
+    -h|--help) echo "Usage: cairn doctor [--repair]"; exit 0 ;;
+    *) echo "Unknown doctor option: $1" >&2; echo "Usage: cairn doctor [--repair]" >&2; exit 2 ;;
+  esac
+done
 
 # Load the project's .ai/.env if present (does not override already-set env).
 if [[ -f "$PWD/.ai/.env" ]]; then
@@ -114,6 +122,41 @@ if command -v sqlite3 >/dev/null 2>&1; then
   pass "sqlite3 available (memory export enabled)"
 else
   warn "sqlite3 not found — memory export unavailable (runtime and import unaffected)"
+fi
+
+# 7. Project-local trajectory store. Absence is healthy because capture is
+#    opt-in. Existing stores must pass SQLite, schema and index checks. Repair
+#    is explicit and only reconstructs metadata/indexes from valid full records.
+trajectory_cli="$CAIRN_ROOT/mcp-memory-server/dist/trajectory-cli.js"
+if [[ ! -f "$trajectory_cli" ]]; then
+  fail "trajectory diagnostics unavailable — rebuild mcp-memory-server"
+else
+  trajectory_args=(doctor --json)
+  [[ $REPAIR_TRAJECTORY -eq 1 ]] && trajectory_args+=(--repair)
+  trajectory_json=$(node "$trajectory_cli" "${trajectory_args[@]}" 2>/dev/null)
+  trajectory_status=$?
+  trajectory_state=$(node -e '
+try {
+  const value = JSON.parse(process.argv[1])
+  if (!value.exists) process.stdout.write("absent")
+  else if (value.ok && value.repaired) process.stdout.write("repaired")
+  else if (value.ok) process.stdout.write("ok")
+  else process.stdout.write("broken")
+} catch { process.stdout.write("invalid") }
+' "$trajectory_json" 2>/dev/null)
+  case "$trajectory_state" in
+    absent) skip "trajectory store (not present — capture is opt-in)" ;;
+    repaired) pass "trajectory store repaired (metadata/indexes rebuilt; full records preserved)" ;;
+    ok) pass "trajectory store integrity, schema and indexes are valid" ;;
+    *)
+      if [[ $REPAIR_TRAJECTORY -eq 1 ]]; then
+        fail "trajectory store could not be repaired safely; preserve .agentfs/trajectory.db and inspect it manually"
+      else
+        fail "trajectory store metadata/schema/index check failed — run: cairn doctor --repair"
+      fi
+      ;;
+  esac
+  [[ $trajectory_status -eq 0 || "$trajectory_state" == "broken" ]] || true
 fi
 
 echo

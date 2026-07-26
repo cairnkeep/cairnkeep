@@ -11,7 +11,7 @@ _cairn_complete() {
   COMPREPLY=()
   current=${COMP_WORDS[COMP_CWORD]}
   previous=${COMP_WORDS[COMP_CWORD-1]:-}
-  commands="bootstrap memory-server sync doctor memory audit-timer uninstall completion version help"
+  commands="bootstrap memory-server sync doctor trajectory memory audit-timer uninstall completion version help"
   if (( COMP_CWORD == 1 )); then
     COMPREPLY=( $(compgen -W "$commands" -- "$current") )
     return
@@ -19,6 +19,8 @@ _cairn_complete() {
   case "${COMP_WORDS[1]}" in
     bootstrap) COMPREPLY=( $(compgen -W "--untracked" -- "$current") ) ;;
     sync) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
+    doctor) COMPREPLY=( $(compgen -W "--repair" -- "$current") ) ;;
+    trajectory) COMPREPLY=( $(compgen -W "list show prune --json --dry-run" -- "$current") ) ;;
     memory) COMPREPLY=( $(compgen -W "path export import" -- "$current") ) ;;
     audit-timer) COMPREPLY=( $(compgen -W "--on-calendar --para-root --render-only" -- "$current") ) ;;
     uninstall) COMPREPLY=( $(compgen -W "--dry-run --yes --purge-memory --live-root" -- "$current") ) ;;
@@ -38,6 +40,7 @@ _cairn() {
     'memory-server:run the memory MCP server'
     'sync:install the Claude operating layer'
     'doctor:check runtime dependencies and endpoints'
+    'trajectory:inspect and prune local session trajectories'
     'memory:manage the durable memory store'
     'audit-timer:install a memory and wiki audit timer'
     'uninstall:remove installed Cairnkeep components safely'
@@ -52,6 +55,8 @@ _cairn() {
   case $words[2] in
     bootstrap) _arguments '--untracked[keep scaffold out of Git]' '*:project directory:_files -/' ;;
     sync) _arguments '--apply[apply changes]' '--live-root[project Claude root]:directory:_files -/' ;;
+    doctor) _arguments '--repair[repair trajectory metadata and indexes]' ;;
+    trajectory) _values 'trajectory command' list show prune ;;
     memory) _values 'memory command' path export import ;;
     audit-timer) _arguments '--on-calendar[systemd calendar]:calendar:' '--para-root[PARA root]:directory:_files -/' '--render-only[render directory]:directory:_files -/' ;;
     uninstall) _arguments '--dry-run[show changes]' '--yes[skip confirmation]' '--purge-memory[delete memory]' '--live-root[project Claude root]:directory:_files -/' '*:project directory:_files -/' ;;
@@ -65,11 +70,13 @@ EOF
   fish)
     cat <<'EOF'
 complete -c cairn -f
-for command in bootstrap memory-server sync doctor memory audit-timer uninstall completion version help
-    complete -c cairn -n "not __fish_seen_subcommand_from bootstrap memory-server sync doctor memory audit-timer uninstall completion version help" -a $command
+for command in bootstrap memory-server sync doctor trajectory memory audit-timer uninstall completion version help
+    complete -c cairn -n "not __fish_seen_subcommand_from bootstrap memory-server sync doctor trajectory memory audit-timer uninstall completion version help" -a $command
 end
 complete -c cairn -n "__fish_seen_subcommand_from bootstrap" -l untracked
 complete -c cairn -n "__fish_seen_subcommand_from memory" -a "path export import"
+complete -c cairn -n "__fish_seen_subcommand_from doctor" -l repair
+complete -c cairn -n "__fish_seen_subcommand_from trajectory" -a "list show prune"
 complete -c cairn -n "__fish_seen_subcommand_from completion" -a "bash zsh fish"
 EOF
     ;;

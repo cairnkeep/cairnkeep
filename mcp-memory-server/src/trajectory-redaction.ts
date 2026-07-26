@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { z } from "zod";
 
@@ -50,7 +50,9 @@ function assertContainedConfigPath(projectRoot: string, configuredPath: string):
 }
 
 function compileCustomPatterns(projectRoot: string): CompiledPattern[] {
-    const configuredPath = process.env.CAIRN_TRAJECTORY_REDACTION_FILE?.trim();
+    const explicitPath = process.env.CAIRN_TRAJECTORY_REDACTION_FILE?.trim();
+    const defaultPath = ".ai/trajectory-redaction.json";
+    const configuredPath = explicitPath || (existsSync(resolve(projectRoot, defaultPath)) ? defaultPath : "");
     if (!configuredPath) return [];
     const path = assertContainedConfigPath(projectRoot, configuredPath);
     const parsed = redactionConfigSchema.parse(JSON.parse(readFileSync(path, "utf8")));

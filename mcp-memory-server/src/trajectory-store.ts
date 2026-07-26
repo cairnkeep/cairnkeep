@@ -43,6 +43,18 @@ export type PruneResult = {
     logical_bytes: number;
 };
 
+export type TrajectoryDoctorResult = {
+    schema_version: 1;
+    exists: boolean;
+    ok: boolean;
+    repaired: boolean;
+    integrity: "ok" | "failed" | "not_present";
+    stored_schema_version?: number;
+    valid_sessions: number;
+    indexed_sessions: number;
+    issues: string[];
+};
+
 function trajectoryDbPath(projectRoot = process.cwd()): string {
     return resolve(projectRoot, ".agentfs", "trajectory.db");
 }
@@ -62,6 +74,19 @@ function indexKey(endedAt: string, sessionId: string): string {
     const epoch = Date.parse(endedAt);
     if (!Number.isFinite(epoch)) throw new Error("Trajectory ended_at is invalid.");
     return `${INDEX_PREFIX}${String(epoch).padStart(16, "0")}/${sessionId}`;
+}
+
+function makeIndex(session: TrajectorySession): TrajectoryIndex {
+    return {
+        schema_version: TRAJECTORY_SCHEMA_VERSION,
+        session_id: session.session_id,
+        harness: session.harness,
+        started_at: session.started_at,
+        ended_at: session.ended_at,
+        event_count: session.events.length,
+        logical_bytes: Buffer.byteLength(JSON.stringify(session), "utf8"),
+        full_key: sessionKey(session.session_id),
+    };
 }
 
 async function inImmediateTransaction<T>(agent: AgentFS, operation: () => Promise<T>): Promise<T> {
@@ -119,16 +144,7 @@ export async function putTrajectory(
     const agent = await openTrajectoryStore(projectRoot, true);
     if (!agent) throw new Error("Unable to open the local trajectory store.");
     const fullKey = sessionKey(parsed.session_id);
-    const entry: TrajectoryIndex = {
-        schema_version: TRAJECTORY_SCHEMA_VERSION,
-        session_id: parsed.session_id,
-        harness: parsed.harness,
-        started_at: parsed.started_at,
-        ended_at: parsed.ended_at,
-        event_count: parsed.events.length,
-        logical_bytes: logicalBytes,
-        full_key: fullKey,
-    };
+    const entry = makeIndex(parsed);
 
     try {
         await inImmediateTransaction(agent, async () => {
@@ -252,4 +268,103 @@ export async function pruneTrajectories(
 
 export function getTrajectoryDbPath(projectRoot = process.cwd()): string {
     return trajectoryDbPath(projectRoot);
+}
+
+export async function doctorTrajectoryStore(
+    projectRoot = process.cwd(),
+    repair = false,
+): Promise<TrajectoryDoctorResult> {
+    const agent = await openTrajectoryStore(projectRoot, false);
+    if (!agent) {
+        return {
+            schema_version: TRAJECTORY_SCHEMA_VERSION,
+            exists: false,
+            ok: true,
+            repaired: false,
+            integrity: "not_present",
+            valid_sessions: 0,
+            indexed_sessions: 0,
+            issues: [],
+        };
+    }
+
+    try {
+        const integrityRows = await agent.getDatabase().pragma("integrity_check", {});
+        const integrityOk = Array.isArray(integrityRows)
+            && integrityRows.length > 0
+            && integrityRows.every((row) => Object.values(row as Record<string, unknown>).includes("ok"));
+        const storedVersion = await agent.kv.get<number>(META_KEY);
+        const sessionRows = await agent.kv.list(SESSION_PREFIX);
+        const validSessions: TrajectorySession[] = [];
+        const issues: string[] = [];
+
+        for (const row of sessionRows) {
+            const parsed = trajectorySessionSchema.safeParse(row.value);
+            if (parsed.success) validSessions.push(parsed.data);
+            else issues.push(`invalid full record: ${row.key}`);
+        }
+
+        const indexRows = await agent.kv.list(INDEX_PREFIX);
+        const validIndexes = new Map<string, TrajectoryIndex>();
+        for (const row of indexRows) {
+            const parsed = indexSchema.safeParse(row.value);
+            if (!parsed.success) {
+                issues.push(`invalid index record: ${row.key}`);
+                continue;
+            }
+            validIndexes.set(row.key, parsed.data);
+        }
+
+        if (!integrityOk) issues.unshift("SQLite integrity check failed");
+        if (storedVersion === undefined) issues.push("schema metadata is missing");
+        else if (storedVersion !== TRAJECTORY_SCHEMA_VERSION) {
+            issues.push(`unsupported schema version ${String(storedVersion)}`);
+        }
+
+        const expectedIndexes = new Map(validSessions.map((session) => {
+            const value = makeIndex(session);
+            return [indexKey(session.ended_at, session.session_id), value] as const;
+        }));
+        for (const [key, expected] of expectedIndexes) {
+            const actual = validIndexes.get(key);
+            if (!actual || JSON.stringify(actual) !== JSON.stringify(expected)) {
+                issues.push(`missing or stale index: ${expected.session_id}`);
+            }
+        }
+        for (const [key, actual] of validIndexes) {
+            if (!expectedIndexes.has(key)) issues.push(`orphan index: ${actual.session_id}`);
+        }
+
+        const canRepair = integrityOk
+            && (storedVersion === undefined || storedVersion === TRAJECTORY_SCHEMA_VERSION)
+            && !issues.some((issue) => issue.startsWith("invalid full record:"));
+        let repaired = false;
+        if (repair && issues.length > 0 && canRepair) {
+            await inImmediateTransaction(agent, async () => {
+                for (const row of indexRows) await agent.kv.delete(row.key);
+                await agent.kv.set(META_KEY, TRAJECTORY_SCHEMA_VERSION);
+                for (const [key, value] of expectedIndexes) await agent.kv.set(key, value);
+            });
+            repaired = true;
+            issues.length = 0;
+        }
+
+        return {
+            schema_version: TRAJECTORY_SCHEMA_VERSION,
+            exists: true,
+            ok: integrityOk && issues.length === 0,
+            repaired,
+            integrity: integrityOk ? "ok" : "failed",
+            ...(storedVersion === undefined && repaired
+                ? { stored_schema_version: TRAJECTORY_SCHEMA_VERSION }
+                : storedVersion === undefined
+                    ? {}
+                    : { stored_schema_version: storedVersion }),
+            valid_sessions: validSessions.length,
+            indexed_sessions: repaired ? expectedIndexes.size : validIndexes.size,
+            issues,
+        };
+    } finally {
+        await agent.close();
+    }
 }

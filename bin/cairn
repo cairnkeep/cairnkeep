@@ -33,7 +33,11 @@ Usage:
                            agents, hooks) into ~/.claude, or into DIR for a single
                            project (--live-root <project>/.claude).
   cairn doctor             Health-check the memory server and configured LLM /
-                           embedding endpoints, git provider, and store.
+                           embedding endpoints, git provider, and stores.
+                           Use --repair to rebuild trajectory metadata/indexes
+                           from valid full records.
+  cairn trajectory <list|show|prune>
+                           Inspect and prune opt-in local session trajectories.
   cairn memory <path|export|import>
                            Relocate global-scope memory. `path` prints its location;
                            `export <file.tgz>` takes a WAL-safe snapshot (requires
@@ -71,6 +75,9 @@ case "$cmd" in
     # Run the memory MCP server (stdio by default). Use with your harness, e.g.
     #   claude mcp add cairn-memory -s user -- cairn memory-server
     exec node "$CAIRN_ROOT/mcp-memory-server/dist/index.js" "$@"
+    ;;
+  trajectory)
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/trajectory-cli.js" "$@"
     ;;
   sync)
     exec "$CAIRN_ROOT/scripts/sync-claude-assets.sh" "$@"

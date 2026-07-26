@@ -30,7 +30,7 @@ mkdir -p "$bootstrap_repo"
 if grep -R -q 'CAIRN_TRAJECTORY_CAPTURE[[:space:]]*=[[:space:]]*1' "$bootstrap_repo"; then
   fail "bootstrap enabled trajectory capture"
 fi
-printf '{"schema_version":1,"patterns":[]}\n' > "$bootstrap_repo/.ai/trajectory-redaction.json"
+printf '{"version":1,"patterns":[]}\n' > "$bootstrap_repo/.ai/trajectory-redaction.json"
 "$cairn" bootstrap "$bootstrap_repo" >/dev/null
 grep -q '"patterns":\[\]' "$bootstrap_repo/.ai/trajectory-redaction.json" \
   || fail "bootstrap overwrote an existing redaction configuration"

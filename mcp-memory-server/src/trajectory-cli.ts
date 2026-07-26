@@ -2,7 +2,7 @@
 import { fitTrajectoryToBytes, normalizeClaudeTranscript, normalizeOpenCodeSession } from "./trajectory-normalize.js";
 import { redactTrajectory } from "./trajectory-redaction.js";
 import { getTrajectoryLimits } from "./trajectory-schema.js";
-import { listTrajectories, pruneTrajectories, putTrajectory, showTrajectory } from "./trajectory-store.js";
+import { doctorTrajectoryStore, listTrajectories, pruneTrajectories, putTrajectory, showTrajectory } from "./trajectory-store.js";
 
 function usage(): string {
     return `cairn trajectory — local structured session trajectories
@@ -102,6 +102,12 @@ async function main(): Promise<void> {
         if (command === "prune") {
             const value = await pruneTrajectories(process.cwd(), getTrajectoryLimits(), hasFlag(args, "--dry-run"));
             process.stdout.write(`${hasFlag(args, "--json") ? JSON.stringify(value) : humanPrune(value)}\n`);
+            return;
+        }
+        if (command === "doctor") {
+            const value = await doctorTrajectoryStore(process.cwd(), hasFlag(args, "--repair"));
+            process.stdout.write(`${JSON.stringify(value)}\n`);
+            if (!value.ok) process.exitCode = 2;
             return;
         }
         if (command === "help" || command === "--help" || command === "-h") {

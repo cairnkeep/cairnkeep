@@ -56,6 +56,7 @@ install_file() {
 install_file "$TPL/start-claude.sh.template"   "$target/.ai/start-claude.sh"   0755
 install_file "$TPL/start-opencode.sh.template" "$target/.ai/start-opencode.sh" 0755
 install_file "$TPL/env.example.template"       "$target/.ai/env.example"       0644
+install_file "$TPL/trajectory-redaction.json.template" "$target/.ai/trajectory-redaction.json" 0644
 
 # Project-scope memory is private runtime data. Keep it out of version control
 # even before the first .agentfs/project.db is created.
