@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -54,6 +54,7 @@ try {
     assert.equal(listed.status, 0, listed.stderr);
 
     const dbBytes = readFileSync(join(repo, ".agentfs", "trajectory.db")).toString("utf8");
+    assert.equal(statSync(join(repo, ".agentfs", "trajectory.db")).mode & 0o777, 0o600);
     const allOutput = `${captured.stdout}\n${captured.stderr}\n${shown.stdout}\n${shown.stderr}\n${listed.stdout}\n${listed.stderr}\n${dbBytes}`;
     for (const sentinel of sentinels) {
         assert.equal(allOutput.includes(sentinel), false, `secret leaked: ${sentinel}`);

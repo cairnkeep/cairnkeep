@@ -128,7 +128,12 @@ fi
 #    opt-in. Existing stores must pass SQLite, schema and index checks. Repair
 #    is explicit and only reconstructs metadata/indexes from valid full records.
 trajectory_cli="$CAIRN_ROOT/mcp-memory-server/dist/trajectory-cli.js"
-if [[ ! -f "$trajectory_cli" ]]; then
+trajectory_dir="$PWD/.agentfs"
+if [[ -d "$trajectory_dir" && ! -w "$trajectory_dir" ]]; then
+  fail "trajectory store directory is not writable: $trajectory_dir"
+elif [[ ! -d "$trajectory_dir" && ! -w "$PWD" ]]; then
+  fail "trajectory store parent is not writable: $PWD"
+elif [[ ! -f "$trajectory_cli" ]]; then
   fail "trajectory diagnostics unavailable — rebuild mcp-memory-server"
 else
   trajectory_args=(doctor --json)

@@ -55,7 +55,7 @@ if [ "$trajectory_enabled" -eq 1 ] && [ -f "$TRAJECTORY_ENTRY" ]; then
   trajectory_pid=$!
   (
     sleep 3
-    kill -TERM "$trajectory_pid" >/dev/null 2>&1 || true
+    kill -KILL "$trajectory_pid" >/dev/null 2>&1 || true
   ) &
   trajectory_watchdog_pid=$!
   wait "$trajectory_pid" >/dev/null 2>&1 || true

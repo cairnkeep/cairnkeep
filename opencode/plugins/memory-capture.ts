@@ -66,7 +66,7 @@ function runNode(
     })
     const timer = setTimeout(() => {
       try {
-        child.kill("SIGTERM")
+        child.kill("SIGKILL")
       } catch {
         // best-effort kill only
       }

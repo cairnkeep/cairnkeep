@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 import { AgentFS } from "agentfs-sdk";
@@ -63,7 +63,16 @@ async function openTrajectoryStore(projectRoot: string, create: boolean): Promis
     const dbPath = trajectoryDbPath(projectRoot);
     if (!create && !existsSync(dbPath)) return null;
     if (create) mkdirSync(dirname(dbPath), { recursive: true });
-    return AgentFS.open({ id: "trajectory", path: dbPath });
+    const agent = await AgentFS.open({ id: "trajectory", path: dbPath });
+    if (create) {
+        try {
+            chmodSync(dbPath, 0o600);
+        } catch (error) {
+            await agent.close();
+            throw error;
+        }
+    }
+    return agent;
 }
 
 function sessionKey(sessionId: string): string {
