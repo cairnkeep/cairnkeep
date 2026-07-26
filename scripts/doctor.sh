@@ -13,7 +13,7 @@ REPAIR_TRAJECTORY=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repair) REPAIR_TRAJECTORY=1; shift ;;
-    -h|--help) echo "Usage: cairn doctor [--repair]"; exit 0 ;;
+    -h|--help) echo "Usage: cairn doctor [--repair]  # repair derived trajectory/typed metadata, indexes, and interrupted note transactions"; exit 0 ;;
     *) echo "Unknown doctor option: $1" >&2; echo "Usage: cairn doctor [--repair]" >&2; exit 2 ;;
   esac
 done
@@ -162,6 +162,41 @@ try {
       ;;
   esac
   [[ $trajectory_status -eq 0 || "$trajectory_state" == "broken" ]] || true
+fi
+
+# 8. Typed metadata overlays and canonical-note transaction state. The internal
+#    JSON seam enumerates only contained local databases and the one notes root;
+#    raw KV cells and unmarked Markdown bytes are never repair inputs.
+node_cli="$CAIRN_ROOT/mcp-memory-server/dist/node-cli.js"
+if [[ ! -f "$node_cli" ]]; then
+  fail "typed-node diagnostics unavailable — rebuild mcp-memory-server"
+else
+  node_args=(doctor --project-root "$PWD")
+  [[ $REPAIR_TRAJECTORY -eq 1 ]] && node_args+=(--repair)
+  node_json=$(node "$node_cli" "${node_args[@]}" 2>/dev/null)
+  node_status=$?
+  node_state=$(node -e '
+try {
+  const value = JSON.parse(process.argv[1])
+  if (!value.exists) process.stdout.write("absent")
+  else if (value.ok && value.repaired) process.stdout.write("repaired")
+  else if (value.ok) process.stdout.write("ok")
+  else process.stdout.write("broken")
+} catch { process.stdout.write("invalid") }
+' "$node_json" 2>/dev/null)
+  case "$node_state" in
+    absent) skip "typed metadata and note transaction state (not present)" ;;
+    repaired) pass "typed metadata/indexes and note transactions repaired safely" ;;
+    ok) pass "typed metadata, replay state, and note transactions are valid" ;;
+    *)
+      if [[ $REPAIR_TRAJECTORY -eq 1 ]]; then
+        fail "typed/note state could not be repaired safely; preserve the memory store and recovery journals before manual inspection"
+      else
+        fail "typed metadata or note transaction check failed — run: cairn doctor --repair"
+      fi
+      ;;
+  esac
+  [[ $node_status -eq 0 || "$node_state" == "broken" ]] || true
 fi
 
 echo

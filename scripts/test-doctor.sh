@@ -14,6 +14,8 @@ trap cleanup EXIT
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
 doctor="$ROOT/scripts/doctor.sh"
+export HOME="$tmp/home"
+mkdir -p "$HOME"
 # Clean the inherited env so the test controls what is "configured".
 unset CAIRN_LLM_API_URL CAIRN_MEMORY_EMBEDDING_URL CAIRN_GIT_PROVIDER CAIRN_AGENTFS_BASE_DIR
 
@@ -21,6 +23,7 @@ unset CAIRN_LLM_API_URL CAIRN_MEMORY_EMBEDDING_URL CAIRN_GIT_PROVIDER CAIRN_AGEN
 proj="$tmp/clean"; mkdir -p "$proj"
 ( cd "$proj" && "$doctor" ) >"$tmp/out1" 2>&1 || fail "doctor exited non-zero with nothing configured:\n$(cat "$tmp/out1")"
 grep -q "\[SKIP\]" "$tmp/out1" || fail "expected SKIP lines when nothing is configured"
+grep -q "typed metadata and note transaction state" "$tmp/out1" || fail "expected typed/note diagnostics in the public doctor output"
 
 # 2. An unsupported runtime is diagnosed before the server probe.
 mkdir -p "$tmp/old-node"
