@@ -209,6 +209,10 @@ vendor or host.
 | `CAIRN_TRAJECTORY_STORE_MAX_BYTES` | Logical local trajectory budget (default `268435456`, 256 MiB; must be at least the session maximum) |
 | `CAIRN_TRAJECTORY_RETENTION_DAYS` | Age retention applied on capture/prune (default `30`; `0` removes sessions once they are older than the current instant) |
 | `CAIRN_TRAJECTORY_REDACTION_FILE` | Optional redaction JSON path contained by the project (default `.ai/trajectory-redaction.json` when that file exists) |
+| `CAIRN_NOTE_DISTILLATION` | Master opt-in for local one-shot/scheduled hindsight distillation and exact lookup (unset/default → disabled before I/O) |
+| `CAIRN_NOTE_ENRICHMENT` | Separate opt-in for provider prose enrichment; credentials alone never enable it |
+| `CAIRN_NOTE_ENRICHMENT_MODEL` | Explicit OpenAI-compatible chat model for note enrichment (no default) |
+| `CAIRN_NOTE_ENRICHMENT_TIMEOUT_MS` | Enrichment timeout in milliseconds (default `15000`, allowed `100`–`120000`) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none`. See [git-providers.md](git-providers.md) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → the `route_check` tool is inert) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws at call time) |
@@ -456,6 +460,62 @@ project-specific secrets; built-in credential patterns always apply. See
 [Privacy and data flow](privacy-and-data-flow.md) for the exact capture boundary
 and [Memory storage and deployment](storage.md) for retention and backup.
 
+### Hindsight notes (opt-in)
+
+Note distillation is a separate asynchronous/one-shot capability. It never runs
+inside SessionEnd, session-idle, `session_shutdown`, or any other online agent
+callback. It consumes only closed, schema-validated trajectories already
+redacted by the capture path. Enable the master flag in the process that runs
+the command:
+
+```bash
+export CAIRN_NOTE_DISTILLATION=1
+
+# Incremental current project, or one exact session for deterministic replay
+cd /path/to/project
+cairn notes distill --json
+cairn notes distill --session SESSION-ID --json
+
+# Scheduled/manual sweep below one explicit PARA root
+cairn notes distill --all-projects --para-root "$HOME/PARA" --json
+
+# Exact signature lookup; stdin avoids quoting a real multiline stack trace
+printf '%s\n' 'TypeError: cache closed' '    at loadCache (/tmp/src/cache.ts:44:2)' \
+  | cairn notes search-error --project /path/to/project --json
+
+# Validate/rebuild generated indexes, or explicitly promote corroborated notes
+cairn notes doctor --json
+cairn notes doctor --repair --json
+cairn notes promote NOTE-ID --with CORROBORATING-NOTE-ID --confirm --json
+```
+
+The hierarchy is `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/notes/README.md`,
+`shared/`, and `projects/<slug--stable-id>/{README.md,knowledge/,hindsight/}`.
+Each Markdown leaf has validated `id`, `title`, `description`, `keywords`,
+`node_type`, and `tags` front matter. Hindsight nodes add a deterministic
+signature and `unresolved`, `resolved`, or `abandoned` lifecycle. A later
+recurrence reopens the same stable node. Generated content is enclosed by
+`cairnkeep:managed:v1` markers; text after that block is preserved. An existing
+unmarked target is treated as a collision and is never overwritten.
+
+JSON distillation output separates `created`, `updated`, `already_processed`,
+`enrichment_skipped`, `enrichment_failed`, and session-level `failed` results.
+Project locks reject concurrent writers. Exact lookup normalizes the message,
+causal stack, and component with the same versioned implementation used by the
+index; it runs without embeddings or network access. Promotion requires two
+compatible notes from distinct projects plus `--confirm`, creates one shared
+canonical body, and converts each project note into a provenance reference.
+
+Optional prose enrichment requires all of the master flag,
+`CAIRN_NOTE_ENRICHMENT=1`, `CAIRN_LLM_API_KEY`, `CAIRN_LLM_API_URL`, and an
+explicit `CAIRN_NOTE_ENRICHMENT_MODEL`. It sends bounded already-redacted
+evidence to `{CAIRN_LLM_API_URL}/chat/completions`, labels returned prose as
+non-authoritative, and cannot change signature, lifecycle, or provenance. Any
+missing configuration, malformed response, timeout, or provider failure leaves
+the deterministic note usable and is reported as skipped/failed. Review the
+[privacy data flow](privacy-and-data-flow.md#hindsight-note-distillation) before
+enabling it.
+
 ### `cairn memory export|import|path`
 
 Relocate named/global memory (one SQLite `.db` per scope under
@@ -482,3 +542,9 @@ cairn audit-timer --on-calendar daily            # install + enable the timer
 cairn audit-timer --render-only ./units          # just render the unit files
 # no systemd? cron:  @daily .../scripts/memory-wiki-audit.sh --para-root "$HOME/PARA" --report ...
 ```
+
+The timer inherits its process environment. With `CAIRN_NOTE_DISTILLATION`
+truthy it launches exactly one separate `cairn notes distill --all-projects`
+process after the wiki scan and reports its bounded status. With the flag unset
+it performs no note work. Note failure does not replace wiki findings or change
+their actionable exit status; no credentials are embedded in rendered units.

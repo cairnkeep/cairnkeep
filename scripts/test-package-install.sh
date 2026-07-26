@@ -45,6 +45,10 @@ installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
   fail "npm tarball omitted the note schema"
 [[ -f "$installed_root/mcp-memory-server/dist/note-cli.js" ]] || \
   fail "npm tarball omitted the compiled note CLI"
+[[ -f "$installed_root/mcp-memory-server/dist/note-enrichment.js" ]] || \
+  fail "npm tarball omitted optional note enrichment"
+[[ -f "$installed_root/mcp-memory-server/dist/note-store.js" ]] || \
+  fail "npm tarball omitted the deterministic note store"
 if find "$installed_root" -type f \( -name 'manifest-v1.json' -o -path '*/notes/projects/*' \) | grep -q .; then
   fail "npm tarball included generated user note data"
 fi

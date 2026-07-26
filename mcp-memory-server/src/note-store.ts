@@ -23,6 +23,7 @@ import {
 
 const MANAGED_START = "<!-- cairnkeep:managed:v1:start -->";
 const MANAGED_END = "<!-- cairnkeep:managed:v1:end -->";
+const MAX_PROCESSED_SESSIONS_PER_PROJECT = 4096;
 
 type ProjectRecord = {
     project_root: string;
@@ -446,6 +447,10 @@ export function applyDistilledSession(options: {
         }
 
         project.processed_sessions[options.sessionId] = options.sessionDigest;
+        const processedIds = Object.keys(project.processed_sessions).sort();
+        for (const expiredId of processedIds.slice(0, Math.max(0, processedIds.length - MAX_PROCESSED_SESSIONS_PER_PROJECT))) {
+            delete project.processed_sessions[expiredId];
+        }
         rebuildLookups(manifest);
         const changedIds = [...new Set([...createdIds, ...updatedIds])].sort();
         saveManifestAndIndexes(layout.notes_root, manifest, changedIds);

@@ -36,6 +36,9 @@ check "assets installed" "$([[ $md_installed -gt 0 ]] && echo yes || echo no)" "
 check "hooks registered" "$(grep -c 'hooks/' "$LIVE/settings.json")" "4"
 cp "$LIVE/settings.json" "$SB/settings.before.json"
 cp "$PI_LIVE/extensions/cairnkeep-trajectory.ts" "$SB/pi.before.ts"
+mkdir -p "$SB/home/.cairnkeep/notes/projects/example/hindsight"
+printf 'durable note bytes\n' >"$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md"
+note_before=$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)
 
 # --- dry-run must change nothing -------------------------------------------
 "$ROOT_DIR/scripts/uninstall.sh" --dry-run --live-root "$LIVE" --pi-live-root "$PI_LIVE" >/dev/null 2>&1
@@ -48,6 +51,7 @@ check "dry-run leaves Pi extension" "$([[ -f "$PI_LIVE/extensions/cairnkeep-traj
 check "assets removed" "$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')" "0"
 check "hooks de-registered" "$(grep -c 'hooks/' "$LIVE/settings.json" 2>/dev/null || true)" "0"
 check "Pi extension removed" "$([[ -e "$PI_LIVE/extensions/cairnkeep-trajectory.ts" ]] && echo no || echo yes)" "yes"
+check "default uninstall keeps notes" "$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)" "$note_before"
 BK=$(ls -d "$SB/home/.cairnkeep-uninstall-"* 2>/dev/null | head -1)
 check "revert.sh generated" "$([[ -n "$BK" && -f "$BK/revert.sh" ]] && echo yes || echo no)" "yes"
 
@@ -61,7 +65,9 @@ check "Pi extension restored" "$(cmp -s "$SB/pi.before.ts" "$PI_LIVE/extensions/
 PROJ="$SB/proj"; mkdir -p "$PROJ"; git -C "$PROJ" init -q
 "$ROOT_DIR/scripts/bootstrap.sh" --untracked "$PROJ" >/dev/null 2>&1
 EXCL="$PROJ/.git/info/exclude"
-mkdir -p "$SB/home/.cairnkeep"; echo data >"$SB/home/.cairnkeep/db"
+mkdir -p "$SB/home/.cairnkeep/notes/projects/example/hindsight"; echo data >"$SB/home/.cairnkeep/db"
+printf 'purge and restore exact note bytes\n' >"$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md"
+purge_note_before=$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)
 "$ROOT_DIR/scripts/uninstall.sh" --yes --purge-memory --live-root "$SB/home/.claude" "$PROJ" >/dev/null 2>&1
 check "project .ai removed"      "$([[ -e "$PROJ/.ai" ]] && echo no || echo yes)" "yes"
 check "project .agentfs removed" "$([[ -e "$PROJ/.agentfs" ]] && echo no || echo yes)" "yes"
@@ -72,6 +78,7 @@ bash "$BK2/revert.sh" >/dev/null 2>&1
 check "project scaffold restored" "$([[ -d "$PROJ/.ai" ]] && echo yes || echo no)" "yes"
 check "project ignore restored"   "$([[ -f "$PROJ/.agentfs/.gitignore" ]] && echo yes || echo no)" "yes"
 check "memory store restored"     "$(cat "$SB/home/.cairnkeep/db" 2>/dev/null)" "data"
+check "note store restored exactly" "$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)" "$purge_note_before"
 
 echo
 if [[ "$fails" -gt 0 ]]; then echo "test-uninstall: $fails check(s) failed."; exit 1; fi

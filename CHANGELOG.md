@@ -15,14 +15,24 @@ All notable user-facing changes are documented here. This project follows
 - Add native Pi trajectory capture through its `session_shutdown` extension,
   `cairn sync-pi`, a generic Pi launcher, uninstall coverage, and the same
   opt-in local redaction, size, and retention boundary as other harnesses.
+- Add default-off deterministic hindsight-note distillation, exact repeated
+  error lookup, typed local Markdown hierarchy, lifecycle history, explicit
+  corroborated shared promotion, and `cairn notes` CLI/completion support.
+- Add separately opted-in provider-neutral note prose enrichment and integrate
+  all-project incremental distillation into the existing audit timer without
+  adding online-agent latency.
 
 ### Fixed
 
 - Preserve redacted Pi provider failures as trajectory system events and treat
   a closed trajectory CLI output pipe as a normal consumer exit.
+- Make the audit script executable so its rendered systemd service target can
+  run directly.
 
-Capture remains disabled by default. Existing MCP tools, memory database paths,
-and remote HTTP behavior are unchanged.
+Capture and note distillation/enrichment remain disabled by default. Existing
+MCP tools, memory database paths, and remote HTTP behavior are unchanged. No
+memory-quality or efficiency improvement is claimed before the evaluation
+harness measures it.
 
 ## [2.3.1] - 2026-07-25
 

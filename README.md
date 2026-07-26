@@ -14,7 +14,7 @@ across sessions, projects, and harnesses (Claude Code, OpenCode, Pi, …).
 ## Status
 
 Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync`, `sync-pi`,
-`doctor`, `trajectory`, `memory`, `audit-timer`, `completion`, `uninstall`) installable via
+`doctor`, `trajectory`, `notes`, `memory`, `audit-timer`, `completion`, `uninstall`) installable via
 `npm i -g @cairnkeep/cli`, and the
 operating layer (commands,
 agents, hooks) installed on Claude Code and OpenCode, plus a native Pi
@@ -70,6 +70,8 @@ storage paths, secrets, and private derived images, see
 - **`bin/cairn`** — the CLI. `cairn bootstrap [path]` scaffolds a project's
   `.ai/` launchers + env; `cairn doctor` health-checks the configured pieces;
   `cairn trajectory list|show|prune` manages opt-in local session trajectories;
+  `cairn notes distill|search-error|promote|doctor` compiles and searches
+  default-off local hindsight notes outside the online agent path;
   `cairn memory export|import` relocates the durable store between machines
   (`export` requires the optional `sqlite3` CLI);
   `cairn audit-timer` installs the scheduled memory+wiki audit;
@@ -155,6 +157,23 @@ This installs trajectory capture only. Cairnkeep does not bundle or select a Pi
 MCP bridge; configure a user-chosen bridge separately if you also want the MCP
 memory tools inside Pi.
 
+Closed trajectories can be compiled into local hindsight notes without a model
+or embedding service. Capture and distillation are separate opt-ins:
+
+```bash
+export CAIRN_TRAJECTORY_CAPTURE=1     # affects future closed sessions
+export CAIRN_NOTE_DISTILLATION=1
+cairn notes distill --project /path/to/project --json
+printf '%s\n' 'TypeError: example' | cairn notes search-error --project /path/to/project --json
+```
+
+Notes keep deterministic failure, resolution, abandonment, and recurrence
+history under `~/.cairnkeep/notes/`. Shared promotion is never automatic: it
+requires compatible evidence from two distinct projects and an explicit
+`cairn notes promote NOTE-ID --with NOTE-ID --confirm`. See the
+[operating guide](docs/operating.md#hindsight-notes-opt-in) before enabling
+optional model enrichment.
+
 Prefer working from a clone? Build the server with `cd mcp-memory-server && npm
 install && npm run build`, then use `scripts/sync-claude-assets.sh` and
 `bin/cairn` in place of the installed `cairn`.
@@ -210,6 +229,10 @@ search):
 | `CAIRN_TRAJECTORY_STORE_MAX_BYTES` | Maximum logical bytes across local trajectories (default `268435456`, 256 MiB) |
 | `CAIRN_TRAJECTORY_RETENTION_DAYS` | Retain captured sessions for this many days (default `30`) |
 | `CAIRN_TRAJECTORY_REDACTION_FILE` | Optional project-contained redaction config (default `.ai/trajectory-redaction.json` when present) |
+| `CAIRN_NOTE_DISTILLATION` | Opt in to one-shot/scheduled local note distillation and lookup (default off) |
+| `CAIRN_NOTE_ENRICHMENT` | Separately opt in to remote/local prose enrichment; never implied by credentials (default off) |
+| `CAIRN_NOTE_ENRICHMENT_MODEL` | Explicit chat model for optional note enrichment (no default) |
+| `CAIRN_NOTE_ENRICHMENT_TIMEOUT_MS` | Optional enrichment timeout (default `15000`) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none` ([docs/git-providers.md](docs/git-providers.md)) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → `route_check` is inert) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws) |

@@ -19,6 +19,7 @@ registration, memory remains on that computer.
 |---|---|
 | `project` | `<server working directory>/.agentfs/project.db` |
 | Opt-in session trajectories | `<harness project root>/.agentfs/trajectory.db` |
+| Opt-in derived hindsight notes | `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/notes/` |
 | Any named/global scope, such as `identity` or `work` | `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/<scope>.db` |
 
 For the local launchers, the server working directory is normally the project
@@ -38,6 +39,16 @@ indexes. Defaults are 5 MiB per serialized session, 256 MiB logical total and
 30 days retention. Capture and `cairn trajectory prune` remove expired records
 and then the oldest records needed to meet the logical budget. `prune
 --dry-run` reports the same decision without changing the database.
+
+Hindsight notes are also separate derived data. They are human-readable
+Markdown below `notes/projects/` and `notes/shared/`, with a local schema-v1
+manifest and lock directories below `notes/.cairnkeep/`. Project paths are
+represented in visible filenames by readable slugs plus stable local hashes;
+the hidden local manifest retains the canonical project root needed for later
+all-project runs. Occurrence provenance is capped at 1024 entries per note and
+the processed-session ledger at 4096 digests per project. Note bodies do not
+expire automatically: inspect/delete them according to your own retention
+policy. Trajectory pruning does not delete already-derived notes.
 
 When the memory server runs in the official container, the same rule applies:
 the process stores databases below `/data`, normally backed by the
@@ -133,6 +144,13 @@ is not included in `cairn memory export`. `cairn uninstall PROJECT` retains the
 whole `.agentfs/` directory by default. `cairn uninstall --purge-memory PROJECT`
 backs it up and removes it, including memory and trajectories; the generated
 `revert.sh` can restore it.
+
+Global hindsight notes share the `${CAIRN_AGENTFS_BASE_DIR}` durable-store
+boundary. `cairn uninstall` keeps them by default. `cairn uninstall
+--purge-memory` backs up and removes the entire boundary, including `notes/`,
+and the generated bundle's `revert.sh` restores the exact files. Back up both
+the global store and each project's `.agentfs/` when moving a complete setup;
+`cairn memory export` covers SQLite memory scopes, not the Markdown note tree.
 
 ## Reviewed-memory integration
 
