@@ -23,8 +23,11 @@
         "check:explore-crossref": "node scripts/smoke-explore-crossref.mjs",
         "check:route-guard": "node scripts/smoke-route-guard.mjs",
         "check:reviewed-memory": "node scripts/smoke-reviewed-memory.mjs",
+        "check:trajectory-roundtrip": "node scripts/smoke-trajectory-roundtrip.mjs",
+        "check:trajectory-redaction": "node scripts/smoke-trajectory-redaction.mjs",
+        "check:trajectory-retention": "node scripts/smoke-trajectory-retention.mjs",
         "test": "npm run test:smoke",
-        "test:smoke": "npm run build && npm run check:embeddings && npm run check:extract && npm run check:scope-guard && npm run check:http-guard && npm run check:remote-context && npm run check:explore-guard && npm run check:explore-cache && npm run check:explore-crossref && npm run check:route-guard && npm run check:reviewed-memory",
+        "test:smoke": "npm run build && npm run check:embeddings && npm run check:extract && npm run check:scope-guard && npm run check:http-guard && npm run check:remote-context && npm run check:explore-guard && npm run check:explore-cache && npm run check:explore-crossref && npm run check:route-guard && npm run check:reviewed-memory && npm run check:trajectory-roundtrip && npm run check:trajectory-redaction && npm run check:trajectory-retention",
         "test:search": "npm run build && npm run check:search",
         "test:memory": "npm run build && npm run check:embeddings && npm run check:extract && npm run check:search",
         "test:all": "npm run test:memory"
