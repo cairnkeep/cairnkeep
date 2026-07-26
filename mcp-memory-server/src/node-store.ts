@@ -196,7 +196,7 @@ export async function createTypedNode(options: {
     });
 }
 
-export async function supersedeTypedNode(options: {
+type SupersedeTypedNodeOptions = {
     agent: AgentFS;
     scope: string;
     key: string;
@@ -204,8 +204,9 @@ export async function supersedeTypedNode(options: {
     node_type?: NodeType;
     tags?: string[];
     reason?: string;
-}): Promise<TypedNodeMutationResult> {
-    return inImmediateNodeTransaction(options.agent, async () => {
+};
+
+async function supersedeTypedNodeMutation(options: SupersedeTypedNodeOptions): Promise<TypedNodeMutationResult> {
         await ensureTables(options.agent);
         const current = await options.agent.kv.get(options.key);
         if (current === undefined) {
@@ -236,16 +237,20 @@ export async function supersedeTypedNode(options: {
         injectMutationFailure("after-value");
         await setMetadata(options.agent, options.key, metadata, at);
         return { ok: true, scope: options.scope, key: options.key, created: false, snapshot_key, previous_value: previous.value };
-    });
 }
 
-export async function deleteTypedNode(options: {
+export async function supersedeTypedNode(options: SupersedeTypedNodeOptions): Promise<TypedNodeMutationResult> {
+    return inImmediateNodeTransaction(options.agent, () => supersedeTypedNodeMutation(options));
+}
+
+type DeleteTypedNodeOptions = {
     agent: AgentFS;
     scope: string;
     key: string;
     reason?: string;
-}): Promise<TypedNodeMutationResult> {
-    return inImmediateNodeTransaction(options.agent, async () => {
+};
+
+async function deleteTypedNodeMutation(options: DeleteTypedNodeOptions): Promise<TypedNodeMutationResult> {
         await ensureTables(options.agent);
         const current = await options.agent.kv.get(options.key);
         if (current === undefined) return { ok: true, scope: options.scope, key: options.key, deleted: false, missing: true, snapshot_key: null };
@@ -266,7 +271,10 @@ export async function deleteTypedNode(options: {
         injectMutationFailure("after-value");
         await options.agent.getDatabase().prepare(`DELETE FROM ${METADATA_TABLE} WHERE key = ?`).run(options.key);
         return { ok: true, scope: options.scope, key: options.key, deleted: true, missing: false, snapshot_key, final_snapshot: snapshot };
-    });
+}
+
+export async function deleteTypedNode(options: DeleteTypedNodeOptions): Promise<TypedNodeMutationResult> {
+    return inImmediateNodeTransaction(options.agent, () => deleteTypedNodeMutation(options));
 }
 
 export async function listTypedHistory(agent: AgentFS, key: string): Promise<Array<TypedHistorySnapshot & { key: string }>> {
@@ -297,8 +305,10 @@ export async function applyReviewedTypedNode(options: {
     value: string;
     node_type?: NodeType;
     tags?: string[];
+    in_transaction?: boolean;
 }): Promise<TypedNodeMutationResult> {
-    return supersedeTypedNode({ ...options, reason: `reviewed memory ${options.review_id}` });
+    const mutation = { ...options, reason: `reviewed memory ${options.review_id}` };
+    return options.in_transaction ? supersedeTypedNodeMutation(mutation) : supersedeTypedNode(mutation);
 }
 
 export async function invalidateReviewedTypedNode(options: {
@@ -307,8 +317,10 @@ export async function invalidateReviewedTypedNode(options: {
     review_id: string;
     key: string;
     reason?: string;
+    in_transaction?: boolean;
 }): Promise<TypedNodeMutationResult> {
-    return deleteTypedNode({ ...options, reason: options.reason ?? `reviewed memory ${options.review_id} invalidated` });
+    const mutation = { ...options, reason: options.reason ?? `reviewed memory ${options.review_id} invalidated` };
+    return options.in_transaction ? deleteTypedNodeMutation(mutation) : deleteTypedNode(mutation);
 }
 
 export type MemoryImportPlan = {
@@ -378,7 +390,7 @@ function counts(actions: MemoryImportAction[], dryRun: boolean): MemoryImportRes
     return result;
 }
 
-export async function commitMemoryImport(agent: AgentFS, inputPlan: MemoryImportPlan): Promise<MemoryImportResult> {
+export async function commitMemoryImport(agent: AgentFS | null, inputPlan: MemoryImportPlan): Promise<MemoryImportResult> {
     if (inputPlan.envelope.dry_run) {
         return {
             schema_version: NODE_SCHEMA_VERSION,
@@ -393,6 +405,7 @@ export async function commitMemoryImport(agent: AgentFS, inputPlan: MemoryImport
             actions: inputPlan.actions,
         };
     }
+    if (!agent) throw new Error("STORE_REQUIRED: a concrete AgentFS store is required for import commit.");
     return inImmediateNodeTransaction(agent, async () => {
         await ensureTables(agent);
         const { envelope, batch_digest } = inputPlan;
