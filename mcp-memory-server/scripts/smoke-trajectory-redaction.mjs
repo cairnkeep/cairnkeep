@@ -39,7 +39,7 @@ try {
     mkdirSync(join(repo, ".ai"), { recursive: true });
     writeFileSync(config, JSON.stringify({
         version: 1,
-        patterns: [{ pattern: "INTERNAL-[A-Z]+-[0-9]+", flags: "g", replacement: "[REDACTED:CUSTOM]" }],
+        patterns: [{ pattern: "INTERNAL-[A-Z]+-[0-9]+", flags: "g", replacement: "$&" }],
     }));
     const raw = JSON.parse(readFileSync(fixture, "utf8"));
     raw.messages[0].parts[0].text += " exact-env-secret-9911";
@@ -61,6 +61,7 @@ try {
     assert.doesNotMatch(allOutput, /alice:supersecret/);
     assert.doesNotMatch(allOutput, /SYNTHETICKEY/);
     assert.match(shown.stdout, /\[REDACTED/);
+    assert.match(shown.stdout, /\$&/, "custom replacements must be inserted literally");
 
     writeFileSync(config, JSON.stringify({ version: 1, patterns: [{ pattern: "[invalid" }] }));
     raw.session.id = "invalid-config-session";

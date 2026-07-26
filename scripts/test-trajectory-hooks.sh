@@ -26,6 +26,21 @@ after=$(find "$claude_repo" -type f -print | sort)
 [[ "$before" == "$after" ]] || fail "Claude flag-off path changed files"
 [[ ! -s "$tmp/claude-off.out" && ! -s "$tmp/claude-off.err" ]] || fail "Claude flag-off path emitted output"
 
+# In a bootstrapped project, the original no-model path also exits before
+# parsing stdin. A python spy makes that no-process guarantee observable.
+claude_bootstrapped_off="$tmp/claude-bootstrapped-off"
+mkdir -p "$claude_bootstrapped_off/.agentfs" "$tmp/spy-bin"
+touch "$claude_bootstrapped_off/.agentfs/project.db"
+cat > "$tmp/spy-bin/python3" <<EOF
+#!/usr/bin/env bash
+touch "$tmp/python-was-called"
+exit 1
+EOF
+chmod +x "$tmp/spy-bin/python3"
+(cd "$claude_bootstrapped_off" && printf '%s\n' '{"transcript_path":"/does/not/exist"}' \
+  | PATH="$tmp/spy-bin:$PATH" "$tmp/memory-capture.sh") >/dev/null 2>&1
+[[ ! -e "$tmp/python-was-called" ]] || fail "Claude flag-off no-model path parsed stdin"
+
 # Claude: enabled capture works without project.db, API key, extraction model,
 # or network service.
 claude_repo="$tmp/claude-on"

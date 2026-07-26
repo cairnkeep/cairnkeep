@@ -31,6 +31,15 @@ SERVER_ENTRY="$INFRA_ROOT/mcp-memory-server/dist/index.js"
 TRAJECTORY_ENTRY="$INFRA_ROOT/mcp-memory-server/dist/trajectory-cli.js"
 TEXT_HELPER="$INFRA_ROOT/scripts/transcript-to-text.mjs"
 
+# Keep every pre-existing no-model guard ahead of stdin parsing when trajectory
+# capture is disabled.
+if [ "$trajectory_enabled" -eq 0 ]; then
+  [ -f "$SERVER_ENTRY" ] || exit 0
+  [ -z "${CAIRN_LLM_API_KEY:-}" ] && exit 0
+  EXTRACT_MODEL="${CAIRN_LLM_EXTRACTION_MODEL:-}"
+  [ -z "$EXTRACT_MODEL" ] && exit 0
+fi
+
 # Read hook JSON from stdin; pull transcript_path (fail-open if absent/malformed).
 input="$(cat)"
 transcript_path="$(printf '%s' "$input" | python3 -c 'import sys,json
@@ -55,12 +64,15 @@ if [ "$trajectory_enabled" -eq 1 ] && [ -f "$TRAJECTORY_ENTRY" ]; then
 fi
 
 # Durable-memory extraction remains independently gated by the pre-existing
-# project/model requirements.
-[ -f "$repo/.agentfs/project.db" ] || exit 0
-[ -f "$SERVER_ENTRY" ] || exit 0
-[ -z "${CAIRN_LLM_API_KEY:-}" ] && exit 0
-EXTRACT_MODEL="${CAIRN_LLM_EXTRACTION_MODEL:-}"
-[ -z "$EXTRACT_MODEL" ] && exit 0
+# project/model requirements. The disabled path passed these checks before
+# stdin parsing above; the enabled path reaches them only after local capture.
+if [ "$trajectory_enabled" -eq 1 ]; then
+  [ -f "$repo/.agentfs/project.db" ] || exit 0
+  [ -f "$SERVER_ENTRY" ] || exit 0
+  [ -z "${CAIRN_LLM_API_KEY:-}" ] && exit 0
+  EXTRACT_MODEL="${CAIRN_LLM_EXTRACTION_MODEL:-}"
+  [ -z "$EXTRACT_MODEL" ] && exit 0
+fi
 
 # Convert transcript JSONL → readable text, then extract candidates.
 text="$(node "$TEXT_HELPER" "$transcript_path" 2>/dev/null || true)"

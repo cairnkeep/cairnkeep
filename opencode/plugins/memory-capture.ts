@@ -80,6 +80,9 @@ function runNode(
     })
     child.on("close", finish)
     child.on("error", finish)
+    child.stdin.on("error", () => {
+      // EPIPE after a failed/terminated child is part of the fail-open path.
+    })
 
     child.stdin.write(input)
     child.stdin.end()
@@ -128,16 +131,16 @@ export const MemoryCapturePlugin: Plugin = async ({ client, directory }) => {
         const repo = directory
         const agentfsDb = path.join(repo, ".agentfs", "project.db")
         const trajectoryEnabled = trajectoryCaptureEnabled()
-        const apiKey = process.env.CAIRN_LLM_API_KEY
-        const model = process.env.CAIRN_LLM_EXTRACTION_MODEL
 
         // Preserve the original disabled path: all pre-existing guards run
         // before any SDK request or subprocess when trajectory capture is off.
         if (!trajectoryEnabled) {
           if (!fs.existsSync(agentfsDb)) return
           if (!fs.existsSync(SERVER_ENTRY)) return
-          if (!apiKey || !model) return
         }
+        const apiKey = process.env.CAIRN_LLM_API_KEY
+        const model = process.env.CAIRN_LLM_EXTRACTION_MODEL
+        if (!trajectoryEnabled && (!apiKey || !model)) return
 
         // session.idle's event payload only carries sessionID (no parentID) —
         // fetch the full session record to filter out subagent subsessions

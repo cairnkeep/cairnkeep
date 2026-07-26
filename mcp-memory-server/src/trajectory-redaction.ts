@@ -18,7 +18,7 @@ const redactionConfigSchema = z.object({
     }).strict()).max(MAX_CUSTOM_PATTERNS),
 }).strict();
 
-type CompiledPattern = { regex: RegExp; replacement: string };
+type CompiledPattern = { regex: RegExp; replacement: string; literalReplacement?: boolean };
 
 const secretKeyPattern = /^(?:authorization|password|passwd|secret|token|api[_-]?key|access[_-]?token|refresh[_-]?token|private[_-]?key)$/i;
 
@@ -61,6 +61,7 @@ function compileCustomPatterns(projectRoot: string): CompiledPattern[] {
         return {
             regex: new RegExp(entry.pattern, flags),
             replacement: entry.replacement ?? "[REDACTED:CUSTOM]",
+            literalReplacement: true,
         };
     });
 }
@@ -80,9 +81,11 @@ function redactString(value: string, patterns: CompiledPattern[], environmentSec
     for (const secret of environmentSecrets) {
         if (result.includes(secret)) result = result.split(secret).join("[REDACTED:ENV]");
     }
-    for (const { regex, replacement } of patterns) {
+    for (const { regex, replacement, literalReplacement } of patterns) {
         regex.lastIndex = 0;
-        result = result.replace(regex, replacement);
+        result = literalReplacement
+            ? result.replace(regex, () => replacement)
+            : result.replace(regex, replacement);
     }
     return result;
 }
