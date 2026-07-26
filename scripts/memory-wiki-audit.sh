@@ -6,6 +6,7 @@
 #   2. open hard contradictions in CONTRADICTIONS.md
 #   3. orphan source pages not linked from index.md
 #   4. unreviewed memory candidates staged longer than STALE_DAYS
+#   5. optional closed-trajectory note distillation in a separate process
 #
 # Output: a consolidated markdown report on stdout (and optionally to REPORT_PATH).
 # Designed for a systemd timer or cron. Pure bash/grep — no model round-trip, so
@@ -18,6 +19,8 @@
 #   --stale-days N     staleness threshold in days (default: 30)
 #   --report PATH      also write the report to this file
 set -euo pipefail
+
+CAIRN_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 PARA_ROOT="${HOME}/PARA"
 STALE_DAYS=30
@@ -41,6 +44,8 @@ hard_open_total=0
 orphan_total=0
 staged_stale_total=0
 sections=()
+note_distillation_enabled=0
+note_distillation_status=""
 
 # Find every project with a wiki.
 while IFS= read -r wiki_dir; do
@@ -118,6 +123,21 @@ while IFS= read -r wiki_dir; do
   fi
 done < <(find "$PARA_ROOT" -maxdepth 4 -type d -name wiki -path '*/.planning/wiki' 2>/dev/null)
 
+# Keep note taking outside every harness callback. The audit timer starts the
+# same public one-shot command an operator would run, and only under the explicit
+# master flag. A note failure is reported but never hides or changes wiki audit
+# findings and their exit status.
+case "${CAIRN_NOTE_DISTILLATION:-}" in
+  1|true|TRUE|yes|YES|on|ON)
+    note_distillation_enabled=1
+    if "$CAIRN_ROOT/bin/cairn" notes distill --all-projects --para-root "$PARA_ROOT" --json >/dev/null 2>&1; then
+      note_distillation_status="completed"
+    else
+      note_distillation_status="failed (deterministic wiki findings remain valid)"
+    fi
+    ;;
+esac
+
 # Build report once, output to stdout (and REPORT_PATH if set).
 report_body="$(
   {
@@ -129,6 +149,9 @@ report_body="$(
     echo "- Open hard contradictions: $hard_open_total"
     echo "- Orphan source pages: $orphan_total"
     echo "- Unreviewed staged candidates: $staged_stale_total"
+    if (( note_distillation_enabled == 1 )); then
+      echo "- Note distillation: $note_distillation_status"
+    fi
     echo
     if (( ${#sections[@]} > 0 )); then
       echo "## Findings by project"

@@ -3,7 +3,9 @@
 #
 # Renders a systemd user service + timer from templates/ and enables the timer,
 # so the deterministic memory/wiki invalidation audit runs on a schedule. A cron
-# alternative is printed for hosts without systemd.
+# alternative is printed for hosts without systemd. When the inherited
+# CAIRN_NOTE_DISTILLATION flag is enabled, the same job also launches the
+# packaged one-shot notes command after the deterministic wiki scan.
 #
 # Usage: install-audit-timer.sh [--para-root PATH] [--on-calendar SPEC]
 #                               [--report PATH] [--render-only DIR]
