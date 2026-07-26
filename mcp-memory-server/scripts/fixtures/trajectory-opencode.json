@@ -1,0 +1,63 @@
+{
+  "session": {
+    "id": "opencode-session-001",
+    "time": {
+      "created": 1785052800000,
+      "updated": 1785052804000
+    }
+  },
+  "messages": [
+    {
+      "info": {
+        "id": "oc-user-1",
+        "sessionID": "opencode-session-001",
+        "role": "user",
+        "time": { "created": 1785052801000 }
+      },
+      "parts": [
+        { "id": "oc-part-1", "type": "text", "text": "Inspect src/worker.ts and keep token sk-redact-opencode-123 private." }
+      ]
+    },
+    {
+      "info": {
+        "id": "oc-assistant-1",
+        "sessionID": "opencode-session-001",
+        "role": "assistant",
+        "time": { "created": 1785052802000, "completed": 1785052803000 },
+        "tokens": { "input": 120, "output": 30, "reasoning": 8, "cache": { "read": 10, "write": 0 } },
+        "cost": 0.0012
+      },
+      "parts": [
+        { "id": "oc-reasoning", "type": "reasoning", "text": "private hidden reasoning must never be persisted" },
+        { "id": "oc-text-1", "type": "text", "text": "I will inspect the worker." },
+        {
+          "id": "oc-tool-1",
+          "type": "tool",
+          "callID": "tool-1",
+          "tool": "read_file",
+          "state": {
+            "status": "completed",
+            "input": { "path": "src/worker.ts", "authorization": "Bearer hidden-opencode-bearer" },
+            "output": "export const status = 'ok'; password=opencode-password",
+            "time": { "start": 1785052802200, "end": 1785052802500 }
+          }
+        },
+        { "id": "oc-step-1", "type": "step-finish", "tokens": { "input": 120, "output": 30, "reasoning": 8, "cache": { "read": 10, "write": 0 } }, "cost": 0.0012 }
+      ]
+    },
+    {
+      "info": {
+        "id": "oc-assistant-2",
+        "sessionID": "opencode-session-001",
+        "role": "assistant",
+        "time": { "created": 1785052803500, "completed": 1785052804000 },
+        "tokens": { "input": 40, "output": 12 },
+        "cost": 0.0004
+      },
+      "parts": [
+        { "id": "oc-text-2", "type": "text", "text": "The worker is healthy. Custom marker INTERNAL-OPENCODE-7788." },
+        { "id": "oc-unknown", "type": "future-part", "payload": "raw unknown payload" }
+      ]
+    }
+  ]
+}
