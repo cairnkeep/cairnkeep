@@ -48,6 +48,7 @@ import {
     planMemoryImport,
     supersedeTypedNode,
 } from "./node-store.js";
+import type { NoteAddressSpace } from "./note-store.js";
 
 const MINIMUM_NODE_MAJOR = 22;
 const nodeMajor = Number.parseInt(process.versions.node, 10);
@@ -66,6 +67,7 @@ type MemoryConfig = {
 type ServerContext = {
     projectId?: string;
     memoryConfig?: MemoryConfig;
+    remote?: boolean;
 };
 
 class ClientContextError extends Error {}
@@ -106,6 +108,7 @@ const REVIEWED_NAMESPACE = "__reviewed__";
 const REVIEW_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const PROJECT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const WORKSPACE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const NODE_ADDRESS_SPACE_SCHEMA = z.enum(["memory", "project-notes", "shared-notes"]);
 const scopeMutationTails = new Map<string, Promise<void>>();
 
 async function serializeScopeMutation<T>(scopePath: string, operation: () => Promise<T>): Promise<T> {
@@ -250,6 +253,7 @@ function parseServerContext(headers: Headers): ServerContext {
     return {
         projectId: rawProjectId || undefined,
         memoryConfig,
+        remote: true,
     };
 }
 
@@ -1089,6 +1093,16 @@ function createMemoryServer(context: ServerContext = {}): McpServer {
     const memoryConfig = (): MemoryConfig => context.memoryConfig ?? getMemoryConfig();
     const scopeOptions = { projectId: context.projectId };
     const typedNodesEnabled = isTypedMemoryNodesEnabled();
+    const noteTargetOptions = (scope: string, address_space: NoteAddressSpace) => {
+        if (scope !== "project") throw new Error("INVALID_SCOPE: note address spaces require scope project.");
+        if (context.remote && address_space === "project-notes" && !context.projectId) {
+            throw new Error("INVALID_SCOPE: remote project notes require X-Cairn-Project.");
+        }
+        return {
+            address_space,
+            ...(context.projectId ? { projectId: context.projectId } : { projectRoot: process.cwd() }),
+        };
+    };
 
 server.registerTool(
     "memory_read",
@@ -1100,16 +1114,30 @@ server.registerTool(
             scope: z.string(),
             key: z.string().optional(),
             query: z.string().optional(),
-            ...(typedNodesEnabled ? { address_space: z.literal("memory").optional() } : {}),
+            ...(typedNodesEnabled ? { address_space: NODE_ADDRESS_SPACE_SCHEMA.optional() } : {}),
         }),
         annotations: {
             readOnlyHint: true,
             idempotentHint: true,
         },
     },
-    async ({ scope, key, query }) => {
+    async (toolInput) => {
+        const { scope, key, query } = toolInput;
         if (Boolean(key) === Boolean(query)) {
             throw new Error("Provide exactly one of key or query.");
+        }
+        const addressSpace = "address_space" in toolInput && toolInput.address_space !== undefined ? NODE_ADDRESS_SPACE_SCHEMA.parse(toolInput.address_space) : undefined;
+        if (addressSpace && addressSpace !== "memory") {
+            const noteStore = await import("./note-store.js");
+            const target = noteTargetOptions(scope, addressSpace);
+            const noteResults = key
+                ? [noteStore.readAddressedNote({ ...target, key })].filter((entry) => entry !== null)
+                : noteStore.searchAddressedNotes({ ...target, query: query ?? "" });
+            const sortedNotes = noteResults.sort((left, right) => left.key.localeCompare(right.key));
+            return {
+                content: [{ type: "text", text: asToolText(sortedNotes) }],
+                structuredContent: { results: sortedNotes },
+            };
         }
         const config = memoryConfig();
         const scopes = getSearchScopes(scope, config);
@@ -1141,7 +1169,7 @@ server.registerTool(
             value: z.string(),
             promote_to: z.string().optional(),
             ...(typedNodesEnabled ? {
-                address_space: z.literal("memory").optional(),
+                address_space: NODE_ADDRESS_SPACE_SCHEMA.optional(),
                 node_type: nodeTypeSchema.optional(),
                 tags: canonicalTagsSchema.optional(),
                 note: noteNodeSchema.optional(),
@@ -1155,6 +1183,16 @@ server.registerTool(
         const note = "note" in input ? input.note : undefined;
         const metadataAware = "address_space" in input || nodeType !== undefined || tags !== undefined || note !== undefined;
         assertWritableMemoryKey(key);
+        const addressSpace = "address_space" in input && input.address_space !== undefined ? NODE_ADDRESS_SPACE_SCHEMA.parse(input.address_space) : undefined;
+        if (addressSpace && addressSpace !== "memory") {
+            if (promote_to) throw new Error("INVALID_SCOPE: note writes do not support promote_to.");
+            const noteStore = await import("./note-store.js");
+            const payload = await noteStore.createAddressedNote({ ...noteTargetOptions(scope, addressSpace), key, value, note, node_type: nodeType, tags });
+            return {
+                content: [{ type: "text", text: asToolText(payload) }],
+                structuredContent: payload,
+            };
+        }
         if (note !== undefined) throw new Error("UNSUPPORTED_TARGET: note payloads require a note address space.");
 
         const targets = promote_to && promote_to !== scope ? [scope, promote_to] : [scope];
@@ -1226,7 +1264,7 @@ server.registerTool(
             scope: z.string(),
             prefix: z.string().optional(),
             ...(typedNodesEnabled ? {
-                address_space: z.literal("memory").optional(),
+                address_space: NODE_ADDRESS_SPACE_SCHEMA.optional(),
                 node_types: z.array(nodeTypeSchema).min(1).optional(),
                 tags_all: canonicalTagsSchema.pipe(z.array(z.string()).min(1)).optional(),
                 tags_any: canonicalTagsSchema.pipe(z.array(z.string()).min(1)).optional(),
@@ -1240,6 +1278,17 @@ server.registerTool(
     async (input) => {
         const { scope, prefix } = input;
         const filters = typedNodesEnabled ? memoryFiltersFromInput(input) : {};
+        const addressSpace = "address_space" in input && input.address_space !== undefined ? NODE_ADDRESS_SPACE_SCHEMA.parse(input.address_space) : undefined;
+        if (addressSpace && addressSpace !== "memory") {
+            const noteStore = await import("./note-store.js");
+            const entries = noteStore.listAddressedNotes({ ...noteTargetOptions(scope, addressSpace), prefix, ...filters });
+            const keys = entries.map((entry) => entry.key);
+            const nodes = entries.map(({ value: _value, ...entry }) => entry);
+            return {
+                content: [{ type: "text", text: asToolText(keys) }],
+                structuredContent: { keys, nodes },
+            };
+        }
         const entries = filterEntries(
             await listEntries(scope, prefix ?? "", { ...scopeOptions, typed: typedNodesEnabled }),
             filters,
@@ -1261,10 +1310,20 @@ server.registerTool(
         inputSchema: z.object({
             scope: z.string(),
             key: z.string().min(1),
-            ...(typedNodesEnabled ? { address_space: z.literal("memory").optional() } : {}),
+            ...(typedNodesEnabled ? { address_space: NODE_ADDRESS_SPACE_SCHEMA.optional() } : {}),
         }),
     },
-    async ({ scope, key }) => {
+    async (input) => {
+        const { scope, key } = input;
+        const addressSpace = "address_space" in input && input.address_space !== undefined ? NODE_ADDRESS_SPACE_SCHEMA.parse(input.address_space) : undefined;
+        if (addressSpace && addressSpace !== "memory") {
+            const noteStore = await import("./note-store.js");
+            const payload = await noteStore.deleteAddressedNote({ ...noteTargetOptions(scope, addressSpace), key });
+            return {
+                content: [{ type: "text", text: asToolText(payload) }],
+                structuredContent: payload,
+            };
+        }
         if (typedNodesEnabled) assertWritableMemoryKey(key);
         else if (isReviewedKey(key)) {
             throw new Error(`Keys under ${REVIEWED_NAMESPACE}/ are reserved for reviewed-memory provenance.`);
@@ -1301,7 +1360,7 @@ server.registerTool(
             top_k: z.number().int().min(1).max(50).optional(),
             min_score: z.number().min(0).max(1).optional(),
             ...(typedNodesEnabled ? {
-                address_space: z.literal("memory").optional(),
+                address_space: NODE_ADDRESS_SPACE_SCHEMA.optional(),
                 node_types: z.array(nodeTypeSchema).min(1).optional(),
                 tags_all: canonicalTagsSchema.pipe(z.array(z.string()).min(1)).optional(),
                 tags_any: canonicalTagsSchema.pipe(z.array(z.string()).min(1)).optional(),
@@ -1313,6 +1372,17 @@ server.registerTool(
     },
     async (input) => {
         const { scope, query, top_k, min_score } = input;
+        const addressSpace = "address_space" in input && input.address_space !== undefined ? NODE_ADDRESS_SPACE_SCHEMA.parse(input.address_space) : undefined;
+        if (addressSpace && addressSpace !== "memory") {
+            const noteStore = await import("./note-store.js");
+            const entries = noteStore.searchAddressedNotes({ ...noteTargetOptions(scope, addressSpace), query, ...memoryFiltersFromInput(input) }).slice(0, top_k ?? 8);
+            const results = entries.map((entry) => ({ ...entry, score: 1 }));
+            const payload = { mode: "exact", count: results.length, results };
+            return {
+                content: [{ type: "text", text: asToolText(payload) }],
+                structuredContent: payload,
+            };
+        }
         const { results, mode, model } = await semanticSearch(
             scope,
             query,
@@ -1371,7 +1441,7 @@ server.registerTool(
             value: z.string(),
             reason: z.string().optional(),
             ...(typedNodesEnabled ? {
-                address_space: z.literal("memory").optional(),
+                address_space: NODE_ADDRESS_SPACE_SCHEMA.optional(),
                 node_type: nodeTypeSchema.optional(),
                 tags: canonicalTagsSchema.optional(),
                 note: noteNodeSchema.optional(),
@@ -1381,7 +1451,19 @@ server.registerTool(
     async (input) => {
         const { scope, key, value, reason } = input;
         assertWritableMemoryKey(key);
-        if ("note" in input && input.note !== undefined) throw new Error("UNSUPPORTED_TARGET: note payloads require a note address space.");
+        const addressSpace = "address_space" in input && input.address_space !== undefined ? NODE_ADDRESS_SPACE_SCHEMA.parse(input.address_space) : undefined;
+        const note = "note" in input ? input.note : undefined;
+        const nodeType = "node_type" in input && input.node_type !== undefined ? nodeTypeSchema.parse(input.node_type) : undefined;
+        const tags = "tags" in input && input.tags !== undefined ? canonicalTagsSchema.parse(input.tags) : undefined;
+        if (addressSpace && addressSpace !== "memory") {
+            const noteStore = await import("./note-store.js");
+            const payload = await noteStore.supersedeAddressedNote({ ...noteTargetOptions(scope, addressSpace), key, value, reason, note, node_type: nodeType, tags });
+            return {
+                content: [{ type: "text", text: asToolText(payload) }],
+                structuredContent: payload,
+            };
+        }
+        if (note !== undefined) throw new Error("UNSUPPORTED_TARGET: note payloads require a note address space.");
 
         const agent = await openScope(scope, true, scopeOptions);
         if (!agent) {
@@ -1395,8 +1477,8 @@ server.registerTool(
                     scope,
                     key,
                     value,
-                    node_type: "node_type" in input && input.node_type !== undefined ? nodeTypeSchema.parse(input.node_type) : undefined,
-                    tags: "tags" in input && input.tags !== undefined ? canonicalTagsSchema.parse(input.tags) : undefined,
+                    node_type: nodeType,
+                    tags,
                     reason,
                 });
                 const payload = { ...changed };
@@ -1694,14 +1776,27 @@ server.registerTool(
         inputSchema: z.object({
             scope: z.string(),
             key: z.string().min(1),
-            ...(typedNodesEnabled ? { address_space: z.literal("memory").optional() } : {}),
+            ...(typedNodesEnabled ? { address_space: NODE_ADDRESS_SPACE_SCHEMA.optional() } : {}),
         }),
         annotations: {
             readOnlyHint: true,
             idempotentHint: true,
         },
     },
-    async ({ scope, key }) => {
+    async (input) => {
+        const { scope, key } = input;
+        const addressSpace = "address_space" in input && input.address_space !== undefined ? NODE_ADDRESS_SPACE_SCHEMA.parse(input.address_space) : undefined;
+        if (addressSpace && addressSpace !== "memory") {
+            const noteStore = await import("./note-store.js");
+            const target = noteTargetOptions(scope, addressSpace);
+            const currentNode = noteStore.readAddressedNote({ ...target, key });
+            const history = noteStore.listAddressedNoteHistory({ ...target, key });
+            const payload = { scope, key, current: currentNode?.value ?? null, history, current_node: currentNode, history_nodes: history };
+            return {
+                content: [{ type: "text", text: asToolText(payload) }],
+                structuredContent: payload,
+            };
+        }
         if (typedNodesEnabled) {
             const agent = await openScope(scope, false, scopeOptions);
             let currentNode: MemoryEntry | null = null;
@@ -1761,7 +1856,14 @@ if (typedNodesEnabled) {
         async (input) => {
             const envelope = memoryImportEnvelopeSchema.parse(input);
             if (envelope.address_space !== "memory") {
-                throw new Error("UNSUPPORTED_TARGET: note address spaces are not available through memory_import yet.");
+                const noteStore = await import("./note-store.js");
+                const addressSpace = envelope.address_space as NoteAddressSpace;
+                const plan = noteStore.planNoteImport({ input: envelope, ...noteTargetOptions(envelope.scope, addressSpace) });
+                const payload = envelope.dry_run ? plan.result : await noteStore.commitNoteImport(plan);
+                return {
+                    content: [{ type: "text", text: asToolText(payload) }],
+                    structuredContent: payload,
+                };
             }
             // Resolve containment before any database is opened or directory is created.
             const scopePath = resolveScopePath(envelope.scope, scopeOptions);
