@@ -54,6 +54,37 @@ CAIRN_TRAJECTORY_CAPTURE=1 node --experimental-strip-types \
 (cd "$opencode_on" && node "$ROOT/mcp-memory-server/dist/trajectory-cli.js" show opencode-session-001 --json) >/dev/null \
   || fail "OpenCode plugin trajectory not readable"
 
+# Exercise the real backup-first sync paths twice and compare their rendered
+# installed assets, rather than relying only on the source-level render above.
+claude_live="$tmp/claude-live"
+"$ROOT/scripts/sync-claude-assets.sh" --apply --live-root "$claude_live" >/dev/null
+"$ROOT/scripts/sync-claude-assets.sh" --apply --live-root "$claude_live" >/dev/null
+render "$ROOT/claude/hooks/memory-capture.sh" "$tmp/expected-claude-capture.sh"
+cmp -s "$tmp/expected-claude-capture.sh" "$claude_live/hooks/memory-capture.sh" \
+  || fail "installed Claude trajectory hook differs from rendered source"
+claude_capture_registrations=$(node -e '
+const fs = require("fs")
+const settings = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+let count = 0
+for (const entry of settings.hooks?.SessionEnd ?? []) {
+  for (const hook of entry.hooks ?? []) {
+    if (String(hook.command ?? "").includes("memory-capture.sh")) count += 1
+  }
+}
+process.stdout.write(String(count))
+' "$claude_live/settings.json")
+[[ "$claude_capture_registrations" -eq 1 ]] \
+  || fail "Claude SessionEnd memory-capture registration is missing or duplicated"
+
+opencode_live="$tmp/opencode-live"
+"$ROOT/scripts/sync-opencode-plugin-assets.sh" --apply --live-root "$opencode_live" >/dev/null
+"$ROOT/scripts/sync-opencode-plugin-assets.sh" --apply --live-root "$opencode_live" >/dev/null
+render "$ROOT/opencode/plugins/memory-capture.ts" "$tmp/expected-opencode-capture.ts"
+cmp -s "$tmp/expected-opencode-capture.ts" "$opencode_live/plugins/memory-capture.ts" \
+  || fail "installed OpenCode trajectory plugin differs from rendered source"
+[[ $(find "$opencode_live" -type f -name 'memory-capture.ts' | wc -l) -eq 1 ]] \
+  || fail "OpenCode memory-capture plugin is duplicated"
+
 # Integration must reuse the existing capture registration rather than add a
 # second SessionEnd hook or plugin asset.
 [[ $(grep -c 'memory-capture.sh)' "$ROOT/scripts/sync-claude-assets.sh") -eq 1 ]] \
