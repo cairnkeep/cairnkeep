@@ -6,6 +6,7 @@ import { join, relative } from "node:path";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { AgentFS } from "agentfs-sdk";
 
 const RED_MARKER = "PHASE16_RED:MEMORY_IMPORT_TOOL_MISSING";
 const SECRET = "import-secret-sentinel-7f918c";
@@ -80,6 +81,28 @@ async function directSchemaChecks() {
         importRequest({ nodes: [{ key: "knowledge/huge", value: "x".repeat(256 * 1024 + 1), node_type: "knowledge", tags: [] }] }),
     ]) {
         assert.equal(schema.memoryImportEnvelopeSchema.safeParse(request).success, false);
+    }
+}
+
+async function directServiceChecks() {
+    const store = await import("../dist/node-store.js");
+    const baseDir = mkdtempSync(join(tmpdir(), "cairn-import-service-"));
+    const dryPlan = await store.planMemoryImport(null, importRequest({ dry_run: true }));
+    assert.deepEqual(dryPlan.actions, [{ key: "knowledge/imported", action: "would_create" }]);
+    assert.equal(existsSync(baseDir), true);
+    const agent = await AgentFS.open({ id: "identity", path: join(baseDir, "identity.db") });
+    try {
+        const plan = await store.planMemoryImport(agent, importRequest({ import_id: "direct-1" }));
+        const created = await store.commitMemoryImport(agent, plan);
+        assert.equal(created.counts.created, 1);
+        const replay = await store.commitMemoryImport(agent, plan);
+        assert.equal(replay.replayed, true);
+        const conflict = await store.planMemoryImport(agent, importRequest({ nodes: [{ key: "knowledge/imported", value: "different", node_type: "knowledge", tags: [] }] }));
+        assert.equal(conflict.conflict, true);
+        await assert.rejects(() => store.commitMemoryImport(agent, conflict), /CONFLICT/);
+    } finally {
+        await agent.close();
+        rmSync(baseDir, { recursive: true, force: true });
     }
 }
 
@@ -183,6 +206,10 @@ async function injectedFailureCheck() {
 async function main() {
     if (process.argv.includes("--schema-only")) {
         await directSchemaChecks();
+        return;
+    }
+    if (process.argv.includes("--service-only")) {
+        await directServiceChecks();
         return;
     }
     const baseDir = mkdtempSync(join(tmpdir(), "cairn-memory-import-"));

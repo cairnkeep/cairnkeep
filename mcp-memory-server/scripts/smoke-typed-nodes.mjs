@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { AgentFS } from "agentfs-sdk";
 
 const RED_MARKER = "PHASE16_RED:TYPED_NODE_LIFECYCLE_MISSING";
 
@@ -56,6 +57,38 @@ async function directSchemaChecks() {
     assert.deepEqual(schema.canonicalTagsSchema.parse([" Release Train ", "release_train", "Zeta", "alpha", "alpha"]), ["alpha", "release-train", "zeta"]);
     for (const path of ["/absolute", "trailing/", "empty//segment", "dot/./segment", "dot/../segment", "back\\slash", "__history__/x", ".cairnkeep/x"]) {
         assert.equal(schema.nodePathSchema.safeParse(path).success, false, `${path} was accepted`);
+    }
+}
+
+async function directServiceChecks() {
+    const store = await import("../dist/node-store.js");
+    const baseDir = mkdtempSync(join(tmpdir(), "cairn-typed-service-"));
+    const agent = await AgentFS.open({ id: "identity", path: join(baseDir, "identity.db") });
+    try {
+        assert.deepEqual(await store.getNodeMetadata(agent, "legacy/missing"), { schema_version: 1, node_type: "memory", tags: [] });
+        await store.createTypedNode({ agent, scope: "identity", key: "patterns/typed", value: "one", node_type: "knowledge", tags: ["Release Train", "alpha"] });
+        assert.deepEqual(await store.getTypedNode(agent, "identity", "patterns/typed"), {
+            schema_version: 1, address_space: "memory", scope: "identity", key: "patterns/typed", value: "one", node_type: "knowledge", tags: ["alpha", "release-train"],
+        });
+        await store.supersedeTypedNode({ agent, scope: "identity", key: "patterns/typed", node_type: "hindsight", tags: ["fixed"], reason: "metadata" });
+        await store.supersedeTypedNode({ agent, scope: "identity", key: "patterns/typed", value: "two", reason: "value" });
+        assert.deepEqual((await store.listTypedHistory(agent, "patterns/typed")).map(({ value, node_type, tags }) => ({ value, node_type, tags })), [
+            { value: "one", node_type: "knowledge", tags: ["alpha", "release-train"] },
+            { value: "one", node_type: "hindsight", tags: ["fixed"] },
+        ]);
+        const deleted = await store.deleteTypedNode({ agent, scope: "identity", key: "patterns/typed" });
+        assert.equal(deleted.deleted, true);
+        assert.equal((await store.getTypedNode(agent, "identity", "patterns/typed")), null);
+        await store.createTypedNode({ agent, scope: "identity", key: "patterns/typed", value: "three", node_type: "shared", tags: ["restored"] });
+
+        process.env.CAIRN_TEST_FAIL_NODE_MUTATION = "after-value";
+        await assert.rejects(() => store.createTypedNode({ agent, scope: "identity", key: "patterns/rollback", value: "must rollback", node_type: "knowledge", tags: [] }));
+        delete process.env.CAIRN_TEST_FAIL_NODE_MUTATION;
+        assert.equal(await agent.kv.get("patterns/rollback"), undefined);
+    } finally {
+        delete process.env.CAIRN_TEST_FAIL_NODE_MUTATION;
+        await agent.close();
+        rmSync(baseDir, { recursive: true, force: true });
     }
 }
 
@@ -147,6 +180,10 @@ async function searchChecks(client) {
 async function main() {
     if (process.argv.includes("--schema-only")) {
         await directSchemaChecks();
+        return;
+    }
+    if (process.argv.includes("--service-only")) {
+        await directServiceChecks();
         return;
     }
     const baseDir = mkdtempSync(join(tmpdir(), "cairn-typed-nodes-"));
