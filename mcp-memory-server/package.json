@@ -31,6 +31,7 @@
         "check:note-enrichment": "node scripts/smoke-note-enrichment.mjs",
         "check:node-compat": "node scripts/smoke-node-compat.mjs",
         "check:typed-nodes": "node scripts/smoke-typed-nodes.mjs",
+        "check:memory-import": "node scripts/smoke-memory-import.mjs",
         "check:notes": "npm run build && npm run check:note-signatures && npm run check:note-distillation && npm run check:note-enrichment",
         "test": "npm run test:smoke",
         "test:smoke": "npm run build && npm run check:embeddings && npm run check:extract && npm run check:scope-guard && npm run check:http-guard && npm run check:remote-context && npm run check:explore-guard && npm run check:explore-cache && npm run check:explore-crossref && npm run check:route-guard && npm run check:reviewed-memory && npm run check:trajectory-roundtrip && npm run check:trajectory-redaction && npm run check:trajectory-retention && npm run check:note-signatures && npm run check:note-distillation && npm run check:note-enrichment",
