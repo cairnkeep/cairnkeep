@@ -64,7 +64,7 @@ async function schemaChecks(client) {
     assert.deepEqual(schema.properties.conflict_policy.enum, ["reject", "supersede"]);
     assert.equal(schema.properties.dry_run.type, "boolean");
     assert.equal(schema.properties.import_id.maxLength, 128);
-    assert.deepEqual(schema.properties.address_space.enum, ["memory", "notes"]);
+    assert.deepEqual(schema.properties.address_space.enum, ["memory", "project-notes", "shared-notes"]);
 }
 
 async function validationAndDryRun(client, baseDir) {

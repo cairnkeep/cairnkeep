@@ -68,7 +68,7 @@ function baseRecord(id = "knowledge-note") {
 }
 
 function noteArgs(record, overrides = {}) {
-    return { scope: "project", address_space: "notes", key: `knowledge/${record.id}`, value: JSON.stringify(record), node_type: record.node_type, tags: record.tags, ...overrides };
+    return { scope: "project", address_space: "project-notes", key: `knowledge/${record.id}`, value: JSON.stringify(record), node_type: record.node_type, tags: record.tags, ...overrides };
 }
 
 async function addressedCapability(client) {
@@ -82,22 +82,22 @@ async function crudChecks(client, storeRoot) {
     const record = baseRecord();
     const created = await call(client, "memory_write", noteArgs(record));
     assert.equal(created.isError, false);
-    const read = await call(client, "memory_read", { scope: "project", address_space: "notes", key: `knowledge/${record.id}` });
+    const read = await call(client, "memory_read", { scope: "project", address_space: "project-notes", key: `knowledge/${record.id}` });
     assert.deepEqual(JSON.parse(read.structuredContent?.results?.[0]?.value), record);
     assert.deepEqual({ node_type: read.structuredContent.results[0].node_type, tags: read.structuredContent.results[0].tags }, { node_type: record.node_type, tags: record.tags });
     const notePath = read.structuredContent.results[0].path;
     writeFileSync(notePath, `${readFileSync(notePath, "utf8")}${MANUAL_SUFFIX}`);
 
-    const listed = await call(client, "memory_list", { scope: "project", address_space: "notes", prefix: "knowledge/" });
+    const listed = await call(client, "memory_list", { scope: "project", address_space: "project-notes", prefix: "knowledge/" });
     assert.equal(listed.structuredContent?.keys.includes(`knowledge/${record.id}`), true);
-    const searched = await call(client, "memory_search", { scope: "project", address_space: "notes", query: "Lossless note" });
+    const searched = await call(client, "memory_search", { scope: "project", address_space: "project-notes", query: "Lossless note" });
     assert.equal(searched.structuredContent?.results?.[0]?.key, `knowledge/${record.id}`);
 
     const replacement = { ...record, description: "Updated without losing nested fields.", updated_at: "2026-07-26T12:01:00.000Z" };
     const superseded = await call(client, "memory_supersede", noteArgs(replacement, { reason: "test update" }));
     assert.equal(superseded.isError, false);
     assert.equal(readFileSync(notePath, "utf8").endsWith(MANUAL_SUFFIX), true);
-    const history = await call(client, "memory_history", { scope: "project", address_space: "notes", key: `knowledge/${record.id}` });
+    const history = await call(client, "memory_history", { scope: "project", address_space: "project-notes", key: `knowledge/${record.id}` });
     assert.deepEqual(JSON.parse(history.structuredContent?.history?.[0]?.value), record);
 
     const importedRecord = baseRecord("imported-note");
@@ -111,7 +111,7 @@ async function crudChecks(client, storeRoot) {
     assert.equal(collision.isError, true);
     assert.equal(readFileSync(unmanaged, "utf8"), "unmanaged exact bytes\n");
 
-    const deleted = await call(client, "memory_delete", { scope: "project", address_space: "notes", key: `knowledge/${record.id}` });
+    const deleted = await call(client, "memory_delete", { scope: "project", address_space: "project-notes", key: `knowledge/${record.id}` });
     assert.equal(deleted.structuredContent?.deleted, true);
     assert.deepEqual(JSON.parse(deleted.structuredContent?.final_snapshot?.value), replacement);
     assert.equal(existsSync(notePath), false);
@@ -181,7 +181,7 @@ async function httpProjectIdentityCheck(storeRoot) {
         const record = baseRecord("http-note");
         const created = await call(client, "memory_write", noteArgs(record));
         assert.equal(created.isError, false);
-        const read = await call(client, "memory_read", { scope: "project", address_space: "notes", key: `knowledge/${record.id}` });
+        const read = await call(client, "memory_read", { scope: "project", address_space: "project-notes", key: `knowledge/${record.id}` });
         assert.deepEqual(JSON.parse(read.structuredContent?.results?.[0]?.value), record);
         assert.match(read.structuredContent?.results?.[0]?.path, /note-http-project/);
     } finally {
