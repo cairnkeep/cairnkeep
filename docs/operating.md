@@ -213,6 +213,7 @@ vendor or host.
 | `CAIRN_NOTE_ENRICHMENT` | Separate opt-in for provider prose enrichment; credentials alone never enable it |
 | `CAIRN_NOTE_ENRICHMENT_MODEL` | Explicit OpenAI-compatible chat model for note enrichment (no default) |
 | `CAIRN_NOTE_ENRICHMENT_TIMEOUT_MS` | Enrichment timeout in milliseconds (default `15000`, allowed `100`–`120000`) |
+| `CAIRN_TYPED_MEMORY_NODES` | Add typed metadata, filters, logical note address spaces, and `memory_import` (unset/default off; restart after changing) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none`. See [git-providers.md](git-providers.md) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → the `route_check` tool is inert) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws at call time) |
@@ -224,6 +225,60 @@ vendor or host.
 | `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` | Override path to the `domain_knowledge_sync` document-sync script (unset → in-repo default) |
 | `CAIRN_ANYTHINGLLM_PROJECTS_FILE` | Override path to the bundled sync script's project configuration |
 | `CAIRN_ANYTHINGLLM_STATE_FILE` | Override path to the bundled sync script's incremental state |
+
+### Typed memory nodes and note address spaces (opt-in)
+
+Set `CAIRN_TYPED_MEMORY_NODES=1` in the memory-server process and restart it.
+Tool schemas are selected when `createMemoryServer` constructs a stdio server
+or authenticated HTTP session. With the flag unset, Cairnkeep retains the
+existing 14-tool list, required inputs, structured response roots, raw KV
+values, files, processes, network behavior, and output. Enabled mode adds
+optional fields to the existing lifecycle tools and exactly `memory_import`;
+it does not add `memory_edit`, `memory_update`, `memory_remove`, or duplicate
+read/delete tools. Use `memory_supersede` for both content and metadata edits.
+
+Types are `memory`, `knowledge`, `hindsight`, `shared`, `provenance`, or a
+lowercase namespaced extension such as `team:runbook`. Tags are trimmed, ASCII
+lowercased, normalize whitespace/underscore runs to one hyphen, collapse
+hyphens, deduplicate, and sort. `memory_list` and `memory_search` accept
+non-empty `node_types`, `tags_all`, and `tags_any`; these are hard eligibility
+filters applied before `top_k`, cache lookup, or embedding. Case-insensitive
+key matches and exact canonical tag/type matches sort before semantic results.
+Endpoint failure or absent embedding configuration falls back to stable local
+substring matching over key, value, type, and tags.
+
+Enabled `memory_write` without any Phase 16 field preserves collision-safe
+legacy overwrite behavior. Supplying `address_space`, `node_type`, `tags`, or
+`note` makes it create-only on a differing live node and returns `CONFLICT`;
+use `memory_supersede` to preserve the complete prior value/type/tags snapshot.
+Delete also records the complete final snapshot, and recreation is allowed.
+
+`memory_import` takes `schema_version: 1`, one concrete `scope`, optional
+`address_space` (default `memory`), 1–256 `nodes`, optional `import_id`,
+`dry_run`, and `conflict_policy` (default `reject`, or explicit `supersede`).
+Each unique logical key is a contained relative slash path; values are limited
+to 256 KiB UTF-8 each and 5 MiB per batch. The content digest excludes retry
+controls, while `import_id` durably binds to it. Dry-run performs no create,
+lock, cache, journal, or mutation and returns only the digest, sorted actions,
+and counts. Committed and replay results likewise omit values. Stable failures
+include `INVALID_SCHEMA`, `INVALID_SCOPE`, `INVALID_PATH`, `CONFLICT`,
+`IMPORT_ID_REUSE`, and `UNSUPPORTED_TARGET`.
+
+`project-notes` and `shared-notes` both require `scope: project`; no named
+memory scope is reserved. Keys such as `knowledge/build-cache` are logical,
+not client filesystem paths. Rich hindsight/shared/provenance imports require
+the complete nested note record; knowledge values must still losslessly encode
+the validated record. Canonical Markdown and its manifest remain authoritative.
+Unmanaged collisions are refused, and bytes after the managed marker are
+preserved exactly. Local stdio derives project identity from its working
+directory. Authenticated HTTP project notes require validated
+`X-Cairn-Project`; the bearer token still defines the trust domain.
+
+An interrupted note mutation blocks later note writes with `RECOVERY_REQUIRED`.
+`cairn doctor --repair` rolls prepared/committing journals back to verified
+pre-images, but verifies and finalizes committed-before-cleanup journals without
+undoing the completed operation. Unverifiable committed state remains failed
+and untouched for backup-guided manual recovery.
 
 ### Domain knowledge (RAG via AnythingLLM, opt-in)
 

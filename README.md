@@ -233,6 +233,7 @@ search):
 | `CAIRN_NOTE_ENRICHMENT` | Separately opt in to remote/local prose enrichment; never implied by credentials (default off) |
 | `CAIRN_NOTE_ENRICHMENT_MODEL` | Explicit chat model for optional note enrichment (no default) |
 | `CAIRN_NOTE_ENRICHMENT_TIMEOUT_MS` | Optional enrichment timeout (default `15000`) |
+| `CAIRN_TYPED_MEMORY_NODES` | Opt in to typed metadata, filters, logical note address spaces, and `memory_import` (default off; restart the server after changing) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none` ([docs/git-providers.md](docs/git-providers.md)) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → `route_check` is inert) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws) |
@@ -247,6 +248,32 @@ There is no Cairnkeep telemetry. Optional extraction, embeddings, document RAG,
 remote memory, and delegated exploration can send content to endpoints you
 configure. Review [Privacy and data flow](docs/privacy-and-data-flow.md) before
 enabling them.
+
+### Typed memory nodes and structured import (opt-in)
+
+`CAIRN_TYPED_MEMORY_NODES=1` adds schema-v1 `node_type`, canonical `tags`,
+`address_space`, hard list/search filters (`node_types`, `tags_all`,
+`tags_any`), and exactly one new MCP tool: `memory_import`. The flag is read
+when each server/session is created, so restart after changing it. Unset keeps
+the existing 14 tools, schemas, response roots, raw values, files, processes,
+network behavior, and output unchanged. It adds no read/edit/update/delete
+aliases; `memory_supersede` remains the sole edit operation.
+
+Core types are `memory`, `knowledge`, `hindsight`, `shared`, and `provenance`;
+extensions use a namespaced form such as `team:runbook`. Tags are ASCII
+lowercase, with whitespace and underscores normalized to hyphens, deduplicated,
+and sorted. Filters are applied before ranking. Exact key/tag/type hits precede
+semantic results; without a working configured embedding endpoint, search uses
+stable local substring matching.
+
+`memory_import` accepts one inline schema-v1 batch for one concrete scope and
+one `memory`, `project-notes`, or `shared-notes` address. It supports 1–256
+unique relative keys, values up to 256 KiB each and 5 MiB total, optional
+`import_id`, `dry_run`, and `conflict_policy: reject|supersede`. Results contain
+only digests, counts, keys, and actions—never supplied values. The default
+reject policy cannot overwrite; explicit supersede preserves typed history.
+Note addresses require `scope: project` and logical keys, never filesystem
+paths. See the [operating guide](docs/operating.md#typed-memory-nodes-and-note-address-spaces-opt-in).
 
 ## More
 

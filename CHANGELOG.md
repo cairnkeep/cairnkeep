@@ -21,6 +21,9 @@ All notable user-facing changes are documented here. This project follows
 - Add separately opted-in provider-neutral note prose enrichment and integrate
   all-project incremental distillation into the existing audit timer without
   adding online-agent latency.
+- Add default-off typed memory metadata/tags, hard-filtered discovery,
+  history-aware structured `memory_import`, and logical project/shared note
+  address spaces with journaled crash recovery and doctor integration.
 
 ### Fixed
 
