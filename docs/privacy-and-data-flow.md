@@ -17,6 +17,7 @@ request unless the corresponding endpoint and credential are configured.
 | `route_check` | A health request, with no memory or prompt content | `CAIRN_ROUTE_ENDPOINT` |
 | `context_explore` | Repository path and query are passed to the configured local executable | `CAIRN_EXPLORE_BINARY`; any further data flow is controlled by that tool |
 | Remote HTTP memory | MCP requests and responses, including memory content | The explicitly registered Cairnkeep HTTP server |
+| Opt-in trajectory capture | None | Local `<project>/.agentfs/trajectory.db` only; no model or HTTP path exists |
 
 Model endpoints may be local or remote. Cairnkeep cannot determine a provider's
 retention, training, or logging policy; verify it before sending confidential
@@ -35,6 +36,50 @@ Project-scoped and named/global database locations are documented in
 [Memory storage and deployment](storage.md). A remote client stores memory on
 the remote server host; changing a storage environment variable on the client
 does not relocate that server's databases.
+
+## Structured trajectory capture
+
+`CAIRN_TRAJECTORY_CAPTURE` is unset and off by default. When explicitly set to
+`1`, `true`, `yes`, or `on`, the existing Claude Code SessionEnd hook reads the
+harness-owned transcript file named in its hook event, or the existing OpenCode
+session-idle plugin requests that session's structured messages and parts from
+the local SDK. Cairnkeep does not change, copy, retain, or delete Claude Code's
+source transcript, and it does not control OpenCode's own source retention.
+Those harness-owned sources remain a separate privacy boundary.
+
+The capture path allow-lists user messages, visible model outputs, tool
+invocations, tool results, system events, timestamps, and usage/cost fields
+when the harness exposes them. It does not store hidden reasoning text;
+reasoning blocks and unknown record types are counted as omissions. Records are
+normalized into the versioned trajectory schema, recursively redacted, bounded
+by UTF-8 serialized size, and only then passed to AgentFS. Built-in rules redact
+secret-like object keys, bearer/API-key/password forms, credential-bearing URLs,
+private-key blocks, and exact values of secret-like environment variables.
+
+Bootstrap writes `.ai/trajectory-redaction.json` with no custom rules and does
+not enable capture. A project may add up to 32 bounded regular expressions to
+that file, or select another project-contained file with
+`CAIRN_TRAJECTORY_REDACTION_FILE`. Invalid, unreadable, outside-project, or
+uncompilable configuration fails that capture attempt before any partial write.
+Custom patterns are defense in depth: they can miss an unknown secret shape or
+redact too broadly, so captured sessions must still be treated as sensitive.
+
+The redacted v1 session and time index live only at
+`<project>/.agentfs/trajectory.db`. Default limits are 5 MiB per session, 256
+MiB logical total and 30 days. Capture and explicit `cairn trajectory prune`
+apply age and oldest-first budget retention. `list`, `show`, `prune --dry-run`,
+doctor output, SQLite `-wal`/`-shm` files, backups and terminal output remain
+local but can expose redacted project content, paths, error output and metadata
+to anyone who can access them. Cairnkeep provides no application-level
+encryption; use host encryption and access controls.
+
+Trajectory capture has no MCP tool or remote HTTP endpoint and never calls an
+LLM, embedding service, AnythingLLM, telemetry service, or other network
+destination. With the flag unset, the hook/plugin does not create or touch the
+trajectory database. `cairn doctor --repair` may rebuild missing metadata and
+indexes from valid full records but does not discard an invalid full record;
+only capture retention, explicit prune, or explicit uninstall purge removes
+trajectory sessions.
 
 The official container stores all databases below `/data`. A named volume
 persists them after container replacement and remains sensitive data. Sandbox

@@ -18,6 +18,7 @@ registration, memory remains on that computer.
 | Scope | Database path |
 |---|---|
 | `project` | `<server working directory>/.agentfs/project.db` |
+| Opt-in session trajectories | `<harness project root>/.agentfs/trajectory.db` |
 | Any named/global scope, such as `identity` or `work` | `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/<scope>.db` |
 
 For the local launchers, the server working directory is normally the project
@@ -28,6 +29,15 @@ accidentally committed. SQLite may also create `-wal` and `-shm` sidecar files.
 services used to process/search memory. They do not change where the SQLite
 databases are stored. Git-provider and routing configuration do not change
 storage either.
+
+Trajectory storage is deliberately separate from MCP memory. The harness hook
+writes `.agentfs/trajectory.db` on the client machine where Claude Code or
+OpenCode is running; it is never redirected to the remote HTTP memory server.
+The database contains versioned full-session records and small time-ordered
+indexes. Defaults are 5 MiB per serialized session, 256 MiB logical total and
+30 days retention. Capture and `cairn trajectory prune` remove expired records
+and then the oldest records needed to meet the logical budget. `prune
+--dry-run` reports the same decision without changing the database.
 
 When the memory server runs in the official container, the same rule applies:
 the process stores databases below `/data`, normally backed by the
@@ -117,6 +127,12 @@ sqlite3 /path/to/project/.agentfs/project.db \
 
 Treat every database and export archive as sensitive. They may contain source
 paths, decisions, incident details, and other project context.
+
+The same backup boundary applies to `<project>/.agentfs/trajectory.db`, which
+is not included in `cairn memory export`. `cairn uninstall PROJECT` retains the
+whole `.agentfs/` directory by default. `cairn uninstall --purge-memory PROJECT`
+backs it up and removes it, including memory and trajectories; the generated
+`revert.sh` can restore it.
 
 ## Reviewed-memory integration
 

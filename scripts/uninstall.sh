@@ -40,8 +40,8 @@ $HOME/.cairnkeep-uninstall-<ts>/ with a revert.sh before any change.
 
   --dry-run        Print what would happen; touch nothing.
   --yes            Do not prompt for confirmation.
-  --purge-memory   Also remove the global memory store and .agentfs/ memory in
-                   each PROJECT. Backed up first; off by default.
+  --purge-memory   Also remove the global memory store and .agentfs/ memory and
+                   trajectories in each PROJECT. Backed up first; off by default.
   --live-root PATH Claude root to clean (default: $CLAUDE_CONFIG_DIR or ~/.claude).
   PROJECT ...      Also revert `cairn bootstrap` in these project dirs
                    (.ai/, .planning/, and any .git/info/exclude entries).

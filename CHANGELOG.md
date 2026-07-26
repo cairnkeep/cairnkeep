@@ -3,6 +3,19 @@
 All notable user-facing changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Add opt-in, local-only, structured Claude Code and OpenCode session
+  trajectories with pre-write redaction, reasoning omission, bounded retention
+  and no model or network dependency.
+- Add `cairn trajectory list|show|prune`, shell completion, and explicit
+  `cairn doctor --repair` support for trajectory metadata and indexes.
+
+Capture remains disabled by default. Existing MCP tools, memory database paths,
+and remote HTTP behavior are unchanged.
+
 ## [2.3.1] - 2026-07-25
 
 ### Fixed

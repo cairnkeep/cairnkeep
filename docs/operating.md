@@ -93,11 +93,13 @@ Step 3 installs into `~/.claude` (override with `CLAUDE_CONFIG_DIR` or
   `repo-review`, `graphify`, `context-explore`
 - **7 agents** → `agents/`: `code-reviewer`, the three `security-*` agents, and
   the three `wiki-*` agents
-- **3 hooks** → `hooks/`, registered in `settings.json`:
+- **4 hooks** → `hooks/`, registered in `settings.json`:
   - `memory-wakeup.sh` on **SessionStart** — surfaces AgentFS memory + wiki index
   - `memory-capture.sh` on **SessionEnd** — extracts memory candidates to staging
   - `memory-recall.sh` on **PreToolUse** (Edit/Write/MultiEdit) — injects
     file-specific memory before an edit
+  - `context-explore-pretask.sh` on **UserPromptSubmit** — inert unless the
+    separate context-exploration opt-in is enabled
 - **scaffold templates** → `templates/`, used by `/security-audit` and `/wiki-*`
 
 Re-running `sync-claude-assets.sh --apply` is idempotent; use `--check` to see
@@ -121,7 +123,7 @@ OpenCode is a secondary path. Steps 1, 4, and 5 are identical (use
 The operating-layer assets are installed by topic-specific scripts:
 
 ```bash
-scripts/sync-opencode-plugin-assets.sh   --apply   # memory-wakeup plugin
+scripts/sync-opencode-plugin-assets.sh   --apply   # memory wakeup/capture/recall plugins
 scripts/sync-opencode-memory-assets.sh   --apply   # memory-sync/review + code-review
 scripts/sync-opencode-wiki-assets.sh     --apply   # wiki commands/agents/workflows
 scripts/sync-opencode-security-assets.sh --apply   # security-audit chain
@@ -175,6 +177,11 @@ vendor or host.
 | `CAIRN_MEMORY_EMBEDDING_MODEL` | Embedding model name (required for semantic search) |
 | `CAIRN_MEMORY_EMBEDDING_TIMEOUT_MS` | Embedding request timeout before substring fallback (default `15000`) |
 | `CAIRN_AGENTFS_BASE_DIR` | Server-side base dir for named/global memory scopes (default `~/.cairnkeep`); it does not affect `project` scope |
+| `CAIRN_TRAJECTORY_CAPTURE` | Opt in to local structured session capture (`1`, `true`, `yes`, or `on`; unset/default → no capture work) |
+| `CAIRN_TRAJECTORY_SESSION_MAX_BYTES` | Maximum serialized bytes per session (default `5242880`, 5 MiB; minimum 1024) |
+| `CAIRN_TRAJECTORY_STORE_MAX_BYTES` | Logical local trajectory budget (default `268435456`, 256 MiB; must be at least the session maximum) |
+| `CAIRN_TRAJECTORY_RETENTION_DAYS` | Age retention applied on capture/prune (default `30`; `0` removes sessions once they are older than the current instant) |
+| `CAIRN_TRAJECTORY_REDACTION_FILE` | Optional redaction JSON path contained by the project (default `.ai/trajectory-redaction.json` when that file exists) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none`. See [git-providers.md](git-providers.md) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → the `route_check` tool is inert) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws at call time) |
@@ -384,9 +391,43 @@ harness's remote HTTP registration. Unconfigured optional dependencies are
 skipped; it exits non-zero when the local server probe fails or a configured
 dependency (LLM/embedding endpoint, writable store) is unreachable.
 
+It also checks an existing project-local trajectory database for SQLite
+integrity, schema compatibility and index consistency. Because capture is
+opt-in, a missing database is skipped. Metadata or indexes can be rebuilt from
+valid full records only through the explicit repair operation:
+
 ```bash
 cd /path/to/project && cairn doctor
+cd /path/to/project && cairn doctor --repair
 ```
+
+### Structured session trajectories (opt-in)
+
+Trajectory capture is disabled by default. To enable it for a launched Claude
+Code or OpenCode session, set the flag in the project's private `.ai/.env`:
+
+```bash
+CAIRN_TRAJECTORY_CAPTURE=1
+```
+
+The existing Claude Code SessionEnd hook or OpenCode session-idle plugin then
+normalizes the closed session, redacts it, and writes it locally without a
+model, API key, remote request, or additional hook registration. Inspect and
+manage the result from the project root:
+
+```bash
+cairn trajectory list
+cairn trajectory show <session-id-or-unambiguous-prefix>
+cairn trajectory prune --dry-run
+cairn trajectory prune
+```
+
+All commands accept `--json`; `--dry-run` applies to `prune`. Bootstrap creates
+`.ai/trajectory-redaction.json` with an empty custom-pattern list but does not
+enable capture. Add bounded regular-expression entries there only for
+project-specific secrets; built-in credential patterns always apply. See
+[Privacy and data flow](privacy-and-data-flow.md) for the exact capture boundary
+and [Memory storage and deployment](storage.md) for retention and backup.
 
 ### `cairn memory export|import|path`
 
