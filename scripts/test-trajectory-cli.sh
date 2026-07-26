@@ -27,7 +27,7 @@ mkdir -p "$bootstrap_repo"
 "$cairn" bootstrap "$bootstrap_repo" >/dev/null
 [[ -f "$bootstrap_repo/.ai/trajectory-redaction.json" ]] \
   || fail "bootstrap missing optional trajectory redaction template"
-if grep -R -q 'CAIRN_TRAJECTORY_CAPTURE[[:space:]]*=[[:space:]]*1' "$bootstrap_repo"; then
+if grep -R -E -q '^[[:space:]]*CAIRN_TRAJECTORY_CAPTURE[[:space:]]*=[[:space:]]*1' "$bootstrap_repo"; then
   fail "bootstrap enabled trajectory capture"
 fi
 printf '{"version":1,"patterns":[]}\n' > "$bootstrap_repo/.ai/trajectory-redaction.json"
