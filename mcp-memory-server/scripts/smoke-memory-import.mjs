@@ -109,7 +109,7 @@ async function directServiceChecks() {
 async function validationAndDryRun(client, baseDir) {
     const before = snapshot(baseDir);
     const dry = await call(client, "memory_import", importRequest({ dry_run: true }));
-    assert.equal(dry.isError, false);
+    assert.notEqual(dry.isError, true);
     assert.match(dry.structuredContent?.batch_digest, /^[a-f0-9]{64}$/);
     assert.deepEqual(dry.structuredContent?.counts, { would_create: 1, would_replace: 0, unchanged: 0, rejected: 0 });
     assert.deepEqual(dry.structuredContent?.actions, [{ key: "knowledge/imported", action: "would_create" }]);
@@ -141,16 +141,16 @@ async function validationAndDryRun(client, baseDir) {
 
 async function serviceChecks(client) {
     const created = await call(client, "memory_import", importRequest({ import_id: "batch-1" }));
-    assert.equal(created.isError, false);
+    assert.notEqual(created.isError, true);
     assert.deepEqual(created.structuredContent?.counts, { created: 1, replaced: 0, unchanged: 0, rejected: 0 });
     assert.equal(serializedResponse(created).includes(SECRET), false, "import response disclosed a node value");
 
     const replay = await call(client, "memory_import", importRequest({ import_id: "batch-1" }));
-    assert.equal(replay.isError, false);
+    assert.notEqual(replay.isError, true);
     assert.equal(replay.structuredContent?.replayed, true);
     assert.deepEqual(replay.structuredContent?.counts, { created: 0, replaced: 0, unchanged: 1, rejected: 0 });
     const contentReplay = await call(client, "memory_import", importRequest({ import_id: undefined }));
-    assert.equal(contentReplay.isError, false);
+    assert.notEqual(contentReplay.isError, true);
     assert.deepEqual(contentReplay.structuredContent?.counts, { created: 0, replaced: 0, unchanged: 1, rejected: 0 });
 
     const divergentReplay = await call(client, "memory_import", importRequest({ import_id: "batch-1", nodes: [{ key: "knowledge/imported", value: "different", node_type: "knowledge", tags: [] }] }));
@@ -165,7 +165,7 @@ async function serviceChecks(client) {
         conflict_policy: "supersede",
         nodes: [{ key: "knowledge/imported", value: "replacement", node_type: "hindsight", tags: ["fixed"] }],
     }));
-    assert.equal(supersede.isError, false);
+    assert.notEqual(supersede.isError, true);
     assert.equal(supersede.structuredContent?.counts?.replaced, 1);
     const history = await call(client, "memory_history", { scope: "identity", key: "knowledge/imported" });
     assert.deepEqual(history.structuredContent?.history?.map((entry) => ({ value: entry.value, node_type: entry.node_type, tags: entry.tags })), [
@@ -181,7 +181,7 @@ async function serviceChecks(client) {
 
     const concurrentRequest = importRequest({ import_id: "concurrent", nodes: [{ key: "knowledge/concurrent", value: "same", node_type: "knowledge", tags: [] }] });
     const concurrent = await Promise.all([call(client, "memory_import", concurrentRequest), call(client, "memory_import", concurrentRequest)]);
-    assert.equal(concurrent.every((response) => !response.isError), true);
+    assert.equal(concurrent.every((response) => !response.isError), true, JSON.stringify(concurrent.map((response) => response.content)));
     assert.equal(concurrent.filter((response) => response.structuredContent?.counts?.created === 1).length, 1);
 }
 

@@ -100,19 +100,19 @@ async function lifecycleChecks(client) {
         node_type: "knowledge",
         tags: [" Release Train ", "release_train", "Zeta", "alpha", "alpha"],
     });
-    assert.equal(created.isError, false);
+    assert.notEqual(created.isError, true);
     const first = (await call(client, "memory_read", { scope: "identity", key: "patterns/typed-node" })).structuredContent?.results?.[0];
     assert.deepEqual(nodeProjection(first), { schema_version: 1, address_space: "memory", node_type: "knowledge", tags: ["alpha", "release-train", "zeta"] });
 
     const badType = await call(client, "memory_write", { scope: "identity", key: "bugs/bad-type", value: "bad", node_type: "runbook" });
     assert.equal(badType.isError, true, "arbitrary unnamespaced node type was accepted");
     const extension = await call(client, "memory_write", { scope: "identity", key: "patterns/extension", value: "ok", node_type: "custom:runbook", tags: [] });
-    assert.equal(extension.isError, false, "namespaced extension type was rejected");
+    assert.notEqual(extension.isError, true, "namespaced extension type was rejected");
 
     const legacyCreate = await call(client, "memory_write", { scope: "identity", key: "patterns/collision", value: "one" });
-    assert.equal(legacyCreate.isError, false);
+    assert.notEqual(legacyCreate.isError, true);
     const legacyOverwrite = await call(client, "memory_write", { scope: "identity", key: "patterns/collision", value: "two" });
-    assert.equal(legacyOverwrite.isError, false);
+    assert.notEqual(legacyOverwrite.isError, true);
     assert.equal(legacyOverwrite.structuredContent?.collisions?.length, 1, "legacy overwrite response changed");
     const typedCollision = await call(client, "memory_write", { scope: "identity", key: "patterns/typed-node", value: "different", node_type: "knowledge", tags: ["alpha"] });
     assert.equal(typedCollision.isError, true, "metadata-aware create overwrote a differing live node");
@@ -125,14 +125,14 @@ async function lifecycleChecks(client) {
         tags: ["fixed", "compiler_error"],
         reason: "classification corrected",
     });
-    assert.equal(metadataOnly.isError, false);
+    assert.notEqual(metadataOnly.isError, true);
     const replacement = await call(client, "memory_supersede", {
         scope: "identity",
         key: "patterns/typed-node",
         value: "second value",
         reason: "content corrected",
     });
-    assert.equal(replacement.isError, false);
+    assert.notEqual(replacement.isError, true);
     const history = (await call(client, "memory_history", { scope: "identity", key: "patterns/typed-node" })).structuredContent;
     assert.equal(history?.history?.length, 2);
     assert.deepEqual(history.history.map((entry) => ({ value: entry.value, node_type: entry.node_type, tags: entry.tags })), [
@@ -148,12 +148,14 @@ async function lifecycleChecks(client) {
         node_type: deleted.structuredContent.final_snapshot.node_type,
         tags: deleted.structuredContent.final_snapshot.tags,
     }, { value: "second value", node_type: "hindsight", tags: ["compiler-error", "fixed"] });
-    assert.equal((await call(client, "memory_list", { scope: "identity" })).structuredContent?.keys.includes("patterns/typed-node"), false);
+    const afterDelete = await call(client, "memory_list", { scope: "identity" });
+    assert.notEqual(afterDelete.isError, true, afterDelete.content?.[0]?.text);
+    assert.equal(afterDelete.structuredContent?.keys.includes("patterns/typed-node"), false);
     const repeatedDelete = await call(client, "memory_delete", { scope: "identity", key: "patterns/typed-node" });
     assert.equal(repeatedDelete.structuredContent?.deleted, false);
     assert.equal(repeatedDelete.structuredContent?.missing, true);
     const recreated = await call(client, "memory_write", { scope: "identity", key: "patterns/typed-node", value: "third value", node_type: "shared", tags: ["restored"] });
-    assert.equal(recreated.isError, false);
+    assert.notEqual(recreated.isError, true);
 }
 
 async function searchChecks(client) {
@@ -165,7 +167,7 @@ async function searchChecks(client) {
     ];
     for (const [key, value, node_type, tags] of fixtures) {
         const result = await call(client, "memory_write", { scope: "identity", key, value, node_type, tags });
-        assert.equal(result.isError, false);
+        assert.notEqual(result.isError, true);
     }
     const byAll = await call(client, "memory_list", { scope: "identity", tags_all: ["needle", "release"] });
     assert.deepEqual(byAll.structuredContent?.keys, ["patterns/tagged"]);
