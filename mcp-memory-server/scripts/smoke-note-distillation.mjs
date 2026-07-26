@@ -66,6 +66,9 @@ try {
     for (const field of ["id", "title", "description", "keywords", "node_type", "tags"]) {
         assert.match(markdown, new RegExp(`^${field}:`, "m"), `missing frontmatter ${field}`);
     }
+    for (const field of ["signature_version", "fingerprint", "normalized_error", "stack_digest", "component", "first_seen", "last_seen", "occurrence_count"]) {
+        assert.match(markdown, new RegExp(`^${field}:`, "m"), `missing hindsight frontmatter ${field}`);
+    }
     assert.match(markdown, /status: unresolved/);
     assert.match(markdown, /<!-- cairnkeep:managed:v1:start -->/);
     assert.doesNotMatch(markdown, /private hidden reasoning|sk-live-/i);
