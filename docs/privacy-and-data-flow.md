@@ -43,8 +43,10 @@ does not relocate that server's databases.
 `1`, `true`, `yes`, or `on`, the existing Claude Code SessionEnd hook reads the
 harness-owned transcript file named in its hook event, or the existing OpenCode
 session-idle plugin requests that session's structured messages and parts from
-the local SDK. Cairnkeep does not change, copy, retain, or delete Claude Code's
-source transcript, and it does not control OpenCode's own source retention.
+the local SDK, or the Pi `session_shutdown` extension reads Pi's active branch
+through its read-only session manager. Cairnkeep does not change, copy, retain,
+or delete Claude Code's source transcript, and it does not control OpenCode or
+Pi's own source retention.
 Those harness-owned sources remain a separate privacy boundary.
 
 The capture path allow-lists user messages, visible model outputs, tool
@@ -55,6 +57,11 @@ normalized into the versioned trajectory schema, recursively redacted, bounded
 by UTF-8 serialized size, and only then passed to AgentFS. Built-in rules redact
 secret-like object keys, bearer/API-key/password forms, credential-bearing URLs,
 private-key blocks, and exact values of secret-like environment variables.
+For Pi, model and thinking-level changes become system events; hidden thinking
+blocks are never written. Only the active branch is captured. The extension
+passes the structured branch to the same local normalizer/store path, kills a
+stalled capture subprocess after three seconds, and always fails open so a
+capture error cannot change the Pi session's outcome.
 
 Bootstrap writes `.ai/trajectory-redaction.json` with no custom rules and does
 not enable capture. A project may add up to 32 bounded regular expressions to

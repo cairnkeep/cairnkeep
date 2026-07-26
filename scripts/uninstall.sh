@@ -21,6 +21,7 @@ CLAUDE_SOURCE="$CAIRN_ROOT/claude"
 TPL="$CAIRN_ROOT/templates"
 
 LIVE_ROOT="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+PI_LIVE_ROOT="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 STORE_DIR="${CAIRN_AGENTFS_BASE_DIR:-$HOME/.cairnkeep}"
 STORE_DIR="${STORE_DIR/#\~/$HOME}"
 DRY_RUN=0
@@ -33,7 +34,8 @@ HOOK_NAMES=(memory-wakeup.sh memory-capture.sh memory-recall.sh context-explore-
 
 usage() {
   cat <<'EOF'
-Usage: uninstall.sh [--dry-run] [--yes] [--purge-memory] [--live-root PATH] [PROJECT ...]
+Usage: uninstall.sh [--dry-run] [--yes] [--purge-memory] [--live-root PATH]
+                    [--pi-live-root PATH] [PROJECT ...]
 
 Reverse cairnkeep's install. Everything removed/edited is backed up into
 $HOME/.cairnkeep-uninstall-<ts>/ with a revert.sh before any change.
@@ -43,6 +45,7 @@ $HOME/.cairnkeep-uninstall-<ts>/ with a revert.sh before any change.
   --purge-memory   Also remove the global memory store and .agentfs/ memory and
                    trajectories in each PROJECT. Backed up first; off by default.
   --live-root PATH Claude root to clean (default: $CLAUDE_CONFIG_DIR or ~/.claude).
+  --pi-live-root PATH Pi agent root to clean (default: $PI_CODING_AGENT_DIR or ~/.pi/agent).
   PROJECT ...      Also revert `cairn bootstrap` in these project dirs
                    (.ai/, .planning/, and any .git/info/exclude entries).
   -h, --help       Show this help.
@@ -55,6 +58,7 @@ while [[ $# -gt 0 ]]; do
     --yes) ASSUME_YES=1; shift ;;
     --purge-memory) PURGE_MEMORY=1; shift ;;
     --live-root) LIVE_ROOT="$2"; shift 2 ;;
+    --pi-live-root) PI_LIVE_ROOT="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     -*) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     *) PROJECTS+=("$1"); shift ;;
@@ -118,6 +122,7 @@ asset_dests() {
 echo "cairn uninstall"
 [[ $DRY_RUN -eq 1 ]] && echo "(dry run — nothing will change)"
 echo "  live root:    $LIVE_ROOT"
+echo "  Pi live root: $PI_LIVE_ROOT"
 echo "  memory store: $STORE_DIR ($([[ $PURGE_MEMORY -eq 1 ]] && echo 'WILL be purged' || echo 'kept'))"
 [[ ${#PROJECTS[@]} -gt 0 ]] && echo "  projects:     ${PROJECTS[*]}"
 
@@ -130,6 +135,11 @@ fi
 # 1. Operating-layer asset files.
 echo "Operating layer (assets):"
 while IFS= read -r dst; do remove_path "$dst"; done < <(asset_dests)
+
+# The Pi adapter is one precisely owned extension; do not touch any other Pi
+# configuration or extensions in the same user root.
+echo "Pi extension:"
+remove_path "$PI_LIVE_ROOT/extensions/cairnkeep-trajectory.ts"
 
 # 2. settings.json hook registrations (back up whole file, then de-register).
 SETTINGS="$LIVE_ROOT/settings.json"

@@ -9,15 +9,16 @@
 A *cairn* is a stack of stones left as a trail marker for whoever follows; a
 *keep* is where you store what matters. **Cairnkeep** is where coding agents
 stack durable memory — decisions, pitfalls, patterns — and follow the trail
-across sessions, projects, and harnesses (Claude Code, OpenCode, …).
+across sessions, projects, and harnesses (Claude Code, OpenCode, Pi, …).
 
 ## Status
 
-Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync`,
+Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync`, `sync-pi`,
 `doctor`, `trajectory`, `memory`, `audit-timer`, `completion`, `uninstall`) installable via
 `npm i -g @cairnkeep/cli`, and the
 operating layer (commands,
-agents, hooks) installed on both Claude Code and OpenCode. The generic launchers
+agents, hooks) installed on Claude Code and OpenCode, plus a native Pi
+trajectory extension. The generic launchers
 expose wrapper seams (`.ai/pre-launch.sh`, `CAIRN_EXTRA_SETTINGS`,
 `.ai/post-exit.sh`) so an enterprise wrapper can add provider/credential setup
 without forking them. Also shipped: context exploration (`/context-explore`) and
@@ -35,6 +36,7 @@ and 20 are end-of-life upstream.
 |---|---|
 | Claude Code on Linux/macOS | Memory server plus commands, agents, hooks, and launchers |
 | OpenCode on Linux/macOS | Memory server plus commands, plugins, hooks, and launchers |
+| Pi on Linux/macOS | Native opt-in trajectory extension and launcher; no bundled MCP bridge |
 | Codex CLI | Memory MCP server; no Cairnkeep operating-layer assets |
 | Other MCP clients | Memory and optional domain-knowledge MCP tools |
 | Native Windows | Not supported by the Bash-based installer; use WSL (not yet CI-verified) |
@@ -72,6 +74,7 @@ storage paths, secrets, and private derived images, see
   (`export` requires the optional `sqlite3` CLI);
   `cairn audit-timer` installs the scheduled memory+wiki audit;
   `cairn completion bash|zsh|fish` generates shell completion definitions; and
+  `cairn sync-pi` installs the native Pi trajectory extension;
   `cairn uninstall` reverses the install (backup-first, revertible).
 - **`templates/`** — project scaffolding (generic launchers, env) plus the
   derived-knowledge layer (wiki, alignment, graph, security, planning).
@@ -140,6 +143,18 @@ patterns/transactional-migrations: Use transactional migrations for schema chang
 The exact command rendering depends on the client. Any MCP client can call
 `memory_write` and `memory_search` directly.
 
+For Pi, install the local trajectory adapter and use the scaffolded launcher:
+
+```bash
+cairn sync-pi --apply
+cairn bootstrap /path/to/project
+cd /path/to/project && ./.ai/start-pi.sh
+```
+
+This installs trajectory capture only. Cairnkeep does not bundle or select a Pi
+MCP bridge; configure a user-chosen bridge separately if you also want the MCP
+memory tools inside Pi.
+
 Prefer working from a clone? Build the server with `cd mcp-memory-server && npm
 install && npm run build`, then use `scripts/sync-claude-assets.sh` and
 `bin/cairn` in place of the installed `cairn`.
@@ -160,8 +175,9 @@ unless a wrapper opts in:
   export env (e.g. a provider base URL) or abort the launch by returning
   non-zero. This is where credential refresh / connectivity setup lives.
 - **`CAIRN_EXTRA_SETTINGS`** — path to a settings file layered onto the harness
-  (`--settings` for Claude Code, `--config` for OpenCode). Process env still
-  wins, so an inline value beats the profile.
+  (`--settings` for Claude Code, `--config` for OpenCode). Pi has no equivalent
+  generic settings-file flag, so its launcher leaves this variable unused.
+  Process env still wins, so an inline value beats the profile.
 - **`.ai/post-exit.sh`** — sourced after the harness exits, with
   `CAIRN_EXIT_STATUS` set to its exit code.
 

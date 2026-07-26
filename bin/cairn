@@ -32,6 +32,9 @@ Usage:
                            Install/update the Claude Code operating layer (commands,
                            agents, hooks) into ~/.claude, or into DIR for a single
                            project (--live-root <project>/.claude).
+  cairn sync-pi [--apply] [--live-root DIR]
+                           Install/update the Pi trajectory extension into
+                           ~/.pi/agent, or into DIR for an isolated Pi root.
   cairn doctor             Health-check the memory server and configured LLM /
                            embedding endpoints, git provider, and stores.
                            Use --repair to rebuild trajectory metadata/indexes
@@ -45,7 +48,8 @@ Usage:
   cairn audit-timer [--on-calendar SPEC] [--para-root PATH] [--render-only DIR]
                            Install (opt-in) a systemd user timer that runs the
                            memory+wiki audit on a schedule; prints a cron alternative.
-  cairn uninstall [--dry-run] [--yes] [--purge-memory] [--live-root DIR] [PROJECT ...]
+  cairn uninstall [--dry-run] [--yes] [--purge-memory] [--live-root DIR]
+                  [--pi-live-root DIR] [PROJECT ...]
                            Reverse what cairnkeep installed/modified (operating
                            layer, hook registrations, MCP registration, audit
                            timer, and any given projects' bootstrap scaffold).
@@ -81,6 +85,9 @@ case "$cmd" in
     ;;
   sync)
     exec "$CAIRN_ROOT/scripts/sync-claude-assets.sh" "$@"
+    ;;
+  sync-pi)
+    exec "$CAIRN_ROOT/scripts/sync-pi-assets.sh" "$@"
     ;;
   audit-timer)
     exec "$CAIRN_ROOT/scripts/install-audit-timer.sh" "$@"

@@ -30,6 +30,7 @@ SCRIPTS=(
   scripts/sync-claude-assets.sh
   scripts/sync-opencode-explore-assets.sh
   scripts/sync-opencode-wiki-assets.sh
+  scripts/sync-pi-assets.sh
 )
 
 fails=0

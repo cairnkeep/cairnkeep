@@ -17,7 +17,7 @@ installs. This guide covers all three in order.
 ## Prerequisites
 
 - Node.js 22 or newer (for the memory server) and a supported harness: Claude
-  Code or OpenCode.
+  Code, OpenCode, or Pi.
 - Optional: the `sqlite3` CLI for `cairn memory export`. Runtime memory and
   `cairn memory import` do not require it.
 - Optional: an OpenAI-compatible LLM endpoint for memory extraction and
@@ -154,6 +154,33 @@ Model selection stays operator-env-driven through the existing
 `CAIRN_LLM_API_KEY` / `CAIRN_LLM_API_URL` / `CAIRN_LLM_EXTRACTION_MODEL`
 variables (see "Configuration" below) — the harness commits no default model
 and carries no known-good allowlist.
+
+## Setup order (Pi)
+
+Pi trajectory capture uses the same project scaffold and store, but its source
+is a native TypeScript extension installed into Pi's agent root:
+
+```bash
+npm install -g @cairnkeep/cli
+cairn sync-pi --apply                    # default: ~/.pi/agent
+cairn bootstrap /path/to/project
+cp /path/to/project/.ai/env.example /path/to/project/.ai/.env
+cd /path/to/project && cairn doctor && ./.ai/start-pi.sh
+```
+
+This command does not install an MCP bridge. Cairnkeep does not own or select a
+Pi bridge; if you want `cairn memory-server` tools inside Pi as well, configure
+a user-chosen Pi extension/bridge separately.
+
+Use `cairn sync-pi --check` to report drift without writing, or
+`--live-root DIR` to target an isolated Pi agent root. The command owns exactly
+`extensions/cairnkeep-trajectory.ts`; `cairn uninstall --pi-live-root DIR`
+removes that file backup-first and leaves every other Pi asset untouched.
+
+The extension listens for Pi's native `session_shutdown` event and reads only
+the active branch from the read-only session manager. It returns before doing
+that work unless `CAIRN_TRAJECTORY_CAPTURE` is explicitly enabled. Capture is
+local, fail-open, and capped at three seconds so it cannot hold Pi open.
 
 Before burning a multi-run soak, a preflight probe drives one real tool call
 and fails fast with a trait-named message if the configured model is not
@@ -404,15 +431,15 @@ cd /path/to/project && cairn doctor --repair
 ### Structured session trajectories (opt-in)
 
 Trajectory capture is disabled by default. To enable it for a launched Claude
-Code or OpenCode session, set the flag in the project's private `.ai/.env`:
+Code, OpenCode, or Pi session, set the flag in the project's private `.ai/.env`:
 
 ```bash
 CAIRN_TRAJECTORY_CAPTURE=1
 ```
 
-The existing Claude Code SessionEnd hook or OpenCode session-idle plugin then
-normalizes the closed session, redacts it, and writes it locally without a
-model, API key, remote request, or additional hook registration. Inspect and
+The Claude Code SessionEnd hook, OpenCode session-idle plugin, or Pi
+`session_shutdown` extension then normalizes the closed session, redacts it,
+and writes it locally without a model, API key, or remote request. Inspect and
 manage the result from the project root:
 
 ```bash

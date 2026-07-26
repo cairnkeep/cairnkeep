@@ -12,6 +12,9 @@ All notable user-facing changes are documented here. This project follows
   and no model or network dependency.
 - Add `cairn trajectory list|show|prune`, shell completion, and explicit
   `cairn doctor --repair` support for trajectory metadata and indexes.
+- Add native Pi trajectory capture through its `session_shutdown` extension,
+  `cairn sync-pi`, a generic Pi launcher, uninstall coverage, and the same
+  opt-in local redaction, size, and retention boundary as other harnesses.
 
 Capture remains disabled by default. Existing MCP tools, memory database paths,
 and remote HTTP behavior are unchanged.

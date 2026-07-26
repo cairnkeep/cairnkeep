@@ -31,8 +31,8 @@ databases are stored. Git-provider and routing configuration do not change
 storage either.
 
 Trajectory storage is deliberately separate from MCP memory. The harness hook
-writes `.agentfs/trajectory.db` on the client machine where Claude Code or
-OpenCode is running; it is never redirected to the remote HTTP memory server.
+writes `.agentfs/trajectory.db` on the client machine where Claude Code,
+OpenCode, or Pi is running; it is never redirected to the remote HTTP memory server.
 The database contains versioned full-session records and small time-ordered
 indexes. Defaults are 5 MiB per serialized session, 256 MiB logical total and
 30 days retention. Capture and `cairn trajectory prune` remove expired records
