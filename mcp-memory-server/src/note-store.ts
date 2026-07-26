@@ -16,6 +16,7 @@ import {
     NOTE_SCHEMA_VERSION,
     noteNodeSchema,
     type FailureSignature,
+    type NoteEnrichmentContent,
     type NoteNode,
     type NoteOccurrence,
 } from "./note-schema.js";
@@ -213,6 +214,23 @@ function managedBody(note: NoteNode): string {
             MANAGED_END,
         ].join("\n");
     }
+    const safe = (value: string) => value.replace(/<!--\s*cairnkeep:/gi, "&lt;!-- cairnkeep:").replace(/\s+/g, " ").trim();
+    const enrichment = note.enrichment ? [
+        "",
+        "### Optional generated context",
+        "",
+        "This prose is non-authoritative; the signature, lifecycle, and provenance above remain deterministic.",
+        "",
+        safe(note.enrichment.summary),
+        "",
+        "#### Lessons",
+        "",
+        ...note.enrichment.lessons.map((item) => `- ${safe(item)}`),
+        "",
+        "#### Caveats",
+        "",
+        ...note.enrichment.caveats.map((item) => `- ${safe(item)}`),
+    ] : [];
     return [
         MANAGED_START,
         "",
@@ -224,8 +242,9 @@ function managedBody(note: NoteNode): string {
         "### Evidence history",
         "",
         ...(note.occurrences.length > 0
-            ? note.occurrences.map((item) => `- ${item.ended_at} — ${item.outcome} — session \`${item.session_id}\`: ${item.evidence.replace(/\s+/g, " ")}`)
+            ? note.occurrences.map((item) => `- ${item.ended_at} — ${item.outcome} — session \`${item.session_id}\`: ${safe(item.evidence)}`)
             : ["- No occurrences recorded."]),
+        ...enrichment,
         "",
         MANAGED_END,
     ].filter((line, index, all) => line !== "" || all[index - 1] !== "").join("\n");
@@ -460,6 +479,42 @@ export async function searchHindsight(options: { projectRoot: string; text: stri
         || (left.entry.record.node_type === "provenance" ? -1 : 0)
         || left.entry.record.id.localeCompare(right.entry.record.id));
     return { schema_version: NOTE_SCHEMA_VERSION, mode: "exact", results: entries.map(({ entry }) => resultFor(layout.notes_root, entry)) };
+}
+
+export function getNoteEnrichmentEvidence(noteId: string): {
+    id: string;
+    normalized_error: string;
+    component: string;
+    status: "unresolved" | "resolved" | "abandoned";
+    attempts: string[];
+} {
+    const manifest = loadManifest();
+    const note = manifest.notes[noteId]?.record;
+    if (!note?.signature || !note.status) throw new Error(`Note "${noteId}" cannot be enriched.`);
+    return {
+        id: note.id,
+        normalized_error: note.signature.normalized_message,
+        component: note.signature.component,
+        status: note.status,
+        attempts: note.occurrences.map((item) => `${item.outcome}: ${item.evidence}`).slice(-64),
+    };
+}
+
+export function applyNoteEnrichment(noteId: string, enrichment: NoteEnrichmentContent): void {
+    const notesRoot = join(baseDirectory(), "notes");
+    const initial = loadManifest(notesRoot);
+    const initialNote = initial.notes[noteId]?.record;
+    if (!initialNote?.project_id) throw new Error(`Project note "${noteId}" was not found.`);
+    const release = acquireLock(join(notesRoot, ".cairnkeep", "locks", `${initialNote.project_id}.lock`));
+    try {
+        const manifest = loadManifest(notesRoot);
+        const entry = manifest.notes[noteId];
+        if (!entry || entry.record.project_id !== initialNote.project_id) throw new Error(`Note "${noteId}" changed while its lock was being acquired.`);
+        entry.record = noteNodeSchema.parse({ ...entry.record, enrichment });
+        saveManifestAndIndexes(notesRoot, manifest, [noteId]);
+    } finally {
+        release();
+    }
 }
 
 export async function promoteNotes(options: { sourceNoteId: string; corroboratingNoteId: string; confirm: boolean }): Promise<{

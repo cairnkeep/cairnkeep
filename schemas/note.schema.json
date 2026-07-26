@@ -28,6 +28,7 @@
     "canonical_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,255}$" },
     "status": { "enum": ["unresolved", "resolved", "abandoned"] },
     "signature": { "$ref": "#/$defs/signature" },
+    "enrichment": { "$ref": "#/$defs/enrichment" },
     "occurrences": { "type": "array", "items": { "$ref": "#/$defs/occurrence" }, "maxItems": 1024 },
     "created_at": { "type": "string", "format": "date-time" },
     "updated_at": { "type": "string", "format": "date-time" }
@@ -47,6 +48,16 @@
     }
   ],
   "$defs": {
+    "enrichment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "lessons", "caveats"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "lessons": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 1024 }, "maxItems": 16 },
+        "caveats": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 1024 }, "maxItems": 16 }
+      }
+    },
     "frame": {
       "type": "object",
       "additionalProperties": false,

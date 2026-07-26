@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
 
 import { buildFailureSignature } from "./failure-signature.js";
+import { enrichNoteEvidence } from "./note-enrichment.js";
 import { isNoteDistillationEnabled, type NoteOccurrence } from "./note-schema.js";
 import {
     applyDistilledSession,
+    applyNoteEnrichment,
+    getNoteEnrichmentEvidence,
     type DistilledFailure,
     type DistilledSuccess,
     type StoredNoteResult,
@@ -21,6 +24,7 @@ export type DistillProjectResult = {
     updated: StoredNoteResult[];
     already_processed: string[];
     enrichment_skipped: Array<{ id: string; reason: string }>;
+    enrichment_failed: Array<{ id: string; error: string }>;
     failed: Array<{ session_id: string; error: string }>;
 };
 
@@ -154,6 +158,7 @@ export async function distillProject(options: { projectRoot: string; sessionId?:
             updated: [],
             already_processed: [],
             enrichment_skipped: [],
+            enrichment_failed: [],
             failed: [],
         };
     }
@@ -172,6 +177,7 @@ export async function distillProject(options: { projectRoot: string; sessionId?:
         updated: [],
         already_processed: [],
         enrichment_skipped: [],
+        enrichment_failed: [],
         failed: [],
     };
     for (const session of sessions) {
@@ -187,7 +193,10 @@ export async function distillProject(options: { projectRoot: string; sessionId?:
         result.updated.push(...stored.updated);
         result.already_processed.push(...stored.already_processed);
         for (const note of [...stored.created, ...stored.updated]) {
-            result.enrichment_skipped.push({ id: note.id, reason: "optional enrichment is disabled or not configured" });
+            const enriched = await enrichNoteEvidence(getNoteEnrichmentEvidence(note.id));
+            if (enriched.status === "enriched") applyNoteEnrichment(note.id, enriched.enrichment);
+            else if (enriched.status === "enrichment_skipped") result.enrichment_skipped.push({ id: note.id, reason: enriched.reason });
+            else result.enrichment_failed.push({ id: note.id, error: enriched.error });
         }
         result.project_id ??= stored.created[0]?.project_id ?? stored.updated[0]?.project_id;
     }

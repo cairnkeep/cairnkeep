@@ -36,6 +36,12 @@ export const noteOccurrenceSchema = z.object({
     evidence: z.string().min(1).max(4096),
 }).strict();
 
+export const noteEnrichmentContentSchema = z.object({
+    summary: z.string().min(1).max(4096),
+    lessons: z.array(z.string().min(1).max(1024)).max(16),
+    caveats: z.array(z.string().min(1).max(1024)).max(16),
+}).strict();
+
 export const noteNodeSchema = z.object({
     schema_version: z.literal(NOTE_SCHEMA_VERSION),
     id: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,255}$/),
@@ -48,6 +54,7 @@ export const noteNodeSchema = z.object({
     canonical_id: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,255}$/).optional(),
     status: z.enum(["unresolved", "resolved", "abandoned"]).optional(),
     signature: failureSignatureSchema.optional(),
+    enrichment: noteEnrichmentContentSchema.optional(),
     occurrences: z.array(noteOccurrenceSchema).max(1024),
     created_at: z.iso.datetime(),
     updated_at: z.iso.datetime(),
@@ -72,6 +79,7 @@ export const noteNodeSchema = z.object({
 export type FailureFrame = z.infer<typeof failureFrameSchema>;
 export type FailureSignature = z.infer<typeof failureSignatureSchema>;
 export type NoteOccurrence = z.infer<typeof noteOccurrenceSchema>;
+export type NoteEnrichmentContent = z.infer<typeof noteEnrichmentContentSchema>;
 export type NoteNode = z.infer<typeof noteNodeSchema>;
 
 export function isNoteDistillationEnabled(value = process.env.CAIRN_NOTE_DISTILLATION): boolean {
