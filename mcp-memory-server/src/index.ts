@@ -28,6 +28,26 @@ import {
     readExploreCache,
     writeExploreCache,
 } from "./explore-cache.js";
+import {
+    canonicalTagsSchema,
+    isTypedMemoryNodesEnabled,
+    memoryImportEnvelopeSchema,
+    noteNodeSchema,
+    nodeTypeSchema,
+    type NodeType,
+} from "./node-schema.js";
+import {
+    attachNodeMetadata,
+    applyReviewedTypedNode,
+    commitMemoryImport,
+    createTypedNode,
+    deleteTypedNode,
+    getTypedNode,
+    invalidateReviewedTypedNode,
+    listTypedHistory,
+    planMemoryImport,
+    supersedeTypedNode,
+} from "./node-store.js";
 
 const MINIMUM_NODE_MAJOR = 22;
 const nodeMajor = Number.parseInt(process.versions.node, 10);
@@ -54,6 +74,10 @@ type MemoryEntry = {
     scope: string;
     key: string;
     value: string;
+    schema_version?: 1;
+    address_space?: "memory";
+    node_type?: NodeType;
+    tags?: string[];
 };
 
 type ExtractionCandidate = {
@@ -82,6 +106,22 @@ const REVIEWED_NAMESPACE = "__reviewed__";
 const REVIEW_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const PROJECT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const WORKSPACE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const scopeMutationTails = new Map<string, Promise<void>>();
+
+async function serializeScopeMutation<T>(scopePath: string, operation: () => Promise<T>): Promise<T> {
+    const previous = scopeMutationTails.get(scopePath) ?? Promise.resolve();
+    let release = (): void => {};
+    const turn = new Promise<void>((resolveTurn) => { release = resolveTurn; });
+    const tail = previous.then(() => turn);
+    scopeMutationTails.set(scopePath, tail);
+    await previous;
+    try {
+        return await operation();
+    } finally {
+        release();
+        if (scopeMutationTails.get(scopePath) === tail) scopeMutationTails.delete(scopePath);
+    }
+}
 
 function expandHome(value: string): string {
     if (value === "~") {
@@ -349,7 +389,7 @@ function visibleEntries(entries: MemoryEntry[], includeHistory: boolean): Memory
 async function listEntries(
     scope: string,
     prefix: string = "",
-    options: { includeHistory?: boolean; cwd?: string; projectId?: string } = {},
+    options: { includeHistory?: boolean; typed?: boolean; cwd?: string; projectId?: string } = {},
 ): Promise<MemoryEntry[]> {
     const agent = await openScope(scope, false, options);
 
@@ -359,11 +399,15 @@ async function listEntries(
 
     try {
         const entries = await agent.kv.list(prefix);
-        return visibleEntries(entries.map(({ key, value }) => ({
+        const visible = visibleEntries(entries.map(({ key, value }) => ({
             scope,
             key,
             value: normalizeValue(value),
         })), options.includeHistory ?? false);
+        if (!options.typed) return visible;
+        const typed: MemoryEntry[] = [];
+        for (const entry of visible) typed.push(await attachNodeMetadata(agent, scope, entry));
+        return typed;
     } finally {
         await agent.close();
     }
@@ -372,7 +416,7 @@ async function listEntries(
 async function readKey(
     scope: string,
     key: string,
-    options: { projectId?: string } = {},
+    options: { projectId?: string; typed?: boolean } = {},
 ): Promise<MemoryEntry[]> {
     const agent = await openScope(scope, false, options);
 
@@ -386,7 +430,8 @@ async function readKey(
             return [];
         }
 
-        return [{ scope, key, value: normalizeValue(value) }];
+        const entry = { scope, key, value: normalizeValue(value) };
+        return [options.typed ? await attachNodeMetadata(agent, scope, entry) : entry];
     } finally {
         await agent.close();
     }
@@ -394,9 +439,43 @@ async function readKey(
 
 function searchEntries(entries: MemoryEntry[], query: string): MemoryEntry[] {
     const needle = query.toLowerCase();
-    return entries.filter(({ key, value }) => {
-        return key.toLowerCase().includes(needle) || value.toLowerCase().includes(needle);
+    return entries.filter(({ key, value, node_type, tags }) =>
+        key.toLowerCase().includes(needle)
+        || value.toLowerCase().includes(needle)
+        || node_type?.toLowerCase().includes(needle)
+        || tags?.some((tag) => tag.includes(needle)),
+    );
+}
+
+type MemoryFilters = { node_types?: NodeType[]; tags_all?: string[]; tags_any?: string[] };
+
+function filterEntries(entries: MemoryEntry[], filters: MemoryFilters): MemoryEntry[] {
+    return entries.filter((entry) => {
+        const tags = entry.tags ?? [];
+        if (filters.node_types && !filters.node_types.includes(entry.node_type ?? "memory")) return false;
+        if (filters.tags_all && !filters.tags_all.every((tag) => tags.includes(tag))) return false;
+        if (filters.tags_any && !filters.tags_any.some((tag) => tags.includes(tag))) return false;
+        return true;
     });
+}
+
+function memoryFiltersFromInput(input: Record<string, unknown>): MemoryFilters {
+    return {
+        node_types: input.node_types === undefined ? undefined : z.array(nodeTypeSchema).min(1).parse(input.node_types),
+        tags_all: input.tags_all === undefined ? undefined : canonicalTagsSchema.pipe(z.array(z.string()).min(1)).parse(input.tags_all),
+        tags_any: input.tags_any === undefined ? undefined : canonicalTagsSchema.pipe(z.array(z.string()).min(1)).parse(input.tags_any),
+    };
+}
+
+function compareMemoryEntries(left: MemoryEntry, right: MemoryEntry): number {
+    return left.scope.localeCompare(right.scope) || left.key.localeCompare(right.key);
+}
+
+function isExactTextHit(entry: MemoryEntry, query: string): boolean {
+    const needle = query.toLowerCase();
+    return entry.key.toLowerCase().includes(needle)
+        || entry.node_type?.toLowerCase() === needle
+        || Boolean(entry.tags?.includes(needle));
 }
 
 function asToolText(value: unknown): string {
@@ -643,7 +722,8 @@ async function callAnythingLLM(workspace: string, query: string): Promise<string
 type ScoredEntry = MemoryEntry & { score: number };
 
 function entryText(entry: MemoryEntry): string {
-    return entry.value ? `${entry.key}\n${entry.value}` : entry.key;
+    const metadata = [entry.node_type, ...(entry.tags ?? [])].filter(Boolean).join("\n");
+    return [entry.key, entry.value, metadata].filter(Boolean).join("\n");
 }
 
 function embeddingCachePath(scope: string, projectId?: string): string {
@@ -657,6 +737,7 @@ async function semanticSearch(
     minScore: number,
     config: MemoryConfig = getMemoryConfig(),
     projectId?: string,
+    options: { typed?: boolean; filters?: MemoryFilters } = {},
 ): Promise<{ results: ScoredEntry[]; mode: "semantic" | "substring"; model?: string }> {
     const scopes = getSearchScopes(scope, config);
     const embeddingConfig = getEmbeddingConfig();
@@ -664,7 +745,10 @@ async function semanticSearch(
     const perScopeEntries = await Promise.all(
         scopes.map(async (candidate) => ({
             scope: candidate,
-            entries: await listEntries(candidate, "", { projectId }),
+            entries: filterEntries(
+                await listEntries(candidate, "", { projectId, typed: options.typed }),
+                options.filters ?? {},
+            ),
         })),
     );
     const allEntries = perScopeEntries.flatMap((group) => group.entries);
@@ -673,12 +757,14 @@ async function semanticSearch(
         return { results: [], mode: embeddingConfig ? "semantic" : "substring" };
     }
 
-    const substringFallback = (): { results: ScoredEntry[]; mode: "substring" } => ({
-        results: searchEntries(allEntries, query)
-            .map((entry) => ({ ...entry, score: 1 }))
-            .slice(0, topK),
-        mode: "substring",
-    });
+    const substringFallback = (): { results: ScoredEntry[]; mode: "substring" } => {
+        const matches = searchEntries(allEntries, query);
+        if (options.typed) matches.sort(compareMemoryEntries);
+        return {
+            results: matches.map((entry) => ({ ...entry, score: 1 })).slice(0, topK),
+            mode: "substring",
+        };
+    };
 
     if (!embeddingConfig) {
         return substringFallback();
@@ -721,15 +807,21 @@ async function semanticSearch(
             cache.save();
         }
 
-        const ranked = allEntries
+        const exact = options.typed
+            ? allEntries.filter((entry) => isExactTextHit(entry, query)).sort(compareMemoryEntries).map((entry) => ({ ...entry, score: 1 }))
+            : [];
+        const semanticCandidates = options.typed
+            ? allEntries.filter((entry) => !isExactTextHit(entry, query))
+            : allEntries;
+        const rankedSemantic = semanticCandidates
             .map((entry) => {
                 const vector = vectors.get(entry);
                 const score = vector && queryVector ? cosineSimilarity(queryVector, vector) : 0;
                 return { ...entry, score };
             })
             .filter((entry) => entry.score >= minScore)
-            .sort((left, right) => right.score - left.score)
-            .slice(0, topK);
+            .sort((left, right) => right.score - left.score || (options.typed ? compareMemoryEntries(left, right) : 0));
+        const ranked = [...exact, ...rankedSemantic].slice(0, topK);
 
         return { results: ranked, mode: "semantic", model: embeddingConfig.model };
     } catch {
@@ -996,6 +1088,7 @@ function createMemoryServer(context: ServerContext = {}): McpServer {
     const server = new McpServer({ name: "cairn-memory", version: "0.1.0" });
     const memoryConfig = (): MemoryConfig => context.memoryConfig ?? getMemoryConfig();
     const scopeOptions = { projectId: context.projectId };
+    const typedNodesEnabled = isTypedMemoryNodesEnabled();
 
 server.registerTool(
     "memory_read",
@@ -1007,6 +1100,7 @@ server.registerTool(
             scope: z.string(),
             key: z.string().optional(),
             query: z.string().optional(),
+            ...(typedNodesEnabled ? { address_space: z.literal("memory").optional() } : {}),
         }),
         annotations: {
             readOnlyHint: true,
@@ -1020,9 +1114,9 @@ server.registerTool(
         const config = memoryConfig();
         const scopes = getSearchScopes(scope, config);
         const results = key
-            ? (await Promise.all(scopes.map((candidate) => readKey(candidate, key, scopeOptions)))).flat()
+            ? (await Promise.all(scopes.map((candidate) => readKey(candidate, key, { ...scopeOptions, typed: typedNodesEnabled })))).flat()
             : searchEntries(
-                (await Promise.all(scopes.map((candidate) => listEntries(candidate, "", scopeOptions)))).flat(),
+                (await Promise.all(scopes.map((candidate) => listEntries(candidate, "", { ...scopeOptions, typed: typedNodesEnabled })))).flat(),
                 query ?? "",
             );
 
@@ -1046,10 +1140,22 @@ server.registerTool(
             key: z.string().min(1),
             value: z.string(),
             promote_to: z.string().optional(),
+            ...(typedNodesEnabled ? {
+                address_space: z.literal("memory").optional(),
+                node_type: nodeTypeSchema.optional(),
+                tags: canonicalTagsSchema.optional(),
+                note: noteNodeSchema.optional(),
+            } : {}),
         }),
     },
-    async ({ scope, key, value, promote_to }) => {
+    async (input) => {
+        const { scope, key, value, promote_to } = input;
+        const nodeType = "node_type" in input && input.node_type !== undefined ? nodeTypeSchema.parse(input.node_type) : undefined;
+        const tags = "tags" in input && input.tags !== undefined ? canonicalTagsSchema.parse(input.tags) : undefined;
+        const note = "note" in input ? input.note : undefined;
+        const metadataAware = "address_space" in input || nodeType !== undefined || tags !== undefined || note !== undefined;
         assertWritableMemoryKey(key);
+        if (note !== undefined) throw new Error("UNSUPPORTED_TARGET: note payloads require a note address space.");
 
         const targets = promote_to && promote_to !== scope ? [scope, promote_to] : [scope];
         // Collision-safe: in the unified store, writes from different repos/machines
@@ -1066,6 +1172,26 @@ server.registerTool(
             }
 
             try {
+                if (typedNodesEnabled) {
+                    const current = await getTypedNode(agent, target, key);
+                    if (metadataAware) {
+                        await createTypedNode({ agent, scope: target, key, value, node_type: nodeType, tags });
+                    } else if (!current) {
+                        await createTypedNode({ agent, scope: target, key, value });
+                    } else if (current.value !== value) {
+                        const changed = await supersedeTypedNode({
+                            agent,
+                            scope: target,
+                            key,
+                            value,
+                            reason: "collision-safe write in unified store",
+                        });
+                        if (changed.snapshot_key && changed.previous_value !== undefined) {
+                            collisions.push({ scope: target, snapshot_key: changed.snapshot_key, previous_value: changed.previous_value });
+                        }
+                    }
+                    continue;
+                }
                 const previous = await agent.kv.get(key);
                 const previousNorm = previous === undefined ? undefined : normalizeValue(previous);
                 if (previousNorm !== undefined && previousNorm !== value) {
@@ -1099,19 +1225,31 @@ server.registerTool(
         inputSchema: z.object({
             scope: z.string(),
             prefix: z.string().optional(),
+            ...(typedNodesEnabled ? {
+                address_space: z.literal("memory").optional(),
+                node_types: z.array(nodeTypeSchema).min(1).optional(),
+                tags_all: canonicalTagsSchema.pipe(z.array(z.string()).min(1)).optional(),
+                tags_any: canonicalTagsSchema.pipe(z.array(z.string()).min(1)).optional(),
+            } : {}),
         }),
         annotations: {
             readOnlyHint: true,
             idempotentHint: true,
         },
     },
-    async ({ scope, prefix }) => {
-        const entries = await listEntries(scope, prefix ?? "", scopeOptions);
+    async (input) => {
+        const { scope, prefix } = input;
+        const filters = typedNodesEnabled ? memoryFiltersFromInput(input) : {};
+        const entries = filterEntries(
+            await listEntries(scope, prefix ?? "", { ...scopeOptions, typed: typedNodesEnabled }),
+            filters,
+        );
         const keys = entries.map((entry) => entry.key).sort();
+        const nodes = entries.map(({ value: _value, ...entry }) => entry).sort((left, right) => left.key.localeCompare(right.key));
 
         return {
             content: [{ type: "text", text: asToolText(keys) }],
-            structuredContent: { keys },
+            structuredContent: typedNodesEnabled ? { keys, nodes } : { keys },
         };
     },
 );
@@ -1123,25 +1261,32 @@ server.registerTool(
         inputSchema: z.object({
             scope: z.string(),
             key: z.string().min(1),
+            ...(typedNodesEnabled ? { address_space: z.literal("memory").optional() } : {}),
         }),
     },
     async ({ scope, key }) => {
-        if (isReviewedKey(key)) {
+        if (typedNodesEnabled) assertWritableMemoryKey(key);
+        else if (isReviewedKey(key)) {
             throw new Error(`Keys under ${REVIEWED_NAMESPACE}/ are reserved for reviewed-memory provenance.`);
         }
         const agent = await openScope(scope, false, scopeOptions);
 
+        let typedResult: Awaited<ReturnType<typeof deleteTypedNode>> | undefined;
         if (agent) {
             try {
-                await agent.kv.delete(key);
+                if (typedNodesEnabled) typedResult = await deleteTypedNode({ agent, scope, key });
+                else await agent.kv.delete(key);
             } finally {
                 await agent.close();
             }
         }
 
+        const payload = typedNodesEnabled
+            ? { ok: true, scope, key, deleted: typedResult?.deleted ?? false, missing: typedResult?.missing ?? true, snapshot_key: typedResult?.snapshot_key ?? null, ...(typedResult?.final_snapshot ? { final_snapshot: typedResult.final_snapshot } : {}) }
+            : { ok: true, scope, key };
         return {
-            content: [{ type: "text", text: asToolText({ ok: true, scope, key }) }],
-            structuredContent: { ok: true, scope, key },
+            content: [{ type: "text", text: asToolText(payload) }],
+            structuredContent: payload,
         };
     },
 );
@@ -1155,12 +1300,19 @@ server.registerTool(
             query: z.string().min(1),
             top_k: z.number().int().min(1).max(50).optional(),
             min_score: z.number().min(0).max(1).optional(),
+            ...(typedNodesEnabled ? {
+                address_space: z.literal("memory").optional(),
+                node_types: z.array(nodeTypeSchema).min(1).optional(),
+                tags_all: canonicalTagsSchema.pipe(z.array(z.string()).min(1)).optional(),
+                tags_any: canonicalTagsSchema.pipe(z.array(z.string()).min(1)).optional(),
+            } : {}),
         }),
         annotations: {
             readOnlyHint: true,
         },
     },
-    async ({ scope, query, top_k, min_score }) => {
+    async (input) => {
+        const { scope, query, top_k, min_score } = input;
         const { results, mode, model } = await semanticSearch(
             scope,
             query,
@@ -1168,6 +1320,10 @@ server.registerTool(
             min_score ?? 0,
             memoryConfig(),
             context.projectId,
+            {
+                typed: typedNodesEnabled,
+                filters: typedNodesEnabled ? memoryFiltersFromInput(input) : {},
+            },
         );
         const payload = { mode, model, count: results.length, results };
 
@@ -1214,10 +1370,18 @@ server.registerTool(
             key: z.string().min(1),
             value: z.string(),
             reason: z.string().optional(),
+            ...(typedNodesEnabled ? {
+                address_space: z.literal("memory").optional(),
+                node_type: nodeTypeSchema.optional(),
+                tags: canonicalTagsSchema.optional(),
+                note: noteNodeSchema.optional(),
+            } : {}),
         }),
     },
-    async ({ scope, key, value, reason }) => {
+    async (input) => {
+        const { scope, key, value, reason } = input;
         assertWritableMemoryKey(key);
+        if ("note" in input && input.note !== undefined) throw new Error("UNSUPPORTED_TARGET: note payloads require a note address space.");
 
         const agent = await openScope(scope, true, scopeOptions);
         if (!agent) {
@@ -1225,6 +1389,22 @@ server.registerTool(
         }
 
         try {
+            if (typedNodesEnabled) {
+                const changed = await supersedeTypedNode({
+                    agent,
+                    scope,
+                    key,
+                    value,
+                    node_type: "node_type" in input && input.node_type !== undefined ? nodeTypeSchema.parse(input.node_type) : undefined,
+                    tags: "tags" in input && input.tags !== undefined ? canonicalTagsSchema.parse(input.tags) : undefined,
+                    reason,
+                });
+                const payload = { ...changed };
+                return {
+                    content: [{ type: "text", text: asToolText(payload) }],
+                    structuredContent: payload,
+                };
+            }
             const previous = await agent.kv.get(key);
             if (previous === undefined) {
                 await agent.kv.set(key, value);
@@ -1318,19 +1498,32 @@ server.registerTool(
                     }
                 }
 
-                const previous = await agent.kv.get(key);
-                const previousValue = previous === undefined ? undefined : normalizeValue(previous);
                 let snapshotKey: string | null = null;
-                if (previousValue !== undefined && previousValue !== value) {
-                    snapshotKey = historySnapshotKey(key, appliedAt);
-                    await agent.kv.set(snapshotKey, {
-                        value: previousValue,
-                        superseded_at: appliedAt,
-                        superseded_reason: `reviewed memory ${review_id}`,
+                if (typedNodesEnabled) {
+                    const changed = await applyReviewedTypedNode({
+                        agent,
+                        scope,
+                        review_id,
+                        key,
+                        value,
+                        node_type: "memory",
+                        tags: [],
+                        in_transaction: true,
                     });
+                    snapshotKey = changed.snapshot_key;
+                } else {
+                    const previous = await agent.kv.get(key);
+                    const previousValue = previous === undefined ? undefined : normalizeValue(previous);
+                    if (previousValue !== undefined && previousValue !== value) {
+                        snapshotKey = historySnapshotKey(key, appliedAt);
+                        await agent.kv.set(snapshotKey, {
+                            value: previousValue,
+                            superseded_at: appliedAt,
+                            superseded_reason: `reviewed memory ${review_id}`,
+                        });
+                    }
+                    await agent.kv.set(key, value);
                 }
-
-                await agent.kv.set(key, value);
                 await agent.kv.set(recordKey, {
                     schema_version: 1,
                     review_id,
@@ -1437,13 +1630,25 @@ server.registerTool(
                     if (current !== undefined) {
                         const currentValue = normalizeValue(current);
                         if (hashText(currentValue) === record.value_hash) {
-                            snapshotKey = historySnapshotKey(record.key, invalidatedAt);
-                            await agent.kv.set(snapshotKey, {
-                                value: currentValue,
-                                superseded_at: invalidatedAt,
-                                superseded_reason: reason ?? `reviewed memory ${review_id} invalidated`,
-                            });
-                            await agent.kv.delete(record.key);
+                            if (typedNodesEnabled) {
+                                const changed = await invalidateReviewedTypedNode({
+                                    agent,
+                                    scope,
+                                    review_id,
+                                    key: record.key,
+                                    reason,
+                                    in_transaction: true,
+                                });
+                                snapshotKey = changed.snapshot_key;
+                            } else {
+                                snapshotKey = historySnapshotKey(record.key, invalidatedAt);
+                                await agent.kv.set(snapshotKey, {
+                                    value: currentValue,
+                                    superseded_at: invalidatedAt,
+                                    superseded_reason: reason ?? `reviewed memory ${review_id} invalidated`,
+                                });
+                                await agent.kv.delete(record.key);
+                            }
                             removed = true;
                         } else {
                             currentChanged = true;
@@ -1489,6 +1694,7 @@ server.registerTool(
         inputSchema: z.object({
             scope: z.string(),
             key: z.string().min(1),
+            ...(typedNodesEnabled ? { address_space: z.literal("memory").optional() } : {}),
         }),
         annotations: {
             readOnlyHint: true,
@@ -1496,6 +1702,31 @@ server.registerTool(
         },
     },
     async ({ scope, key }) => {
+        if (typedNodesEnabled) {
+            const agent = await openScope(scope, false, scopeOptions);
+            let currentNode: MemoryEntry | null = null;
+            let historyNodes: Awaited<ReturnType<typeof listTypedHistory>> = [];
+            if (agent) {
+                try {
+                    currentNode = await getTypedNode(agent, scope, key);
+                    historyNodes = await listTypedHistory(agent, key);
+                } finally {
+                    await agent.close();
+                }
+            }
+            const payload = {
+                scope,
+                key,
+                current: currentNode?.value ?? null,
+                history: historyNodes,
+                current_node: currentNode,
+                history_nodes: historyNodes,
+            };
+            return {
+                content: [{ type: "text", text: asToolText(payload) }],
+                structuredContent: payload,
+            };
+        }
         const current = await readKey(scope, key, scopeOptions);
         const history = (await listEntries(scope, historyPrefix(key), {
             includeHistory: true,
@@ -1516,6 +1747,54 @@ server.registerTool(
         };
     },
 );
+
+if (typedNodesEnabled) {
+    server.registerTool(
+        "memory_import",
+        {
+            description: "Validate, plan, and atomically import a bounded batch of typed memory nodes.",
+            inputSchema: memoryImportEnvelopeSchema,
+            annotations: {
+                idempotentHint: true,
+            },
+        },
+        async (input) => {
+            const envelope = memoryImportEnvelopeSchema.parse(input);
+            if (envelope.address_space !== "memory") {
+                throw new Error("UNSUPPORTED_TARGET: note address spaces are not available through memory_import yet.");
+            }
+            // Resolve containment before any database is opened or directory is created.
+            const scopePath = resolveScopePath(envelope.scope, scopeOptions);
+            const existing = await openScope(envelope.scope, false, scopeOptions);
+            let plan;
+            try {
+                plan = await planMemoryImport(existing, envelope);
+            } finally {
+                await existing?.close();
+            }
+            if (envelope.dry_run) {
+                const payload = await commitMemoryImport(null, plan);
+                return {
+                    content: [{ type: "text", text: asToolText(payload) }],
+                    structuredContent: payload,
+                };
+            }
+            const payload = await serializeScopeMutation(scopePath, async () => {
+                const agent = await openScope(envelope.scope, true, scopeOptions);
+                if (!agent) throw new Error(`Unable to open scope ${envelope.scope}.`);
+                try {
+                    return await commitMemoryImport(agent, plan);
+                } finally {
+                    await agent.close();
+                }
+            });
+            return {
+                content: [{ type: "text", text: asToolText(payload) }],
+                structuredContent: payload,
+            };
+        },
+    );
+}
 
 server.registerTool(
     "domain_knowledge_query",
