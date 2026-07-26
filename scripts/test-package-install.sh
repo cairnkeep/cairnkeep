@@ -43,13 +43,19 @@ installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
   fail "npm tarball omitted the Pi launcher template"
 [[ -f "$installed_root/schemas/note.schema.json" ]] || \
   fail "npm tarball omitted the note schema"
+[[ -f "$installed_root/schemas/memory-node.schema.json" ]] || \
+  fail "npm tarball omitted the typed memory-node schema"
+for module in node-schema node-store node-cli; do
+  [[ -f "$installed_root/mcp-memory-server/dist/$module.js" ]] || \
+    fail "npm tarball omitted compiled $module"
+done
 [[ -f "$installed_root/mcp-memory-server/dist/note-cli.js" ]] || \
   fail "npm tarball omitted the compiled note CLI"
 [[ -f "$installed_root/mcp-memory-server/dist/note-enrichment.js" ]] || \
   fail "npm tarball omitted optional note enrichment"
 [[ -f "$installed_root/mcp-memory-server/dist/note-store.js" ]] || \
   fail "npm tarball omitted the deterministic note store"
-if find "$installed_root" -type f \( -name 'manifest-v1.json' -o -path '*/notes/projects/*' \) | grep -q .; then
+if find "$installed_root" -type f \( -name 'manifest-v1.json' -o -name '*.db' -o -name '*.db-wal' -o -name '*.db-shm' -o -path '*/notes/projects/*' -o -path '*/transactions/*' -o -path '*/backups/*' \) | grep -q .; then
   fail "npm tarball included generated user note data"
 fi
 

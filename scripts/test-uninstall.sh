@@ -16,6 +16,7 @@ fails=0
 ok()   { printf '  [PASS] %s\n' "$1"; }
 bad()  { printf '  [FAIL] %s\n' "$1"; fails=$((fails + 1)); }
 check() { if [[ "$2" == "$3" ]]; then ok "$1 ($2)"; else bad "$1 (got '$2', want '$3')"; fi; }
+tree_hash() { find "$1" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1; }
 
 # Isolated environment: fake HOME + stubbed system commands.
 mkdir -p "$SB/home" "$SB/bin"
@@ -38,7 +39,14 @@ cp "$LIVE/settings.json" "$SB/settings.before.json"
 cp "$PI_LIVE/extensions/cairnkeep-trajectory.ts" "$SB/pi.before.ts"
 mkdir -p "$SB/home/.cairnkeep/notes/projects/example/hindsight"
 printf 'durable note bytes\n' >"$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md"
+mkdir -p "$SB/home/.cairnkeep/notes/.cairnkeep/history/project-notes/knowledge/example" \
+  "$SB/home/.cairnkeep/notes/.cairnkeep/transactions/prepared/backups"
+printf 'typed sqlite bytes\n' >"$SB/home/.cairnkeep/identity.db"
+printf 'typed history bytes\n' >"$SB/home/.cairnkeep/notes/.cairnkeep/history/project-notes/knowledge/example/1.json"
+printf 'prepared journal bytes\n' >"$SB/home/.cairnkeep/notes/.cairnkeep/transactions/prepared/journal-v1.json"
+printf 'backup bytes\n' >"$SB/home/.cairnkeep/notes/.cairnkeep/transactions/prepared/backups/0.bin"
 note_before=$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)
+store_before=$(tree_hash "$SB/home/.cairnkeep")
 
 # --- dry-run must change nothing -------------------------------------------
 "$ROOT_DIR/scripts/uninstall.sh" --dry-run --live-root "$LIVE" --pi-live-root "$PI_LIVE" >/dev/null 2>&1
@@ -52,6 +60,7 @@ check "assets removed" "$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')
 check "hooks de-registered" "$(grep -c 'hooks/' "$LIVE/settings.json" 2>/dev/null || true)" "0"
 check "Pi extension removed" "$([[ -e "$PI_LIVE/extensions/cairnkeep-trajectory.ts" ]] && echo no || echo yes)" "yes"
 check "default uninstall keeps notes" "$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)" "$note_before"
+check "default uninstall keeps all typed and journal bytes" "$(tree_hash "$SB/home/.cairnkeep")" "$store_before"
 BK=$(ls -d "$SB/home/.cairnkeep-uninstall-"* 2>/dev/null | head -1)
 check "revert.sh generated" "$([[ -n "$BK" && -f "$BK/revert.sh" ]] && echo yes || echo no)" "yes"
 
@@ -68,6 +77,7 @@ EXCL="$PROJ/.git/info/exclude"
 mkdir -p "$SB/home/.cairnkeep/notes/projects/example/hindsight"; echo data >"$SB/home/.cairnkeep/db"
 printf 'purge and restore exact note bytes\n' >"$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md"
 purge_note_before=$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)
+purge_store_before=$(tree_hash "$SB/home/.cairnkeep")
 "$ROOT_DIR/scripts/uninstall.sh" --yes --purge-memory --live-root "$SB/home/.claude" "$PROJ" >/dev/null 2>&1
 check "project .ai removed"      "$([[ -e "$PROJ/.ai" ]] && echo no || echo yes)" "yes"
 check "project .agentfs removed" "$([[ -e "$PROJ/.agentfs" ]] && echo no || echo yes)" "yes"
@@ -79,6 +89,7 @@ check "project scaffold restored" "$([[ -d "$PROJ/.ai" ]] && echo yes || echo no
 check "project ignore restored"   "$([[ -f "$PROJ/.agentfs/.gitignore" ]] && echo yes || echo no)" "yes"
 check "memory store restored"     "$(cat "$SB/home/.cairnkeep/db" 2>/dev/null)" "data"
 check "note store restored exactly" "$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)" "$purge_note_before"
+check "typed and journal state restored exactly" "$(tree_hash "$SB/home/.cairnkeep")" "$purge_store_before"
 
 echo
 if [[ "$fails" -gt 0 ]]; then echo "test-uninstall: $fails check(s) failed."; exit 1; fi

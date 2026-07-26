@@ -36,7 +36,7 @@
         "check:node-doctor": "node scripts/smoke-node-doctor.mjs",
         "check:notes": "npm run build && npm run check:note-signatures && npm run check:note-distillation && npm run check:note-enrichment",
         "test": "npm run test:smoke",
-        "test:smoke": "npm run build && npm run check:embeddings && npm run check:extract && npm run check:scope-guard && npm run check:http-guard && npm run check:remote-context && npm run check:explore-guard && npm run check:explore-cache && npm run check:explore-crossref && npm run check:route-guard && npm run check:reviewed-memory && npm run check:trajectory-roundtrip && npm run check:trajectory-redaction && npm run check:trajectory-retention && npm run check:note-signatures && npm run check:note-distillation && npm run check:note-enrichment",
+        "test:smoke": "npm run build && npm run check:embeddings && npm run check:extract && npm run check:scope-guard && npm run check:http-guard && npm run check:remote-context && npm run check:explore-guard && npm run check:explore-cache && npm run check:explore-crossref && npm run check:route-guard && npm run check:reviewed-memory && npm run check:trajectory-roundtrip && npm run check:trajectory-redaction && npm run check:trajectory-retention && npm run check:note-signatures && npm run check:note-distillation && npm run check:note-enrichment && npm run check:node-compat && npm run check:typed-nodes && npm run check:memory-import && npm run check:note-mcp && npm run check:node-doctor",
         "test:search": "npm run build && npm run check:search",
         "test:memory": "npm run build && npm run check:embeddings && npm run check:extract && npm run check:search",
         "test:all": "npm run test:memory"

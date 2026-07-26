@@ -37,8 +37,8 @@ Usage:
                            ~/.pi/agent, or into DIR for an isolated Pi root.
   cairn doctor             Health-check the memory server and configured LLM /
                            embedding endpoints, git provider, and stores.
-                           Use --repair to rebuild trajectory metadata/indexes
-                           from valid full records.
+                           Use --repair for derived trajectory/typed metadata,
+                           indexes, and interrupted note transactions.
   cairn trajectory <list|show|prune>
                            Inspect and prune opt-in local session trajectories.
   cairn notes <distill|search-error|promote|doctor>
