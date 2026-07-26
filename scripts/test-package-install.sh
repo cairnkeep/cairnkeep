@@ -29,6 +29,8 @@ bootstrap_output=$(cairn bootstrap "$tmp/project")
 [[ -f "$tmp/project/.planning/config.json" ]] || fail "bootstrap did not install the planning scaffold"
 
 (cd "$tmp/project" && cairn doctor) >/dev/null || fail "installed package failed cairn doctor"
+env -u CAIRN_NOTE_DISTILLATION cairn notes --help >/dev/null \
+  || fail "installed package omitted the notes command"
 
 installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
 [[ -f "$installed_root/examples/anythingllm/sync_to_anythingllm.py" ]] || \
@@ -39,5 +41,12 @@ installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
   fail "npm tarball omitted the Pi sync command"
 [[ -f "$installed_root/templates/start-pi.sh.template" ]] || \
   fail "npm tarball omitted the Pi launcher template"
+[[ -f "$installed_root/schemas/note.schema.json" ]] || \
+  fail "npm tarball omitted the note schema"
+[[ -f "$installed_root/mcp-memory-server/dist/note-cli.js" ]] || \
+  fail "npm tarball omitted the compiled note CLI"
+if find "$installed_root" -type f \( -name 'manifest-v1.json' -o -path '*/notes/projects/*' \) | grep -q .; then
+  fail "npm tarball included generated user note data"
+fi
 
 echo "PASS: npm tarball installs a self-contained CLI and MCP server"

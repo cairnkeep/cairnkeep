@@ -20,6 +20,10 @@ for shell in bash zsh; do
 done
 grep -q 'sync-pi' "$tmp/fish"
 grep -q -- '-l live-root' "$tmp/fish"
+for shell in bash zsh fish; do
+  grep -q 'notes' "$tmp/$shell"
+  grep -q 'distill.*search-error.*promote.*doctor\|distill search-error promote doctor' "$tmp/$shell"
+done
 
 if "$ROOT/bin/cairn" completion unsupported >/dev/null 2>&1; then
   echo "completion accepted an unsupported shell" >&2

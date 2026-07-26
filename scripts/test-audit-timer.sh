@@ -26,4 +26,16 @@ grep -q "scripts/memory-wiki-audit.sh --para-root $tmp/PARA --report $tmp/audit.
 grep -q "OnCalendar=Mon \*-\*-\* 04:00:00" "$tmr" || fail "timer OnCalendar not substituted"
 grep -q "WantedBy=timers.target" "$tmr" || fail "timer missing [Install] WantedBy"
 
+# Scheduled note distillation stays in the same separate audit process and is
+# activated only by the explicit master flag.
+npm --prefix "$ROOT/mcp-memory-server" run build >/dev/null
+mkdir -p "$tmp/PARA/Projects/empty-project"
+[[ -x "$ROOT/scripts/memory-wiki-audit.sh" ]] || fail "audit script is not executable for systemd"
+CAIRN_AGENTFS_BASE_DIR="$tmp/store-off" env -u CAIRN_NOTE_DISTILLATION \
+  "$ROOT/scripts/memory-wiki-audit.sh" --para-root "$tmp/PARA" >"$tmp/audit-off.md"
+[[ ! -e "$tmp/store-off/notes" ]] || fail "flag-off audit created note storage"
+CAIRN_AGENTFS_BASE_DIR="$tmp/store-on" CAIRN_NOTE_DISTILLATION=1 \
+  "$ROOT/scripts/memory-wiki-audit.sh" --para-root "$tmp/PARA" >"$tmp/audit-on.md"
+grep -q "Note distillation" "$tmp/audit-on.md" || fail "flag-on audit omitted note distillation status"
+
 echo "PASS: audit-timer render (placeholders substituted, units well-formed)"
