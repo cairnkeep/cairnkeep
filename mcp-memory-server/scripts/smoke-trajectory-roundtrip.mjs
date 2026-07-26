@@ -34,18 +34,24 @@ function semanticProjection(session) {
 try {
     const claudeRepo = join(scratch, "claude-project");
     const opencodeRepo = join(scratch, "opencode-project");
+    const piRepo = join(scratch, "pi-project");
     mkdirSync(join(claudeRepo, ".agentfs"), { recursive: true });
     mkdirSync(join(opencodeRepo, ".agentfs"), { recursive: true });
+    mkdirSync(join(piRepo, ".agentfs"), { recursive: true });
 
     run(["capture-claude", join(fixtures, "trajectory-claude.jsonl"), claudeRepo]);
     run(["capture-opencode", opencodeRepo], {
         input: readFileSync(join(fixtures, "trajectory-opencode.json"), "utf8"),
     });
+    run(["capture-pi", piRepo], {
+        input: readFileSync(join(fixtures, "trajectory-pi.json"), "utf8"),
+    });
 
     const claude = JSON.parse(run(["show", "claude-session-001", "--json"], { cwd: claudeRepo }));
     const opencode = JSON.parse(run(["show", "opencode-session-001", "--json"], { cwd: opencodeRepo }));
+    const pi = JSON.parse(run(["show", "pi-session-001", "--json"], { cwd: piRepo }));
 
-    for (const [harness, session] of [["claude-code", claude], ["opencode", opencode]]) {
+    for (const [harness, session] of [["claude-code", claude], ["opencode", opencode], ["pi", pi]]) {
         assert.equal(session.schema_version, 1);
         assert.equal(session.harness, harness);
         assert.ok(session.started_at);
@@ -63,6 +69,9 @@ try {
     }
 
     assert.deepEqual(semanticProjection(claude), semanticProjection(opencode));
+    assert.deepEqual(semanticProjection(claude), semanticProjection(pi));
+    assert.doesNotMatch(JSON.stringify(pi), /sk-live-pi-141414/);
+    assert.doesNotMatch(JSON.stringify(pi), /private pi reasoning/);
 
     const listed = JSON.parse(run(["list", "--json"], { cwd: claudeRepo }));
     assert.equal(listed.sessions.length, 1);

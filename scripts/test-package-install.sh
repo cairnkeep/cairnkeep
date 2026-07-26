@@ -25,6 +25,7 @@ bootstrap_output=$(cairn bootstrap "$tmp/project")
 [[ "$bootstrap_output" == *"cairn memory-server"* ]] || fail "bootstrap printed invalid memory-server setup instructions"
 [[ "$bootstrap_output" == *"cairn sync --apply"* ]] || fail "bootstrap printed invalid operating-layer setup instructions"
 [[ -x "$tmp/project/.ai/start-claude.sh" ]] || fail "bootstrap did not install an executable Claude launcher"
+[[ -x "$tmp/project/.ai/start-pi.sh" ]] || fail "bootstrap did not install an executable Pi launcher"
 [[ -f "$tmp/project/.planning/config.json" ]] || fail "bootstrap did not install the planning scaffold"
 
 (cd "$tmp/project" && cairn doctor) >/dev/null || fail "installed package failed cairn doctor"
@@ -32,5 +33,11 @@ bootstrap_output=$(cairn bootstrap "$tmp/project")
 installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
 [[ -f "$installed_root/examples/anythingllm/sync_to_anythingllm.py" ]] || \
   fail "npm tarball omitted the default AnythingLLM sync script"
+[[ -f "$installed_root/pi/extensions/cairnkeep-trajectory.ts" ]] || \
+  fail "npm tarball omitted the Pi trajectory extension"
+[[ -x "$installed_root/scripts/sync-pi-assets.sh" ]] || \
+  fail "npm tarball omitted the Pi sync command"
+[[ -f "$installed_root/templates/start-pi.sh.template" ]] || \
+  fail "npm tarball omitted the Pi launcher template"
 
 echo "PASS: npm tarball installs a self-contained CLI and MCP server"

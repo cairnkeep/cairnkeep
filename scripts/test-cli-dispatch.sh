@@ -9,8 +9,10 @@ cairn="$ROOT/bin/cairn"
 "$cairn" help | grep -q "cairn memory" || fail "help missing memory"
 "$cairn" help | grep -q "cairn audit-timer" || fail "help missing audit-timer"
 "$cairn" help | grep -q "cairn sync" || fail "help missing sync"
+"$cairn" help | grep -q "cairn sync-pi" || fail "help missing sync-pi"
 "$cairn" help | grep -q "cairn memory-server" || fail "help missing memory-server"
 "$cairn" sync --help >/dev/null 2>&1 || fail "cairn sync dispatch"
+"$cairn" sync-pi --help >/dev/null 2>&1 || fail "cairn sync-pi dispatch"
 if "$cairn" not-a-command >/dev/null 2>&1; then
   fail "unknown command should exit non-zero"
 fi

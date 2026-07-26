@@ -24,25 +24,30 @@ printf '#!/usr/bin/env bash\ntrue\n' >"$SB/bin/systemctl"
 chmod +x "$SB/bin/"*
 export HOME="$SB/home" XDG_CONFIG_HOME="$SB/home/.config" PATH="$SB/bin:$PATH"
 LIVE="$SB/live"
+PI_LIVE="$SB/pi-live"
 
 echo "test-uninstall"
 
 # --- install the operating layer -------------------------------------------
 "$ROOT_DIR/scripts/sync-claude-assets.sh" --apply --live-root "$LIVE" >/dev/null 2>&1
+"$ROOT_DIR/scripts/sync-pi-assets.sh" --apply --live-root "$PI_LIVE" >/dev/null 2>&1
 md_installed=$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')
 check "assets installed" "$([[ $md_installed -gt 0 ]] && echo yes || echo no)" "yes"
 check "hooks registered" "$(grep -c 'hooks/' "$LIVE/settings.json")" "4"
 cp "$LIVE/settings.json" "$SB/settings.before.json"
+cp "$PI_LIVE/extensions/cairnkeep-trajectory.ts" "$SB/pi.before.ts"
 
 # --- dry-run must change nothing -------------------------------------------
-"$ROOT_DIR/scripts/uninstall.sh" --dry-run --live-root "$LIVE" >/dev/null 2>&1
+"$ROOT_DIR/scripts/uninstall.sh" --dry-run --live-root "$LIVE" --pi-live-root "$PI_LIVE" >/dev/null 2>&1
 check "dry-run leaves assets" "$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')" "$md_installed"
 check "dry-run makes no bundle" "$(ls -d "$SB/home/.cairnkeep-uninstall-"* 2>/dev/null | wc -l | tr -d ' ')" "0"
+check "dry-run leaves Pi extension" "$([[ -f "$PI_LIVE/extensions/cairnkeep-trajectory.ts" ]] && echo yes || echo no)" "yes"
 
 # --- real uninstall ---------------------------------------------------------
-"$ROOT_DIR/scripts/uninstall.sh" --yes --live-root "$LIVE" >/dev/null 2>&1
+"$ROOT_DIR/scripts/uninstall.sh" --yes --live-root "$LIVE" --pi-live-root "$PI_LIVE" >/dev/null 2>&1
 check "assets removed" "$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')" "0"
 check "hooks de-registered" "$(grep -c 'hooks/' "$LIVE/settings.json" 2>/dev/null || true)" "0"
+check "Pi extension removed" "$([[ -e "$PI_LIVE/extensions/cairnkeep-trajectory.ts" ]] && echo no || echo yes)" "yes"
 BK=$(ls -d "$SB/home/.cairnkeep-uninstall-"* 2>/dev/null | head -1)
 check "revert.sh generated" "$([[ -n "$BK" && -f "$BK/revert.sh" ]] && echo yes || echo no)" "yes"
 
@@ -50,6 +55,7 @@ check "revert.sh generated" "$([[ -n "$BK" && -f "$BK/revert.sh" ]] && echo yes 
 bash "$BK/revert.sh" >/dev/null 2>&1
 check "assets restored" "$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')" "$md_installed"
 check "settings.json identical" "$(cmp -s "$SB/settings.before.json" "$LIVE/settings.json" && echo yes || echo no)" "yes"
+check "Pi extension restored" "$(cmp -s "$SB/pi.before.ts" "$PI_LIVE/extensions/cairnkeep-trajectory.ts" && echo yes || echo no)" "yes"
 
 # --- project scaffold + memory purge round-trip ----------------------------
 PROJ="$SB/proj"; mkdir -p "$PROJ"; git -C "$PROJ" init -q

@@ -14,6 +14,10 @@ done
 grep -q 'complete -F _cairn_complete cairn' "$tmp/bash"
 grep -q '#compdef cairn' "$tmp/zsh"
 grep -q 'complete -c cairn' "$tmp/fish"
+for shell in bash zsh fish; do
+  grep -q 'sync-pi' "$tmp/$shell"
+  grep -q -- '--live-root' "$tmp/$shell"
+done
 
 if "$ROOT/bin/cairn" completion unsupported >/dev/null 2>&1; then
   echo "completion accepted an unsupported shell" >&2

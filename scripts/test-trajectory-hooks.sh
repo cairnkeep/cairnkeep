@@ -9,6 +9,7 @@ fail() { echo "FAIL: $1" >&2; exit 1; }
 
 claude_fixture="$ROOT/mcp-memory-server/scripts/fixtures/trajectory-claude.jsonl"
 opencode_fixture="$ROOT/mcp-memory-server/scripts/fixtures/trajectory-opencode.json"
+pi_fixture="$ROOT/mcp-memory-server/scripts/fixtures/trajectory-pi.json"
 
 render() {
   sed "s|@@INFRA_ROOT@@|$ROOT|g" "$1" > "$2"
@@ -100,11 +101,42 @@ cmp -s "$tmp/expected-opencode-capture.ts" "$opencode_live/plugins/memory-captur
 [[ $(find "$opencode_live" -type f -name 'memory-capture.ts' | wc -l) -eq 1 ]] \
   || fail "OpenCode memory-capture plugin is duplicated"
 
+# Pi: the native extension must not touch SessionManager when disabled and
+# must send the active branch to the same local capture CLI when enabled.
+render "$ROOT/pi/extensions/cairnkeep-trajectory.ts" "$tmp/cairnkeep-trajectory.ts"
+pi_off="$tmp/pi-off"
+mkdir -p "$pi_off/.agentfs"
+node --experimental-strip-types "$ROOT/scripts/lib/trajectory-pi-extension-harness.mjs" \
+  "$tmp/cairnkeep-trajectory.ts" "$pi_off" "$pi_fixture" >"$tmp/pi-off.out" 2>"$tmp/pi-off.err"
+[[ ! -f "$pi_off/.agentfs/trajectory.db" ]] || fail "Pi flag-off path created trajectory store"
+[[ ! -s "$tmp/pi-off.out" && ! -s "$tmp/pi-off.err" ]] || fail "Pi flag-off path emitted output"
+
+pi_on="$tmp/pi-on"
+mkdir -p "$pi_on/.agentfs"
+CAIRN_TRAJECTORY_CAPTURE=1 node --experimental-strip-types \
+  "$ROOT/scripts/lib/trajectory-pi-extension-harness.mjs" \
+  "$tmp/cairnkeep-trajectory.ts" "$pi_on" "$pi_fixture" >"$tmp/pi-on.out" 2>"$tmp/pi-on.err"
+[[ -f "$pi_on/.agentfs/trajectory.db" ]] || fail "Pi enabled extension did not create trajectory store"
+pi_json=$(cd "$pi_on" && node "$ROOT/mcp-memory-server/dist/trajectory-cli.js" show pi-session-001 --json)
+[[ "$pi_json" != *"sk-live-pi-141414"* ]] || fail "Pi sentinel survived redaction"
+[[ "$pi_json" != *"private pi reasoning"* ]] || fail "Pi reasoning survived omission"
+
+pi_live="$tmp/pi-live"
+"$ROOT/scripts/sync-pi-assets.sh" --apply --live-root "$pi_live" >/dev/null
+"$ROOT/scripts/sync-pi-assets.sh" --apply --live-root "$pi_live" >/dev/null
+render "$ROOT/pi/extensions/cairnkeep-trajectory.ts" "$tmp/expected-pi-capture.ts"
+cmp -s "$tmp/expected-pi-capture.ts" "$pi_live/extensions/cairnkeep-trajectory.ts" \
+  || fail "installed Pi trajectory extension differs from rendered source"
+[[ $(find "$pi_live" -type f -name 'cairnkeep-trajectory.ts' | wc -l) -eq 1 ]] \
+  || fail "Pi trajectory extension is duplicated"
+
 # Integration must reuse the existing capture registration rather than add a
 # second SessionEnd hook or plugin asset.
 [[ $(grep -c 'memory-capture.sh)' "$ROOT/scripts/sync-claude-assets.sh") -eq 1 ]] \
   || fail "Claude memory-capture hook registration is missing or duplicated"
 [[ $(grep -c 'plugins/memory-capture.ts' "$ROOT/scripts/sync-opencode-plugin-assets.sh") -eq 1 ]] \
   || fail "OpenCode memory-capture plugin asset is missing or duplicated"
+[[ $(grep -c 'extensions/cairnkeep-trajectory.ts' "$ROOT/scripts/sync-pi-assets.sh") -eq 1 ]] \
+  || fail "Pi trajectory extension asset is missing or duplicated"
 
-echo "PASS: Claude/OpenCode trajectory hooks and flag-off regression"
+echo "PASS: Claude/OpenCode/Pi trajectory hooks and flag-off regression"

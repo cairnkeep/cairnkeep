@@ -1,0 +1,121 @@
+{
+  "session": {
+    "version": 3,
+    "id": "pi-session-001",
+    "cwd": "/fixture/project",
+    "entries": [
+      {
+        "type": "message",
+        "id": "pi-user-1",
+        "parentId": null,
+        "timestamp": "2026-07-26T09:00:00.000Z",
+        "message": {
+          "role": "user",
+          "content": "Inspect the fixture with token sk-live-pi-141414",
+          "timestamp": 1785056400000
+        }
+      },
+      {
+        "type": "model_change",
+        "id": "pi-model-1",
+        "parentId": "pi-user-1",
+        "timestamp": "2026-07-26T09:00:00.500Z",
+        "provider": "fixture-provider",
+        "modelId": "fixture-model"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "pi-thinking-level-1",
+        "parentId": "pi-model-1",
+        "timestamp": "2026-07-26T09:00:00.750Z",
+        "thinkingLevel": "high"
+      },
+      {
+        "type": "message",
+        "id": "pi-assistant-1",
+        "parentId": "pi-thinking-level-1",
+        "timestamp": "2026-07-26T09:00:01.000Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            { "type": "thinking", "thinking": "private pi reasoning" },
+            { "type": "text", "text": "I will inspect it." },
+            {
+              "type": "toolCall",
+              "id": "tool-1",
+              "name": "bash",
+              "arguments": { "command": "printf fixture" }
+            }
+          ],
+          "provider": "fixture-provider",
+          "model": "fixture-model",
+          "usage": {
+            "input": 160,
+            "output": 42,
+            "cacheRead": 12,
+            "cacheWrite": 3,
+            "totalTokens": 217,
+            "cost": {
+              "input": 0.01,
+              "output": 0.02,
+              "cacheRead": 0.001,
+              "cacheWrite": 0.002,
+              "total": 0.033
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1785056401000
+        }
+      },
+      {
+        "type": "message",
+        "id": "pi-tool-result-1",
+        "parentId": "pi-assistant-1",
+        "timestamp": "2026-07-26T09:00:02.000Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "tool-1",
+          "toolName": "bash",
+          "content": [{ "type": "text", "text": "fixture output sk-live-pi-141414" }],
+          "isError": false,
+          "timestamp": 1785056402000
+        }
+      },
+      {
+        "type": "message",
+        "id": "pi-assistant-2",
+        "parentId": "pi-tool-result-1",
+        "timestamp": "2026-07-26T09:00:03.000Z",
+        "message": {
+          "role": "assistant",
+          "content": [{ "type": "text", "text": "The fixture is healthy." }],
+          "provider": "fixture-provider",
+          "model": "fixture-model",
+          "usage": {
+            "input": 25,
+            "output": 8,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 33,
+            "cost": {
+              "input": 0.001,
+              "output": 0.002,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.003
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1785056403000
+        }
+      },
+      {
+        "type": "fixture_unknown",
+        "id": "pi-unknown-1",
+        "parentId": "pi-assistant-2",
+        "timestamp": "2026-07-26T09:00:04.000Z",
+        "raw": "raw unknown pi payload"
+      }
+    ]
+  }
+}

@@ -14,6 +14,8 @@ repo="$tmp/repo"; mkdir "$repo"; git -C "$repo" init -q
 "$ROOT/scripts/bootstrap.sh" "$repo" >/dev/null
 launcher="$repo/.ai/start-claude.sh"
 [[ -x "$launcher" ]] || fail "launcher not scaffolded"
+pi_launcher="$repo/.ai/start-pi.sh"
+[[ -x "$pi_launcher" ]] || fail "Pi launcher not scaffolded"
 
 # Fake `claude` on PATH: records its args + a marker env var, exits FAKE_EXIT.
 mkdir "$tmp/bin"
@@ -62,5 +64,29 @@ FAKE_EXIT=7 "$launcher" >/dev/null 2>&1 && fail "launcher should propagate harne
 status=$?
 [[ "$status" -eq 7 ]] || fail "expected exit 7 from launcher, got $status"
 grep -qx "post:7" "$tmp/post.log" || fail "post-exit hook did not see CAIRN_EXIT_STATUS"
+
+# 5. Pi launcher preserves the same env/pre/post seams and passes arguments
+# unchanged; Pi has no generic settings-file flag so CAIRN_EXTRA_SETTINGS is ignored.
+rm -f "$repo/.ai/pre-launch.sh" "$repo/.ai/post-exit.sh"
+cat > "$tmp/bin/pi" <<'FAKE'
+#!/usr/bin/env bash
+{ echo "args:$*"; echo "prelaunch:${PRELAUNCH_RAN:-0}"; echo "extra:${CAIRN_EXTRA_SETTINGS:-}"; } > "$PI_LOG"
+exit "${FAKE_EXIT:-0}"
+FAKE
+chmod +x "$tmp/bin/pi"
+export PI_LOG="$tmp/pi.log"
+cat > "$repo/.ai/pre-launch.sh" <<EOF
+export PRELAUNCH_RAN=1
+export CAIRN_EXTRA_SETTINGS="$tmp/pi-settings.json"
+EOF
+cat > "$repo/.ai/post-exit.sh" <<EOF
+echo "pi-post:\${CAIRN_EXIT_STATUS}" > "$tmp/pi-post.log"
+EOF
+FAKE_EXIT=9 "$pi_launcher" --model fixture/model >/dev/null 2>&1 && fail "Pi launcher should propagate harness exit code"
+status=$?
+[[ "$status" -eq 9 ]] || fail "expected exit 9 from Pi launcher, got $status"
+grep -qx "args:--model fixture/model" "$PI_LOG" || fail "Pi launcher changed arguments"
+grep -qx "prelaunch:1" "$PI_LOG" || fail "Pi launcher did not source pre-launch"
+grep -qx "pi-post:9" "$tmp/pi-post.log" || fail "Pi launcher post-exit status missing"
 
 echo "PASS: launcher hook seams (pre-launch source/abort, settings layering, post-exit)"
