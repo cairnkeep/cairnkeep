@@ -92,7 +92,7 @@ or oversized candidates become metadata-only; optional inline text is bounded.
 
 For separately enabled HTTP artifact access, the server requires a validated
 `X-Cairn-Project` and derives the database under the server-side configured
-base directory as `${CAIRN_AGENTFS_BASE_DIR}/<project-id>/artifacts.db`.
+base directory as `${CAIRN_AGENTFS_BASE_DIR}/<project-id>/.agentfs/artifacts.db`.
 Clients cannot supply a filesystem path, and different project identities use
 separate derived roots. The bearer token still defines the trust domain.
 Neither `CAIRN_ARTIFACT_HTTP` nor remote memory registration redirects local

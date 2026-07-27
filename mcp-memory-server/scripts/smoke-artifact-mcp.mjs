@@ -866,7 +866,7 @@ async function main() {
 
     await disabledContract();
     await stdioContract();
-    await httpContract();
+    await remotePathContract();
     console.log("PASS: artifact MCP disabled, stdio, CLI and HTTP contract");
 }
 

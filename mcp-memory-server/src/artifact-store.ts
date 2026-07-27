@@ -82,15 +82,19 @@ export function resolveArtifactDbPath(projectRoot = process.cwd()): string {
     return getArtifactDbPath(projectRoot);
 }
 
-export function resolveRemoteArtifactDbPath(baseDirectory: string, projectId: string): string {
+export function resolveRemoteArtifactProjectRoot(baseDirectory: string, projectId: string): string {
     if (!/^[a-z0-9][a-z0-9._-]{0,127}$/i.test(projectId)) {
         throw new Error("Remote artifact project identity is invalid.");
     }
     const base = resolve(baseDirectory);
-    const candidate = resolve(base, projectId, "artifacts.db");
+    const candidate = resolve(base, projectId);
     const rel = relative(base, candidate);
     if (rel.startsWith("..") || isAbsolute(rel)) throw new Error("Remote artifact path escapes its configured base directory.");
     return candidate;
+}
+
+export function resolveRemoteArtifactDbPath(baseDirectory: string, projectId: string): string {
+    return getArtifactDbPath(resolveRemoteArtifactProjectRoot(baseDirectory, projectId));
 }
 
 async function openArtifactStore(projectRoot: string, create: boolean): Promise<AgentFS | null> {

@@ -1122,8 +1122,8 @@ function createMemoryServer(context: ServerContext = {}): McpServer {
         if (!context.projectId) {
             throw new ClientContextError("Remote artifact access requires X-Cairn-Project.");
         }
-        const { resolveRemoteArtifactDbPath } = await import("./artifact-store.js");
-        return dirname(resolveRemoteArtifactDbPath(getBaseDir(), context.projectId));
+        const { resolveRemoteArtifactProjectRoot } = await import("./artifact-store.js");
+        return resolveRemoteArtifactProjectRoot(getBaseDir(), context.projectId);
     };
     const noteTargetOptions = (scope: string, address_space: NoteAddressSpace) => {
         if (scope !== "project") throw new Error("INVALID_SCOPE: note address spaces require scope project.");

@@ -188,8 +188,12 @@ check_artifact_remote_path_contract() {
     echo "FATAL: canonical remote artifact database path is missing from docs/storage.md" >&2
     failed=1
   }
-  grep -qF 'resolveRemoteArtifactProjectRoot' mcp-memory-server/src/artifact-store.ts mcp-memory-server/src/index.ts || {
-    echo "FATAL: explicit remote artifact project-root helper/wiring is missing" >&2
+  grep -qF 'resolveRemoteArtifactProjectRoot' mcp-memory-server/src/artifact-store.ts || {
+    echo "FATAL: explicit remote artifact project-root helper is missing" >&2
+    failed=1
+  }
+  grep -qF 'resolveRemoteArtifactProjectRoot' mcp-memory-server/src/index.ts || {
+    echo "FATAL: explicit remote artifact project-root wiring is missing" >&2
     failed=1
   }
   grep -qF 'getArtifactDbPath(resolveRemoteArtifactProjectRoot(baseDirectory, projectId))' mcp-memory-server/src/artifact-store.ts || {
@@ -245,6 +249,7 @@ main() {
   check_commands || failed=1
   check_typed_contract || failed=1
   check_artifact_contract || failed=1
+  check_artifact_remote_path_contract || failed=1
 
   if [[ "$failed" -ne 0 ]]; then
     echo "FATAL: docs-parity check found drift (see above) -- SC-02 not yet satisfied" >&2
