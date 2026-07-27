@@ -325,10 +325,39 @@ run_matrix() {
   [[ -f "$fixture" ]] || fail "missing ablation snapshot fixture"
   new_project "$project"
   node - "$fixture" <<'NODE'
+const { createHash } = require("crypto");
 const fs = require("fs");
 const value = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const ids = ["memory.write", "memory.search", "notes.distill", "wiki", "graph", "security.audit", "route.check", "context.explore"];
-if (!value.all_enabled || JSON.stringify(Object.keys(value.one_disabled)) !== JSON.stringify(ids)) process.exit(1);
+const tools = { "memory.write": "memory_write", "memory.search": "memory_search", "route.check": "route_check", "context.explore": "context_explore" };
+const digest = (snapshot) => createHash("sha256").update(JSON.stringify({
+  schema_version: 1,
+  contract_enabled: true,
+  capabilities: snapshot.capabilities.map(({ id, enabled }) => ({ id, enabled })),
+  logging: { callbacks: snapshot.logging.enabled },
+})).digest("hex");
+if (value.schema_version !== 1 || !value.all_enabled || JSON.stringify(Object.keys(value.one_disabled)) !== JSON.stringify(ids)) process.exit(1);
+if (value.all_enabled.configuration_digest !== digest(value.all_enabled)) process.exit(1);
+if (JSON.stringify(value.all_enabled.capabilities.map((row) => row.id)) !== JSON.stringify(ids)) process.exit(1);
+if (Object.values(value.all_enabled.owner_callbacks).some((ran) => ran !== true)) process.exit(1);
+if (JSON.stringify(value.all_enabled.registered_mcp_tools) !== JSON.stringify(Object.values(tools))) process.exit(1);
+for (const id of ids) {
+  const snapshot = value.one_disabled[id];
+  if (snapshot.configuration_digest !== digest(snapshot) || snapshot.configuration_digest === value.all_enabled.configuration_digest) process.exit(1);
+  if (snapshot.logging.enabled !== value.all_enabled.logging.enabled || snapshot.logging.source !== value.all_enabled.logging.source) process.exit(1);
+  if (snapshot.capabilities.filter((row) => !row.enabled).map((row) => row.id).join() !== id) process.exit(1);
+  if (Object.entries(snapshot.owner_callbacks).filter(([, ran]) => !ran).map(([owner]) => owner).join() !== id) process.exit(1);
+  for (const row of snapshot.capabilities) {
+    const baseline = value.all_enabled.capabilities.find((candidate) => candidate.id === row.id);
+    if (!baseline || row.source !== baseline.source || row.restart_required !== baseline.restart_required || row.kind !== baseline.kind) process.exit(1);
+    if (row.id !== id && row.enabled !== baseline.enabled) process.exit(1);
+  }
+  const expectedTools = Object.entries(tools).filter(([capability]) => capability !== id).map(([, tool]) => tool);
+  if (JSON.stringify(snapshot.registered_mcp_tools) !== JSON.stringify(expectedTools)) process.exit(1);
+  if (tools[id]) {
+    if (snapshot.omission_evidence?.tool !== tools[id] || snapshot.omission_evidence?.configuration_digest !== snapshot.configuration_digest) process.exit(1);
+  } else if (snapshot.omission_evidence !== null) process.exit(1);
+}
 NODE
   CAIRN_CAPABILITY_CONTRACT=1 node "$ROOT/mcp-memory-server/scripts/smoke-capability-contract.mjs" --baseline >/dev/null
   run_capability "$project" reset --all >/dev/null

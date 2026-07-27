@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "all_enabled": {
+    "logging": { "enabled": false, "source": "compatibility" },
+    "configuration_digest": "1fee27aef1ae8ddcd9d743191701a8b6c2ba9d45977578df37e69430fb57d423",
+    "capabilities": [
+      { "id": "memory.write", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+      { "id": "memory.search", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+      { "id": "notes.distill", "kind": "offline-job", "enabled": true, "source": "project", "restart_required": false },
+      { "id": "wiki", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+      { "id": "graph", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+      { "id": "security.audit", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+      { "id": "route.check", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+      { "id": "context.explore", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true }
+    ],
+    "owner_callbacks": { "memory.write": true, "memory.search": true, "notes.distill": true, "wiki": true, "graph": true, "security.audit": true, "route.check": true, "context.explore": true },
+    "registered_mcp_tools": ["memory_write", "memory_search", "route_check", "context_explore"],
+    "omission_evidence": null
+  },
+  "one_disabled": {
+    "memory.write": {
+      "logging": { "enabled": false, "source": "compatibility" },
+      "configuration_digest": "e15e5da97c9356adb2774b4b93d305fe713b05e6590526cd7887946c8a7de4d2",
+      "capabilities": [
+        { "id": "memory.write", "kind": "mcp-tool", "enabled": false, "source": "project", "restart_required": true },
+        { "id": "memory.search", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "notes.distill", "kind": "offline-job", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "wiki", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "graph", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "security.audit", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "route.check", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "context.explore", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true }
+      ],
+      "owner_callbacks": { "memory.write": false, "memory.search": true, "notes.distill": true, "wiki": true, "graph": true, "security.audit": true, "route.check": true, "context.explore": true },
+      "registered_mcp_tools": ["memory_search", "route_check", "context_explore"],
+      "omission_evidence": { "tool": "memory_write", "configuration_digest": "e15e5da97c9356adb2774b4b93d305fe713b05e6590526cd7887946c8a7de4d2" }
+    },
+    "memory.search": {
+      "logging": { "enabled": false, "source": "compatibility" },
+      "configuration_digest": "2f1f18befee649c0d7f94569cbfa0c4fa99a9babc27975000fabbeaf6323bd69",
+      "capabilities": [
+        { "id": "memory.write", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "memory.search", "kind": "mcp-tool", "enabled": false, "source": "project", "restart_required": true },
+        { "id": "notes.distill", "kind": "offline-job", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "wiki", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "graph", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "security.audit", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "route.check", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "context.explore", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true }
+      ],
+      "owner_callbacks": { "memory.write": true, "memory.search": false, "notes.distill": true, "wiki": true, "graph": true, "security.audit": true, "route.check": true, "context.explore": true },
+      "registered_mcp_tools": ["memory_write", "route_check", "context_explore"],
+      "omission_evidence": { "tool": "memory_search", "configuration_digest": "2f1f18befee649c0d7f94569cbfa0c4fa99a9babc27975000fabbeaf6323bd69" }
+    },
+    "notes.distill": {
+      "logging": { "enabled": false, "source": "compatibility" },
+      "configuration_digest": "39c2d45f1652a661da0fc3b105b8b1148c536a9c10940c2e50c9af809dd978f2",
+      "capabilities": [
+        { "id": "memory.write", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "memory.search", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "notes.distill", "kind": "offline-job", "enabled": false, "source": "project", "restart_required": false },
+        { "id": "wiki", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "graph", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "security.audit", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "route.check", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "context.explore", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true }
+      ],
+      "owner_callbacks": { "memory.write": true, "memory.search": true, "notes.distill": false, "wiki": true, "graph": true, "security.audit": true, "route.check": true, "context.explore": true },
+      "registered_mcp_tools": ["memory_write", "memory_search", "route_check", "context_explore"],
+      "omission_evidence": null
+    },
+    "wiki": {
+      "logging": { "enabled": false, "source": "compatibility" },
+      "configuration_digest": "b46758e5e5d4df1378d650708dee49f3ae64948ba5812daae53b5ed72b384bc8",
+      "capabilities": [
+        { "id": "memory.write", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "memory.search", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "notes.distill", "kind": "offline-job", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "wiki", "kind": "operating-workflow", "enabled": false, "source": "project", "restart_required": false },
+        { "id": "graph", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "security.audit", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "route.check", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "context.explore", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true }
+      ],
+      "owner_callbacks": { "memory.write": true, "memory.search": true, "notes.distill": true, "wiki": false, "graph": true, "security.audit": true, "route.check": true, "context.explore": true },
+      "registered_mcp_tools": ["memory_write", "memory_search", "route_check", "context_explore"],
+      "omission_evidence": null
+    },
+    "graph": {
+      "logging": { "enabled": false, "source": "compatibility" },
+      "configuration_digest": "6154f0da4c940c58167bcf8180dae8c306efacf7d574a7333ed042fb78dae687",
+      "capabilities": [
+        { "id": "memory.write", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "memory.search", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "notes.distill", "kind": "offline-job", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "wiki", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "graph", "kind": "operating-workflow", "enabled": false, "source": "project", "restart_required": false },
+        { "id": "security.audit", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "route.check", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "context.explore", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true }
+      ],
+      "owner_callbacks": { "memory.write": true, "memory.search": true, "notes.distill": true, "wiki": true, "graph": false, "security.audit": true, "route.check": true, "context.explore": true },
+      "registered_mcp_tools": ["memory_write", "memory_search", "route_check", "context_explore"],
+      "omission_evidence": null
+    },
+    "security.audit": {
+      "logging": { "enabled": false, "source": "compatibility" },
+      "configuration_digest": "bb13ab78a1d73c533e98243e082e0ff9a48db0202fa989f9d6665cbfcb86260a",
+      "capabilities": [
+        { "id": "memory.write", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "memory.search", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "notes.distill", "kind": "offline-job", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "wiki", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "graph", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "security.audit", "kind": "operating-workflow", "enabled": false, "source": "project", "restart_required": false },
+        { "id": "route.check", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "context.explore", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true }
+      ],
+      "owner_callbacks": { "memory.write": true, "memory.search": true, "notes.distill": true, "wiki": true, "graph": true, "security.audit": false, "route.check": true, "context.explore": true },
+      "registered_mcp_tools": ["memory_write", "memory_search", "route_check", "context_explore"],
+      "omission_evidence": null
+    },
+    "route.check": {
+      "logging": { "enabled": false, "source": "compatibility" },
+      "configuration_digest": "18b27ac1216c9c8cc3fb079fcea38264571eb71134e798a6ecaf3a4bfe797043",
+      "capabilities": [
+        { "id": "memory.write", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "memory.search", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "notes.distill", "kind": "offline-job", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "wiki", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "graph", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "security.audit", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "route.check", "kind": "mcp-tool", "enabled": false, "source": "project", "restart_required": true },
+        { "id": "context.explore", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true }
+      ],
+      "owner_callbacks": { "memory.write": true, "memory.search": true, "notes.distill": true, "wiki": true, "graph": true, "security.audit": true, "route.check": false, "context.explore": true },
+      "registered_mcp_tools": ["memory_write", "memory_search", "context_explore"],
+      "omission_evidence": { "tool": "route_check", "configuration_digest": "18b27ac1216c9c8cc3fb079fcea38264571eb71134e798a6ecaf3a4bfe797043" }
+    },
+    "context.explore": {
+      "logging": { "enabled": false, "source": "compatibility" },
+      "configuration_digest": "3f5eb9ef84a05c4bc6b6650b9d52bd5bc6d5a446c314eb91a7be33ad6db5ee65",
+      "capabilities": [
+        { "id": "memory.write", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "memory.search", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "notes.distill", "kind": "offline-job", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "wiki", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "graph", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "security.audit", "kind": "operating-workflow", "enabled": true, "source": "project", "restart_required": false },
+        { "id": "route.check", "kind": "mcp-tool", "enabled": true, "source": "project", "restart_required": true },
+        { "id": "context.explore", "kind": "mcp-tool", "enabled": false, "source": "project", "restart_required": true }
+      ],
+      "owner_callbacks": { "memory.write": true, "memory.search": true, "notes.distill": true, "wiki": true, "graph": true, "security.audit": true, "route.check": true, "context.explore": false },
+      "registered_mcp_tools": ["memory_write", "memory_search", "route_check"],
+      "omission_evidence": { "tool": "context_explore", "configuration_digest": "3f5eb9ef84a05c4bc6b6650b9d52bd5bc6d5a446c314eb91a7be33ad6db5ee65" }
+    }
+  }
+}
