@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: sync-opencode-graphify-assets.sh [--check|--apply] [--live-root PATH]
+Usage: sync-opencode-graphify-assets.sh [--check|--apply] [--capability-overlay] [--live-root PATH]
 
 Compare or sync the repo-managed Graphify OpenCode command asset against the
 live OpenCode config tree.
@@ -11,12 +11,16 @@ live OpenCode config tree.
 Options:
   --check            Verify that the managed live asset matches the repo copy (default)
   --apply            Copy the repo-managed asset into the live OpenCode tree, then verify
+  --capability-overlay
+                     Select the guarded command overlay for a contract-enabled isolated root
   --live-root PATH   Override the live OpenCode root (default: $OPENCODE_CONFIG_DIR or $HOME/.config/opencode)
   -h, --help         Show this help text
 
 Notes:
   - The repo-managed source of truth lives under ./opencode/
   - This script manages only the /graphify command asset
+  - --capability-overlay substitutes only the matching file from
+    opencode/capability-contract/; normal mode never reads or installs that tree
 EOF
 }
 
@@ -24,6 +28,7 @@ ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SOURCE_ROOT="$ROOT_DIR/opencode"
 LIVE_ROOT="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 MODE="check"
+CAPABILITY_OVERLAY=0
 
 ASSETS=(
   "command/graphify.md"
@@ -37,6 +42,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --apply)
       MODE="apply"
+      shift
+      ;;
+    --capability-overlay)
+      CAPABILITY_OVERLAY=1
       shift
       ;;
     --live-root)
@@ -54,6 +63,15 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+source_for() {
+  local rel="$1"
+  local source="$SOURCE_ROOT/$rel"
+  if [[ "$CAPABILITY_OVERLAY" -eq 1 && -f "$SOURCE_ROOT/capability-contract/$rel" ]]; then
+    source="$SOURCE_ROOT/capability-contract/$rel"
+  fi
+  printf '%s\n' "$source"
+}
 
 ensure_source_assets_exist() {
   local rel
@@ -79,7 +97,7 @@ check_asset_sync() {
   local -a mismatched=()
 
   for rel in "${ASSETS[@]}"; do
-    src="$SOURCE_ROOT/$rel"
+    src=$(source_for "$rel")
     dst="$LIVE_ROOT/$rel"
 
     if [[ ! -f "$dst" ]]; then
@@ -125,7 +143,7 @@ run_apply() {
   ensure_source_assets_exist
 
   for rel in "${ASSETS[@]}"; do
-    src="$SOURCE_ROOT/$rel"
+    src=$(source_for "$rel")
     dst="$LIVE_ROOT/$rel"
 
     mkdir -p "$(dirname "$dst")"
