@@ -124,19 +124,45 @@ while IFS= read -r wiki_dir; do
 done < <(find "$PARA_ROOT" -maxdepth 4 -type d -name wiki -path '*/.planning/wiki' 2>/dev/null)
 
 # Keep note taking outside every harness callback. The audit timer starts the
-# same public one-shot command an operator would run, and only under the explicit
-# master flag. A note failure is reported but never hides or changes wiki audit
-# findings and their exit status.
-case "${CAIRN_NOTE_DISTILLATION:-}" in
+# same public one-shot command an operator would run. Master-off retains the
+# compatibility flag; master-on consumes the central effective status. A note
+# failure is reported but never hides or changes wiki findings or their exit.
+note_distillation_eligible=0
+case "${CAIRN_CAPABILITY_CONTRACT:-}" in
   1|true|TRUE|yes|YES|on|ON)
-    note_distillation_enabled=1
-    if "$CAIRN_ROOT/bin/cairn" notes distill --all-projects --para-root "$PARA_ROOT" --json >/dev/null 2>&1; then
-      note_distillation_status="completed"
-    else
-      note_distillation_status="failed (deterministic wiki findings remain valid)"
+    capability_status="$("$CAIRN_ROOT/bin/cairn" capabilities status --json 2>/dev/null || true)"
+    if printf '%s' "$capability_status" | node -e '
+      let input = "";
+      process.stdin.setEncoding("utf8");
+      process.stdin.on("data", (chunk) => { input += chunk; });
+      process.stdin.on("end", () => {
+        try {
+          const status = JSON.parse(input);
+          const notes = status.capabilities?.find((row) => row.id === "notes.distill");
+          process.exit(notes?.enabled === true ? 0 : 1);
+        } catch {
+          process.exit(1);
+        }
+      });
+    '; then
+      note_distillation_eligible=1
     fi
     ;;
+  *)
+    case "${CAIRN_NOTE_DISTILLATION:-}" in
+      1|true|TRUE|yes|YES|on|ON) note_distillation_eligible=1 ;;
+    esac
+    ;;
 esac
+
+if (( note_distillation_eligible == 1 )); then
+  note_distillation_enabled=1
+  if "$CAIRN_ROOT/bin/cairn" notes distill --all-projects --para-root "$PARA_ROOT" --json >/dev/null 2>&1; then
+    note_distillation_status="completed"
+  else
+    note_distillation_status="failed (deterministic wiki findings remain valid)"
+  fi
+fi
 
 # Build report once, output to stdout (and REPORT_PATH if set).
 report_body="$(
