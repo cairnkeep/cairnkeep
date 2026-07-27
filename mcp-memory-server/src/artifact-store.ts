@@ -120,13 +120,14 @@ async function withMutationLock<T>(projectRoot: string, operation: () => Promise
     const prior = mutationQueues.get(path) ?? Promise.resolve();
     let release!: () => void;
     const current = new Promise<void>((resolvePromise) => { release = resolvePromise; });
-    mutationQueues.set(path, prior.then(() => current));
+    const queued = prior.then(() => current);
+    mutationQueues.set(path, queued);
     await prior;
     try {
         return await operation();
     } finally {
         release();
-        if (mutationQueues.get(path) === current) mutationQueues.delete(path);
+        if (mutationQueues.get(path) === queued) mutationQueues.delete(path);
     }
 }
 
@@ -523,7 +524,7 @@ export async function listArtifacts(projectRoot = process.cwd(), filters: {
         if (filters.node_ref) artifacts = artifacts.filter((artifact) => canonicalJson(artifact.node_ref) === canonicalJson(filters.node_ref));
         const start = filters.cursor ? Number(Buffer.from(filters.cursor, "base64url").toString("utf8")) : 0;
         if (!Number.isSafeInteger(start) || start < 0) throw new Error("Artifact list cursor is invalid.");
-        const limit = filters.limit ?? artifacts.length;
+        const limit = filters.limit ?? 50;
         if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error("Artifact list limit must be between 1 and 100.");
         const page = artifacts.slice(start, start + limit);
         return {

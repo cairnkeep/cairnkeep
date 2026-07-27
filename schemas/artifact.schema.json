@@ -56,10 +56,18 @@
       }
     },
     "compactionContent": {
-      "allOf": [
-        { "$ref": "#/$defs/compactionInputContent" },
-        { "type": "object", "required": ["revision"], "properties": { "revision": { "type": "integer", "minimum": 1 } } }
-      ]
+      "type": "object", "additionalProperties": false,
+      "required": ["raw_summary", "task_goals", "decisions_made", "open_todos", "critical_error_traces", "completeness", "trigger", "revision"],
+      "properties": {
+        "raw_summary": { "type": "string", "maxLength": 67108864 },
+        "task_goals": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 67108864 } },
+        "decisions_made": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 67108864 } },
+        "open_todos": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 67108864 } },
+        "critical_error_traces": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 67108864 } },
+        "completeness": { "$ref": "#/$defs/completeness" },
+        "trigger": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "revision": { "type": "integer", "minimum": 1 }
+      }
     },
     "diffContent": { "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string", "maxLength": 67108864 } } },
     "testOutputContent": {
@@ -74,10 +82,11 @@
       }
     },
     "generatedFileContent": {
-      "allOf": [
-        { "$ref": "#/$defs/generatedFileInputContent" },
-        { "type": "object", "properties": { "metadata_only": { "type": "boolean" } } }
-      ]
+      "type": "object", "additionalProperties": false, "required": ["path_label", "file_digest", "logical_bytes", "binary"],
+      "properties": {
+        "path_label": { "type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^(?!/)(?!.*(?:^|/)(?:\\.|\\.\\.)(?:/|$))(?!.*//)(?!.*\\\\)(?!.*[\\u0000-\\u001f\\u007f]).+(?<!/)$" },
+        "file_digest": { "$ref": "#/$defs/digest" }, "logical_bytes": { "type": "integer", "minimum": 0 }, "binary": { "type": "boolean" }, "snapshot": { "type": "string", "maxLength": 67108864 }, "metadata_only": { "type": "boolean" }
+      }
     },
     "writeInput": {
       "oneOf": [
@@ -97,6 +106,11 @@
     "writeTestOutput": { "allOf": [{ "$ref": "#/$defs/writeBase" }, { "properties": { "kind": { "const": "test_output" }, "content": { "$ref": "#/$defs/testOutputContent" } } }] },
     "writeGeneratedFile": { "allOf": [{ "$ref": "#/$defs/writeBase" }, { "properties": { "kind": { "const": "generated_file" }, "content": { "$ref": "#/$defs/generatedFileInputContent" } } }] },
     "envelope": {
+      "oneOf": [
+        { "$ref": "#/$defs/envelopeCompaction" }, { "$ref": "#/$defs/envelopeDiff" }, { "$ref": "#/$defs/envelopeTestOutput" }, { "$ref": "#/$defs/envelopeGeneratedFile" }
+      ]
+    },
+    "envelopeBase": {
       "type": "object", "additionalProperties": false,
       "required": ["schema_version", "artifact_id", "kind", "created_at", "session_ref", "media_type", "logical_bytes", "stored_bytes", "content_digest", "provenance", "redaction", "truncation", "content"],
       "properties": {
@@ -108,6 +122,10 @@
         "supersedes": { "$ref": "#/$defs/artifactId" }, "content": {}
       }
     },
+    "envelopeCompaction": { "allOf": [{ "$ref": "#/$defs/envelopeBase" }, { "properties": { "kind": { "const": "compaction_summary" }, "content": { "$ref": "#/$defs/compactionContent" } } }] },
+    "envelopeDiff": { "allOf": [{ "$ref": "#/$defs/envelopeBase" }, { "properties": { "kind": { "const": "diff" }, "content": { "$ref": "#/$defs/diffContent" } } }] },
+    "envelopeTestOutput": { "allOf": [{ "$ref": "#/$defs/envelopeBase" }, { "properties": { "kind": { "const": "test_output" }, "content": { "$ref": "#/$defs/testOutputContent" } } }] },
+    "envelopeGeneratedFile": { "allOf": [{ "$ref": "#/$defs/envelopeBase" }, { "properties": { "kind": { "const": "generated_file" }, "content": { "$ref": "#/$defs/generatedFileContent" } } }] },
     "listOutput": { "type": "object", "additionalProperties": false, "required": ["schema_version", "artifacts", "logical_bytes"], "properties": { "schema_version": { "const": 1 }, "artifacts": { "type": "array", "items": { "$ref": "#/$defs/envelope" } }, "logical_bytes": { "type": "integer", "minimum": 0 }, "next_cursor": { "type": "string" } } },
     "doctorOutput": { "type": "object", "additionalProperties": false, "required": ["schema_version", "ok", "repaired", "integrity", "issues"], "properties": { "schema_version": { "const": 1 }, "ok": { "type": "boolean" }, "repaired": { "type": "boolean" }, "integrity": { "enum": ["ok", "failed"] }, "issues": { "type": "array", "items": { "type": "string" } } }
   }
