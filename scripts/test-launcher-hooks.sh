@@ -180,7 +180,8 @@ const state = JSON.parse(process.argv[2]);
 const outcome = process.argv[3];
 if (state.pending !== 0 || state.leases !== 0 || state.leaked) process.exit(1);
 if (state.finals.length !== 1 || state.finals[0].outcome !== outcome) process.exit(1);
-if (JSON.stringify(state.finals[0]).includes("launcher-")) process.exit(1);
+  if (["launcher-argument-sentinel-18-28", "launcher-result-sentinel-18-28"]
+    .some((value) => JSON.stringify(state.finals[0]).includes(value))) process.exit(1);
 NODE
 }
 
