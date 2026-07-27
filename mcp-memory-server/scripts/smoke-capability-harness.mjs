@@ -416,6 +416,20 @@ async function cliChecks() {
         assertSuccess(before, "hidden harness before");
         assert.deepEqual(JSON.parse(before.stdout), { schema_version: 1, decision: "allow" });
 
+        const cwd = run(process.execPath, [capabilityCliPath, "harness-cwd"], {
+            cwd: fixture.decoy,
+            env,
+            input: JSON.stringify({
+                schema_version: 1,
+                harness: "claude-code",
+                session_id: "session-18-17",
+                old_cwd: fixture.original,
+                new_cwd: fixture.decoy,
+            }),
+        });
+        assertSuccess(cwd, "hidden harness CWD observation");
+        assert.deepEqual(JSON.parse(cwd.stdout), { schema_version: 1, observed: true });
+
         const terminal = run(process.execPath, [capabilityCliPath, "harness-terminal"], {
             cwd: fixture.decoy,
             env,

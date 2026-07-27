@@ -27,6 +27,14 @@ import {
     type CapabilityId,
     type CapabilityStatus,
 } from "./capability-schema.js";
+import {
+    beginHarnessCapability,
+    finishHarnessCapability,
+    harnessCapabilityBeforeInputSchema,
+    harnessCapabilityTerminalInputSchema,
+    observeHarnessCwdChanged,
+    recoverHarnessCapabilities,
+} from "./capability-harness.js";
 
 process.stdout.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code === "EPIPE") process.exit(0);
@@ -36,6 +44,7 @@ process.stdout.on("error", (error: NodeJS.ErrnoException) => {
 const sessionSchemaPattern = /^(?:cairn:)?[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const configName = ".ai/capabilities.json" as const;
 const callbackStoreName = ".agentfs/trajectory.db" as const;
+const MAX_HARNESS_INPUT_BYTES = 8 * 1024;
 
 type OutputMode = "human" | "json";
 type DoctorState = "PASS" | "WARN" | "FAIL";
@@ -204,6 +213,69 @@ async function privateFinish(args: string[]): Promise<void> {
     process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
+async function readBoundedHarnessInput(): Promise<unknown> {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const rawChunk of process.stdin) {
+        const chunk = Buffer.isBuffer(rawChunk) ? rawChunk : Buffer.from(rawChunk);
+        total += chunk.byteLength;
+        if (total > MAX_HARNESS_INPUT_BYTES) throw new Error("invalid-harness-input");
+        chunks.push(chunk);
+    }
+    if (total === 0) throw new Error("invalid-harness-input");
+    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+}
+
+async function privateHarnessBefore(args: string[]): Promise<void> {
+    if (args.length !== 0) throw new Error("invalid-private-arguments");
+    let result: { schema_version: 1; decision: "allow" } | { schema_version: 1; decision: "block"; reason: "capability-disabled" } = {
+        schema_version: 1,
+        decision: "allow",
+    };
+    try {
+        const input = harnessCapabilityBeforeInputSchema.parse(await readBoundedHarnessInput());
+        result = await beginHarnessCapability(input);
+    } catch {
+        // Native bridges validate their harness event before this fail-open local seam.
+    }
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+}
+
+async function privateHarnessTerminal(args: string[]): Promise<void> {
+    if (args.length !== 0) throw new Error("invalid-private-arguments");
+    let result: { schema_version: 1; finalized: boolean } = { schema_version: 1, finalized: false };
+    try {
+        const input = harnessCapabilityTerminalInputSchema.parse(await readBoundedHarnessInput());
+        result = await finishHarnessCapability(input);
+    } catch {
+        // Terminal failures cannot change owner results or disclose rejected input.
+    }
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+}
+
+async function privateHarnessCwd(args: string[]): Promise<void> {
+    if (args.length !== 0) throw new Error("invalid-private-arguments");
+    let result: { schema_version: 1; observed: boolean } = { schema_version: 1, observed: false };
+    try {
+        const input = await readBoundedHarnessInput();
+        result = await observeHarnessCwdChanged(input as Parameters<typeof observeHarnessCwdChanged>[0]);
+    } catch {
+        // CWD observations never rebind identity and remain fail-open.
+    }
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+}
+
+async function privateHarnessRecover(args: string[]): Promise<void> {
+    if (args.length !== 0) throw new Error("invalid-private-arguments");
+    let result = { schema_version: 1 as const, recovered: 0, pruned: 0, pending: 0 };
+    try {
+        result = await recoverHarnessCapabilities();
+    } catch {
+        // Recovery is local, value-free, and fail-open.
+    }
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+}
+
 async function configDoctor(): Promise<{
     name: typeof configName;
     state: DoctorState;
@@ -318,6 +390,22 @@ async function main(): Promise<void> {
         }
         if (command === "doctor") {
             await privateDoctor(args);
+            return;
+        }
+        if (command === "harness-before") {
+            await privateHarnessBefore(args);
+            return;
+        }
+        if (command === "harness-terminal") {
+            await privateHarnessTerminal(args);
+            return;
+        }
+        if (command === "harness-cwd") {
+            await privateHarnessCwd(args);
+            return;
+        }
+        if (command === "harness-recover" || command === "harness-prune") {
+            await privateHarnessRecover(args);
             return;
         }
         if (command === "help" || command === "--help" || command === "-h") {
