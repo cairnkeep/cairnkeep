@@ -320,6 +320,7 @@ const agent = await AgentFS.open({ id: "trajectory", path: join(process.argv[3],
 await agent.kv.set("capability-callback/meta/schema-version", 2);
 await agent.close();
 NODE
+cp "$callback_project/.agentfs/trajectory.db" "$tmp/callback-unsupported.before"
 if ( cd "$callback_project" && "$doctor" ) >"$tmp/callback-unsupported.out" 2>&1; then
   fail "doctor accepted an unsupported callback namespace"
 fi
@@ -328,10 +329,13 @@ grep -q "\[FAIL\] capability callback namespace schema is unsupported; preserve 
 if grep -qF 'doctor-fixture' "$tmp/callback-unsupported.out"; then
   fail "unsupported callback diagnostics exposed a stored record"
 fi
+cmp -s "$tmp/callback-unsupported.before" "$callback_project/.agentfs/trajectory.db" ||
+  fail "callback diagnostics mutated an unsupported namespace"
 
 callback_corrupt="$tmp/capability-callback-corrupt"
 mkdir -p "$callback_corrupt/.agentfs"
 printf '%s\n' 'PHASE18_CALLBACK_ROW_SENTINEL' >"$callback_corrupt/.agentfs/trajectory.db"
+cp "$callback_corrupt/.agentfs/trajectory.db" "$tmp/callback-corrupt.before"
 if ( cd "$callback_corrupt" && "$doctor" ) >"$tmp/callback-corrupt.out" 2>&1; then
   fail "doctor accepted SQLite callback-store corruption"
 fi
@@ -340,5 +344,7 @@ grep -q "\[FAIL\] capability callback namespace could not be diagnosed safely; p
 if grep -qF 'PHASE18_CALLBACK_ROW_SENTINEL' "$tmp/callback-corrupt.out"; then
   fail "callback corruption diagnostics exposed stored bytes"
 fi
+cmp -s "$tmp/callback-corrupt.before" "$callback_corrupt/.agentfs/trajectory.db" ||
+  fail "callback diagnostics mutated a corrupt database"
 
 echo "PASS: cairn doctor (existing probes plus value-free capability config/callback diagnostics)"

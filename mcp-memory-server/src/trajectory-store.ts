@@ -332,10 +332,11 @@ export async function doctorTrajectoryStore(
         }
 
         if (!integrityOk) issues.unshift("SQLite integrity check failed");
-        if (storedVersion === undefined && (sessionRows.length > 0 || indexRows.length > 0)) {
-            issues.push("schema metadata is missing");
-        }
-        else if (storedVersion !== TRAJECTORY_SCHEMA_VERSION) {
+        if (storedVersion === undefined) {
+            if (sessionRows.length > 0 || indexRows.length > 0) {
+                issues.push("schema metadata is missing");
+            }
+        } else if (storedVersion !== TRAJECTORY_SCHEMA_VERSION) {
             issues.push(`unsupported schema version ${String(storedVersion)}`);
         }
 

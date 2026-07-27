@@ -236,6 +236,135 @@ try {
   [[ $node_status -eq 0 || "$node_state" == "broken" ]] || true
 fi
 
+# 10. Managed capability configuration and the independent callback namespace.
+# The TypeScript doctor owns all config/database reads. This shell layer accepts
+# only its fixed states, codes, canonical IDs, and setting name; raw values,
+# records, paths, parser errors, and SQLite details never cross the boundary.
+capability_cli="$CAIRN_ROOT/mcp-memory-server/dist/capability-cli.js"
+if [[ ! -f "$capability_cli" ]]; then
+  fail "capability diagnostics unavailable — rebuild mcp-memory-server"
+else
+  capability_json=$(node "$capability_cli" doctor --json 2>/dev/null)
+  capability_status=$?
+  if ! capability_mapped=$(node - "$capability_json" <<'NODE'
+const ids = new Set([
+  "memory.write", "memory.search", "notes.distill", "wiki",
+  "graph", "security.audit", "route.check", "context.explore",
+]);
+const configCodes = new Set([
+  "unknown-capability", "invalid-capability-value", "invalid-logging-value",
+  "invalid-config", "unsafe-permissions",
+]);
+const callbackCodes = new Set([
+  "sqlite-integrity-failed", "schema-missing", "schema-unsupported",
+  "invalid-record", "diagnostic-failed",
+]);
+try {
+  const value = JSON.parse(process.argv[2]);
+  const configuration = value.configuration;
+  const callbacks = value.callbacks;
+  if (value.schema_version !== 1
+      || !configuration || configuration.name !== ".ai/capabilities.json"
+      || !callbacks || callbacks.name !== ".agentfs/trajectory.db"
+      || typeof configuration.exists !== "boolean"
+      || typeof callbacks.exists !== "boolean"
+      || !["PASS", "WARN", "FAIL"].includes(configuration.state)
+      || !["PASS", "FAIL"].includes(callbacks.state)
+      || !Array.isArray(configuration.issues)
+      || !Array.isArray(callbacks.issues)) throw new Error("invalid");
+
+  const configRows = configuration.issues.map((issue) => {
+    if (!issue || typeof issue !== "object" || !configCodes.has(issue.code)) throw new Error("invalid");
+    if (issue.code === "invalid-capability-value") {
+      if (!ids.has(issue.capability_id) || issue.setting !== undefined) throw new Error("invalid");
+      return [issue.code, issue.capability_id];
+    }
+    if (issue.code === "invalid-logging-value") {
+      if (issue.setting !== "logging.callbacks" || issue.capability_id !== undefined) throw new Error("invalid");
+      return [issue.code, issue.setting];
+    }
+    if (issue.capability_id !== undefined || issue.setting !== undefined) throw new Error("invalid");
+    return [issue.code, "-"];
+  });
+  if ((configuration.state === "PASS") !== (configRows.length === 0)) throw new Error("invalid");
+  if (configuration.state === "WARN" && configRows.some(([code]) => code === "invalid-config" || code === "unsafe-permissions")) throw new Error("invalid");
+  if (configuration.state === "FAIL" && !configRows.some(([code]) => code === "invalid-config" || code === "unsafe-permissions")) throw new Error("invalid");
+
+  const callbackRows = callbacks.issues.map((code) => {
+    if (typeof code !== "string" || !callbackCodes.has(code)) throw new Error("invalid");
+    return code;
+  });
+  if ((callbacks.state === "PASS") !== (callbackRows.length === 0)) throw new Error("invalid");
+
+  console.log(["configuration", configuration.state, configuration.exists ? "present" : "absent"].join("\t"));
+  for (const [code, subject] of configRows) console.log(["configuration-issue", code, subject].join("\t"));
+  console.log(["callbacks", callbacks.state, callbacks.exists ? "present" : "absent"].join("\t"));
+  for (const code of callbackRows) console.log(["callback-issue", code, "-"].join("\t"));
+} catch {
+  process.exit(1);
+}
+NODE
+  ); then
+    fail "capability diagnostics returned an invalid value-free response"
+  else
+    while IFS=$'\t' read -r area state detail; do
+      case "$area:$state:$detail" in
+        configuration:PASS:absent)
+          pass "capability configuration (not present — managed overrides are unused)"
+          ;;
+        configuration:PASS:present)
+          pass "capability configuration schema and permissions are valid"
+          ;;
+        configuration:WARN:*|configuration:FAIL:*)
+          ;;
+        configuration-issue:unknown-capability:-)
+          warn "capability configuration contains an unknown override ID"
+          ;;
+        configuration-issue:invalid-capability-value:*)
+          warn "capability configuration has an invalid value for $detail"
+          ;;
+        configuration-issue:invalid-logging-value:logging.callbacks)
+          warn "capability configuration has an invalid value for logging.callbacks"
+          ;;
+        configuration-issue:invalid-config:-)
+          fail "capability configuration is invalid or uses an unsupported schema; preserve .ai/capabilities.json before reset"
+          ;;
+        configuration-issue:unsafe-permissions:-)
+          fail "capability configuration type or permissions are unsafe; preserve .ai/capabilities.json before recovery"
+          ;;
+        callbacks:PASS:absent)
+          pass "capability callback namespace (not present — callback logging is unused)"
+          ;;
+        callbacks:PASS:present)
+          pass "capability callback namespace schema and SQLite integrity are valid"
+          ;;
+        callbacks:FAIL:*)
+          ;;
+        callback-issue:sqlite-integrity-failed:-)
+          fail "capability callback namespace SQLite integrity failed; preserve .agentfs/trajectory.db before recovery"
+          ;;
+        callback-issue:schema-missing:-)
+          fail "capability callback namespace schema marker is missing; preserve .agentfs/trajectory.db before recovery"
+          ;;
+        callback-issue:schema-unsupported:-)
+          fail "capability callback namespace schema is unsupported; preserve .agentfs/trajectory.db before recovery"
+          ;;
+        callback-issue:invalid-record:-)
+          fail "capability callback namespace contains invalid records; preserve .agentfs/trajectory.db before recovery"
+          ;;
+        callback-issue:diagnostic-failed:-)
+          fail "capability callback namespace could not be diagnosed safely; preserve .agentfs/trajectory.db before recovery"
+          ;;
+        *)
+          fail "capability diagnostics returned an invalid value-free response"
+          ;;
+      esac
+    done <<< "$capability_mapped"
+    [[ $capability_status -eq 0 || "$capability_mapped" == *$'\tFAIL\t'* ]] ||
+      fail "capability diagnostics exited unexpectedly"
+  fi
+fi
+
 echo
 if [[ "$fails" -gt 0 ]]; then
   echo "cairn doctor: $fails configured dependency check(s) failed."
