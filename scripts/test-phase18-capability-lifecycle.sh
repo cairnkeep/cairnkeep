@@ -15,7 +15,7 @@ CAPABILITY=""
 
 usage() {
   cat <<'USAGE'
-Usage: test-phase18-capability-lifecycle.sh [baseline|--expect-red-contract|contract|matrix|bootstrap|uninstall|lifecycle [--runtime]|claude-native|owner-retirement|full]
+Usage: test-phase18-capability-lifecycle.sh [baseline|--expect-red-contract|contract|matrix|bootstrap|uninstall|lifecycle [--runtime]|claude-native|native-boundary|owner-retirement|full]
        test-phase18-capability-lifecycle.sh operating --harness claude|opencode-command|opencode-workflow --capability wiki|graph|security.audit
 USAGE
 }
@@ -26,7 +26,7 @@ fail() {
 }
 
 case "$MODE" in
-  baseline|--expect-red-contract|contract|matrix|bootstrap|uninstall|claude-native|owner-retirement|full)
+  baseline|--expect-red-contract|contract|matrix|bootstrap|uninstall|claude-native|native-boundary|owner-retirement|full)
     [[ $# -eq 0 ]] || { usage >&2; exit 2; }
     ;;
   lifecycle)
@@ -459,6 +459,32 @@ run_lifecycle() {
   echo "PASS: Phase 18 complete capability lifecycle"
 }
 
+run_native_boundary() {
+  local evidence="$tmp/native-boundary-evidence.log"
+  run_matrix
+  "$ROOT/scripts/test-phase18-harness-boundary.sh" evidence-scope >"$evidence" || {
+    cat "$evidence" >&2
+    fail "native delegate-call evidence failed"
+  }
+  node - "$evidence" <<'NODE' || fail "native boundary evidence overstated its acceptance scope"
+const fs = require("node:fs");
+const lines = fs.readFileSync(process.argv[2], "utf8").trim().split(/\n/);
+const parse = (prefix) => {
+  const line = lines.find((candidate) => candidate.startsWith(`${prefix}:`));
+  if (!line) process.exit(1);
+  return JSON.parse(line.slice(prefix.length + 1));
+};
+const boundary = parse("DETERMINISTIC_BOUNDARY_EVIDENCE");
+const live = parse("PHASE18_REQUIRED_LIVE_MATRIX");
+if (boundary.schema_version !== 1 || boundary.status !== "pass") process.exit(1);
+if (boundary.scope !== "native-delegate-order" || boundary.owner_execution !== "simulated-after-admission") process.exit(1);
+if (live.schema_version !== 1 || live.required_cells !== 56 || live.passing_cells !== 0) process.exit(1);
+if (live.status !== "blocking" || live.acceptance !== false || live.replacement_plan !== "18-27") process.exit(1);
+NODE
+  cat "$evidence"
+  echo "PASS: deterministic native-boundary coverage; live real-owner acceptance remains blocked"
+}
+
 case "$MODE" in
   baseline)
     run_baseline
@@ -483,6 +509,7 @@ case "$MODE" in
   bootstrap) run_bootstrap ;;
   uninstall) run_uninstall ;;
   claude-native) run_claude_native ;;
+  native-boundary) run_native_boundary ;;
   owner-retirement) run_owner_retirement ;;
   lifecycle) run_lifecycle ;;
   full)
