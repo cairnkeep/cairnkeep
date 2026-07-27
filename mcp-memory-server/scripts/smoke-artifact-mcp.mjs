@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { createServer, request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 const EXPECTED_RED_EXIT = 86;
 const STDIO_RED_MARKER = "PHASE17_RED:ARTIFACT_MCP_MISSING";
+const HTTP_RED_MARKER = "PHASE17_RED:ARTIFACT_HTTP_CONSENT_MISSING";
+const HTTP_TOKEN = "artifact-http-smoke-token";
+const ALLOWED_ORIGIN = "https://artifact-smoke.example";
 const here = dirname(fileURLToPath(import.meta.url));
 const serverRoot = resolve(here, "..");
 const projectRoot = resolve(serverRoot, "..");
@@ -475,10 +480,289 @@ async function stdioContract() {
     }
 }
 
+function filesUnder(root) {
+    if (!existsSync(root)) return [];
+    const files = [];
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+        const path = join(root, entry.name);
+        if (entry.isDirectory()) files.push(...filesUnder(path));
+        else files.push(path);
+    }
+    return files;
+}
+
+async function unusedPort() {
+    const probe = createServer();
+    await new Promise((resolveListen, reject) => {
+        probe.once("error", reject);
+        probe.listen(0, "127.0.0.1", resolveListen);
+    });
+    const address = probe.address();
+    assert.ok(address && typeof address === "object");
+    const port = address.port;
+    await new Promise((resolveClose) => probe.close(resolveClose));
+    return port;
+}
+
+function waitForListen(processHandle) {
+    return new Promise((resolveListen, reject) => {
+        let stderr = "";
+        const timer = setTimeout(() => reject(new Error(`HTTP server did not start in time:\n${stderr}`)), 5000);
+        processHandle.stderr.on("data", (chunk) => {
+            stderr += chunk.toString();
+            if (stderr.includes("listening on")) {
+                clearTimeout(timer);
+                resolveListen();
+            }
+        });
+        processHandle.once("exit", (code) => {
+            clearTimeout(timer);
+            reject(new Error(`HTTP server exited before listening (${code}):\n${stderr}`));
+        });
+    });
+}
+
+function waitForExit(processHandle) {
+    if (processHandle.exitCode !== null) return Promise.resolve(processHandle.exitCode);
+    return new Promise((resolveExit) => processHandle.once("exit", resolveExit));
+}
+
+async function startHttpServer({ baseDir, cwd, artifactStore, artifactHttp, token = HTTP_TOKEN }) {
+    const port = await unusedPort();
+    const extra = {
+        MCP_HTTP_PORT: String(port),
+        MCP_HTTP_HOST: "127.0.0.1",
+        CAIRN_MEMORY_HTTP_ALLOWED_ORIGINS: ALLOWED_ORIGIN,
+        CAIRN_MEMORY_HTTP_TOKEN: token,
+    };
+    if (artifactStore) extra.CAIRN_ARTIFACT_STORE = "1";
+    if (artifactHttp) extra.CAIRN_ARTIFACT_HTTP = "1";
+    const processHandle = spawn(process.execPath, [serverEntry], {
+        cwd,
+        env: cleanEnvironment(baseDir, extra),
+        stdio: ["ignore", "ignore", "pipe"],
+    });
+    await waitForListen(processHandle);
+    return { processHandle, port };
+}
+
+async function stopHttpServer(processHandle) {
+    if (processHandle.exitCode === null) processHandle.kill("SIGINT");
+    await waitForExit(processHandle);
+}
+
+const INITIALIZE_BODY = JSON.stringify({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "smoke-artifact-http-raw", version: "0" },
+    },
+});
+
+function rawHttp(port, { token, host, origin, method = "POST", project, body = INITIALIZE_BODY } = {}) {
+    return new Promise((resolveRequest, reject) => {
+        const headers = {
+            Accept: "application/json, text/event-stream",
+            "Content-Type": "application/json",
+        };
+        if (body !== null) headers["Content-Length"] = Buffer.byteLength(body);
+        if (token !== undefined) headers.Authorization = `Bearer ${token}`;
+        if (host !== undefined) headers.Host = host;
+        if (origin !== undefined) headers.Origin = origin;
+        if (project !== undefined) headers["X-Cairn-Project"] = project;
+        if (method === "OPTIONS") {
+            headers["Access-Control-Request-Method"] = "POST";
+            headers["Access-Control-Request-Headers"] = "Content-Type, Authorization, X-Cairn-Project";
+        }
+        const request = httpRequest({ host: "127.0.0.1", port, path: "/mcp", method, headers }, (response) => {
+            const chunks = [];
+            response.on("data", (chunk) => chunks.push(chunk));
+            response.on("end", () => resolveRequest({
+                status: response.statusCode,
+                headers: response.headers,
+                body: Buffer.concat(chunks).toString("utf8"),
+            }));
+        });
+        request.on("error", reject);
+        if (body !== null && method !== "OPTIONS") request.write(body);
+        request.end();
+    });
+}
+
+async function connectHttp(port, project, suffix = "client") {
+    const headers = {
+        Authorization: `Bearer ${HTTP_TOKEN}`,
+        "X-Cairn-Project": project,
+        "X-Cairn-Scopes": "identity,project",
+        "X-Cairn-AnythingLLM-Workspaces": `${project}-docs`,
+    };
+    const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), {
+        requestInit: { headers },
+    });
+    const client = new Client({ name: `smoke-artifact-http-${suffix}`, version: "0" }, { capabilities: {} });
+    await client.connect(transport);
+    return client;
+}
+
+async function assertHttpGuards() {
+    const baseDir = mkdtempSync(join(tmpdir(), "cairn-artifact-http-no-token-base-"));
+    const cwd = mkdtempSync(join(tmpdir(), "cairn-artifact-http-no-token-cwd-"));
+    const port = await unusedPort();
+    try {
+        const processHandle = spawn(process.execPath, [serverEntry], {
+            cwd,
+            env: cleanEnvironment(baseDir, {
+                MCP_HTTP_PORT: String(port),
+                MCP_HTTP_HOST: "127.0.0.1",
+                CAIRN_MEMORY_HTTP_TOKEN: undefined,
+            }),
+            stdio: ["ignore", "ignore", "pipe"],
+        });
+        assert.notEqual(await waitForExit(processHandle), 0, "HTTP server must fail closed without a bearer token");
+    } finally {
+        rmSync(baseDir, { recursive: true, force: true });
+        rmSync(cwd, { recursive: true, force: true });
+    }
+}
+
+async function assertHttpRequestGuards(port) {
+    const expectedHost = `127.0.0.1:${port}`;
+    assert.equal((await rawHttp(port, { host: expectedHost })).status, 401, "missing bearer token must return 401");
+    assert.equal((await rawHttp(port, { token: "x".repeat(HTTP_TOKEN.length), host: expectedHost })).status, 401, "same-length bad bearer must return 401");
+    assert.equal((await rawHttp(port, { token: "short", host: expectedHost })).status, 401, "different-length bad bearer must return 401");
+    assert.equal((await rawHttp(port, { token: HTTP_TOKEN, host: "unexpected.example" })).status, 403, "unexpected Host must return 403");
+
+    const allowedPreflight = await rawHttp(port, { method: "OPTIONS", origin: ALLOWED_ORIGIN, body: null });
+    assert.equal(allowedPreflight.status, 204, "allowed CORS preflight must return 204");
+    assert.equal(allowedPreflight.headers["access-control-allow-origin"], ALLOWED_ORIGIN);
+    assert.match(allowedPreflight.headers["access-control-allow-headers"] ?? "", /X-Cairn-Project/i);
+    const deniedPreflight = await rawHttp(port, { method: "OPTIONS", origin: "https://denied.example", body: null });
+    assert.equal(deniedPreflight.status, 403, "unlisted CORS origin must return 403");
+}
+
+function assertRemoteToolSet(tools, artifactExpected) {
+    const byName = Object.fromEntries(tools.map((tool) => [tool.name, tool]));
+    for (const [name, expectedSchema] of Object.entries(BASELINE_TOOL_SCHEMAS)) {
+        assert.deepEqual(byName[name]?.inputSchema, expectedSchema, `${name} remote schema drifted`);
+    }
+    const artifactNames = sorted(Object.keys(byName).filter((name) => name.startsWith("artifact_")));
+    if (artifactExpected && artifactNames.length === 0) throw missingHttpCapability("double-consent artifact tools are absent");
+    assert.deepEqual(artifactNames, artifactExpected ? ARTIFACT_TOOLS : [], "remote artifact consent matrix is incorrect");
+    for (const alias of ARTIFACT_ALIASES) assert.equal(Boolean(byName[alias]), false, `${alias} is out of scope over HTTP`);
+    if (artifactExpected) assertArtifactToolSchemas(tools);
+}
+
+function missingHttpCapability(message) {
+    const error = new Error(message);
+    error.code = "ERR_ARTIFACT_HTTP_MISSING";
+    return error;
+}
+
+async function assertExistingRemoteMemory(client, project) {
+    const key = `patterns/${project}`;
+    const write = assertSuccessful(await call(client, "memory_write", { scope: "project", key, value: project }), "remote memory write");
+    assert.deepEqual(keys(write), ["collisions", "key", "ok", "scope"]);
+    const read = assertSuccessful(await call(client, "memory_read", { scope: "project", key }), "remote memory read");
+    assert.deepEqual(keys(read), ["results"]);
+    assert.equal(read.results[0].value, project);
+}
+
+async function matrixCase({ artifactStore, artifactHttp, artifactExpected, label, verifyGuards = false }) {
+    const baseDir = mkdtempSync(join(tmpdir(), `cairn-artifact-http-${label}-base-`));
+    const cwd = mkdtempSync(join(tmpdir(), `cairn-artifact-http-${label}-cwd-`));
+    let server;
+    try {
+        server = await startHttpServer({ baseDir, cwd, artifactStore, artifactHttp });
+        if (verifyGuards) await assertHttpRequestGuards(server.port);
+        const client = await connectHttp(server.port, `matrix-${label}`, label);
+        try {
+            assertRemoteToolSet((await client.listTools()).tools, artifactExpected);
+            await assertExistingRemoteMemory(client, `matrix-${label}`);
+        } finally {
+            await client.close();
+        }
+    } finally {
+        if (server) await stopHttpServer(server.processHandle);
+        rmSync(baseDir, { recursive: true, force: true });
+        rmSync(cwd, { recursive: true, force: true });
+    }
+}
+
+async function doubleConsentContract() {
+    const baseDir = mkdtempSync(join(tmpdir(), "cairn-artifact-http-enabled-base-"));
+    const cwd = mkdtempSync(join(tmpdir(), "cairn-artifact-http-enabled-cwd-"));
+    const clientSelectedRoot = mkdtempSync(join(tmpdir(), "cairn-artifact-http-client-path-"));
+    let server;
+    try {
+        try {
+            server = await startHttpServer({ baseDir, cwd, artifactStore: true, artifactHttp: true });
+            const alpha = await connectHttp(server.port, "project-alpha", "alpha");
+            const beta = await connectHttp(server.port, "project-beta", "beta");
+            try {
+                assertRemoteToolSet((await alpha.listTools()).tools, true);
+                assertRemoteToolSet((await beta.listTools()).tools, true);
+                await assertExistingRemoteMemory(alpha, "project-alpha");
+                await assertExistingRemoteMemory(beta, "project-beta");
+
+                const alphaWrite = assertSuccessful(await call(alpha, "artifact_write", {
+                    ...artifactInputs("alpha-private")[1],
+                    provenance: { producer: "smoke-artifact-http", source_event: clientSelectedRoot },
+                }), "project-alpha artifact write");
+                const betaWrite = assertSuccessful(await call(beta, "artifact_write", artifactInputs("beta-private")[1]), "project-beta artifact write");
+                assert.notEqual(alphaWrite.artifact_id, betaWrite.artifact_id);
+                assert.notEqual(alphaWrite.session_ref, betaWrite.session_ref, "HTTP MCP sessions must not share generated session refs");
+
+                const alphaList = assertSuccessful(await call(alpha, "artifact_list", {}), "project-alpha artifact list");
+                const betaList = assertSuccessful(await call(beta, "artifact_list", {}), "project-beta artifact list");
+                assert.deepEqual(alphaList.artifacts.map(({ artifact_id }) => artifact_id), [alphaWrite.artifact_id]);
+                assert.deepEqual(betaList.artifacts.map(({ artifact_id }) => artifact_id), [betaWrite.artifact_id]);
+                await expectToolError(alpha, "artifact_read", { artifact_id: betaWrite.artifact_id }, /not found/i);
+                await expectToolError(beta, "artifact_read", { artifact_id: alphaWrite.artifact_id }, /not found/i);
+            } finally {
+                await alpha.close();
+                await beta.close();
+            }
+
+            const beforeInvalid = filesUnder(baseDir);
+            const expectedHost = `127.0.0.1:${server.port}`;
+            const missingProject = await rawHttp(server.port, { token: HTTP_TOKEN, host: expectedHost });
+            assert.equal(missingProject.status, 400, "double-consent HTTP must reject a missing project identity before storage resolution");
+            const invalidProject = await rawHttp(server.port, { token: HTTP_TOKEN, host: expectedHost, project: "../escape" });
+            assert.equal(invalidProject.status, 400, "double-consent HTTP must reject an invalid project identity before storage resolution");
+            assert.deepEqual(filesUnder(baseDir), beforeInvalid, "invalid project identity changed server-side storage");
+        } finally {
+            if (server) await stopHttpServer(server.processHandle);
+        }
+
+        const artifactDatabases = filesUnder(baseDir).filter((path) => path.endsWith(`${join(".agentfs", "artifacts.db")}`));
+        assert.equal(artifactDatabases.length, 2, `expected one server-derived artifact store per project, found ${artifactDatabases.map((path) => relative(baseDir, path)).join(", ")}`);
+        assert.equal(artifactDatabases.every((path) => resolve(path).startsWith(`${resolve(baseDir)}/`)), true);
+        assert.equal(artifactDatabases.some((path) => resolve(path).startsWith(`${resolve(cwd)}/`)), false, "remote artifact store resolved under server cwd");
+        assert.equal(artifactDatabases.some((path) => resolve(path).startsWith(`${resolve(clientSelectedRoot)}/`)), false, "remote artifact store used a client-selected path");
+        assert.equal(artifactDatabases.some((path) => path.includes("project-alpha")), true);
+        assert.equal(artifactDatabases.some((path) => path.includes("project-beta")), true);
+    } finally {
+        rmSync(baseDir, { recursive: true, force: true });
+        rmSync(cwd, { recursive: true, force: true });
+        rmSync(clientSelectedRoot, { recursive: true, force: true });
+    }
+}
+
+async function httpContract() {
+    await assertHttpGuards();
+    await matrixCase({ artifactStore: false, artifactHttp: false, artifactExpected: false, label: "neither", verifyGuards: true });
+    await matrixCase({ artifactStore: true, artifactHttp: false, artifactExpected: false, label: "store-only" });
+    await matrixCase({ artifactStore: false, artifactHttp: true, artifactExpected: false, label: "http-only" });
+    await doubleConsentContract();
+}
+
 async function main() {
     const [mode, ...extra] = process.argv.slice(2);
     assert.equal(extra.length, 0, "smoke-artifact-mcp accepts at most one mode");
-    const knownModes = [undefined, "--disabled-only", "--expect-red-stdio", "--stdio-only"];
+    const knownModes = [undefined, "--disabled-only", "--expect-red-stdio", "--expect-red-http", "--stdio-only", "--http-only"];
     assert.equal(knownModes.includes(mode), true, `Unknown smoke-artifact-mcp mode: ${mode}`);
 
     if (mode === "--disabled-only") {
@@ -500,10 +784,29 @@ async function main() {
         }
         throw new Error("Artifact MCP/CLI unexpectedly exists; run the GREEN contract instead.");
     }
+    if (mode === "--expect-red-http") {
+        try {
+            await httpContract();
+        } catch (error) {
+            if (error?.code === "ERR_ARTIFACT_HTTP_MISSING") {
+                console.log(HTTP_RED_MARKER);
+                process.exitCode = EXPECTED_RED_EXIT;
+                return;
+            }
+            throw error;
+        }
+        throw new Error("Artifact HTTP double consent unexpectedly exists; run the GREEN contract instead.");
+    }
+    if (mode === "--http-only") {
+        await httpContract();
+        console.log("PASS: artifact HTTP consent, guard and project-isolation contract");
+        return;
+    }
 
     await disabledContract();
     await stdioContract();
-    console.log("PASS: artifact MCP disabled, stdio and CLI contract");
+    await httpContract();
+    console.log("PASS: artifact MCP disabled, stdio, CLI and HTTP contract");
 }
 
 await main();
