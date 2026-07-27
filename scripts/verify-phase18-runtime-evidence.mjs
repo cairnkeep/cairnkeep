@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -29,6 +30,52 @@ const NODE_IMAGES = new Map([
   ["node-26", "node:26-bookworm"],
 ]);
 const BASH_IMAGE = "docker.io/library/bash:3.2";
+const CANONICAL_CAPABILITIES = [
+  "memory.write",
+  "memory.search",
+  "notes.distill",
+  "wiki",
+  "graph",
+  "security.audit",
+  "route.check",
+  "context.explore",
+];
+const PUBLIC_OPERATIONS = new Map([
+  ["memory.write", "memory_write"],
+  ["memory.search", "memory_search"],
+  ["notes.distill", "cairn note distill"],
+  ["wiki", "wiki-query"],
+  ["graph", "graphify"],
+  ["security.audit", "security-audit"],
+  ["route.check", "route_check"],
+  ["context.explore", "context_explore"],
+]);
+const DUAL_HARNESS_OWNERS = new Set(["wiki", "graph", "security.audit"]);
+const NODE_COMMANDS = [
+  ["node-version", "node --version", "runtime-identity"],
+  ["root-install", "npm ci --offline", "runtime-setup"],
+  ["server-install", "npm --prefix mcp-memory-server ci --offline", "runtime-setup"],
+  ["server-build", "npm --prefix mcp-memory-server run build", "core-lifecycle"],
+  ["server-test", "npm --prefix mcp-memory-server test", "core-lifecycle"],
+  ["capability-lifecycle", "bash scripts/test-phase18-capability-lifecycle.sh full", "core-lifecycle"],
+  ["native-boundary", "bash scripts/test-phase18-capability-lifecycle.sh native-boundary", "native-boundary"],
+  ["claude-native", "bash scripts/test-phase18-harness-boundary.sh claude-hooks", "claude-native"],
+  ["opencode-native", "bash scripts/test-phase18-harness-boundary.sh opencode-plugin", "opencode-native"],
+  ["opencode-overlay", "bash scripts/test-phase18-harness-boundary.sh opencode-sync-modes", "install-lifecycle"],
+  ["launcher-overlay", "bash scripts/test-launcher-hooks.sh opencode-all-sync-modes", "install-lifecycle"],
+  ["package-install", "bash scripts/test-package-install.sh", "install-lifecycle"],
+  ["uninstall", "bash scripts/test-uninstall.sh", "install-lifecycle"],
+  ["docs-parity", "bash scripts/verify-docs-parity.sh", "documentation-parity"],
+];
+const BASH_COMMANDS = [
+  ["bash-version", "bash --version", "runtime-identity"],
+  [
+    "bash-syntax",
+    "bash -n scripts/test-phase18-capability-lifecycle.sh scripts/test-phase18-harness-boundary.sh templates/start-claude.sh.template templates/start-opencode.sh.template",
+    "runtime-portability",
+  ],
+  ["portable-shell", "bash scripts/test-portable-sh.sh", "runtime-portability"],
+];
 
 function usage() {
   return `Usage:
@@ -323,10 +370,26 @@ function captureEvidence(evidenceDirectory, sourceCommit) {
 
 function fixtureLog(commit, runtime, image) {
   const command = `docker run --rm ${image}`;
-  const body = runtime.startsWith("node-")
-    ? `command=node --version\nnode_version=v${runtime.slice(5)}.0.0\ncommand=npm ci --offline\ncommand=npm --prefix mcp-memory-server ci --offline\ncommand=npm --prefix mcp-memory-server run build\ncommand=npm --prefix mcp-memory-server test\nPASS: Phase 18 runtime ${runtime}`
-    : "command=bash --version\nbash_version=GNU bash, version 3.2.57(1)-release\ncommand=bash -n scripts/test-phase18-capability-lifecycle.sh templates/start-claude.sh.template templates/start-opencode.sh.template\ncommand=bash scripts/sync-claude-assets.sh --check --live-root /tmp/live\ncommand=bash scripts/sync-opencode-wiki-assets.sh --check --live-root /tmp/live\ncommand=bash scripts/test-portable-sh.sh\nPASS: Phase 18 runtime bash-3.2";
-  return `${logHeader(commit, runtime, image, command)}\n${body}\n`;
+  const commands = runtime.startsWith("node-") ? NODE_COMMANDS : BASH_COMMANDS;
+  const version = runtime.startsWith("node-")
+    ? `node_version=v${runtime.slice(5)}.0.0`
+    : "bash_version=GNU bash, version 3.2.57(1)-release";
+  const records = commands.flatMap(([id, exact, scope]) => [
+    `EVIDENCE_COMMAND_BEGIN|${id}|${scope}|${exact}`,
+    id === "node-version" || id === "bash-version" ? version : `PASS: ${id}`,
+    `EVIDENCE_COMMAND_END|${id}|${scope}|0|pass`,
+  ]);
+  return [
+    "evidence_schema_version=2",
+    logHeader(commit, runtime, image, command),
+    "generated_at=2026-07-27T00:00:00.000Z",
+    "fixture_claude_version=2.1.220",
+    "fixture_opencode_version=1.17.20",
+    "acceptance=blocked-pending-live-matrix",
+    ...records,
+    `PASS: Phase 18 runtime ${runtime}`,
+    "",
+  ].join("\n");
 }
 
 function writeFixture(directory, commit) {
@@ -334,7 +397,11 @@ function writeFixture(directory, commit) {
   const logs = [];
   for (const [runtime, image] of [...NODE_IMAGES, ["bash-3.2", BASH_IMAGE]]) {
     const file = `${runtime}.log`;
-    writeFileSync(join(directory, file), fixtureLog(commit, runtime, image));
+    const text = fixtureLog(commit, runtime, image);
+    writeFileSync(join(directory, file), text);
+    const commands = (runtime.startsWith("node-") ? NODE_COMMANDS : BASH_COMMANDS).map(
+      ([id, command, evidence_scope]) => ({ id, command, evidence_scope, exit_status: 0, result: "pass" }),
+    );
     logs.push({
       file,
       runtime,
@@ -342,16 +409,62 @@ function writeFixture(directory, commit) {
       container_command: `docker run --rm ${image}`,
       source_commit: commit,
       source_tree_clean: true,
+      generated_at: "2026-07-27T00:00:00.000Z",
+      sha256: createHash("sha256").update(text).digest("hex"),
+      result: "pass",
+      commands,
     });
   }
   writeFileSync(join(directory, "manifest.json"), `${JSON.stringify({
-    schema_version: 1,
+    schema_version: 2,
     source_commit: commit,
     source_tree_clean: true,
     detached_source: true,
     generated_at: "2026-07-27T00:00:00.000Z",
+    evidence_scope: "deterministic-native-lifecycle",
+    acceptance: {
+      status: "blocked-pending-live-matrix",
+      accepted: false,
+      required_cells: 56,
+    },
     logs,
   }, null, 2)}\n`);
+}
+
+function writeLiveMatrixFixture(path) {
+  const cells = [];
+  for (const disabledCapability of CANONICAL_CAPABILITIES) {
+    for (const survivingOwner of CANONICAL_CAPABILITIES) {
+      if (disabledCapability === survivingOwner) continue;
+      const observation = {
+        result: "success",
+        error: null,
+        timeout: false,
+        trace: `trace:${disabledCapability}:${survivingOwner}`,
+        delegate_identity: `owner:${survivingOwner}`,
+      };
+      const cell = {
+        disabled_capability: disabledCapability,
+        surviving_owner: survivingOwner,
+        operation: PUBLIC_OPERATIONS.get(survivingOwner),
+        real_operation: true,
+        supported_seam: "public-installed-owner",
+        availability: "available",
+        baseline: observation,
+        observed: { ...observation },
+        equality: "pass",
+        evidence_ref: `evidence/${disabledCapability}/${survivingOwner}.json`,
+      };
+      if (DUAL_HARNESS_OWNERS.has(survivingOwner)) {
+        cell.installed_harnesses = {
+          claude: { result: "success", evidence_ref: `${cell.evidence_ref}#claude` },
+          opencode: { result: "success", evidence_ref: `${cell.evidence_ref}#opencode` },
+        };
+      }
+      cells.push(cell);
+    }
+  }
+  writeFileSync(path, `${JSON.stringify({ schema_version: 1, status: "pass", cells }, null, 2)}\n`);
 }
 
 function expectFailure(label, operation) {
@@ -412,6 +525,49 @@ function selfTest() {
     manifest.logs[0].file = "unexpected.log";
     writeFileSync(join(manifestMismatch, "manifest.json"), JSON.stringify(manifest));
     expectFailure("manifest names", () => verifyEvidence(manifestMismatch, commit));
+
+    const staleHash = join(root, "stale-hash");
+    writeFixture(staleHash, commit);
+    writeFileSync(join(staleHash, "node-22.log"), `${readFileSync(join(staleHash, "node-22.log"), "utf8")}tampered\n`);
+    expectFailure("stale log hash", () => verifyEvidence(staleHash, commit));
+
+    const unsupportedScope = join(root, "unsupported-scope");
+    writeFixture(unsupportedScope, commit);
+    const unsupportedManifest = JSON.parse(readFileSync(join(unsupportedScope, "manifest.json"), "utf8"));
+    unsupportedManifest.logs[0].commands[0].evidence_scope = "synthetic-owner-acceptance";
+    writeFileSync(join(unsupportedScope, "manifest.json"), JSON.stringify(unsupportedManifest));
+    expectFailure("unsupported evidence scope", () => verifyEvidence(unsupportedScope, commit));
+
+    const omittedCommand = join(root, "omitted-command");
+    writeFixture(omittedCommand, commit);
+    const omittedManifest = JSON.parse(readFileSync(join(omittedCommand, "manifest.json"), "utf8"));
+    omittedManifest.logs[1].commands.pop();
+    writeFileSync(join(omittedCommand, "manifest.json"), JSON.stringify(omittedManifest));
+    expectFailure("omitted required command", () => verifyEvidence(omittedCommand, commit));
+
+    const liveMatrix = join(root, "live-matrix.json");
+    writeLiveMatrixFixture(liveMatrix);
+    validateLiveMatrix(liveMatrix);
+    const duplicateMatrix = JSON.parse(readFileSync(liveMatrix, "utf8"));
+    duplicateMatrix.cells[55] = structuredClone(duplicateMatrix.cells[0]);
+    writeFileSync(liveMatrix, JSON.stringify(duplicateMatrix));
+    expectFailure("duplicate live matrix cell", () => validateLiveMatrix(liveMatrix));
+    writeLiveMatrixFixture(liveMatrix);
+    const unavailableMatrix = JSON.parse(readFileSync(liveMatrix, "utf8"));
+    unavailableMatrix.cells[0].availability = "credentials-unavailable";
+    writeFileSync(liveMatrix, JSON.stringify(unavailableMatrix));
+    expectFailure("unavailable live matrix cell", () => validateLiveMatrix(liveMatrix));
+    writeLiveMatrixFixture(liveMatrix);
+    const spyOnlyMatrix = JSON.parse(readFileSync(liveMatrix, "utf8"));
+    spyOnlyMatrix.cells[0].real_operation = false;
+    writeFileSync(liveMatrix, JSON.stringify(spyOnlyMatrix));
+    expectFailure("spy-only live matrix cell", () => validateLiveMatrix(liveMatrix));
+    writeLiveMatrixFixture(liveMatrix);
+    const missingHarnessMatrix = JSON.parse(readFileSync(liveMatrix, "utf8"));
+    const dualCell = missingHarnessMatrix.cells.find((cell) => cell.surviving_owner === "wiki");
+    delete dualCell.installed_harnesses.opencode;
+    writeFileSync(liveMatrix, JSON.stringify(missingHarnessMatrix));
+    expectFailure("missing installed harness proof", () => validateLiveMatrix(liveMatrix));
 
     const repo = join(root, "repo");
     mkdirSync(repo);
