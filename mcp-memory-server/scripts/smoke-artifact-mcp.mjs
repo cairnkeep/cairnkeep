@@ -439,7 +439,7 @@ function cliContract(root, retained) {
 
     const show = JSON.parse(runCli(root, ["show", retained[0].artifact_id.slice(0, 12), "--json"]).stdout);
     assert.equal(show.artifact_id, retained[0].artifact_id);
-    assert.equal(JSON.stringify(show).includes(retained[0].secret), true, "CLI show did not return explicit content");
+    assert.equal(Object.values(show.content).includes(retained[0].secret), true, "CLI show did not return explicit content");
 
     const dryDelete = JSON.parse(runCli(root, ["delete", retained[1].artifact_id, "--dry-run", "--json"]).stdout);
     assert.equal(dryDelete.dry_run, true);
