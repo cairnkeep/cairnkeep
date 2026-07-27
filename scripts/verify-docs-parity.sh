@@ -21,6 +21,8 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: verify-docs-parity.sh
+       verify-docs-parity.sh --artifact-remote-path-only
+       verify-docs-parity.sh --expect-red-artifact-remote-path
        verify-docs-parity.sh -h|--help
 
 Checks that every CAIRN_*/MCP_HTTP_* env key read by the cairn-memory MCP
@@ -31,6 +33,9 @@ Prints every missing key/command by name, then exits non-zero on any
 drift, or 0 if the docs are fully in sync with the shipped code.
 EOF
 }
+
+EXPECTED_RED_EXIT=86
+ARTIFACT_REMOTE_PATH_RED_MARKER='PHASE17_RED:ARTIFACT_REMOTE_PATH_DOC_DRIFT'
 
 ENV_KEY_PATTERN='(CAIRN_[A-Z_]+|MCP_HTTP_[A-Z_]+)'
 
@@ -175,7 +180,53 @@ EOF
   return "$failed"
 }
 
+check_artifact_remote_path_contract() {
+  local failed=0
+  local canonical_path='${CAIRN_AGENTFS_BASE_DIR}/<project-id>/.agentfs/artifacts.db'
+
+  grep -qF "$canonical_path" docs/storage.md || {
+    echo "FATAL: canonical remote artifact database path is missing from docs/storage.md" >&2
+    failed=1
+  }
+  grep -qF 'resolveRemoteArtifactProjectRoot' mcp-memory-server/src/artifact-store.ts mcp-memory-server/src/index.ts || {
+    echo "FATAL: explicit remote artifact project-root helper/wiring is missing" >&2
+    failed=1
+  }
+  grep -qF 'getArtifactDbPath(resolveRemoteArtifactProjectRoot(baseDirectory, projectId))' mcp-memory-server/src/artifact-store.ts || {
+    echo "FATAL: remote artifact database resolver does not compose the canonical project-root helper" >&2
+    failed=1
+  }
+  grep -qF 'join("project-alpha", ".agentfs", "artifacts.db")' mcp-memory-server/scripts/smoke-artifact-mcp.mjs || {
+    echo "FATAL: HTTP smoke test does not assert the exact project-alpha artifact path" >&2
+    failed=1
+  }
+  grep -qF 'join("project-beta", ".agentfs", "artifacts.db")' mcp-memory-server/scripts/smoke-artifact-mcp.mjs || {
+    echo "FATAL: HTTP smoke test does not assert the exact project-beta artifact path" >&2
+    failed=1
+  }
+
+  [[ "$failed" -eq 0 ]] && echo "[artifact-remote-path] OK: source, HTTP behavior, and storage docs share the canonical path"
+  return "$failed"
+}
+
 main() {
+  local mode="${1:-}"
+  if [[ "$mode" == "--artifact-remote-path-only" ]]; then
+    [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+    check_artifact_remote_path_contract
+    return
+  fi
+  if [[ "$mode" == "--expect-red-artifact-remote-path" ]]; then
+    [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+    main
+    if check_artifact_remote_path_contract; then
+      echo "FATAL: artifact remote path documentation unexpectedly matches source" >&2
+      exit 1
+    fi
+    echo "$ARTIFACT_REMOTE_PATH_RED_MARKER"
+    exit "$EXPECTED_RED_EXIT"
+  fi
+
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -h|--help)

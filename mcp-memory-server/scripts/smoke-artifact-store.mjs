@@ -23,6 +23,7 @@ import { AgentFS } from "agentfs-sdk";
 const EXPECTED_RED_EXIT = 86;
 const CORE_RED_MARKER = "PHASE17_RED:ARTIFACT_STORE_MISSING";
 const LIFECYCLE_RED_MARKER = "PHASE17_RED:ARTIFACT_LIFECYCLE_MISSING";
+const DOCTOR_GAP_RED_MARKER = "PHASE17_RED:ARTIFACT_DOCTOR_STATE_GAP";
 const here = dirname(fileURLToPath(import.meta.url));
 const serverRoot = resolve(here, "..");
 const projectRoot = resolve(serverRoot, "..");
@@ -654,6 +655,289 @@ async function openRawStore(projectRoot) {
     return AgentFS.open({ id: "artifacts", path: join(projectRoot, ".agentfs", "artifacts.db") });
 }
 
+function stableRows(rows) {
+    return [...rows]
+        .sort((left, right) => left.key.localeCompare(right.key))
+        .map(({ key, value }) => ({ key, value }));
+}
+
+async function readRawRows(projectRoot, prefix = "") {
+    const raw = await openRawStore(projectRoot);
+    try {
+        return stableRows(await raw.kv.list(prefix));
+    } finally {
+        await raw.close();
+    }
+}
+
+function doctorStateGap(message) {
+    const error = new Error(message);
+    error.code = "ERR_ARTIFACT_DOCTOR_STATE_GAP";
+    return error;
+}
+
+async function testDoctorGapContract(schemaModule, storeModule) {
+    const {
+        deleteArtifact,
+        doctorArtifactStore,
+        getArtifactDbPath,
+        putArtifact,
+    } = storeModule;
+    const gaps = [];
+    const permissiveLimits = {
+        artifactMaxBytes: 4096,
+        sessionMaxBytes: 65536,
+        storeMaxBytes: 262144,
+        retentionDays: 3650,
+        compactionMaxRevisions: 8,
+        generatedFileSnapshotMaxBytes: 4096,
+    };
+    const issueNames = {
+        dedupeMissing: "Missing or stale artifact dedupe binding.",
+        dedupeOrphan: "Orphan artifact dedupe binding.",
+        sequenceLow: "Missing or regressed compaction sequence.",
+        sequenceUnsafe: "Invalid non-derivable compaction sequence.",
+        age: "Artifact retention age limit exceeded.",
+        revision: "Compaction revision retention limit exceeded.",
+        session: "Artifact session logical byte limit exceeded.",
+        store: "Artifact store logical byte limit exceeded.",
+    };
+    const note = (condition, message) => {
+        if (!condition) gaps.push(message);
+    };
+
+    const derivedRoot = mkdtempSync(join(tmpdir(), "cairn-artifact-doctor-gap-derived-"));
+    try {
+        const sessionRef = "claude-code:doctor-gap";
+        const first = await putArtifact(
+            derivedRoot,
+            compactionWrite(sessionRef, "first"),
+            permissiveLimits,
+            { now: new Date("2026-07-01T00:00:00.000Z") },
+        );
+        const second = await putArtifact(
+            derivedRoot,
+            compactionWrite(sessionRef, "second"),
+            permissiveLimits,
+            { now: new Date("2026-07-01T00:00:01.000Z") },
+        );
+        assert.deepEqual(
+            [first.artifact.content.revision, second.artifact.content.revision],
+            [1, 2],
+            "doctor gap fixture must retain two monotonic compaction revisions",
+        );
+        const healthy = await doctorArtifactStore(derivedRoot, false, permissiveLimits);
+        assert.equal(healthy.ok, true, `doctor gap fixture is not initially healthy: ${JSON.stringify(healthy)}`);
+        const authoritativeBefore = await readRawRows(derivedRoot, "artifact/full/");
+        const expectedDedupe = await readRawRows(derivedRoot, "artifact/index/dedupe/");
+        assert.equal(expectedDedupe.length, 2, "doctor gap fixture must start with two canonical dedupe bindings");
+
+        const raw = await openRawStore(derivedRoot);
+        try {
+            await raw.kv.delete(expectedDedupe[0].key);
+            await raw.kv.set("artifact/index/dedupe/orphan-doctor-gap", first.artifact.artifact_id);
+            await raw.kv.set(`compaction/sequence/${sessionRef}`, 0);
+        } finally {
+            await raw.close();
+        }
+
+        const diagnosed = await doctorArtifactStore(derivedRoot, false, permissiveLimits);
+        note(diagnosed.ok === false, "doctor accepted missing/stale/orphan dedupe and a regressed sequence");
+        note(diagnosed.issues.includes(issueNames.dedupeMissing), "doctor omitted the missing/stale dedupe issue category");
+        note(diagnosed.issues.includes(issueNames.dedupeOrphan), "doctor omitted the orphan dedupe issue category");
+        note(diagnosed.issues.includes(issueNames.sequenceLow), "doctor omitted the regressed sequence issue category");
+        note(
+            !diagnosed.issues.some((issue) => issue.includes(sessionRef)
+                || issue.includes(first.artifact.artifact_id)
+                || issue.includes(second.artifact.artifact_id)),
+            "doctor derived-state issues disclosed record values",
+        );
+
+        const repaired = await doctorArtifactStore(derivedRoot, true, permissiveLimits);
+        note(repaired.ok === true && repaired.repaired === true, "doctor did not safely repair derivable dedupe/sequence state");
+        note(
+            JSON.stringify(await readRawRows(derivedRoot, "artifact/index/dedupe/")) === JSON.stringify(expectedDedupe),
+            "doctor did not rebuild the exact canonical dedupe map",
+        );
+        const repairedRaw = await openRawStore(derivedRoot);
+        try {
+            note(
+                await repairedRaw.kv.get(`compaction/sequence/${sessionRef}`) === 2,
+                "doctor did not raise the regressed sequence to the highest retained revision",
+            );
+            await repairedRaw.kv.set(`compaction/sequence/${sessionRef}`, 9);
+        } finally {
+            await repairedRaw.close();
+        }
+        const higher = await doctorArtifactStore(derivedRoot, true, permissiveLimits);
+        const higherRaw = await openRawStore(derivedRoot);
+        try {
+            note(higher.ok === true, "doctor rejected a valid higher historical sequence");
+            note(
+                await higherRaw.kv.get(`compaction/sequence/${sessionRef}`) === 9,
+                "doctor lowered a valid higher historical sequence",
+            );
+        } finally {
+            await higherRaw.close();
+        }
+        const idempotent = await doctorArtifactStore(derivedRoot, true, permissiveLimits);
+        note(idempotent.ok === true && idempotent.repaired === false, "a second doctor repair was not idempotent");
+        assert.deepEqual(
+            await readRawRows(derivedRoot, "artifact/full/"),
+            authoritativeBefore,
+            "derived-state repair changed authoritative full records",
+        );
+    } finally {
+        rmSync(derivedRoot, { recursive: true, force: true });
+    }
+
+    const retentionCases = [
+        {
+            label: "age",
+            issue: issueNames.age,
+            limits: { ...permissiveLimits, retentionDays: 0 },
+            write: async (root) => {
+                await putArtifact(root, diffWrite({ session_ref: "cairn:doctor-age", content: { text: "old" } }), permissiveLimits, {
+                    now: new Date("2026-01-01T00:00:00.000Z"),
+                });
+            },
+        },
+        {
+            label: "revision",
+            issue: issueNames.revision,
+            limits: { ...permissiveLimits, compactionMaxRevisions: 1 },
+            write: async (root) => {
+                for (const [index, suffix] of ["one", "two", "three"].entries()) {
+                    await putArtifact(root, compactionWrite("claude-code:doctor-revision", suffix), permissiveLimits, {
+                        now: new Date(`2026-07-01T00:00:0${index}.000Z`),
+                    });
+                }
+            },
+        },
+        {
+            label: "session",
+            issue: issueNames.session,
+            limits: { ...permissiveLimits, artifactMaxBytes: 1024, sessionMaxBytes: 2048 },
+            write: async (root) => {
+                for (const suffix of ["one", "two"]) {
+                    await putArtifact(root, diffWrite({
+                        session_ref: "cairn:doctor-session",
+                        content: { text: `${suffix}-${"s".repeat(1400)}` },
+                    }), permissiveLimits);
+                }
+            },
+        },
+        {
+            label: "store",
+            issue: issueNames.store,
+            limits: { ...permissiveLimits, artifactMaxBytes: 1024, sessionMaxBytes: 4096, storeMaxBytes: 4096 },
+            write: async (root) => {
+                for (const suffix of ["one", "two", "three"]) {
+                    await putArtifact(root, diffWrite({
+                        session_ref: `cairn:doctor-store-${suffix}`,
+                        content: { text: `${suffix}-${"t".repeat(1600)}` },
+                    }), permissiveLimits);
+                }
+            },
+        },
+    ];
+    for (const retentionCase of retentionCases) {
+        const root = mkdtempSync(join(tmpdir(), `cairn-artifact-doctor-gap-${retentionCase.label}-`));
+        try {
+            await retentionCase.write(root);
+            const authoritativeBefore = await readRawRows(root, "artifact/full/");
+            const diagnosed = await doctorArtifactStore(root, false, retentionCase.limits);
+            note(diagnosed.ok === false, `doctor accepted an over-${retentionCase.label} store`);
+            note(diagnosed.issues.includes(retentionCase.issue), `doctor omitted the ${retentionCase.label} limit issue category`);
+            const repaired = await doctorArtifactStore(root, true, retentionCase.limits);
+            note(repaired.ok === false, `doctor repair cleared an unresolved ${retentionCase.label} limit violation`);
+            assert.deepEqual(
+                await readRawRows(root, "artifact/full/"),
+                authoritativeBefore,
+                `doctor repair changed authoritative full records for ${retentionCase.label} limits`,
+            );
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    }
+
+    for (const corruption of ["digest", "full-record"]) {
+        const root = mkdtempSync(join(tmpdir(), `cairn-artifact-doctor-gap-${corruption}-`));
+        try {
+            const written = await putArtifact(root, diffWrite({ session_ref: `cairn:doctor-${corruption}` }), permissiveLimits);
+            const key = `artifact/full/${written.artifact.artifact_id}`;
+            const raw = await openRawStore(root);
+            try {
+                const stored = await raw.kv.get(key);
+                await raw.kv.set(key, corruption === "digest"
+                    ? { ...stored, content: { ...stored.content, text: "corrupt-authority" } }
+                    : { invalid: true });
+            } finally {
+                await raw.close();
+            }
+            const corruptedRows = await readRawRows(root, "artifact/full/");
+            const result = await doctorArtifactStore(root, true, permissiveLimits);
+            assert.equal(result.ok, false, `${corruption} corruption must remain failed`);
+            assert.equal(result.repaired, false, `${corruption} corruption must not be repaired`);
+            assert.deepEqual(await readRawRows(root, "artifact/full/"), corruptedRows, `${corruption} corruption was modified`);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    }
+
+    const unsafeSequenceRoot = mkdtempSync(join(tmpdir(), "cairn-artifact-doctor-gap-unsafe-sequence-"));
+    try {
+        const sessionRef = "claude-code:doctor-historical";
+        const written = await putArtifact(unsafeSequenceRoot, compactionWrite(sessionRef, "historical"), permissiveLimits);
+        await deleteArtifact(written.artifact.artifact_id, unsafeSequenceRoot);
+        const raw = await openRawStore(unsafeSequenceRoot);
+        try {
+            assert.equal(await raw.kv.get(`compaction/sequence/${sessionRef}`), 1, "delete removed a valid historical counter");
+            await raw.kv.set(`compaction/sequence/${sessionRef}`, 0);
+        } finally {
+            await raw.close();
+        }
+        const before = await readRawRows(unsafeSequenceRoot);
+        const result = await doctorArtifactStore(unsafeSequenceRoot, true, permissiveLimits);
+        note(result.ok === false, "doctor accepted a non-derivable invalid historical sequence");
+        note(result.repaired === false, "doctor guessed a repair for a non-derivable historical sequence");
+        note(result.issues.includes(issueNames.sequenceUnsafe), "doctor omitted the non-derivable sequence issue category");
+        note(
+            JSON.stringify(await readRawRows(unsafeSequenceRoot)) === JSON.stringify(before),
+            "doctor modified a non-derivable historical sequence",
+        );
+    } finally {
+        rmSync(unsafeSequenceRoot, { recursive: true, force: true });
+    }
+
+    const sqliteRoot = mkdtempSync(join(tmpdir(), "cairn-artifact-doctor-gap-sqlite-"));
+    try {
+        await putArtifact(sqliteRoot, diffWrite({ session_ref: "cairn:doctor-sqlite" }), permissiveLimits);
+        const sqlitePath = getArtifactDbPath(sqliteRoot);
+        const fd = openSync(sqlitePath, "r+");
+        try {
+            writeSync(fd, Buffer.from("BROKEN-SQLITE!!!"), 0, 16, 0);
+        } finally {
+            closeSync(fd);
+        }
+        const before = readFileSync(sqlitePath);
+        const result = await doctorArtifactStore(sqliteRoot, true, permissiveLimits);
+        assert.equal(result.ok, false, "SQLite corruption must remain failed");
+        assert.equal(result.repaired, false, "SQLite corruption must not be repaired");
+        assert.deepEqual(readFileSync(sqlitePath), before, "doctor modified SQLite corruption");
+    } finally {
+        rmSync(sqliteRoot, { recursive: true, force: true });
+    }
+
+    assert.equal(schemaModule.ARTIFACT_SCHEMA_VERSION, 1, "doctor gap ran against an unexpected artifact schema");
+    if (gaps.length > 0) throw doctorStateGap(gaps.join("\n"));
+}
+
+async function runDoctorGap() {
+    const { schema, store } = await loadCoreModules();
+    await testDoctorGapContract(schema, store);
+}
+
 async function testAutomaticBudgetsAndAge(storeModule) {
     const { listArtifacts, pruneArtifacts, putArtifact } = storeModule;
     const scratch = mkdtempSync(join(tmpdir(), "cairn-artifact-budgets-"));
@@ -993,6 +1277,26 @@ async function main() {
             throw error;
         }
         throw new Error("Artifact lifecycle unexpectedly exists; run the GREEN contract instead.");
+    }
+    if (mode === "--doctor-gap-only") {
+        await runDoctorGap();
+        console.log("PASS: artifact doctor derived-state, sequence, retention and corruption contract");
+        return;
+    }
+    if (mode === "--expect-red-doctor-gap") {
+        await runCore();
+        await runLifecycle();
+        try {
+            await runDoctorGap();
+        } catch (error) {
+            if (error?.code === "ERR_ARTIFACT_DOCTOR_STATE_GAP") {
+                console.log(DOCTOR_GAP_RED_MARKER);
+                process.exitCode = EXPECTED_RED_EXIT;
+                return;
+            }
+            throw error;
+        }
+        throw new Error("Artifact doctor gap unexpectedly closed; run the GREEN contract instead.");
     }
     if (mode && !["--schema-redaction-only", "--service-only"].includes(mode)) {
         throw new Error(`Unknown smoke-artifact-store mode: ${mode}`);

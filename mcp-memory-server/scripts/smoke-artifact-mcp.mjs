@@ -13,6 +13,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 const EXPECTED_RED_EXIT = 86;
 const STDIO_RED_MARKER = "PHASE17_RED:ARTIFACT_MCP_MISSING";
 const HTTP_RED_MARKER = "PHASE17_RED:ARTIFACT_HTTP_CONSENT_MISSING";
+const REMOTE_PATH_RED_MARKER = "PHASE17_RED:ARTIFACT_REMOTE_PATH_GAP";
 const HTTP_TOKEN = "artifact-http-smoke-token";
 const ALLOWED_ORIGIN = "https://artifact-smoke.example";
 const here = dirname(fileURLToPath(import.meta.url));
@@ -738,7 +739,11 @@ async function doubleConsentContract() {
         }
 
         const artifactDatabases = filesUnder(baseDir).filter((path) => path.endsWith(`${join(".agentfs", "artifacts.db")}`));
-        assert.equal(artifactDatabases.length, 2, `expected one server-derived artifact store per project, found ${artifactDatabases.map((path) => relative(baseDir, path)).join(", ")}`);
+        const relativeDatabases = sorted(artifactDatabases.map((path) => relative(baseDir, path)));
+        assert.deepEqual(relativeDatabases, [
+            join("project-alpha", ".agentfs", "artifacts.db"),
+            join("project-beta", ".agentfs", "artifacts.db"),
+        ], `remote artifact database paths drifted: ${relativeDatabases.join(", ")}`);
         assert.equal(artifactDatabases.every((path) => resolve(path).startsWith(`${resolve(baseDir)}/`)), true);
         assert.equal(artifactDatabases.some((path) => resolve(path).startsWith(`${resolve(cwd)}/`)), false, "remote artifact store resolved under server cwd");
         assert.equal(artifactDatabases.some((path) => resolve(path).startsWith(`${resolve(clientSelectedRoot)}/`)), false, "remote artifact store used a client-selected path");
@@ -759,10 +764,42 @@ async function httpContract() {
     await doubleConsentContract();
 }
 
+function missingRemotePathContract(message) {
+    const error = new Error(message);
+    error.code = "ERR_ARTIFACT_REMOTE_PATH_GAP";
+    return error;
+}
+
+async function remotePathContract() {
+    await httpContract();
+    const store = await import("../dist/artifact-store.js");
+    const base = resolve("/tmp", "cairn-artifact-remote-path-contract");
+    const expectedRoot = join(base, "project-alpha");
+    const expectedDb = join(expectedRoot, ".agentfs", "artifacts.db");
+    if (typeof store.resolveRemoteArtifactProjectRoot !== "function") {
+        throw missingRemotePathContract("explicit remote artifact project-root resolver is missing");
+    }
+    if (store.resolveRemoteArtifactProjectRoot(base, "project-alpha") !== expectedRoot) {
+        throw missingRemotePathContract("remote artifact project-root resolver is ambiguous");
+    }
+    if (store.resolveRemoteArtifactDbPath(base, "project-alpha") !== expectedDb) {
+        throw missingRemotePathContract("remote artifact database resolver is not canonical");
+    }
+}
+
 async function main() {
     const [mode, ...extra] = process.argv.slice(2);
     assert.equal(extra.length, 0, "smoke-artifact-mcp accepts at most one mode");
-    const knownModes = [undefined, "--disabled-only", "--expect-red-stdio", "--expect-red-http", "--stdio-only", "--http-only"];
+    const knownModes = [
+        undefined,
+        "--disabled-only",
+        "--expect-red-stdio",
+        "--expect-red-http",
+        "--stdio-only",
+        "--http-only",
+        "--remote-path-only",
+        "--expect-red-remote-path",
+    ];
     assert.equal(knownModes.includes(mode), true, `Unknown smoke-artifact-mcp mode: ${mode}`);
 
     if (mode === "--disabled-only") {
@@ -807,6 +844,24 @@ async function main() {
         await httpContract();
         console.log("PASS: artifact HTTP consent, guard and project-isolation contract");
         return;
+    }
+    if (mode === "--remote-path-only") {
+        await remotePathContract();
+        console.log("PASS: artifact HTTP and resolver canonical remote-path contract");
+        return;
+    }
+    if (mode === "--expect-red-remote-path") {
+        try {
+            await remotePathContract();
+        } catch (error) {
+            if (error?.code === "ERR_ARTIFACT_REMOTE_PATH_GAP") {
+                console.log(REMOTE_PATH_RED_MARKER);
+                process.exitCode = EXPECTED_RED_EXIT;
+                return;
+            }
+            throw error;
+        }
+        throw new Error("Artifact remote path gap unexpectedly closed; run the GREEN contract instead.");
     }
 
     await disabledContract();
