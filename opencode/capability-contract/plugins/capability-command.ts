@@ -7,6 +7,8 @@ const COORDINATOR = "@@INFRA_ROOT@@/mcp-memory-server/dist/capability-cli.js"
 const FIXED_BLOCK = "Cairn capability disabled."
 const MAX_COORDINATOR_OUTPUT = 8 * 1024
 const COORDINATOR_TIMEOUT_MS = 3000
+const MAX_TRACKED_SESSIONS = 10_000
+const DISPOSAL_BATCH_SIZE = 32
 const SESSION_ID = /^(?:cairn:)?[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/
 const COMMANDS = new Set([
   "wiki-ingest",
@@ -29,6 +31,12 @@ export const OPENCODE_CAPABILITY_CONTRACT = {
 } as const
 
 type JsonObject = Record<string, unknown>
+type SessionState = {
+  unfinished: boolean
+  terminalEpoch: number
+  operations: number
+  tail: Promise<void>
+}
 
 function isObject(value: unknown): value is JsonObject {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -163,6 +171,41 @@ function eventTerminal(event: unknown): { sessionID: string; outcome: "success" 
 
 export const CapabilityCommandPlugin: Plugin = async ({ directory, worktree, project }) => {
   const projectRoot = validatedProjectRoot([directory, worktree, project.worktree])
+  const sessions = new Map<string, SessionState>()
+
+  const sessionState = (sessionID: string): SessionState | undefined => {
+    const existing = sessions.get(sessionID)
+    if (existing) return existing
+    if (sessions.size >= MAX_TRACKED_SESSIONS) return undefined
+    const created: SessionState = {
+      unfinished: false,
+      terminalEpoch: 0,
+      operations: 0,
+      tail: Promise.resolve(),
+    }
+    sessions.set(sessionID, created)
+    return created
+  }
+
+  const forgetFinishedSession = (sessionID: string, state: SessionState) => {
+    if (!state.unfinished && state.operations === 0 && sessions.get(sessionID) === state) {
+      sessions.delete(sessionID)
+    }
+  }
+
+  const serialize = async <T>(sessionID: string, state: SessionState, operation: () => Promise<T>): Promise<T> => {
+    state.operations += 1
+    const result = state.tail.then(operation, operation)
+    state.tail = result.then(() => undefined, () => undefined)
+    try {
+      return await result
+    } finally {
+      state.operations -= 1
+    }
+  }
+
+  const callCoordinator = (operation: string, payload: JsonObject) => coordinator(operation, payload)
+    .catch(() => undefined)
 
   return {
     "command.execute.before": async (input, output) => {
@@ -170,28 +213,74 @@ export const CapabilityCommandPlugin: Plugin = async ({ directory, worktree, pro
       if (!isObject(input) || typeof input.command !== "string" || !COMMANDS.has(input.command)) return
       const parsed = admission(input, output)
       if (!parsed || !projectRoot || !fs.existsSync(COORDINATOR)) throw new Error(FIXED_BLOCK)
-      const decision = await coordinator("harness-before", {
+      const state = sessionState(parsed.sessionID)
+      const terminalEpoch = state?.terminalEpoch
+      const invoke = () => callCoordinator("harness-before", {
         schema_version: 1,
         harness: "opencode",
         command: parsed.command,
         session_id: parsed.sessionID,
         project_root: projectRoot,
       })
+      let decision: JsonObject | undefined
+      try {
+        decision = state
+          ? await serialize(parsed.sessionID, state, invoke)
+          : await invoke()
+      } catch (error) {
+        if (state) forgetFinishedSession(parsed.sessionID, state)
+        throw error
+      }
       if (decision?.schema_version !== 1 || (decision.decision !== "allow" && decision.decision !== "block")) {
+        if (state) forgetFinishedSession(parsed.sessionID, state)
         throw new Error(FIXED_BLOCK)
       }
-      if (decision.decision === "block") throw new Error(FIXED_BLOCK)
+      if (decision.decision === "block") {
+        if (state) forgetFinishedSession(parsed.sessionID, state)
+        throw new Error(FIXED_BLOCK)
+      }
+      if (state && state.terminalEpoch === terminalEpoch) state.unfinished = true
+      else if (state) forgetFinishedSession(parsed.sessionID, state)
     },
     event: async ({ event }) => {
       if (!contractEnabled() || !fs.existsSync(COORDINATOR)) return
       const terminal = eventTerminal(event)
       if (!terminal) return
-      await coordinator("harness-terminal", {
+      const state = sessionState(terminal.sessionID)
+      if (state) {
+        state.unfinished = false
+        state.terminalEpoch += 1
+      }
+      const invoke = () => callCoordinator("harness-terminal", {
         schema_version: 1,
         harness: "opencode",
         session_id: terminal.sessionID,
         outcome: terminal.outcome,
       })
+      if (state) {
+        await serialize(terminal.sessionID, state, invoke)
+        forgetFinishedSession(terminal.sessionID, state)
+      } else await invoke()
+    },
+    dispose: async () => {
+      if (!contractEnabled() || !fs.existsSync(COORDINATOR)) return
+      const unfinished = [...sessions.entries()].filter(([, state]) => state.unfinished)
+      for (const [, state] of unfinished) {
+        state.unfinished = false
+        state.terminalEpoch += 1
+      }
+      for (let offset = 0; offset < unfinished.length; offset += DISPOSAL_BATCH_SIZE) {
+        const batch = unfinished.slice(offset, offset + DISPOSAL_BATCH_SIZE)
+        for (const [sessionID, state] of batch) {
+          await serialize(sessionID, state, () => callCoordinator("harness-terminal", {
+            schema_version: 1,
+            harness: "opencode",
+            session_id: sessionID,
+            outcome: "abandoned",
+          }))
+        }
+      }
+      for (const [sessionID, state] of unfinished) forgetFinishedSession(sessionID, state)
     },
   }
 }
