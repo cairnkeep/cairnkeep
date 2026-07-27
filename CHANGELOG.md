@@ -38,6 +38,9 @@ All notable user-facing changes are documented here. This project follows
 
 ### Fixed
 
+- Layer `CAIRN_EXTRA_SETTINGS` through OpenCode's supported
+  `OPENCODE_CONFIG` environment seam and keep headless graph commands in the
+  tool-calling path until their real owner operation completes.
 - Pin the Claude Code 2.1.220 `PostCompact` `prompt_id` payload shape alongside
   the retained 2.1.219 adapter while continuing to refuse unknown versions.
 - Preserve redacted Pi provider failures as trajectory system events and treat

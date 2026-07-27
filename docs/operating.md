@@ -635,7 +635,7 @@ optional hooks around the harness, each a no-op when absent:
 | Seam | When | Purpose |
 |---|---|---|
 | `.ai/pre-launch.sh` | sourced after `.env`, before launch | export env (e.g. a provider base URL / auth), refresh credentials, or abort by returning non-zero |
-| `CAIRN_EXTRA_SETTINGS` | read just before launch | path to a settings file layered on the harness (`--settings` / `--config`); process env still wins over it |
+| `CAIRN_EXTRA_SETTINGS` | read just before launch | path to a settings file layered on the harness (`--settings` / `OPENCODE_CONFIG`); process env still wins over it |
 | `.ai/post-exit.sh` | sourced after the harness exits | teardown; `CAIRN_EXIT_STATUS` holds the exit code |
 
 A wrapper that needs a non-default provider drops a `pre-launch.sh` that renders

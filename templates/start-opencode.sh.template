@@ -6,7 +6,8 @@
 # Wrapper seams (all optional, all no-ops when absent):
 #   .ai/pre-launch.sh        sourced after .env, before launch. May export env
 #                            or abort the launch by returning / exiting non-zero.
-#   CAIRN_EXTRA_SETTINGS     path to an OpenCode config file layered via --config.
+#   CAIRN_EXTRA_SETTINGS     path to an OpenCode config file layered via
+#                            OPENCODE_CONFIG.
 #   .ai/post-exit.sh         sourced after OpenCode exits, with $CAIRN_EXIT_STATUS
 #                            set to the exit code.
 set -euo pipefail
@@ -65,14 +66,13 @@ fi
 
 cd "$ROOT_DIR"
 
-launch_args=()
 if [[ -n "${CAIRN_EXTRA_SETTINGS:-}" ]]; then
-  launch_args+=(--config "$CAIRN_EXTRA_SETTINGS")
+  export OPENCODE_CONFIG="$CAIRN_EXTRA_SETTINGS"
 fi
 
 if [[ -f "$ROOT_DIR/.ai/post-exit.sh" ]]; then
   set +e
-  opencode "${launch_args[@]}" "$@"
+  opencode "$@"
   CAIRN_EXIT_STATUS=$?
   set -e
   export CAIRN_EXIT_STATUS
@@ -80,4 +80,4 @@ if [[ -f "$ROOT_DIR/.ai/post-exit.sh" ]]; then
   . "$ROOT_DIR/.ai/post-exit.sh" || true
   exit "$CAIRN_EXIT_STATUS"
 fi
-exec opencode "${launch_args[@]}" "$@"
+exec opencode "$@"

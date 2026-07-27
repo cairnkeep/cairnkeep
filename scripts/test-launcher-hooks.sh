@@ -424,6 +424,18 @@ launcher="$repo/.ai/start-claude.sh"
 pi_launcher="$repo/.ai/start-pi.sh"
 [[ -x "$pi_launcher" ]] || fail "Pi launcher not scaffolded"
 
+# OpenCode's run mode ends a turn after content-only output. Commands that need
+# owner I/O must therefore make their first response action a tool call rather
+# than requiring a standalone banner before the config gate.
+! grep -qF '**Before ANY tool calls**, display this banner:' "$ROOT/opencode/command/graphify.md" \
+  || fail "OpenCode graphify can stop after its pre-tool banner"
+grep -qF '**First action:** invoke the Read tool' "$ROOT/opencode/command/graphify.md" \
+  || fail "OpenCode graphify does not require the config-gate tool call first"
+grep -qF '**Invoke the shell tool** with this exact command' "$ROOT/opencode/command/graphify.md" \
+  || fail "OpenCode graphify does not require real shell delegation"
+grep -qF '<argument>$ARGUMENTS</argument>' "$ROOT/opencode/command/graphify.md" \
+  || fail "OpenCode graphify does not delimit its substituted argument"
+
 # Fake harnesses on PATH: record argv, selected config root, and a marker env var.
 mkdir "$tmp/bin"
 cat > "$tmp/bin/claude" <<'FAKE'
@@ -438,6 +450,7 @@ cat > "$tmp/bin/opencode" <<'FAKE'
   echo "args:$*"
   echo "prelaunch:${PRELAUNCH_RAN:-0}"
   echo "config:${OPENCODE_CONFIG_DIR:-}"
+  echo "explicit-config:${OPENCODE_CONFIG:-}"
   echo "contract:${CAIRN_CAPABILITY_CONTRACT:-}"
   if [[ -n "${OPENCODE_CONFIG_DIR:-}" && -d "$OPENCODE_CONFIG_DIR/plugins" ]]; then
     find "$OPENCODE_CONFIG_DIR/plugins" -maxdepth 1 -type f -name '*.ts' -printf 'plugin:%f\n' | LC_ALL=C sort
@@ -598,6 +611,12 @@ echo '{}' > "$tmp/settings.json"
 "$launcher" >/dev/null 2>&1 || fail "launch with pre-launch failed"
 grep -qx "prelaunch:1" "$CLAUDE_LOG" || fail "pre-launch env not visible to harness"
 grep -q -- "--settings $tmp/settings.json" "$CLAUDE_LOG" || fail "CAIRN_EXTRA_SETTINGS not passed as --settings"
+
+rm -f "$OPENCODE_LOG"
+"$opencode_launcher" --settings-probe >/dev/null 2>&1 || fail "OpenCode launch with extra config failed"
+grep -qx "prelaunch:1" "$OPENCODE_LOG" || fail "OpenCode pre-launch env not visible to harness"
+grep -qx "args:--settings-probe" "$OPENCODE_LOG" || fail "OpenCode extra config changed harness argv"
+grep -qx "explicit-config:$tmp/settings.json" "$OPENCODE_LOG" || fail "CAIRN_EXTRA_SETTINGS not exported as OPENCODE_CONFIG"
 
 # 3. pre-launch.sh non-zero aborts the launch before the harness runs.
 rm -f "$CLAUDE_LOG"

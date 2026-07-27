@@ -195,7 +195,7 @@ unless a wrapper opts in:
   export env (e.g. a provider base URL) or abort the launch by returning
   non-zero. This is where credential refresh / connectivity setup lives.
 - **`CAIRN_EXTRA_SETTINGS`** — path to a settings file layered onto the harness
-  (`--settings` for Claude Code, `--config` for OpenCode). Pi has no equivalent
+  (`--settings` for Claude Code, `OPENCODE_CONFIG` for OpenCode). Pi has no equivalent
   generic settings-file flag, so its launcher leaves this variable unused.
   Process env still wins, so an inline value beats the profile.
 - **`.ai/post-exit.sh`** — sourced after the harness exits, with
