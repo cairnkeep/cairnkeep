@@ -203,7 +203,7 @@ function filesystemSnapshot(root) {
 async function baselineIdentity() {
     const packageJson = JSON.parse(readFileSync(join(serverRoot, "package.json"), "utf8"));
     assert.equal(packageJson.scripts["check:capability-mcp"], "node scripts/smoke-capability-mcp.mjs");
-    assert.equal(packageJson.scripts["test:smoke"].includes("check:capability-mcp"), false, "MCP RED contract entered the default suite");
+    assert.equal(packageJson.scripts["test:smoke"].includes("check:capability-mcp"), true, "GREEN MCP contract is missing from the default suite");
 
     const root = mkdtempSync(join(tmpdir(), "cairn-capability-mcp-baseline-"));
     try {

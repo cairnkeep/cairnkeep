@@ -55,7 +55,7 @@ function fixtureChecks() {
     assert.equal(packageJson.scripts["check:capability-logging"], "node scripts/smoke-capability-logging.mjs");
     assert.equal(packageJson.scripts["check:capability-mcp"], "node scripts/smoke-capability-mcp.mjs");
     for (const name of ["check:capability-contract", "check:capability-logging", "check:capability-mcp"]) {
-        assert.equal(packageJson.scripts["test:smoke"].includes(name), false, `${name} entered the default suite before its owner was GREEN`);
+        assert.equal(packageJson.scripts["test:smoke"].includes(name), true, `${name} is missing from the default suite after its owner became GREEN`);
     }
 }
 

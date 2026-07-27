@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Phase 18 capability CLI, lifecycle, operating-overlay, and ablation contract.
-# No-argument execution is baseline-only until the production owners are GREEN.
+# No-argument execution is the complete GREEN contract. Explicit expected-RED
+# modes remain available only to classify historical missing-owner simulations.
 set -uo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 EXPECTED_RED_EXIT=86
 RED_MARKER="PHASE18_RED:CAPABILITY_LIFECYCLE_MISSING"
-MODE="${1:-baseline}"
+MODE="${1:-full}"
 [[ $# -gt 0 ]] && shift
 RUNTIME=0
 HARNESS=""
@@ -157,6 +158,13 @@ run_capability() {
   local project="$1"
   shift
   (cd "$project" && CAIRN_CAPABILITY_CONTRACT=1 "$ROOT/bin/cairn" capabilities "$@")
+}
+
+enable_all_capabilities() {
+  local project="$1" id
+  for id in memory.write memory.search notes.distill wiki graph security.audit route.check context.explore; do
+    run_capability "$project" enable "$id" >/dev/null
+  done
 }
 
 run_contract() {
@@ -377,17 +385,21 @@ for (const id of ids) {
 NODE
   CAIRN_CAPABILITY_CONTRACT=1 node "$ROOT/mcp-memory-server/scripts/smoke-capability-contract.mjs" --baseline >/dev/null
   run_capability "$project" reset --all >/dev/null
-  local id output="$tmp/matrix-status.json"
+  enable_all_capabilities "$project"
+  local id output="$tmp/matrix-status.json" matrix_states=1
+  run_capability "$project" status --json >"$output"
+  node - "$output" "$fixture" <<'NODE'
+const fs = require("fs");
+const [statusPath, fixturePath] = process.argv.slice(2);
+const status = JSON.parse(fs.readFileSync(statusPath, "utf8"));
+const expected = JSON.parse(fs.readFileSync(fixturePath, "utf8")).all_enabled;
+if (status.configuration_digest !== expected.configuration_digest) process.exit(1);
+if (JSON.stringify(status.logging) !== JSON.stringify(expected.logging)) process.exit(1);
+if (JSON.stringify(status.capabilities) !== JSON.stringify(expected.capabilities)) process.exit(1);
+NODE
   for id in memory.write memory.search notes.distill wiki graph security.audit route.check context.explore; do
     run_capability "$project" reset --all >/dev/null
-    run_capability "$project" enable memory.write >/dev/null
-    run_capability "$project" enable memory.search >/dev/null
-    run_capability "$project" enable notes.distill >/dev/null
-    run_capability "$project" enable wiki >/dev/null
-    run_capability "$project" enable graph >/dev/null
-    run_capability "$project" enable security.audit >/dev/null
-    run_capability "$project" enable route.check >/dev/null
-    run_capability "$project" enable context.explore >/dev/null
+    enable_all_capabilities "$project"
     run_capability "$project" disable "$id" >/dev/null
     run_capability "$project" status --json >"$output"
     node - "$output" "$fixture" "$id" <<'NODE'
@@ -403,7 +415,9 @@ for (const row of status.capabilities) {
   if (!wanted || wanted.enabled !== row.enabled || wanted.source !== row.source || wanted.restart_required !== row.restart_required) process.exit(1);
 }
 NODE
+    matrix_states=$((matrix_states + 1))
   done
+  [[ "$matrix_states" -eq 9 ]] || fail "matrix did not execute exactly one all-enabled and eight one-disabled states"
   echo "PASS: Phase 18 all-enabled and eight one-disabled matrix"
 }
 

@@ -92,7 +92,7 @@ function assertSuccessful(result, label) {
 function runBaseline() {
     const packageJson = JSON.parse(readFileSync(join(serverRoot, "package.json"), "utf8"));
     assert.equal(packageJson.scripts["check:capability-logging"], "node scripts/smoke-capability-logging.mjs");
-    assert.equal(packageJson.scripts["test:smoke"].includes("check:capability-logging"), false, "logging RED contract entered the default suite");
+    assert.equal(packageJson.scripts["test:smoke"].includes("check:capability-logging"), true, "GREEN logging contract is missing from the default suite");
     for (const script of ["smoke-trajectory-redaction.mjs", "smoke-trajectory-retention.mjs"]) {
         assertSuccessful(run(process.execPath, [join(here, script)], { cwd: serverRoot }), `baseline ${script}`);
     }
