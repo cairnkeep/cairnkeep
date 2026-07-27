@@ -26,7 +26,22 @@ exit "${FAKE_EXIT:-0}"
 FAKE
 cat > "$tmp/bin/opencode" <<'FAKE'
 #!/usr/bin/env bash
-{ echo "args:$*"; echo "prelaunch:${PRELAUNCH_RAN:-0}"; echo "config:${OPENCODE_CONFIG_DIR:-}"; echo "contract:${CAIRN_CAPABILITY_CONTRACT:-}"; } > "$OPENCODE_LOG"
+{
+  echo "launch-time:$(date +%s)"
+  echo "args:$*"
+  echo "prelaunch:${PRELAUNCH_RAN:-0}"
+  echo "config:${OPENCODE_CONFIG_DIR:-}"
+  echo "contract:${CAIRN_CAPABILITY_CONTRACT:-}"
+  if [[ -n "${OPENCODE_CONFIG_DIR:-}" && -d "$OPENCODE_CONFIG_DIR/plugins" ]]; then
+    find "$OPENCODE_CONFIG_DIR/plugins" -maxdepth 1 -type f -name '*.ts' -printf 'plugin:%f\n' | LC_ALL=C sort
+  fi
+  if [[ -n "${OPENCODE_CONFIG_DIR:-}" && -f "$OPENCODE_CONFIG_DIR/plugins/capability-command.ts" ]] \
+    && grep -qF 'export const CapabilityCommandPlugin' "$OPENCODE_CONFIG_DIR/plugins/capability-command.ts"; then
+    echo "capability-registration:1"
+  else
+    echo "capability-registration:0"
+  fi
+} > "$OPENCODE_LOG"
 exit "${FAKE_EXIT:-0}"
 FAKE
 chmod +x "$tmp/bin/claude" "$tmp/bin/opencode"
@@ -91,6 +106,7 @@ opencode_launcher="$repo/.ai/start-opencode.sh"
 "$opencode_launcher" --foo bar >/dev/null 2>&1 || fail "OpenCode baseline launch failed"
 grep -qx "args:--foo bar" "$OPENCODE_LOG" || fail "OpenCode baseline did not pass args through"
 grep -qx "config:" "$OPENCODE_LOG" || fail "OpenCode baseline selected a config root"
+grep -qx "capability-registration:0" "$OPENCODE_LOG" || fail "OpenCode baseline registered a capability plugin"
 
 # Invalid/off master values stay on the legacy direct-exec path: one harness
 # process, unchanged argv/config environment, and no isolated assets or store.
@@ -113,6 +129,7 @@ for master_value in 0 false FALSE no off invalid; do
   grep -qx "args:--identity" "$OPENCODE_LOG" || fail "OpenCode invalid-master argv changed: $master_value"
   grep -qx "config:$legacy_opencode" "$OPENCODE_LOG" || fail "OpenCode invalid-master config changed: $master_value"
   grep -qx "contract:$master_value" "$OPENCODE_LOG" || fail "OpenCode invalid-master environment changed: $master_value"
+  grep -qx "capability-registration:0" "$OPENCODE_LOG" || fail "OpenCode invalid-master launch registered a capability plugin: $master_value"
   [[ ! -e "$repo/.ai/capability-contract" ]] || fail "invalid master created an isolated root: $master_value"
   [[ ! -e "$repo/.agentfs/trajectory.db" ]] || fail "invalid master created a callback store: $master_value"
   sha256sum -c "$tmp/legacy-claude.sha" >/dev/null || fail "invalid master changed legacy Claude assets"
@@ -140,6 +157,13 @@ CAIRN_CAPABILITY_CONTRACT=1 OPENCODE_CONFIG_DIR="$legacy_opencode" \
 opencode_overlay="$repo/.ai/capability-contract/opencode"
 grep -qx "args:--overlay" "$OPENCODE_LOG" || fail "OpenCode overlay launch changed argv"
 grep -qx "config:$opencode_overlay" "$OPENCODE_LOG" || fail "OpenCode overlay root was not selected"
+grep -Eq '^launch-time:[0-9]+$' "$OPENCODE_LOG" || fail "OpenCode stub did not record launch time"
+grep -qx 'capability-registration:1' "$OPENCODE_LOG" || fail "OpenCode capability plugin was not registered before process start"
+for plugin in memory-wakeup.ts memory-capture.ts memory-recall.ts capability-command.ts; do
+  grep -qx "plugin:$plugin" "$OPENCODE_LOG" || fail "OpenCode plugin was not present before process start: $plugin"
+done
+cmp -s <(sed "s|@@INFRA_ROOT@@|$ROOT|g" "$ROOT/opencode/capability-contract/plugins/capability-command.ts") \
+  "$opencode_overlay/plugins/capability-command.ts" || fail "launcher capability plugin bytes differ from rendered source"
 for rel in \
   command/wiki-ingest.md command/wiki-query.md command/wiki-lint.md \
   workflows/wiki-ingest-workflow.md workflows/wiki-query-workflow.md workflows/wiki-lint-workflow.md \
@@ -150,6 +174,8 @@ done
 "$ROOT/scripts/sync-opencode-wiki-assets.sh" --check --capability-overlay --live-root "$opencode_overlay" >/dev/null || fail "OpenCode wiki overlay family is incomplete"
 "$ROOT/scripts/sync-opencode-graphify-assets.sh" --check --capability-overlay --live-root "$opencode_overlay" >/dev/null || fail "OpenCode graph overlay family is incomplete"
 "$ROOT/scripts/sync-opencode-security-assets.sh" --check --capability-overlay --live-root "$opencode_overlay" >/dev/null || fail "OpenCode security overlay family is incomplete"
+CAIRN_CAPABILITY_CONTRACT=1 "$ROOT/scripts/sync-opencode-plugin-assets.sh" --check --capability-overlay --live-root "$opencode_overlay" >/dev/null || fail "OpenCode plugin overlay family is incomplete"
+[[ ! -e "$repo/.agentfs/trajectory.db" ]] || fail "OpenCode launcher sync created measurement state before command admission"
 "$ROOT/scripts/test-phase18-capability-lifecycle.sh" operating --harness opencode-workflow --capability wiki >/dev/null
 "$ROOT/scripts/test-phase18-capability-lifecycle.sh" operating --harness opencode-workflow --capability security.audit >/dev/null
 sha256sum -c "$tmp/legacy-claude.sha" >/dev/null || fail "overlay launch changed legacy Claude assets"
