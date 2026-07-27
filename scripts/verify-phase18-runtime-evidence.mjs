@@ -53,6 +53,11 @@ const PUBLIC_OPERATIONS = new Map([
 const DUAL_HARNESS_OWNERS = new Set(["wiki", "graph", "security.audit"]);
 const NODE_COMMANDS = [
   ["node-version", "node --version", "runtime-identity"],
+  [
+    "fixture-git-init",
+    "rm -f .git && git init -q && git config user.name 'Runtime Evidence' && git config user.email 'runtime-evidence@example.invalid' && git add -A && git commit -qm runtime-evidence-fixture",
+    "runtime-setup",
+  ],
   ["root-install", "npm ci --offline", "runtime-setup"],
   ["server-install", "npm --prefix mcp-memory-server ci --offline", "runtime-setup"],
   ["server-build", "npm --prefix mcp-memory-server run build", "core-lifecycle"],
@@ -293,7 +298,6 @@ function requireLog(text, expected) {
     "fixture_claude_version=2.1.220",
     "fixture_opencode_version=1.17.20",
     "acceptance=blocked-pending-live-matrix",
-    "evidence_scope=deterministic-native-lifecycle",
     "evidence_scope=deterministic-native-lifecycle",
     `PASS: Phase 18 runtime ${expected.runtime}`,
   ]) {
