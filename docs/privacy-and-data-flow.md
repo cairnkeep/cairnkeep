@@ -238,7 +238,6 @@ Pending markers and final records never use remote project routing.
 There is no payload, no telemetry, no analytics, no log export, and no callback
 network request. This is a no-payload, no-telemetry, no-network boundary.
 Existing authenticated HTTP MCP behavior is unchanged.
-Existing authenticated HTTP MCP behavior is unchanged.
 
 The strict schema permits only these final fields:
 
