@@ -1,4 +1,5 @@
 import type { Plugin } from "@opencode-ai/plugin"
+import { spawn } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 
@@ -19,6 +20,47 @@ import path from "node:path"
 // session.
 
 const SERVER_ENTRY = "@@INFRA_ROOT@@/mcp-memory-server/dist/index.js"
+const ARTIFACT_ENTRY = "@@INFRA_ROOT@@/mcp-memory-server/dist/artifact-cli.js"
+
+function compactionCaptureEnabled(): boolean {
+  return /^(1|true|yes|on)$/i.test(process.env.CAIRN_COMPACTION_CAPTURE ?? "")
+}
+
+function runNode(entry: string, args: string[], timeoutMs = 3000): Promise<string> {
+  return new Promise((resolvePromise) => {
+    let stdout = ""
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolvePromise(stdout)
+    }
+    const child = spawn("node", [entry, ...args], {
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+    const timer = setTimeout(() => {
+      try {
+        child.kill("SIGKILL")
+      } catch {
+        // best-effort kill only
+      }
+    }, timeoutMs)
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8")
+      if (stdout.length > 262144) {
+        stdout = ""
+        try {
+          child.kill("SIGKILL")
+        } catch {
+          // best-effort kill only
+        }
+      }
+    })
+    child.on("close", finish)
+    child.on("error", finish)
+  })
+}
 
 export const MemoryWakeupPlugin: Plugin = async ({ $, directory }) => {
   return {
@@ -37,7 +79,8 @@ export const MemoryWakeupPlugin: Plugin = async ({ $, directory }) => {
         const wikiIndex = path.join(repo, ".planning", "wiki", "index.md")
         const hasAgentfs = fs.existsSync(agentfsDb)
         const hasWiki = fs.existsSync(wikiIndex)
-        if (!hasAgentfs && !hasWiki) return
+        const compactionEnabled = compactionCaptureEnabled()
+        if (!hasAgentfs && !hasWiki && !compactionEnabled) return
 
         const sections: string[] = []
 
@@ -88,12 +131,21 @@ export const MemoryWakeupPlugin: Plugin = async ({ $, directory }) => {
           }
         }
 
-        if (sections.length === 0) return
+        if (sections.length > 0) {
+          output.system.push(
+            "Session-start context (auto-surfaced by the memory-wakeup plugin — use it; do not ask the user to recall anything it contains):",
+          )
+          output.system.push(sections.join("\n\n"))
+        }
 
-        output.system.push(
-          "Session-start context (auto-surfaced by the memory-wakeup plugin — use it; do not ask the user to recall anything it contains):",
-        )
-        output.system.push(sections.join("\n\n"))
+        if (compactionEnabled && fs.existsSync(ARTIFACT_ENTRY)) {
+          const args = ["recover", repo]
+          if (typeof input.sessionID === "string" && input.sessionID) {
+            args.push("--session-ref", `opencode:${input.sessionID}`)
+          }
+          const recovery = (await runNode(ARTIFACT_ENTRY, args, 3000)).trim()
+          if (recovery) output.system.push(recovery)
+        }
       } catch {
         // Fail open — never block a session because context surfacing failed.
       }

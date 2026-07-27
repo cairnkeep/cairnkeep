@@ -26,6 +26,7 @@ import path from "node:path"
 
 const SERVER_ENTRY = "@@INFRA_ROOT@@/mcp-memory-server/dist/index.js"
 const TRAJECTORY_ENTRY = "@@INFRA_ROOT@@/mcp-memory-server/dist/trajectory-cli.js"
+const ARTIFACT_ENTRY = "@@INFRA_ROOT@@/mcp-memory-server/dist/artifact-cli.js"
 const MAX_CHARS = 12000
 const RETENTION_CAP = 5
 
@@ -93,6 +94,10 @@ function trajectoryCaptureEnabled(): boolean {
   return /^(1|true|yes|on)$/i.test(process.env.CAIRN_TRAJECTORY_CAPTURE ?? "")
 }
 
+function compactionCaptureEnabled(): boolean {
+  return /^(1|true|yes|on)$/i.test(process.env.CAIRN_COMPACTION_CAPTURE ?? "")
+}
+
 // Reimplements scripts/transcript-to-text.mjs's behavior (skip tool/reasoning/
 // file noise, join user/assistant text in order, cap total length keeping the
 // most recent turns) against OpenCode's { info, parts } message shape rather
@@ -121,6 +126,31 @@ export const MemoryCapturePlugin: Plugin = async ({ client, directory }) => {
   return {
     event: async ({ event }) => {
       try {
+        if (event.type === "session.compacted") {
+          if (!compactionCaptureEnabled()) return
+          const sessionID = event.properties?.sessionID
+          if (!sessionID) return
+
+          const sessionRes = await client.session.get({ path: { id: sessionID } })
+          const session = (sessionRes as { data?: { id?: string; parentID?: string; version?: string } })?.data
+          if (!session || session.parentID) return
+
+          const messagesRes = await client.session.messages({ path: { id: sessionID } })
+          const messages = ((messagesRes as { data?: unknown[] })?.data ?? []) as unknown[]
+          if (!fs.existsSync(ARTIFACT_ENTRY)) return
+
+          const capture = await runNode(
+            ARTIFACT_ENTRY,
+            ["capture-opencode", directory],
+            JSON.stringify({ event, session, messages, harness_version: "1.17.20" }),
+            3000,
+          )
+          if (capture.stderr.trim()) {
+            console.warn("cairn compaction capture skipped: local capture failed")
+          }
+          return
+        }
+
         if (event.type !== "session.idle") return
         const sessionID = event.properties?.sessionID
         if (!sessionID) return
