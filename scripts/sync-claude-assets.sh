@@ -108,6 +108,7 @@ hook_event_for() {
   case "$1" in
     memory-wakeup.sh)           echo "SessionStart" ;;
     memory-capture.sh)          echo "SessionEnd" ;;
+    compaction-capture.sh) echo "PostCompact" ;;
     memory-recall.sh)           echo "PreToolUse:Edit|Write|MultiEdit" ;;
     context-explore-pretask.sh) echo "UserPromptSubmit@25" ;;
     *)                          echo "" ;;
