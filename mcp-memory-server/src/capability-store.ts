@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
@@ -13,6 +14,7 @@ import { getTrajectoryLimits } from "./trajectory-schema.js";
 export const CAPABILITY_CALLBACK_SCHEMA_VERSION = 1 as const;
 export const CAPABILITY_CALLBACK_RECORD_PREFIX = "capability-callback/v1/record/";
 export const CAPABILITY_CALLBACK_PENDING_PREFIX = "capability-callback/v1/pending/";
+export const CAPABILITY_CALLBACK_CORRELATION_PREFIX = "capability-callback/v1/correlation/";
 export const CAPABILITY_CALLBACK_RECORD_MAX_COUNT = 10_000;
 
 const META_KEY = "capability-callback/meta/schema-version";
@@ -56,6 +58,12 @@ const operatingCapabilityIssuanceSchema = z.strictObject({
     started_at: z.iso.datetime(),
     state_source: capabilitySourceSchema,
     configuration_digest: z.string().regex(/^[a-f0-9]{64}$/),
+});
+
+const operatingCapabilityCorrelationSchema = z.strictObject({
+    schema_version: z.literal(CAPABILITY_CALLBACK_SCHEMA_VERSION),
+    invocation_id: invocationIdSchema,
+    correlation_id: correlationIdSchema,
 });
 
 export const capabilityCallbackRecordSchema = z.strictObject({
@@ -152,6 +160,19 @@ function pendingKey(issuance: OperatingCapabilityIssuance): string {
     return `${CAPABILITY_CALLBACK_PENDING_PREFIX}${issuance.invocation_id}`;
 }
 
+function correlationKey(issuance: OperatingCapabilityIssuance): string {
+    const digest = createHash("sha256")
+        .update([
+            issuance.capability_id,
+            issuance.correlation_id,
+            issuance.harness,
+            issuance.source,
+            issuance.transport,
+        ].join("\0"), "utf8")
+        .digest("hex");
+    return `${CAPABILITY_CALLBACK_CORRELATION_PREFIX}${digest}`;
+}
+
 async function inImmediateTransaction<T>(agent: AgentFS, operation: () => Promise<T>): Promise<T> {
     const transaction = agent.getDatabase().transaction(operation);
     const immediate = (transaction as typeof transaction & { immediate: typeof transaction }).immediate;
@@ -195,6 +216,14 @@ function recordMatchesIssuance(record: CapabilityCallbackRecord, issuance: Opera
         && record.started_at === issuance.started_at
         && record.state_source === issuance.state_source
         && record.configuration_digest === issuance.configuration_digest;
+}
+
+function recordMatchesCorrelation(record: CapabilityCallbackRecord, issuance: OperatingCapabilityIssuance): boolean {
+    return record.capability_id === issuance.capability_id
+        && record.correlation_id === issuance.correlation_id
+        && record.harness === issuance.harness
+        && record.source === issuance.source
+        && record.transport === issuance.transport;
 }
 
 async function assertCompatibleSchema(agent: AgentFS, allowMissing: boolean): Promise<void> {
@@ -283,18 +312,29 @@ export async function issueOperatingCapability(
 
                 const cutoff = (options.nowMs ?? Date.now()) - getTrajectoryLimits().retentionDays * DAY_MS;
                 const rows = sortedPendingRows(await agent.kv.list(CAPABILITY_CALLBACK_PENDING_PREFIX));
+                const finalRows = sortedRecordRows(await agent.kv.list(CAPABILITY_CALLBACK_RECORD_PREFIX));
                 const retained: typeof rows = [];
                 for (const row of rows) {
-                    if (Date.parse(row.issuance.started_at) < cutoff) await agent.kv.delete(row.key);
-                    else retained.push(row);
+                    if (Date.parse(row.issuance.started_at) < cutoff) {
+                        await agent.kv.delete(row.key);
+                        await agent.kv.delete(correlationKey(row.issuance));
+                    } else retained.push(row);
                 }
                 if (retained.some(({ issuance: existing }) => existing.invocation_id === issuance.invocation_id)) {
                     return false;
                 }
+                if (finalRows.some(({ record }) => recordMatchesCorrelation(record, issuance))) return false;
+                const correlation = await agent.kv.get<unknown>(correlationKey(issuance));
+                if (correlation !== undefined) return false;
                 if (options.testStoreFault === "write") throw new Error("Injected capability store write fault.");
                 await agent.kv.set(META_KEY, CAPABILITY_CALLBACK_SCHEMA_VERSION);
                 if (Date.parse(issuance.started_at) < cutoff) return false;
                 const key = pendingKey(issuance);
+                await agent.kv.set(correlationKey(issuance), {
+                    schema_version: CAPABILITY_CALLBACK_SCHEMA_VERSION,
+                    invocation_id: issuance.invocation_id,
+                    correlation_id: issuance.correlation_id,
+                });
                 await agent.kv.set(key, issuance);
                 retained.push({ key, issuance });
                 retained.sort((left, right) => {
@@ -303,7 +343,10 @@ export async function issueOperatingCapability(
                 });
                 while (retained.length > CAPABILITY_CALLBACK_RECORD_MAX_COUNT) {
                     const oldest = retained.shift();
-                    if (oldest) await agent.kv.delete(oldest.key);
+                    if (oldest) {
+                        await agent.kv.delete(oldest.key);
+                        await agent.kv.delete(correlationKey(oldest.issuance));
+                    }
                 }
                 return retained.some(({ issuance: retainedIssuance }) => retainedIssuance.invocation_id === issuance.invocation_id);
             });
@@ -335,16 +378,43 @@ export async function settleOperatingCapability(
                 const key = pendingKey(issuance);
                 const stored = operatingCapabilityIssuanceSchema.safeParse(await agent.kv.get<unknown>(key));
                 if (!stored.success || !sameIssuance(stored.data, issuance)) return false;
+                const storedCorrelation = operatingCapabilityCorrelationSchema.safeParse(
+                    await agent.kv.get<unknown>(correlationKey(issuance)),
+                );
+                if (!storedCorrelation.success
+                    || storedCorrelation.data.invocation_id !== issuance.invocation_id
+                    || storedCorrelation.data.correlation_id !== issuance.correlation_id) return false;
 
                 if (options.testStoreFault === "write") throw new Error("Injected capability store write fault.");
                 const cutoff = (options.nowMs ?? Date.now()) - getTrajectoryLimits().retentionDays * DAY_MS;
                 await agent.kv.delete(key);
+                await agent.kv.delete(correlationKey(issuance));
                 if (Date.parse(stored.data.started_at) < cutoff) return false;
                 if (record !== undefined) {
                     await appendParsedRecord(agent, record, CAPABILITY_CALLBACK_RECORD_MAX_COUNT, cutoff);
                 }
                 return true;
             });
+        } finally {
+            await agent.close();
+        }
+    } catch {
+        return false;
+    }
+}
+
+export async function isOperatingCapabilitySettled(
+    projectRoot: string,
+    rawIssuance: OperatingCapabilityIssuance,
+): Promise<boolean> {
+    try {
+        const issuance = operatingCapabilityIssuanceSchema.parse(rawIssuance);
+        const agent = await openCapabilityStore(projectRoot, false);
+        if (!agent) return false;
+        try {
+            await assertCompatibleSchema(agent, false);
+            const rows = sortedRecordRows(await agent.kv.list(CAPABILITY_CALLBACK_RECORD_PREFIX));
+            return rows.some(({ record }) => recordMatchesIssuance(record, issuance));
         } finally {
             await agent.close();
         }

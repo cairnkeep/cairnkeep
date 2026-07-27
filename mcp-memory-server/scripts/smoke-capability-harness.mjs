@@ -3,12 +3,14 @@ import { spawnSync } from "node:child_process";
 import {
     chmodSync,
     existsSync,
+    mkdirSync,
     mkdtempSync,
     readFileSync,
     readdirSync,
     realpathSync,
     rmSync,
     statSync,
+    writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -348,6 +350,49 @@ async function crashAndCwdChecks(coordinator) {
         const bytes = rawBytes(drift.original, drift.state).toString("utf8");
         for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `state leaked ${sentinel}`);
         rmSync(drift.base, { recursive: true, force: true });
+    }
+
+    const stale = fixtureRoot("stale");
+    try {
+        const env = fullEnvironment({ CAIRN_HARNESS_STATE_DIR: stale.state });
+        await withEnvironment(env, () => coordinator.beginHarnessCapability(beforeInput(stale.original)));
+        const leasePath = allFiles(coordinator.getHarnessCapabilityLeaseDirectory({ state_root: stale.state }))[0];
+        const lease = JSON.parse(readFileSync(leasePath, "utf8"));
+        writeFileSync(leasePath, `${JSON.stringify({ ...lease, expires_at: "2020-01-01T00:00:00.000Z" })}\n`, { mode: 0o600 });
+        chmodSync(leasePath, 0o600);
+        await withEnvironment(env, () => coordinator.recoverHarnessCapabilities({ state_root: stale.state }));
+        await withEnvironment(env, () => coordinator.recoverHarnessCapabilities({ state_root: stale.state }));
+        await assertSettledOnce(stale.original, stale.state, "timeout");
+    } finally {
+        rmSync(stale.base, { recursive: true, force: true });
+    }
+
+    const unsafe = fixtureRoot("unsafe");
+    try {
+        const leaseDir = coordinator.getHarnessCapabilityLeaseDirectory({ state_root: unsafe.state });
+        mkdirSync(leaseDir, { recursive: true, mode: 0o700 });
+        const malformed = join(leaseDir, `${"a".repeat(64)}.json`);
+        writeFileSync(malformed, "{malformed", { mode: 0o600 });
+        await coordinator.recoverHarnessCapabilities({ state_root: unsafe.state });
+        assert.deepEqual(allFiles(unsafe.state), [], "malformed lease was not pruned");
+    } finally {
+        rmSync(unsafe.base, { recursive: true, force: true });
+    }
+
+    const mismatch = fixtureRoot("identity-mismatch");
+    try {
+        const env = fullEnvironment({ CAIRN_HARNESS_STATE_DIR: mismatch.state });
+        await withEnvironment(env, () => coordinator.beginHarnessCapability(beforeInput(mismatch.original)));
+        const leasePath = allFiles(coordinator.getHarnessCapabilityLeaseDirectory({ state_root: mismatch.state }))[0];
+        const lease = JSON.parse(readFileSync(leasePath, "utf8"));
+        writeFileSync(leasePath, `${JSON.stringify({ ...lease, project_root: mismatch.decoy })}\n`, { mode: 0o600 });
+        chmodSync(leasePath, 0o600);
+        const result = await withEnvironment(env, () => coordinator.finishHarnessCapability(terminalInput()));
+        assert.deepEqual(result, { schema_version: 1, finalized: false });
+        assert.deepEqual(allFiles(mismatch.state), [], "identity-mismatched lease was not pruned");
+        assert.equal((await rows(mismatch.decoy, FINAL_PREFIX)).length, 0, "identity mismatch redirected settlement");
+    } finally {
+        rmSync(mismatch.base, { recursive: true, force: true });
     }
 }
 
