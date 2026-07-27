@@ -28,6 +28,11 @@ import {
     testOutputContentSchema,
 } from "./artifact-schema.js";
 import {
+    isCapabilityContractEnabled,
+    resolveCapabilityStatus,
+} from "./capability-config.js";
+import type { CapabilityId, CapabilityStatus } from "./capability-schema.js";
+import {
     EmbeddingCache,
     cosineSimilarity,
     embedTexts,
@@ -1102,8 +1107,10 @@ function gitToplevel(cwd: string): string {
 // only allows one connected transport per server). All instances share the
 // module-level helpers + AgentFS below. Enables a single long-lived process to
 // serve many concurrent clients within one trusted server-side storage domain.
-function createMemoryServer(context: ServerContext = {}): McpServer {
+function buildMemoryServer(context: ServerContext, capabilitySnapshot?: CapabilityStatus): McpServer {
     const server = new McpServer({ name: "cairn-memory", version: "0.1.0" });
+    const capabilityEnabled = (id: CapabilityId): boolean =>
+        capabilitySnapshot?.capabilities.find((state) => state.id === id)?.enabled ?? true;
     const memoryConfig = (): MemoryConfig => context.memoryConfig ?? getMemoryConfig();
     const scopeOptions = { projectId: context.projectId };
     const typedNodesEnabled = isTypedMemoryNodesEnabled();
@@ -1347,7 +1354,7 @@ server.registerTool(
     },
 );
 
-server.registerTool(
+if (capabilityEnabled("memory.write")) server.registerTool(
     "memory_write",
     {
         description: "Write a memory entry to a scoped AgentFS database and optionally promote it.",
@@ -1538,7 +1545,7 @@ server.registerTool(
     },
 );
 
-server.registerTool(
+if (capabilityEnabled("memory.search")) server.registerTool(
     "memory_search",
     {
         description: "Semantic search across AgentFS memory scopes using the configured embedding endpoint, ranked by cosine similarity. Falls back to substring matching when embeddings are unavailable. Use this to find memory by meaning rather than by exact key.",
@@ -2170,7 +2177,7 @@ server.registerTool(
     },
 );
 
-server.registerTool(
+if (capabilityEnabled("context.explore")) server.registerTool(
     "context_explore",
     {
         description: "Delegate a natural-language repo-exploration query to the external token_miser explore binary (FastContext-backed). Returns compact path:line-range citations. Requires CAIRN_EXPLORE_BINARY (absolute path to the token_miser binary) and a repo_root (per-call param or CAIRN_EXPLORE_REPO_ROOT env). Thin adapter — token_miser owns all exploration logic.",
@@ -2209,7 +2216,7 @@ server.registerTool(
     },
 );
 
-server.registerTool(
+if (capabilityEnabled("route.check")) server.registerTool(
     "route_check",
     {
         description: "Check reachability of the external token_miser routing/tiering proxy via its /health endpoint. Requires CAIRN_ROUTE_ENDPOINT (base URL of an already-running token_miser instance). Thin adapter — token_miser owns all routing/tiering logic; this tool neither hosts a proxy nor learns which tier serves a request.",
@@ -2267,6 +2274,13 @@ server.registerTool(
 );
 
     return server;
+}
+
+function createMemoryServer(context: ServerContext = {}): McpServer | Promise<McpServer> {
+    const contractEnabled = isCapabilityContractEnabled();
+    if (!contractEnabled) return buildMemoryServer(context);
+    return resolveCapabilityStatus({ projectRoot: process.cwd() })
+        .then((snapshot) => buildMemoryServer(context, snapshot));
 }
 
 // One-shot CLI: `node dist/index.js wakeup` prints project-scope memory for the
@@ -2416,7 +2430,7 @@ if (httpPort > 0) {
             onsessioninitialized: (id: string): void => { sessions.set(id, transport); },
             onsessionclosed: (id: string): void => { sessions.delete(id); },
         });
-        const session = createMemoryServer(context);
+        const session = await createMemoryServer(context);
         await session.connect(transport);
         return transport.handleRequest(request);
     };
@@ -2473,7 +2487,7 @@ if (httpPort > 0) {
     });
     process.on("SIGINT", async () => { httpServer.close(); for (const t of sessions.values()) { await t.close(); } process.exit(0); });
 } else {
-    const server = createMemoryServer();
+    const server = await createMemoryServer();
     const transport = new StdioServerTransport();
     process.on("SIGINT", async () => {
         await server.close();
