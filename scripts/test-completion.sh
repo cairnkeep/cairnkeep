@@ -23,7 +23,19 @@ grep -q -- '-l live-root' "$tmp/fish"
 for shell in bash zsh fish; do
   grep -q 'notes' "$tmp/$shell"
   grep -q 'distill.*search-error.*promote.*doctor\|distill search-error promote doctor' "$tmp/$shell"
+  grep -q 'artifact' "$tmp/$shell"
+  grep -q 'list.*show.*delete.*prune' "$tmp/$shell"
+  grep -q -- '--json\|-l json' "$tmp/$shell"
+  grep -q -- '--dry-run\|-l dry-run' "$tmp/$shell"
+  grep -q -- '--include-protected\|-l include-protected' "$tmp/$shell"
 done
+
+grep -q -- '--kind' "$tmp/bash"
+grep -q -- '--session' "$tmp/bash"
+grep -q -- '--kind' "$tmp/zsh"
+grep -q -- '--session' "$tmp/zsh"
+grep -q -- '-l kind' "$tmp/fish"
+grep -q -- '-l session' "$tmp/fish"
 
 if "$ROOT/bin/cairn" completion unsupported >/dev/null 2>&1; then
   echo "completion accepted an unsupported shell" >&2

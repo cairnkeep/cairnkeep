@@ -41,6 +41,10 @@ Usage:
                            indexes, and interrupted note transactions.
   cairn trajectory <list|show|prune>
                            Inspect and prune opt-in local session trajectories.
+  cairn artifact <list|show|delete|prune>
+                           Inspect and delete opt-in local artifacts. List/show
+                           support --json; delete supports --dry-run; prune
+                           supports --dry-run and --include-protected.
   cairn notes <distill|search-error|promote|doctor>
                            Compile closed trajectories into local hindsight notes,
                            search exact failure signatures, promote corroborated
@@ -86,6 +90,9 @@ case "$cmd" in
     ;;
   trajectory)
     exec node "$CAIRN_ROOT/mcp-memory-server/dist/trajectory-cli.js" "$@"
+    ;;
+  artifact)
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/artifact-cli.js" "$@"
     ;;
   notes)
     exec node "$CAIRN_ROOT/mcp-memory-server/dist/note-cli.js" "$@"

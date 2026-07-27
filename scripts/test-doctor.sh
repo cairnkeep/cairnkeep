@@ -24,6 +24,7 @@ proj="$tmp/clean"; mkdir -p "$proj"
 ( cd "$proj" && "$doctor" ) >"$tmp/out1" 2>&1 || fail "doctor exited non-zero with nothing configured:\n$(cat "$tmp/out1")"
 grep -q "\[SKIP\]" "$tmp/out1" || fail "expected SKIP lines when nothing is configured"
 grep -q "typed metadata and note transaction state" "$tmp/out1" || fail "expected typed/note diagnostics in the public doctor output"
+grep -q "artifact store (not present" "$tmp/out1" || fail "expected absent opt-in artifact diagnostics"
 
 # 2. An unsupported runtime is diagnosed before the server probe.
 mkdir -p "$tmp/old-node"
@@ -109,4 +110,52 @@ EOF
     fail "expected a functional embedding FAIL line"
 fi
 
-echo "PASS: cairn doctor (skip unconfigured, fail unreachable, probe embeddings)"
+# 5. Artifact doctor passes a valid store, repairs only derived state, and
+# refuses authoritative full-record corruption without leaking stored values.
+artifact_cli="$ROOT/mcp-memory-server/dist/artifact-cli.js"
+artifact_fixture="$ROOT/mcp-memory-server/scripts/fixtures/compaction-claude-code-2.1.219.json"
+artifact_project="$tmp/artifact-project"
+mkdir -p "$artifact_project"
+node "$artifact_cli" capture-claude "$artifact_project" <"$artifact_fixture" >/dev/null 2>&1 || \
+  fail "could not create the artifact doctor fixture"
+( cd "$artifact_project" && "$doctor" ) >"$tmp/artifact-valid.out" 2>&1 || \
+  fail "doctor rejected a valid artifacts.db:\n$(cat "$tmp/artifact-valid.out")"
+grep -q "\[PASS\] artifact store integrity" "$tmp/artifact-valid.out" || \
+  fail "expected the valid artifact PASS line"
+
+node --input-type=module - "$ROOT" "$artifact_project" <<'NODE'
+import { join } from "node:path";
+const { AgentFS } = await import(process.argv[2] + "/mcp-memory-server/node_modules/agentfs-sdk/dist/index_node.js");
+const agent = await AgentFS.open({ id: "artifacts", path: join(process.argv[3], ".agentfs", "artifacts.db") });
+const rows = await agent.kv.list("artifact/index/");
+if (rows.length === 0) throw new Error("missing derived index fixture");
+await agent.kv.delete(rows[0].key);
+await agent.close();
+NODE
+if ( cd "$artifact_project" && "$doctor" ) >"$tmp/artifact-derived.out" 2>&1; then
+  fail "doctor should fail before derived artifact repair:\n$(cat "$tmp/artifact-derived.out")"
+fi
+( cd "$artifact_project" && "$doctor" --repair ) >"$tmp/artifact-repaired.out" 2>&1 || \
+  fail "doctor did not repair derived artifact state:\n$(cat "$tmp/artifact-repaired.out")"
+grep -q "\[PASS\] artifact store repaired" "$tmp/artifact-repaired.out" || \
+  fail "expected the derived artifact repair PASS line"
+
+node --input-type=module - "$ROOT" "$artifact_project" <<'NODE'
+import { join } from "node:path";
+const { AgentFS } = await import(process.argv[2] + "/mcp-memory-server/node_modules/agentfs-sdk/dist/index_node.js");
+const agent = await AgentFS.open({ id: "artifacts", path: join(process.argv[3], ".agentfs", "artifacts.db") });
+const rows = await agent.kv.list("artifact/full/");
+if (rows.length === 0) throw new Error("missing authoritative record fixture");
+await agent.kv.set(rows[0].key, { ...rows[0].value, content_digest: "0".repeat(64) });
+await agent.close();
+NODE
+if ( cd "$artifact_project" && "$doctor" --repair ) >"$tmp/artifact-authoritative.out" 2>&1; then
+  fail "doctor should reject authoritative artifact corruption:\n$(cat "$tmp/artifact-authoritative.out")"
+fi
+grep -q "\[FAIL\] artifact store could not be repaired safely" "$tmp/artifact-authoritative.out" || \
+  fail "expected the authoritative artifact corruption FAIL line"
+if grep -qF 'compact_summary' "$tmp/artifact-authoritative.out"; then
+  fail "artifact doctor leaked a stored value"
+fi
+
+echo "PASS: cairn doctor (skip unconfigured, fail unreachable, probe embeddings, artifact repair boundaries)"

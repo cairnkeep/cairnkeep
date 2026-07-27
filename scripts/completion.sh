@@ -11,7 +11,7 @@ _cairn_complete() {
   COMPREPLY=()
   current=${COMP_WORDS[COMP_CWORD]}
   previous=${COMP_WORDS[COMP_CWORD-1]:-}
-  commands="bootstrap memory-server sync sync-pi doctor trajectory notes memory audit-timer uninstall completion version help"
+  commands="bootstrap memory-server sync sync-pi doctor trajectory artifact notes memory audit-timer uninstall completion version help"
   if (( COMP_CWORD == 1 )); then
     COMPREPLY=( $(compgen -W "$commands" -- "$current") )
     return
@@ -22,6 +22,7 @@ _cairn_complete() {
     sync-pi) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
     doctor) COMPREPLY=( $(compgen -W "--repair" -- "$current") ) ;;
     trajectory) COMPREPLY=( $(compgen -W "list show prune --json --dry-run" -- "$current") ) ;;
+    artifact) COMPREPLY=( $(compgen -W "list show delete prune --kind --session --json --dry-run --include-protected" -- "$current") ) ;;
     notes) COMPREPLY=( $(compgen -W "distill search-error promote doctor --project --session --all-projects --para-root --text --component --with --confirm --repair --json" -- "$current") ) ;;
     memory) COMPREPLY=( $(compgen -W "path export import" -- "$current") ) ;;
     audit-timer) COMPREPLY=( $(compgen -W "--on-calendar --para-root --render-only" -- "$current") ) ;;
@@ -44,6 +45,7 @@ _cairn() {
     'sync-pi:install the Pi trajectory extension'
     'doctor:check runtime dependencies and endpoints'
     'trajectory:inspect and prune local session trajectories'
+    'artifact:inspect, delete, and prune local artifacts'
     'notes:distill and search local hindsight notes'
     'memory:manage the durable memory store'
     'audit-timer:install a memory and wiki audit timer'
@@ -62,6 +64,15 @@ _cairn() {
     sync-pi) _arguments '--apply[apply changes]' '--live-root[Pi agent root]:directory:_files -/' ;;
     doctor) _arguments '--repair[repair trajectory metadata and indexes]' ;;
     trajectory) _values 'trajectory command' list show prune ;;
+    artifact)
+      case $words[3] in
+        list) _arguments '--kind[filter by exact artifact kind]:kind:(compaction_summary diff test_output generated_file)' '--session[filter by exact session reference]:session:' '--json[emit JSON]' ;;
+        show) _arguments '1:artifact ID or prefix:' '--json[emit JSON]' ;;
+        delete) _arguments '1:artifact ID or prefix:' '--dry-run[report without deleting]' '--json[emit JSON]' ;;
+        prune) _arguments '--dry-run[report without pruning]' '--include-protected[allow removal of the newest valid project compaction]' '--json[emit JSON]' ;;
+        *) _values 'artifact command' list show delete prune ;;
+      esac
+      ;;
     notes) _values 'notes command' distill search-error promote doctor ;;
     memory) _values 'memory command' path export import ;;
     audit-timer) _arguments '--on-calendar[systemd calendar]:calendar:' '--para-root[PARA root]:directory:_files -/' '--render-only[render directory]:directory:_files -/' ;;
@@ -76,8 +87,8 @@ EOF
   fish)
     cat <<'EOF'
 complete -c cairn -f
-for command in bootstrap memory-server sync sync-pi doctor trajectory notes memory audit-timer uninstall completion version help
-    complete -c cairn -n "not __fish_seen_subcommand_from bootstrap memory-server sync sync-pi doctor trajectory notes memory audit-timer uninstall completion version help" -a $command
+for command in bootstrap memory-server sync sync-pi doctor trajectory artifact notes memory audit-timer uninstall completion version help
+    complete -c cairn -n "not __fish_seen_subcommand_from bootstrap memory-server sync sync-pi doctor trajectory artifact notes memory audit-timer uninstall completion version help" -a $command
 end
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l apply
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l live-root -r
@@ -87,6 +98,12 @@ complete -c cairn -n "__fish_seen_subcommand_from bootstrap" -l untracked
 complete -c cairn -n "__fish_seen_subcommand_from memory" -a "path export import"
 complete -c cairn -n "__fish_seen_subcommand_from doctor" -l repair
 complete -c cairn -n "__fish_seen_subcommand_from trajectory" -a "list show prune"
+complete -c cairn -n "__fish_seen_subcommand_from artifact" -a "list show delete prune"
+complete -c cairn -n "__fish_seen_subcommand_from artifact; and __fish_seen_subcommand_from list" -l kind -r
+complete -c cairn -n "__fish_seen_subcommand_from artifact; and __fish_seen_subcommand_from list" -l session -r
+complete -c cairn -n "__fish_seen_subcommand_from artifact; and __fish_seen_subcommand_from list show delete prune" -l json
+complete -c cairn -n "__fish_seen_subcommand_from artifact; and __fish_seen_subcommand_from delete prune" -l dry-run
+complete -c cairn -n "__fish_seen_subcommand_from artifact; and __fish_seen_subcommand_from prune" -l include-protected
 complete -c cairn -n "__fish_seen_subcommand_from notes" -a "distill search-error promote doctor"
 complete -c cairn -n "__fish_seen_subcommand_from completion" -a "bash zsh fish"
 complete -c cairn -n "__fish_seen_subcommand_from uninstall" -l pi-live-root -r

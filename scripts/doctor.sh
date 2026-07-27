@@ -9,11 +9,11 @@
 set -uo pipefail
 
 CAIRN_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-REPAIR_TRAJECTORY=0
+REPAIR_STORES=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --repair) REPAIR_TRAJECTORY=1; shift ;;
-    -h|--help) echo "Usage: cairn doctor [--repair]  # repair derived trajectory/typed metadata, indexes, and interrupted note transactions"; exit 0 ;;
+    --repair) REPAIR_STORES=1; shift ;;
+    -h|--help) echo "Usage: cairn doctor [--repair]  # repair derived trajectory/artifact/typed metadata, indexes, and interrupted note transactions"; exit 0 ;;
     *) echo "Unknown doctor option: $1" >&2; echo "Usage: cairn doctor [--repair]" >&2; exit 2 ;;
   esac
 done
@@ -137,7 +137,7 @@ elif [[ ! -f "$trajectory_cli" ]]; then
   fail "trajectory diagnostics unavailable — rebuild mcp-memory-server"
 else
   trajectory_args=(doctor --json)
-  [[ $REPAIR_TRAJECTORY -eq 1 ]] && trajectory_args+=(--repair)
+  [[ $REPAIR_STORES -eq 1 ]] && trajectory_args+=(--repair)
   trajectory_json=$(node "$trajectory_cli" "${trajectory_args[@]}" 2>/dev/null)
   trajectory_status=$?
   trajectory_state=$(node -e '
@@ -154,7 +154,7 @@ try {
     repaired) pass "trajectory store repaired (metadata/indexes rebuilt; full records preserved)" ;;
     ok) pass "trajectory store integrity, schema and indexes are valid" ;;
     *)
-      if [[ $REPAIR_TRAJECTORY -eq 1 ]]; then
+      if [[ $REPAIR_STORES -eq 1 ]]; then
         fail "trajectory store could not be repaired safely; preserve .agentfs/trajectory.db and inspect it manually"
       else
         fail "trajectory store metadata/schema/index check failed — run: cairn doctor --repair"
@@ -164,7 +164,44 @@ try {
   [[ $trajectory_status -eq 0 || "$trajectory_state" == "broken" ]] || true
 fi
 
-# 8. Typed metadata overlays and canonical-note transaction state. The internal
+# 8. Project-local artifact store. Absence is healthy because compaction
+#    continuity and explicit artifact access are both opt-in. Repair may only
+#    rebuild derived indexes, dedupe rows, and latest pointers from valid full
+#    records; authoritative schema, digest, full-record, or SQLite corruption
+#    is never modified automatically.
+artifact_cli="$CAIRN_ROOT/mcp-memory-server/dist/artifact-cli.js"
+if [[ ! -f "$artifact_cli" ]]; then
+  fail "artifact diagnostics unavailable — rebuild mcp-memory-server"
+else
+  artifact_args=(doctor --json)
+  [[ $REPAIR_STORES -eq 1 ]] && artifact_args+=(--repair)
+  artifact_json=$(node "$artifact_cli" "${artifact_args[@]}" 2>/dev/null)
+  artifact_status=$?
+  artifact_state=$(node -e '
+try {
+  const value = JSON.parse(process.argv[1])
+  if (!value.exists) process.stdout.write("absent")
+  else if (value.ok && value.repaired) process.stdout.write("repaired")
+  else if (value.ok) process.stdout.write("ok")
+  else process.stdout.write("broken")
+} catch { process.stdout.write("invalid") }
+' "$artifact_json" 2>/dev/null)
+  case "$artifact_state" in
+    absent) skip "artifact store (not present — compaction capture and artifact access are opt-in)" ;;
+    repaired) pass "artifact store repaired (derived indexes, dedupe rows, and pointers rebuilt; authoritative records preserved)" ;;
+    ok) pass "artifact store integrity, schema, digests, indexes, pointers, and retention state are valid" ;;
+    *)
+      if [[ $REPAIR_STORES -eq 1 ]]; then
+        fail "artifact store could not be repaired safely; preserve .agentfs/artifacts.db and inspect authoritative corruption manually"
+      else
+        fail "artifact store authoritative/schema/digest/index check failed — preserve .agentfs/artifacts.db, then run: cairn doctor --repair"
+      fi
+      ;;
+  esac
+  [[ $artifact_status -eq 0 || "$artifact_state" == "broken" ]] || true
+fi
+
+# 9. Typed metadata overlays and canonical-note transaction state. The internal
 #    JSON seam enumerates only contained local databases and the one notes root;
 #    raw KV cells and unmarked Markdown bytes are never repair inputs.
 node_cli="$CAIRN_ROOT/mcp-memory-server/dist/node-cli.js"
@@ -172,7 +209,7 @@ if [[ ! -f "$node_cli" ]]; then
   fail "typed-node diagnostics unavailable — rebuild mcp-memory-server"
 else
   node_args=(doctor --project-root "$PWD")
-  [[ $REPAIR_TRAJECTORY -eq 1 ]] && node_args+=(--repair)
+  [[ $REPAIR_STORES -eq 1 ]] && node_args+=(--repair)
   node_json=$(node "$node_cli" "${node_args[@]}" 2>/dev/null)
   node_status=$?
   node_state=$(node -e '
@@ -189,7 +226,7 @@ try {
     repaired) pass "typed metadata/indexes and note transactions repaired safely" ;;
     ok) pass "typed metadata, replay state, and note transactions are valid" ;;
     *)
-      if [[ $REPAIR_TRAJECTORY -eq 1 ]]; then
+      if [[ $REPAIR_STORES -eq 1 ]]; then
         fail "typed/note state could not be repaired safely; preserve the memory store and recovery journals before manual inspection"
       else
         fail "typed metadata or note transaction check failed — run: cairn doctor --repair"

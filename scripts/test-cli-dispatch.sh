@@ -12,9 +12,11 @@ cairn="$ROOT/bin/cairn"
 "$cairn" help | grep -q "cairn sync-pi" || fail "help missing sync-pi"
 "$cairn" help | grep -q "cairn memory-server" || fail "help missing memory-server"
 "$cairn" help | grep -q "cairn notes" || fail "help missing notes"
+"$cairn" help | grep -q "cairn artifact <list|show|delete|prune>" || fail "help missing artifact"
 "$cairn" sync --help >/dev/null 2>&1 || fail "cairn sync dispatch"
 "$cairn" sync-pi --help >/dev/null 2>&1 || fail "cairn sync-pi dispatch"
 env -u CAIRN_NOTE_DISTILLATION "$cairn" notes --help >/dev/null 2>&1 || fail "cairn notes dispatch"
+"$cairn" artifact --help | grep -q "cairn artifact list" || fail "cairn artifact dispatch"
 if "$cairn" not-a-command >/dev/null 2>&1; then
   fail "unknown command should exit non-zero"
 fi
@@ -25,4 +27,4 @@ CAIRN_AGENTFS_BASE_DIR="$tmp/store" "$cairn" memory path | grep -qx "$tmp/store"
 "$cairn" audit-timer --render-only "$tmp/u" >/dev/null || fail "cairn audit-timer dispatch"
 [[ -f "$tmp/u/memory-wiki-audit.timer" ]] || fail "audit-timer render via cairn produced no units"
 
-echo "PASS: cairn dispatch (doctor, memory, audit-timer)"
+echo "PASS: cairn dispatch (doctor, memory, artifact, audit-timer)"

@@ -45,6 +45,8 @@ installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
   fail "npm tarball omitted the note schema"
 [[ -f "$installed_root/schemas/memory-node.schema.json" ]] || \
   fail "npm tarball omitted the typed memory-node schema"
+[[ -f "$installed_root/schemas/artifact.schema.json" ]] || \
+  fail "npm tarball omitted the artifact schema"
 for module in node-schema node-store node-cli; do
   [[ -f "$installed_root/mcp-memory-server/dist/$module.js" ]] || \
     fail "npm tarball omitted compiled $module"
@@ -55,7 +57,25 @@ done
   fail "npm tarball omitted optional note enrichment"
 [[ -f "$installed_root/mcp-memory-server/dist/note-store.js" ]] || \
   fail "npm tarball omitted the deterministic note store"
-if find "$installed_root" -type f \( -name 'manifest-v1.json' -o -name '*.db' -o -name '*.db-wal' -o -name '*.db-shm' -o -path '*/notes/projects/*' -o -path '*/transactions/*' -o -path '*/backups/*' \) | grep -q .; then
+for module in artifact-schema artifact-store compaction-normalize artifact-cli; do
+  [[ -f "$installed_root/mcp-memory-server/dist/$module.js" ]] || \
+    fail "npm tarball omitted compiled $module"
+done
+[[ -x "$installed_root/claude/hooks/compaction-capture.sh" ]] || \
+  fail "npm tarball omitted the executable Claude compaction hook"
+[[ -f "$installed_root/opencode/plugins/memory-capture.ts" ]] || \
+  fail "npm tarball omitted the OpenCode capture plugin"
+[[ -f "$installed_root/opencode/plugins/memory-wakeup.ts" ]] || \
+  fail "npm tarball omitted the OpenCode recovery plugin"
+for fixture in \
+  compaction-claude-code-2.1.219.json \
+  compaction-opencode-1.17.20-event.json \
+  compaction-opencode-1.17.20-messages.json
+do
+  [[ -f "$installed_root/mcp-memory-server/scripts/fixtures/$fixture" ]] || \
+    fail "npm tarball omitted versioned fixture $fixture"
+done
+if find "$installed_root" -type f \( -name 'manifest-v1.json' -o -name '*.db' -o -name '*.db-wal' -o -name '*.db-shm' -o -path '*/notes/projects/*' -o -path '*/transactions/*' -o -path '*/backups/*' -o -path '*/runtime-evidence/*' -o -path '*/generated-artifacts/*' -o -path '*/artifacts/projects/*' -o -path '*/artifacts/sessions/*' -o -path '*/artifacts/data/*' \) | grep -q .; then
   fail "npm tarball included generated user note data"
 fi
 
