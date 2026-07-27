@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: sync-opencode-security-assets.sh [--check|--apply] [--live-root PATH]
+Usage: sync-opencode-security-assets.sh [--check|--apply] [--capability-overlay] [--live-root PATH]
 
 Compare or sync the repo-managed OpenCode security-audit assets against the live
 OpenCode config tree.
@@ -11,12 +11,16 @@ OpenCode config tree.
 Options:
   --check            Verify that the managed live assets match the repo copy (default)
   --apply            Copy the repo-managed assets into the live OpenCode tree, then verify
+  --capability-overlay
+                     Select guarded command/workflow overlays for a contract-enabled isolated root
   --live-root PATH   Override the live OpenCode root (default: $OPENCODE_CONFIG_DIR or $HOME/.config/opencode)
   -h, --help         Show this help text
 
 Notes:
   - The repo-managed source of truth lives under ./opencode/
   - This script manages only the security-audit OpenCode assets
+  - --capability-overlay substitutes only matching files from
+    opencode/capability-contract/; normal mode never reads or installs that tree
   - --apply also removes the legacy gsd-overrides security-audit workflow/template files
 EOF
 }
@@ -25,6 +29,7 @@ ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SOURCE_ROOT="$ROOT_DIR/opencode"
 LIVE_ROOT="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 MODE="check"
+CAPABILITY_OVERLAY=0
 
 ASSETS=(
   "command/security-audit.md"
@@ -56,6 +61,10 @@ while [[ $# -gt 0 ]]; do
       MODE="apply"
       shift
       ;;
+    --capability-overlay)
+      CAPABILITY_OVERLAY=1
+      shift
+      ;;
     --live-root)
       LIVE_ROOT="$2"
       shift 2
@@ -71,6 +80,15 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+source_for() {
+  local rel="$1"
+  local source="$SOURCE_ROOT/$rel"
+  if [[ "$CAPABILITY_OVERLAY" -eq 1 && -f "$SOURCE_ROOT/capability-contract/$rel" ]]; then
+    source="$SOURCE_ROOT/capability-contract/$rel"
+  fi
+  printf '%s\n' "$source"
+}
 
 ensure_source_assets_exist() {
   local rel
@@ -116,7 +134,7 @@ run_check() {
   ensure_source_assets_exist
 
   for rel in "${ASSETS[@]}"; do
-    src="$SOURCE_ROOT/$rel"
+    src=$(source_for "$rel")
     dst="$LIVE_ROOT/$rel"
 
     if [[ ! -f "$dst" ]]; then
@@ -160,7 +178,7 @@ run_apply() {
   ensure_source_assets_exist
 
   for rel in "${ASSETS[@]}"; do
-    src="$SOURCE_ROOT/$rel"
+    src=$(source_for "$rel")
     dst="$LIVE_ROOT/$rel"
 
     mkdir -p "$(dirname "$dst")"
