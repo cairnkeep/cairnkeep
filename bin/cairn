@@ -45,6 +45,10 @@ Usage:
                            Inspect and delete opt-in local artifacts. List/show
                            support --json; delete supports --dry-run; prune
                            supports --dry-run and --include-protected.
+  cairn capabilities <list|status|enable|disable|reset|logging>
+                           Inspect and manage project capability state. MCP changes
+                           require a memory-server restart; operating changes apply
+                           on the next invocation.
   cairn notes <distill|search-error|promote|doctor>
                            Compile closed trajectories into local hindsight notes,
                            search exact failure signatures, promote corroborated
@@ -93,6 +97,9 @@ case "$cmd" in
     ;;
   artifact)
     exec node "$CAIRN_ROOT/mcp-memory-server/dist/artifact-cli.js" "$@"
+    ;;
+  capabilities)
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/capability-cli.js" "$@"
     ;;
   notes)
     exec node "$CAIRN_ROOT/mcp-memory-server/dist/note-cli.js" "$@"
