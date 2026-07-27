@@ -116,7 +116,7 @@ artifact_cli="$ROOT/mcp-memory-server/dist/artifact-cli.js"
 artifact_fixture="$ROOT/mcp-memory-server/scripts/fixtures/compaction-claude-code-2.1.219.json"
 artifact_project="$tmp/artifact-project"
 mkdir -p "$artifact_project"
-node "$artifact_cli" capture-claude "$artifact_project" <"$artifact_fixture" >/dev/null 2>&1 || \
+node "$artifact_cli" capture-claude "$artifact_project" --harness-version 2.1.219 <"$artifact_fixture" >/dev/null 2>&1 || \
   fail "could not create the artifact doctor fixture"
 ( cd "$artifact_project" && "$doctor" ) >"$tmp/artifact-valid.out" 2>&1 || \
   fail "doctor rejected a valid artifacts.db:\n$(cat "$tmp/artifact-valid.out")"
