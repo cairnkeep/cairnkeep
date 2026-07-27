@@ -23,6 +23,7 @@ usage() {
 Usage: verify-docs-parity.sh
        verify-docs-parity.sh --artifact-remote-path-only
        verify-docs-parity.sh --expect-red-artifact-remote-path
+       verify-docs-parity.sh --self-test-native-capability-docs
        verify-docs-parity.sh -h|--help
 
 Checks that every CAIRN_*/MCP_HTTP_* env key read by the cairn-memory MCP
@@ -38,6 +39,29 @@ EXPECTED_RED_EXIT=86
 ARTIFACT_REMOTE_PATH_RED_MARKER='PHASE17_RED:ARTIFACT_REMOTE_PATH_DOC_DRIFT'
 
 ENV_KEY_PATTERN='(CAIRN_[A-Z_]+|MCP_HTTP_[A-Z_]+)'
+
+run_native_capability_docs_self_test() {
+  local fixture_root
+  fixture_root=$(mktemp -d)
+  trap 'rm -rf "$fixture_root"' RETURN
+
+  mkdir -p \
+    "$fixture_root/docs" \
+    "$fixture_root/mcp-memory-server/src" \
+    "$fixture_root/claude/capability-contract/hooks" \
+    "$fixture_root/opencode/capability-contract/plugins" \
+    "$fixture_root/scripts"
+  cp docs/operating.md docs/privacy-and-data-flow.md docs/storage.md "$fixture_root/docs/"
+  cp mcp-memory-server/src/capability-harness.ts "$fixture_root/mcp-memory-server/src/"
+  cp mcp-memory-server/src/capability-store.ts "$fixture_root/mcp-memory-server/src/"
+  cp claude/capability-contract/hooks/capability-command-start.sh "$fixture_root/claude/capability-contract/hooks/"
+  cp claude/capability-contract/hooks/capability-command-finish.sh "$fixture_root/claude/capability-contract/hooks/"
+  cp opencode/capability-contract/plugins/capability-command.ts "$fixture_root/opencode/capability-contract/plugins/"
+  cp scripts/sync-claude-assets.sh scripts/sync-opencode-plugin-assets.sh "$fixture_root/scripts/"
+
+  check_native_capability_docs "$fixture_root"
+  echo "[native-capability-docs-self-test] OK: focused drift cases are rejected"
+}
 
 # check_env_keys(): comm -23 of sorted code-keys vs sorted doc-keys --
 # code-keys-not-in-docs only (one-directional, per D-10).
@@ -379,6 +403,11 @@ main() {
     fi
     echo "$ARTIFACT_REMOTE_PATH_RED_MARKER"
     exit "$EXPECTED_RED_EXIT"
+  fi
+  if [[ "$mode" == "--self-test-native-capability-docs" ]]; then
+    [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+    run_native_capability_docs_self_test
+    return
   fi
 
   while [[ $# -gt 0 ]]; do
