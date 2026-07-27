@@ -9,6 +9,125 @@ trap 'rm -rf "$tmp"' EXIT
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
+opencode_sync_tree_digest() {
+  local live_root="$1"
+  (
+    cd "$live_root"
+    find . -type f -print | LC_ALL=C sort | while IFS= read -r asset; do
+      sha256sum "$asset"
+    done
+  )
+}
+
+assert_opencode_legacy_plugins() {
+  local live_root="$1"
+  local plugin
+  for plugin in memory-wakeup.ts memory-capture.ts memory-recall.ts; do
+    [[ -f "$live_root/plugins/$plugin" ]] || fail "OpenCode sync omitted legacy plugin: $plugin"
+    cmp -s <(sed "s|@@INFRA_ROOT@@|$ROOT|g" "$ROOT/opencode/plugins/$plugin") \
+      "$live_root/plugins/$plugin" || fail "OpenCode sync changed legacy plugin bytes: $plugin"
+  done
+}
+
+assert_no_retired_opencode_owners() {
+  local live_root="$1"
+  [[ ! -e "$live_root/capability-contract" ]] || fail "OpenCode sync installed a retired capability owner tree"
+  [[ ! -e "$live_root/hooks/capability-command-start.sh" ]] || fail "OpenCode sync installed a Claude capability hook"
+  [[ ! -e "$live_root/hooks/capability-command-finish.sh" ]] || fail "OpenCode sync installed a Claude capability hook"
+  if grep -R -q -E 'cairn capabilities (guard|start|finish)|capability_handle' \
+    "$live_root/command" "$live_root/workflows" 2>/dev/null; then
+    fail "OpenCode sync installed retired model-visible lifecycle ownership"
+  fi
+}
+
+assert_opencode_sync_assets() {
+  local name="$1"
+  local live_root="$2"
+  case "$name" in
+    wiki)
+      cmp -s "$ROOT/opencode/command/wiki-ingest.md" "$live_root/command/wiki-ingest.md" || fail "wiki sync changed legacy command bytes"
+      cmp -s "$ROOT/opencode/workflows/wiki-ingest-workflow.md" "$live_root/workflows/wiki-ingest-workflow.md" || fail "wiki sync changed legacy workflow bytes"
+      ;;
+    graph)
+      cmp -s "$ROOT/opencode/command/graphify.md" "$live_root/command/graphify.md" || fail "graph sync changed legacy command bytes"
+      ;;
+    security)
+      cmp -s "$ROOT/opencode/command/security-audit.md" "$live_root/command/security-audit.md" || fail "security sync changed legacy command bytes"
+      cmp -s "$ROOT/opencode/workflows/security-audit-workflow.md" "$live_root/workflows/security-audit-workflow.md" || fail "security sync changed legacy workflow bytes"
+      ;;
+  esac
+}
+
+opencode_all_sync_modes() {
+  local probe_bin="$tmp/sync-probe-bin"
+  local process_log="$tmp/sync-processes.log"
+  local entry name normal_root enabled_root before after output state_root plugin_count
+  mkdir -p "$probe_bin"
+  : > "$process_log"
+  for command_name in cairn node; do
+    cat > "$probe_bin/$command_name" <<EOF
+#!/usr/bin/env bash
+echo "$command_name:\$*" >> "$process_log"
+exit 91
+EOF
+    chmod +x "$probe_bin/$command_name"
+  done
+
+  for spec in \
+    "wiki:scripts/sync-opencode-wiki-assets.sh" \
+    "graph:scripts/sync-opencode-graphify-assets.sh" \
+    "security:scripts/sync-opencode-security-assets.sh"
+  do
+    name=${spec%%:*}
+    entry="$ROOT/${spec#*:}"
+    normal_root="$tmp/$name-normal"
+    enabled_root="$tmp/$name-enabled"
+    state_root="$tmp/$name-state"
+
+    output=$(env -u CAIRN_CAPABILITY_CONTRACT \
+      PATH="$probe_bin:$PATH" CAIRN_HARNESS_STATE_DIR="$state_root/normal" \
+      "$entry" --apply --live-root "$normal_root") || fail "$name normal sync failed"
+    assert_opencode_sync_assets "$name" "$normal_root"
+    assert_opencode_legacy_plugins "$normal_root"
+    assert_no_retired_opencode_owners "$normal_root"
+    [[ ! -e "$normal_root/plugins/capability-command.ts" ]] || fail "$name normal sync registered capability plugin"
+    before=$(opencode_sync_tree_digest "$normal_root")
+
+    output+=$(CAIRN_CAPABILITY_CONTRACT=0 \
+      PATH="$probe_bin:$PATH" CAIRN_HARNESS_STATE_DIR="$state_root/master-off" \
+      "$entry" --apply --capability-overlay --live-root "$normal_root") || fail "$name master-off overlay sync failed"
+    after=$(opencode_sync_tree_digest "$normal_root")
+    [[ "$after" == "$before" ]] || fail "$name master-off overlay differs from exact normal sync"
+    assert_no_retired_opencode_owners "$normal_root"
+    [[ ! -e "$normal_root/plugins/capability-command.ts" ]] || fail "$name master-off sync registered capability plugin"
+
+    output+=$(CAIRN_CAPABILITY_CONTRACT=1 \
+      PATH="$probe_bin:$PATH" CAIRN_HARNESS_STATE_DIR="$state_root/enabled" \
+      "$entry" --apply --capability-overlay --live-root "$enabled_root") || fail "$name enabled overlay sync failed"
+    assert_opencode_sync_assets "$name" "$enabled_root"
+    assert_opencode_legacy_plugins "$enabled_root"
+    assert_no_retired_opencode_owners "$enabled_root"
+    plugin_count=$(find "$enabled_root/plugins" -maxdepth 1 -type f -name 'capability-*.ts' | wc -l | tr -d ' ')
+    [[ "$plugin_count" -eq 1 ]] || fail "$name enabled overlay installed more than the native capability plugin"
+    cmp -s <(sed "s|@@INFRA_ROOT@@|$ROOT|g" "$ROOT/opencode/capability-contract/plugins/capability-command.ts") \
+      "$enabled_root/plugins/capability-command.ts" || fail "$name enabled overlay capability plugin bytes differ"
+    grep -qF 'export const CapabilityCommandPlugin' "$enabled_root/plugins/capability-command.ts" || \
+      fail "$name enabled overlay omitted native plugin registration"
+    [[ ! -e "$state_root" ]] || fail "$name sync created capability measurement state"
+    [[ ! -s "$process_log" ]] || fail "$name sync started a capability coordinator process"
+    if grep -q -E 'disabled|permissionDecision|block' <<<"$output"; then
+      fail "$name sync emitted capability blocking state"
+    fi
+  done
+
+  echo "PASS: all OpenCode sync entrypoints preserve inert identity and select only the native overlay plugin"
+}
+
+if [[ "${1:-}" == "opencode-all-sync-modes" ]]; then
+  opencode_all_sync_modes
+  exit 0
+fi
+
 # A git repo scaffolded with the real templates.
 repo="$tmp/repo"; mkdir "$repo"; git -C "$repo" init -q
 "$ROOT/scripts/bootstrap.sh" "$repo" >/dev/null
@@ -145,7 +264,7 @@ claude_overlay="$repo/.ai/capability-contract/claude"
 grep -qx "args:--overlay" "$CLAUDE_LOG" || fail "Claude overlay launch changed argv"
 grep -qx "config:$claude_overlay" "$CLAUDE_LOG" || fail "Claude overlay root was not selected"
 for rel in commands/wiki-ingest.md commands/wiki-query.md commands/wiki-lint.md commands/graphify.md commands/security-audit.md; do
-  cmp -s "$ROOT/claude/capability-contract/$rel" "$claude_overlay/$rel" || fail "Claude overlay missing or partial: $rel"
+  cmp -s "$ROOT/claude/$rel" "$claude_overlay/$rel" || fail "Claude overlay changed legacy owner bytes: $rel"
 done
 CAIRN_CAPABILITY_CONTRACT=1 "$ROOT/scripts/sync-claude-assets.sh" --check --capability-overlay --live-root "$claude_overlay" >/dev/null || fail "Claude overlay family is incomplete"
 for name in capability-command-start.sh capability-command-finish.sh; do
@@ -169,7 +288,7 @@ for rel in \
   workflows/wiki-ingest-workflow.md workflows/wiki-query-workflow.md workflows/wiki-lint-workflow.md \
   command/graphify.md command/security-audit.md workflows/security-audit-workflow.md
 do
-  cmp -s "$ROOT/opencode/capability-contract/$rel" "$opencode_overlay/$rel" || fail "OpenCode overlay missing or partial: $rel"
+  cmp -s "$ROOT/opencode/$rel" "$opencode_overlay/$rel" || fail "OpenCode overlay changed legacy owner bytes: $rel"
 done
 "$ROOT/scripts/sync-opencode-wiki-assets.sh" --check --capability-overlay --live-root "$opencode_overlay" >/dev/null || fail "OpenCode wiki overlay family is incomplete"
 "$ROOT/scripts/sync-opencode-graphify-assets.sh" --check --capability-overlay --live-root "$opencode_overlay" >/dev/null || fail "OpenCode graph overlay family is incomplete"
