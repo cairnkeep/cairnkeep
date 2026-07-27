@@ -578,6 +578,85 @@ claude_owner_only() {
   echo "PASS: Claude native hook owner is isolated from the normal hook tree"
 }
 
+opencode_command_owner_only() {
+  local temp_root command
+  local -a commands=(wiki-ingest wiki-lint wiki-query graphify security-audit)
+
+  [[ -f "$OPENCODE_PLUGIN" ]] || fail "OpenCode native capability plugin is absent"
+  grep -qF '"command.execute.before"' "$OPENCODE_PLUGIN" || \
+    fail "OpenCode native plugin does not own pre-expansion admission"
+  grep -qF 'harness-before' "$OPENCODE_PLUGIN" || \
+    fail "OpenCode native admission does not delegate through the coordinator"
+
+  for command in "${commands[@]}"; do
+    [[ ! -e "$ROOT/opencode/capability-contract/command/$command.md" ]] || \
+      fail "OpenCode capability command overlay remains: $command"
+    [[ -f "$ROOT/opencode/command/$command.md" ]] || \
+      fail "legacy OpenCode command is missing: $command"
+  done
+  if grep -q -E 'cairn capabilities (guard|start|finish)|capability_handle|capability-overlay' \
+    "$ROOT/opencode/command/wiki-ingest.md" \
+    "$ROOT/opencode/command/wiki-lint.md" \
+    "$ROOT/opencode/command/wiki-query.md" \
+    "$ROOT/opencode/command/graphify.md" \
+    "$ROOT/opencode/command/security-audit.md"; then
+    fail "legacy OpenCode command contains lifecycle enforcement"
+  fi
+
+  temp_root=$(mktemp -d)
+  CAIRN_CAPABILITY_CONTRACT=1 \
+    "$ROOT/scripts/sync-opencode-wiki-assets.sh" --apply --capability-overlay --live-root "$temp_root" >/dev/null
+  CAIRN_CAPABILITY_CONTRACT=1 \
+    "$ROOT/scripts/sync-opencode-graphify-assets.sh" --apply --capability-overlay --live-root "$temp_root" >/dev/null
+  CAIRN_CAPABILITY_CONTRACT=1 \
+    "$ROOT/scripts/sync-opencode-security-assets.sh" --apply --capability-overlay --live-root "$temp_root" >/dev/null
+  for command in "${commands[@]}"; do
+    cmp -s "$ROOT/opencode/command/$command.md" "$temp_root/command/$command.md" || {
+      rm -rf "$temp_root"
+      fail "enabled OpenCode sync changed the legacy command: $command"
+    }
+  done
+  rm -rf "$temp_root"
+
+  opencode_plugin
+  echo "PASS: OpenCode native plugin is the sole command lifecycle owner"
+}
+
+opencode_owner_only() {
+  local temp_root workflow
+  local -a workflows=(wiki-ingest-workflow wiki-lint-workflow wiki-query-workflow security-audit-workflow)
+
+  opencode_command_owner_only
+  for workflow in "${workflows[@]}"; do
+    [[ ! -e "$ROOT/opencode/capability-contract/workflows/$workflow.md" ]] || \
+      fail "OpenCode capability workflow overlay remains: $workflow"
+    [[ -f "$ROOT/opencode/workflows/$workflow.md" ]] || \
+      fail "legacy OpenCode workflow is missing: $workflow"
+  done
+  if grep -q -E 'cairn capabilities (guard|start|finish)|capability_handle|capability-overlay' \
+    "$ROOT/opencode/workflows/wiki-ingest-workflow.md" \
+    "$ROOT/opencode/workflows/wiki-lint-workflow.md" \
+    "$ROOT/opencode/workflows/wiki-query-workflow.md" \
+    "$ROOT/opencode/workflows/security-audit-workflow.md"; then
+    fail "legacy OpenCode workflow contains lifecycle enforcement"
+  fi
+
+  temp_root=$(mktemp -d)
+  CAIRN_CAPABILITY_CONTRACT=1 \
+    "$ROOT/scripts/sync-opencode-wiki-assets.sh" --apply --capability-overlay --live-root "$temp_root" >/dev/null
+  CAIRN_CAPABILITY_CONTRACT=1 \
+    "$ROOT/scripts/sync-opencode-security-assets.sh" --apply --capability-overlay --live-root "$temp_root" >/dev/null
+  for workflow in "${workflows[@]}"; do
+    cmp -s "$ROOT/opencode/workflows/$workflow.md" "$temp_root/workflows/$workflow.md" || {
+      rm -rf "$temp_root"
+      fail "enabled OpenCode sync changed the legacy workflow: $workflow"
+    }
+  done
+  rm -rf "$temp_root"
+
+  echo "PASS: OpenCode native plugin is the sole lifecycle owner"
+}
+
 expect_red_claude() {
   local temp_root
   temp_root=$(mktemp -d)
@@ -664,6 +743,8 @@ case "$mode" in
     case "$mode" in
       opencode-plugin) opencode_plugin ;;
       opencode-sync-modes) opencode_sync_modes ;;
+      opencode-command-owner-only) opencode_command_owner_only ;;
+      opencode-owner-only) opencode_owner_only ;;
       *) fail "production mode '$mode' is intentionally RED until its owning Phase 18 plan extends this driver" ;;
     esac
     ;;
