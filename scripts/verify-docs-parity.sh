@@ -213,6 +213,124 @@ check_artifact_remote_path_contract() {
   return "$failed"
 }
 
+check_capability_contract() {
+  local failed=0 file id env tool term source_file docs_files
+
+  for file in \
+    mcp-memory-server/src/capability-schema.ts \
+    mcp-memory-server/src/capability-registry.ts \
+    mcp-memory-server/src/capability-config.ts \
+    mcp-memory-server/src/capability-cli.ts \
+    mcp-memory-server/src/capability-store.ts \
+    mcp-memory-server/src/capability-adapter.ts \
+    docs/operating.md docs/storage.md docs/privacy-and-data-flow.md README.md; do
+    if [[ ! -f "$file" ]]; then
+      echo "FATAL: capability parity input is missing: $file" >&2
+      failed=1
+    fi
+  done
+  [[ "$failed" -eq 0 ]] || return "$failed"
+
+  while IFS='|' read -r id env; do
+    grep -qF "\"$id\"" mcp-memory-server/src/capability-schema.ts || {
+      echo "FATAL: canonical capability ID is missing from source: $id" >&2
+      failed=1
+    }
+    grep -qF "$id" README.md docs/operating.md || {
+      echo "FATAL: canonical capability ID is undocumented: $id" >&2
+      failed=1
+    }
+    grep -qF "$env" README.md docs/operating.md templates/env.example.template || {
+      echo "FATAL: capability environment key is not source/docs complete: $env" >&2
+      failed=1
+    }
+  done <<'EOF'
+memory.write|CAIRN_CAPABILITY_MEMORY_WRITE
+memory.search|CAIRN_CAPABILITY_MEMORY_SEARCH
+notes.distill|CAIRN_CAPABILITY_NOTES_DISTILL
+wiki|CAIRN_CAPABILITY_WIKI
+graph|CAIRN_CAPABILITY_GRAPH
+security.audit|CAIRN_CAPABILITY_SECURITY_AUDIT
+route.check|CAIRN_CAPABILITY_ROUTE_CHECK
+context.explore|CAIRN_CAPABILITY_CONTEXT_EXPLORE
+EOF
+
+  for term in CAIRN_CAPABILITY_CONTRACT CAIRN_CAPABILITY_LOGGING; do
+    grep -qF "$term" mcp-memory-server/src/capability-config.ts README.md docs/operating.md templates/env.example.template || {
+      echo "FATAL: capability master/logging flag is not source/docs complete: $term" >&2
+      failed=1
+    }
+  done
+
+  while IFS='|' read -r id tool; do
+    grep -qF "\"$id\"" mcp-memory-server/src/index.ts || failed=1
+    grep -qF "\"$tool\"" mcp-memory-server/src/index.ts || failed=1
+    grep -qF "$tool" README.md docs/operating.md || {
+      echo "FATAL: omitted MCP tool is undocumented: $tool" >&2
+      failed=1
+    }
+  done <<'EOF'
+memory.write|memory_write
+memory.search|memory_search
+route.check|route_check
+context.explore|context_explore
+EOF
+
+  while IFS='|' read -r term source_file doc_term docs_files; do
+    grep -qF "$term" "$source_file" || {
+      echo "FATAL: capability source term is missing: $term ($source_file)" >&2
+      failed=1
+    }
+    grep -qF "$doc_term" $docs_files || {
+      echo "FATAL: capability source fact is undocumented: $doc_term ($docs_files)" >&2
+      failed=1
+    }
+  done <<'EOF'
+capability-callback/v1/record/|mcp-memory-server/src/capability-store.ts|capability-callback/v1|docs/storage.md docs/privacy-and-data-flow.md
+.agentfs/trajectory.db|mcp-memory-server/src/capability-cli.ts|.agentfs/trajectory.db|docs/storage.md docs/privacy-and-data-flow.md
+CAPABILITY_CALLBACK_RECORD_MAX_COUNT = 10_000|mcp-memory-server/src/capability-store.ts|10,000-record cap|docs/storage.md
+getTrajectoryLimits|mcp-memory-server/src/capability-store.ts|CAIRN_TRAJECTORY_RETENTION_DAYS|docs/storage.md
+transport !== "http"|mcp-memory-server/src/capability-adapter.ts|no remote/HTTP callback persistence|docs/privacy-and-data-flow.md
+isTrajectoryCaptureEnabled|mcp-memory-server/src/capability-adapter.ts|CAIRN_TRAJECTORY_CAPTURE|docs/privacy-and-data-flow.md
+configuration_digest|mcp-memory-server/src/capability-store.ts|configuration_digest|docs/operating.md docs/privacy-and-data-flow.md
+correlation_id|mcp-memory-server/src/capability-store.ts|correlation_id|docs/privacy-and-data-flow.md
+invocation_id|mcp-memory-server/src/capability-store.ts|invocation_id|docs/privacy-and-data-flow.md
+duration_ms|mcp-memory-server/src/capability-store.ts|duration_ms|docs/privacy-and-data-flow.md
+EOF
+
+  for term in \
+    'capabilities list' 'capabilities status' 'capabilities enable' \
+    'capabilities disable' 'capabilities reset' 'capabilities logging'; do
+    grep -qF "$term" mcp-memory-server/src/capability-cli.ts docs/operating.md || {
+      echo "FATAL: managed capability CLI operation is not source/docs complete: $term" >&2
+      failed=1
+    }
+  done
+
+  for term in \
+    'three consents' 'payload-free' 'no start record' 'fail-open' \
+    'no telemetry' 'HTTP callbacks are never persisted' \
+    'Default uninstall retains' '--purge-memory PROJECT' 'revert.sh' \
+    'no database migration'; do
+    grep -qiF -- "$term" docs/storage.md docs/privacy-and-data-flow.md || {
+      echo "FATAL: capability privacy/storage term is missing: $term" >&2
+      failed=1
+    }
+  done
+
+  for term in 'wiki covers ingest, query, and lint' 'graph covers its command family' \
+    'security audit covers its command and workflow family' 'directly invokable workflow' \
+    'byte-identical legacy installed'; do
+    grep -qiF "$term" docs/operating.md || {
+      echo "FATAL: capability operating-guard family is undocumented: $term" >&2
+      failed=1
+    }
+  done
+
+  [[ "$failed" -eq 0 ]] && echo "[capability-contract] OK: IDs, env, defaults, omissions, CLI, guards, storage, consent, and uninstall facts match source"
+  return "$failed"
+}
+
 main() {
   local mode="${1:-}"
   if [[ "$mode" == "--artifact-remote-path-only" ]]; then
@@ -250,6 +368,7 @@ main() {
   check_typed_contract || failed=1
   check_artifact_contract || failed=1
   check_artifact_remote_path_contract || failed=1
+  check_capability_contract || failed=1
 
   if [[ "$failed" -ne 0 ]]; then
     echo "FATAL: docs-parity check found drift (see above) -- SC-02 not yet satisfied" >&2
