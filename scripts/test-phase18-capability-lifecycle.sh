@@ -15,7 +15,7 @@ CAPABILITY=""
 
 usage() {
   cat <<'USAGE'
-Usage: test-phase18-capability-lifecycle.sh [baseline|--expect-red-contract|contract|matrix|bootstrap|uninstall|lifecycle [--runtime]|full]
+Usage: test-phase18-capability-lifecycle.sh [baseline|--expect-red-contract|contract|matrix|bootstrap|uninstall|lifecycle [--runtime]|claude-native|owner-retirement|full]
        test-phase18-capability-lifecycle.sh operating --harness claude|opencode-command|opencode-workflow --capability wiki|graph|security.audit
 USAGE
 }
@@ -26,7 +26,7 @@ fail() {
 }
 
 case "$MODE" in
-  baseline|--expect-red-contract|contract|matrix|bootstrap|uninstall|full)
+  baseline|--expect-red-contract|contract|matrix|bootstrap|uninstall|claude-native|owner-retirement|full)
     [[ $# -eq 0 ]] || { usage >&2; exit 2; }
     ;;
   lifecycle)
@@ -330,6 +330,10 @@ operating_paths() {
 
 run_operating() {
   local path guard_line first_owner_line
+  if [[ "$HARNESS" == "claude" ]]; then
+    run_claude_native
+    return
+  fi
   while IFS= read -r path; do
     [[ -f "$ROOT/$path" ]] || fail "missing guarded overlay $path"
     guard_line=$(grep -n -m1 'cairn capabilities guard' "$ROOT/$path" | cut -d: -f1)
@@ -341,6 +345,24 @@ run_operating() {
     grep -qF "$CAPABILITY" "$ROOT/$path" || fail "overlay uses the wrong family capability: $path"
   done < <(operating_paths)
   echo "PASS: Phase 18 $HARNESS $CAPABILITY operating guard contract"
+}
+
+run_claude_native() {
+  local start="$ROOT/claude/capability-contract/hooks/capability-command-start.sh"
+  local finish="$ROOT/claude/capability-contract/hooks/capability-command-finish.sh"
+  [[ -x "$start" && -x "$finish" ]] || fail "Claude native capability hooks are absent"
+  grep -qF 'harness-before' "$start" || fail "Claude admission hook does not delegate to the coordinator"
+  grep -qF 'harness-terminal' "$finish" || fail "Claude terminal hook does not delegate to the coordinator"
+  grep -qF 'harness-cwd' "$finish" || fail "Claude cwd hook does not delegate to the coordinator"
+  "$ROOT/scripts/test-phase18-harness-boundary.sh" claude-hooks >/dev/null || fail "Claude native lifecycle outcomes failed"
+  echo "PASS: Phase 18 Claude native hook delegation and durable outcomes"
+}
+
+run_owner_retirement() {
+  if grep -R -q -E 'cairn capabilities (guard|start|finish)' "$ROOT/claude/capability-contract/commands"; then
+    fail "obsolete Claude Markdown capability owner remains"
+  fi
+  echo "PASS: Phase 18 Claude Markdown owner retirement"
 }
 
 run_matrix() {
@@ -460,6 +482,8 @@ case "$MODE" in
   operating) run_operating ;;
   bootstrap) run_bootstrap ;;
   uninstall) run_uninstall ;;
+  claude-native) run_claude_native ;;
+  owner-retirement) run_owner_retirement ;;
   lifecycle) run_lifecycle ;;
   full)
     run_baseline

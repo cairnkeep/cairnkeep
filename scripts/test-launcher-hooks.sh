@@ -35,6 +35,48 @@ export PATH="$tmp/bin:$PATH"
 export CLAUDE_LOG="$tmp/claude.log"
 export OPENCODE_LOG="$tmp/opencode.log"
 
+# Claude sync has three exact installation states. Normal sync and an explicit
+# overlay request with the master off must contain no capability hook bytes or
+# registrations; only master-on plus --capability-overlay may install them.
+normal_sync="$tmp/claude-normal-sync"
+master_off_sync="$tmp/claude-master-off-sync"
+master_on_sync="$tmp/claude-master-on-sync"
+env -u CAIRN_CAPABILITY_CONTRACT \
+  "$ROOT/scripts/sync-claude-assets.sh" --apply --live-root "$normal_sync" >/dev/null
+CAIRN_CAPABILITY_CONTRACT=0 \
+  "$ROOT/scripts/sync-claude-assets.sh" --apply --capability-overlay --live-root "$master_off_sync" >/dev/null
+for live in "$normal_sync" "$master_off_sync"; do
+  [[ ! -e "$live/hooks/capability-command-start.sh" ]] || fail "inert Claude sync installed start-hook bytes"
+  [[ ! -e "$live/hooks/capability-command-finish.sh" ]] || fail "inert Claude sync installed finish-hook bytes"
+  ! grep -R -qF 'capability-command-' "$live" || fail "inert Claude sync registered a capability hook"
+  [[ ! -e "$repo/.agentfs/trajectory.db" ]] || fail "inert Claude sync created measurement state"
+done
+diff -qr "$normal_sync" "$master_off_sync" >/dev/null || fail "master-off overlay differs from exact normal sync"
+
+CAIRN_CAPABILITY_CONTRACT=1 \
+  "$ROOT/scripts/sync-claude-assets.sh" --apply --capability-overlay --live-root "$master_on_sync" >/dev/null
+for name in capability-command-start.sh capability-command-finish.sh; do
+  installed="$master_on_sync/hooks/$name"
+  [[ -x "$installed" ]] || fail "enabled Claude overlay omitted $name"
+  grep -qF "$ROOT/mcp-memory-server/dist/capability-cli.js" "$installed" || fail "enabled Claude hook was not rendered"
+done
+node - "$master_on_sync/settings.json" <<'NODE' || fail "enabled Claude overlay registrations are incomplete"
+const fs = require("node:fs");
+const settings = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const registrations = [];
+for (const [event, entries] of Object.entries(settings.hooks ?? {})) {
+  for (const entry of entries) for (const hook of entry.hooks ?? []) {
+    if (String(hook.command ?? "").includes("capability-command-")) {
+      registrations.push({ event, matcher: entry.matcher ?? "", command: hook.command });
+    }
+  }
+}
+if (registrations.filter((row) => row.command.includes("capability-command-start.sh")).length !== 1) process.exit(1);
+if (registrations.filter((row) => row.command.includes("capability-command-finish.sh")).length !== 4) process.exit(1);
+if (!registrations.some((row) => row.event === "UserPromptExpansion" && row.matcher === "wiki-ingest|wiki-query|wiki-lint|graphify|security-audit")) process.exit(1);
+if (["Stop", "StopFailure", "CwdChanged", "SessionEnd"].some((event) => !registrations.some((row) => row.event === event))) process.exit(1);
+NODE
+
 # 1. No hooks: launcher execs claude with the passed args (baseline unchanged).
 rm -f "$CLAUDE_LOG"
 "$launcher" --foo bar >/dev/null 2>&1 || fail "baseline launch failed"
@@ -86,7 +128,10 @@ grep -qx "config:$claude_overlay" "$CLAUDE_LOG" || fail "Claude overlay root was
 for rel in commands/wiki-ingest.md commands/wiki-query.md commands/wiki-lint.md commands/graphify.md commands/security-audit.md; do
   cmp -s "$ROOT/claude/capability-contract/$rel" "$claude_overlay/$rel" || fail "Claude overlay missing or partial: $rel"
 done
-"$ROOT/scripts/sync-claude-assets.sh" --check --capability-overlay --live-root "$claude_overlay" >/dev/null || fail "Claude overlay family is incomplete"
+CAIRN_CAPABILITY_CONTRACT=1 "$ROOT/scripts/sync-claude-assets.sh" --check --capability-overlay --live-root "$claude_overlay" >/dev/null || fail "Claude overlay family is incomplete"
+for name in capability-command-start.sh capability-command-finish.sh; do
+  cmp -s "$master_on_sync/hooks/$name" "$claude_overlay/hooks/$name" || fail "launcher overlay hook bytes differ: $name"
+done
 
 CAIRN_CAPABILITY_CONTRACT=1 OPENCODE_CONFIG_DIR="$legacy_opencode" \
   "$opencode_launcher" --overlay >/dev/null 2>&1 || fail "OpenCode capability-overlay launch failed"
