@@ -134,18 +134,21 @@ assert_fixed_block() {
 
 callback_rows() {
   local project="$1"
-  node - "$project/.agentfs/trajectory.db" <<'NODE'
-const { DatabaseSync } = require("node:sqlite");
-const path = process.argv[2];
+  local database="$project/.agentfs/trajectory.db"
+  [[ -f "$database" ]] || { printf '[]'; return; }
+  (
+    cd "$ROOT/mcp-memory-server"
+    NODE_NO_WARNINGS=1 node --input-type=module - "$database" <<'NODE'
+import { AgentFS } from "agentfs-sdk";
+const agent = await AgentFS.open({ id: "trajectory", path: process.argv[2] });
 try {
-  const db = new DatabaseSync(path, { readOnly: true });
-  const rows = db.prepare("SELECT record_json FROM capability_callbacks_v1 ORDER BY rowid").all();
-  process.stdout.write(JSON.stringify(rows.map((row) => JSON.parse(row.record_json))));
-  db.close();
-} catch {
-  process.stdout.write("[]");
+  const rows = await agent.kv.list("capability-callback/v1/record/");
+  process.stdout.write(JSON.stringify(rows.map((row) => row.value)));
+} finally {
+  await agent.close();
 }
 NODE
+  )
 }
 
 assert_value_free_rows() {
@@ -164,7 +167,7 @@ NODE
 claude_hooks() {
   local temp_root project decoy state_root start_hook finish_hook stdout_file stderr_file status payload rows
   temp_root=$(mktemp -d)
-  trap 'rm -rf "$temp_root"' EXIT
+  trap "rm -rf '$temp_root'" EXIT
   project="$temp_root/project"
   decoy="$temp_root/decoy"
   state_root="$temp_root/state"
@@ -194,6 +197,10 @@ value.session_id = "claude-enabled-no-measurement";
 process.stdout.write(JSON.stringify(value));
 NODE
 )
+  status=0
+  run_claude_hook "$start_hook" "$decoy" "$state_root" "$payload" "$stdout_file" "$stderr_file" || status=$?
+  assert_fixed_block "$stdout_file" "$stderr_file" "$status"
+
   write_capability_config "$project" true false
   run_claude_hook "$start_hook" "$project" "$state_root" "$payload" "$stdout_file" "$stderr_file" 1 || \
     fail "enabled unmeasured Claude command was changed"
@@ -201,9 +208,9 @@ NODE
   [[ "$(callback_rows "$project")" == '[]' ]] || fail "enabled unmeasured Claude command created callback state"
   [[ ! -e "$state_root/capability-leases-v1" ]] || fail "enabled unmeasured Claude command created lease state"
 
-  for logging in false true; do
-    local trajectory=1
-    [[ "$logging" == true ]] || trajectory=0
+  for consent in false:1 true:0; do
+    local logging=${consent%%:*}
+    local trajectory=${consent#*:}
     write_capability_config "$project" false "$logging"
     payload=$(node - "$FIXTURE" "$project" "$logging" <<'NODE'
 const fixture = require(process.argv[2]);
@@ -261,6 +268,19 @@ NODE
 )
     run_claude_hook "$finish_hook" "$project" "$state_root" "$payload" "$stdout_file" "$stderr_file" 1 || \
       fail "Claude $terminal hook changed the owner terminal"
+    run_claude_hook "$finish_hook" "$project" "$state_root" "$payload" "$stdout_file" "$stderr_file" 1 || \
+      fail "repeated Claude $terminal hook changed the owner terminal"
+    payload=$(node - "$FIXTURE" "$project" "$session" <<'NODE'
+const fixture = require(process.argv[2]);
+const value = structuredClone(fixture.claude.events.SessionEnd.sample);
+value.cwd = process.argv[3];
+value.transcript_path = `${process.argv[3]}/transcript.jsonl`;
+value.session_id = process.argv[4];
+process.stdout.write(JSON.stringify(value));
+NODE
+)
+    run_claude_hook "$finish_hook" "$project" "$state_root" "$payload" "$stdout_file" "$stderr_file" 1 || \
+      fail "SessionEnd changed a settled $terminal owner terminal"
   done
   rows=$(callback_rows "$project")
   node - "$rows" <<'NODE' || fail "Claude terminal hooks did not settle exact success/error outcomes"
@@ -279,7 +299,7 @@ process.stdout.write(JSON.stringify(value));
 NODE
 )
   run_claude_hook "$start_hook" "$project" "$state_root" "$payload" "$stdout_file" "$stderr_file" 1 || fail "Claude abandonment start failed"
-  payload=$(node - "$FIXTURE" "$project" <<'NODE'
+  payload=$(node - "$FIXTURE" "$project" "$decoy" <<'NODE'
 const fixture = require(process.argv[2]);
 const value = structuredClone(fixture.claude.events.CwdChanged.sample);
 value.cwd = process.argv[3];
@@ -288,7 +308,7 @@ value.new_cwd = process.argv[4];
 value.session_id = "claude-abandon";
 process.stdout.write(JSON.stringify(value));
 NODE
-"$decoy")
+)
   run_claude_hook "$finish_hook" "$decoy" "$state_root" "$payload" "$stdout_file" "$stderr_file" 1 || fail "Claude CwdChanged observation failed"
   payload=$(node - "$FIXTURE" "$decoy" <<'NODE'
 const fixture = require(process.argv[2]);
