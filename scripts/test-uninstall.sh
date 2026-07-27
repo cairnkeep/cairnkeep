@@ -17,6 +17,22 @@ ok()   { printf '  [PASS] %s\n' "$1"; }
 bad()  { printf '  [FAIL] %s\n' "$1"; fails=$((fails + 1)); }
 check() { if [[ "$2" == "$3" ]]; then ok "$1 ($2)"; else bad "$1 (got '$2', want '$3')"; fi; }
 tree_hash() { find "$1" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1; }
+managed_hook_count() {
+  node -e '
+const fs = require("fs")
+const settings = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+const names = process.argv.slice(2)
+let count = 0
+for (const entries of Object.values(settings.hooks ?? {})) {
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    for (const hook of Array.isArray(entry.hooks) ? entry.hooks : []) {
+      if (typeof hook.command === "string" && names.some((name) => hook.command.includes(name))) count += 1
+    }
+  }
+}
+process.stdout.write(String(count))
+' "$1" memory-wakeup.sh memory-capture.sh compaction-capture.sh memory-recall.sh context-explore-pretask.sh
+}
 
 # Isolated environment: fake HOME + stubbed system commands.
 mkdir -p "$SB/home" "$SB/bin"
@@ -34,7 +50,19 @@ echo "test-uninstall"
 "$ROOT_DIR/scripts/sync-pi-assets.sh" --apply --live-root "$PI_LIVE" >/dev/null 2>&1
 md_installed=$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')
 check "assets installed" "$([[ $md_installed -gt 0 ]] && echo yes || echo no)" "yes"
-check "hooks registered" "$(grep -c 'hooks/' "$LIVE/settings.json")" "4"
+check "managed hooks registered" "$(managed_hook_count "$LIVE/settings.json")" "5"
+node - "$LIVE/settings.json" <<'NODE'
+const fs = require("fs")
+const path = process.argv[2]
+const settings = JSON.parse(fs.readFileSync(path, "utf8"))
+settings.hooks ??= {}
+settings.hooks.PostToolUse ??= []
+settings.hooks.PostToolUse.push({
+  matcher: "Read",
+  hooks: [{ type: "command", command: "bash /external/hooks/keep-me.sh" }],
+})
+fs.writeFileSync(path, JSON.stringify(settings, null, 2) + "\n")
+NODE
 cp "$LIVE/settings.json" "$SB/settings.before.json"
 cp "$PI_LIVE/extensions/cairnkeep-trajectory.ts" "$SB/pi.before.ts"
 mkdir -p "$SB/home/.cairnkeep/notes/projects/example/hindsight"
@@ -53,11 +81,13 @@ store_before=$(tree_hash "$SB/home/.cairnkeep")
 check "dry-run leaves assets" "$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')" "$md_installed"
 check "dry-run makes no bundle" "$(ls -d "$SB/home/.cairnkeep-uninstall-"* 2>/dev/null | wc -l | tr -d ' ')" "0"
 check "dry-run leaves Pi extension" "$([[ -f "$PI_LIVE/extensions/cairnkeep-trajectory.ts" ]] && echo yes || echo no)" "yes"
+check "dry-run leaves settings identical" "$(cmp -s "$SB/settings.before.json" "$LIVE/settings.json" && echo yes || echo no)" "yes"
 
 # --- real uninstall ---------------------------------------------------------
 "$ROOT_DIR/scripts/uninstall.sh" --yes --live-root "$LIVE" --pi-live-root "$PI_LIVE" >/dev/null 2>&1
 check "assets removed" "$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')" "0"
-check "hooks de-registered" "$(grep -c 'hooks/' "$LIVE/settings.json" 2>/dev/null || true)" "0"
+check "managed hooks de-registered" "$(managed_hook_count "$LIVE/settings.json")" "0"
+check "unrelated hook preserved" "$(grep -cF 'keep-me.sh' "$LIVE/settings.json" 2>/dev/null || true)" "1"
 check "Pi extension removed" "$([[ -e "$PI_LIVE/extensions/cairnkeep-trajectory.ts" ]] && echo no || echo yes)" "yes"
 check "default uninstall keeps notes" "$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)" "$note_before"
 check "default uninstall keeps all typed and journal bytes" "$(tree_hash "$SB/home/.cairnkeep")" "$store_before"

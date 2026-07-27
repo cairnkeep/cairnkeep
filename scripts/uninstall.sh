@@ -30,7 +30,7 @@ PURGE_MEMORY=0
 PROJECTS=()
 
 # The hooks cairnkeep registers (basename is the settings.json match token).
-HOOK_NAMES=(memory-wakeup.sh memory-capture.sh memory-recall.sh context-explore-pretask.sh)
+HOOK_NAMES=(memory-wakeup.sh memory-capture.sh compaction-capture.sh memory-recall.sh context-explore-pretask.sh)
 
 usage() {
   cat <<'EOF'
