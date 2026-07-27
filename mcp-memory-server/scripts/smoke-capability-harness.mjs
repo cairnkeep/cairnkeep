@@ -24,6 +24,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const serverRoot = resolve(here, "..");
 const projectRoot = resolve(serverRoot, "..");
 const coordinatorPath = join(serverRoot, "dist", "capability-harness.js");
+const capabilityCliPath = join(serverRoot, "dist", "capability-cli.js");
 const loggingSmokePath = join(here, "smoke-capability-logging.mjs");
 const fixturePath = join(projectRoot, "scripts", "fixtures", "capability-harness-contracts.json");
 const DB_RELATIVE = join(".agentfs", "trajectory.db");
@@ -49,6 +50,7 @@ function run(command, args, options = {}) {
         cwd: options.cwd ?? projectRoot,
         encoding: "utf8",
         env: { ...process.env, ...options.env },
+        input: options.input,
         timeout: 120_000,
     });
 }
@@ -396,6 +398,66 @@ async function crashAndCwdChecks(coordinator) {
     }
 }
 
+async function cliChecks() {
+    const help = run(process.execPath, [capabilityCliPath, "--help"]);
+    assertSuccess(help, "capability CLI public help");
+    for (const operation of ["harness-before", "harness-terminal", "harness-cwd", "harness-recover", "harness-prune"]) {
+        assert.equal(help.stdout.includes(operation), false, `public help exposed ${operation}`);
+    }
+
+    const fixture = fixtureRoot("cli");
+    try {
+        const env = fullEnvironment({ CAIRN_HARNESS_STATE_DIR: fixture.state });
+        const before = run(process.execPath, [capabilityCliPath, "harness-before"], {
+            cwd: fixture.decoy,
+            env,
+            input: JSON.stringify(beforeInput(fixture.original)),
+        });
+        assertSuccess(before, "hidden harness before");
+        assert.deepEqual(JSON.parse(before.stdout), { schema_version: 1, decision: "allow" });
+
+        const terminal = run(process.execPath, [capabilityCliPath, "harness-terminal"], {
+            cwd: fixture.decoy,
+            env,
+            input: JSON.stringify(terminalInput()),
+        });
+        assertSuccess(terminal, "hidden harness terminal");
+        assert.deepEqual(JSON.parse(terminal.stdout), { schema_version: 1, finalized: true });
+
+        const replay = run(process.execPath, [capabilityCliPath, "harness-terminal"], {
+            cwd: fixture.decoy,
+            env,
+            input: JSON.stringify(terminalInput()),
+        });
+        assertSuccess(replay, "hidden harness terminal replay");
+        assert.deepEqual(JSON.parse(replay.stdout), { schema_version: 1, finalized: false });
+        await assertSettledOnce(fixture.original, fixture.state, "success");
+
+        const invalid = run(process.execPath, [capabilityCliPath, "harness-terminal"], {
+            cwd: fixture.decoy,
+            env,
+            input: JSON.stringify({ ...terminalInput(), handle: SENTINELS[0] }),
+        });
+        assertSuccess(invalid, "hidden harness terminal strict rejection");
+        assert.deepEqual(JSON.parse(invalid.stdout), { schema_version: 1, finalized: false });
+        assert.equal(`${invalid.stdout}${invalid.stderr}`.includes(SENTINELS[0]), false, "hidden CLI echoed rejected input");
+
+        const recovered = run(process.execPath, [capabilityCliPath, "harness-recover"], { env });
+        assertSuccess(recovered, "hidden harness recovery");
+        assert.deepEqual(JSON.parse(recovered.stdout), {
+            schema_version: 1,
+            recovered: 0,
+            pruned: 0,
+            pending: 0,
+        });
+        const pruned = run(process.execPath, [capabilityCliPath, "harness-prune"], { env });
+        assertSuccess(pruned, "hidden harness prune");
+        assert.deepEqual(JSON.parse(pruned.stdout), JSON.parse(recovered.stdout));
+    } finally {
+        rmSync(fixture.base, { recursive: true, force: true });
+    }
+}
+
 async function main() {
     const selected = mode();
     runPrerequisites();
@@ -415,6 +477,7 @@ async function main() {
     }
     if (selected !== "--crash-cwd") await coreChecks(coordinator);
     if (selected !== "--core") await crashAndCwdChecks(coordinator);
+    if (selected === undefined) await cliChecks();
     console.log("PASS: capability harness lifecycle, consent, crash, privacy, and CWD contract");
 }
 
