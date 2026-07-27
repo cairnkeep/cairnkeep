@@ -51,6 +51,13 @@ the existing project-local `.agentfs/trajectory.db`:
 - `capability-callback/v1/record/` contains immutable retained final callback
   records.
 
+No capability state exists in exact legacy master-off operation. With the
+master contract on, a target-enabled invocation creates no lease or final when
+either measurement consent is off. A target-disabled invocation still blocks
+before owner I/O in that unmeasured branch, but likewise writes no state. Only
+all three consents may create the recoverable lease and, for a disabled target,
+atomically settle it as exactly one value-free `disabled` final.
+
 An issuance marker contains only the strict operating-handle allow-list:
 schema version, capability/invocation/correlation identifiers,
 harness/source/transport classifications, start time, effective state source,
@@ -66,8 +73,12 @@ There is no database migration, mirror, or second callback database. The file
 is created with mode `0600`; its SQLite `-wal` and `-shm` files remain in the
 same sensitive backup boundary.
 
-Each eligible completed invocation consumes its exact marker and appends one
-final record in the same immediate transaction. Callback age retention reuses
+Each eligible completed invocation consumes its exact recoverable lease and
+appends one immutable final record in the same immediate transaction. This
+settlement is atomic and idempotent: duplicate success, error, timeout,
+disabled, or abandonment attempts cannot append or rewrite another final.
+Crash recovery and SessionEnd/plugin-disposal cleanup consume only unfinished
+leases as abandonment; they never replace a settled terminal. Callback age retention reuses
 `CAIRN_TRAJECTORY_RETENTION_DAYS` (default 30 days). Each namespace has an
 independent 10,000-record cap that prunes its oldest keys.
 Expired issuance is consumed without a final record, and a final record older

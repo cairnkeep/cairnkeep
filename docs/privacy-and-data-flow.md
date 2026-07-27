@@ -218,6 +218,25 @@ CAIRN_CAPABILITY_CONTRACT enabled
       -> consume the exact issued marker once with one payload-free final record
 ```
 
+The resulting three-state privacy contract is precise:
+
+- With the master contract off, Cairnkeep preserves exact legacy behavior. It
+  installs or invokes no capability hook/plugin, never introduces a capability
+  block, and creates no pending lease, callback final, or other capability
+  measurement state.
+- With the master contract on and the target disabled, the fixed block always
+  occurs before owner I/O. When all three consents are enabled, the issued
+  lease is atomically consumed into exactly one D-25/D-26 value-free
+  `disabled` final. If either measurement consent—managed callback logging or
+  local trajectory capture—is off, the same fixed block remains in force and
+  no pending or final state is written.
+- With the master contract on and the target enabled, turning either
+  measurement consent off leaves owner execution unchanged and writes no
+  pending or final state.
+
+Consent affects measurement, never the disabled policy decision. No branch may
+record arguments, results, prompts, query text, paths, raw errors, or secrets.
+
 An operating start with absent consent, HTTP transport, or a local-store fault
 returns the existing unmeasured bypass without issuing a handle. At finish,
 the contract flag and local trajectory capture are checked before managed

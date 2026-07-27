@@ -268,16 +268,15 @@ The canonical registry is exactly:
 | `route.check` | `mcp-tool` | `mcp-memory-server:index#route_check` | on | `CAIRN_CAPABILITY_ROUTE_CHECK` | yes |
 | `context.explore` | `mcp-tool` | `mcp-memory-server:index#context_explore` | on | `CAIRN_CAPABILITY_CONTEXT_EXPLORE` | yes |
 
-`CAIRN_CAPABILITY_CONTRACT` is the default-off rollout gate. When it is unset,
-the launchers and sync commands retain byte-identical legacy installed
-Markdown/workflow assets and add no capability command, process, configuration,
-digest, logging, or store work. With it enabled at launch, the Claude and
-OpenCode launchers render isolated guarded overlays under
-`.ai/capability-contract/` and select those harness roots. Every direct command
-and directly invokable workflow in those overlays checks effective state before
-directory, process, delegate, or owner-output work, so a workflow cannot bypass
-the guard by being invoked directly. Normal installed assets remain in place;
-toggling never deletes configuration, retained data, or installed files.
+`CAIRN_CAPABILITY_CONTRACT` is the default-off rollout gate. Master off is exact
+legacy behavior: the launchers and sync commands preserve the legacy installed
+assets byte-for-byte, install and invoke no capability hook or plugin, introduce
+no capability block, and create no capability measurement state. Master on is
+not enough to modify the normal harness root. The launcher must also select the
+explicit `capability-overlay` mode; only that two-factor path renders the
+isolated `.ai/capability-contract/` root and installs its native hooks/plugins.
+Normal installed assets remain in place, and toggling never deletes
+configuration, retained data, or installed files.
 
 Bootstrap creates a mode-`0600` `.ai/capabilities.json` only if it is absent:
 
@@ -335,9 +334,56 @@ responses, timeout/error behavior, and owners. In particular, `route_check`
 and `context_explore` remain thin token-miser delegates; Cairnkeep does not gain
 endpoint, model, tier, sandbox, or inference-loop ownership.
 
+The five operating command surfaces are still `wiki-ingest`, `wiki-query`,
+`wiki-lint`, `graphify`, and `security-audit`. Their installed commands, agents,
+and workflows remain the owners described by D-10, D-12, and D-16; the native
+boundary admits or blocks an invocation and settles evidence, but does not move
+or duplicate owner logic.
+
+#### Native operating lifecycle
+
+Claude Code uses two native hooks. `capability-command-start.sh` runs on
+`UserPromptExpansion`, before command or MCP-prompt expansion can enter owner
+I/O. It validates the exact target-command event and binds the canonical
+project root from the event to the process root. The coordinator then creates
+an issued recoverable lease for an eligible measured invocation. That validated
+project identity and lease are immutable for the invocation: terminal events
+carry neither a replacement project path nor a caller-selected handle.
+`capability-command-finish.sh` maps `Stop` to success and maps `StopFailure`
+immediately to an error terminal; error settlement is not deferred to
+`SessionEnd`. `SessionEnd` performs abandonment cleanup only for unfinished
+leases, while `CwdChanged` updates lifecycle state without rebinding the
+start-time project.
+
+OpenCode uses the pinned native plugin for OpenCode 1.17.20.
+`command.execute.before` validates the target command, session, output shape,
+and the one canonical project identity supplied at plugin initialization before
+expansion. `session.idle` and `session.status:idle` settle success,
+`session.error` settles error, and `session.deleted` performs abandonment
+cleanup only for an unfinished invocation. Plugin disposal likewise abandons
+only unfinished leases. Both harnesses settle the issued lease atomically and
+idempotently: one terminal can win, replay cannot add another final, and
+crash-recovery cleanup cannot rewrite a settled outcome.
+
+The three operating states are exact. With master off, no native capability
+owner is installed or invoked and no measurement state exists. With master on
+and a target disabled, the native boundary returns the fixed block before owner
+I/O regardless of measurement consent. Only when all three consents are on may
+that block settle exactly one D-25/D-26 value-free `disabled` final through an
+issued lease; if either measurement consent is off, it blocks with no state.
+With master on and a target enabled, either measurement consent being off
+preserves owner execution unchanged and creates no measurement state.
+
+Deterministic native-boundary tests prove pinned event shapes, admission before
+owner delegation, terminal ordering, and overlay installation. They are not
+exhaustive live real-owner evidence. Phase 18 also requires the complete live
+eight-by-seven matrix: eight capabilities across seven target-disabled cells,
+56 genuine owner executions in total. Any missing, failed, or unavailable cell
+keeps Phase 18 incomplete.
+
 Callback logging is separately default-off. When all three consents are on
 (`CAIRN_CAPABILITY_CONTRACT`, managed callback logging, and
-`CAIRN_TRAJECTORY_CAPTURE`), the wrapper measures only the capability-owned
+`CAIRN_TRAJECTORY_CAPTURE`), the native boundary measures only the capability-owned
 invocation. State is resolved first; the timer starts immediately before the
 owned body and stops after its terminal outcome but before final presentation.
 Discovery, configuration resolution, guard work, and unrelated harness overhead
