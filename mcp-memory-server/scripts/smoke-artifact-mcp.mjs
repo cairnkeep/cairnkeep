@@ -797,6 +797,12 @@ async function main() {
         }
         throw new Error("Artifact HTTP double consent unexpectedly exists; run the GREEN contract instead.");
     }
+    if (mode === "--stdio-only") {
+        await disabledContract();
+        await stdioContract();
+        console.log("PASS: artifact MCP disabled, stdio and CLI contract");
+        return;
+    }
     if (mode === "--http-only") {
         await httpContract();
         console.log("PASS: artifact HTTP consent, guard and project-isolation contract");
