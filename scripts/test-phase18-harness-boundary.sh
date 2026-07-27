@@ -84,6 +84,228 @@ normal_sync_trace() {
   [[ ! -e "$temp_root/project/.agentfs/project.db" ]] || fail "normal sync created project state"
 }
 
+install_claude_hook_fixture() {
+  local source="$1"
+  local target="$2"
+  sed "s|@@INFRA_ROOT@@|$ROOT|g" "$source" > "$target"
+  chmod 700 "$target"
+}
+
+write_capability_config() {
+  local project="$1"
+  local wiki="$2"
+  local logging="$3"
+  mkdir -p "$project/.ai"
+  cat > "$project/.ai/capabilities.json" <<JSON
+{"schema_version":1,"capabilities":{"wiki":$wiki},"logging":{"callbacks":$logging}}
+JSON
+  chmod 600 "$project/.ai/capabilities.json"
+}
+
+run_claude_hook() {
+  local hook="$1"
+  local project="$2"
+  local state_root="$3"
+  local payload="$4"
+  local stdout_file="$5"
+  local stderr_file="$6"
+  local trajectory="${7:-1}"
+  local status=0
+  (
+    cd "$project"
+    printf '%s' "$payload" | env \
+      CAIRN_CAPABILITY_CONTRACT=1 \
+      CAIRN_HARNESS_STATE_DIR="$state_root" \
+      CAIRN_TRAJECTORY_CAPTURE="$trajectory" \
+      "$hook" >"$stdout_file" 2>"$stderr_file"
+  ) || status=$?
+  return "$status"
+}
+
+assert_fixed_block() {
+  local stdout_file="$1"
+  local stderr_file="$2"
+  local status="$3"
+  [[ "$status" -eq 2 ]] || fail "Claude admission did not fail closed with exit 2"
+  [[ "$(cat "$stdout_file")" == '{"decision":"block","reason":"capability disabled"}' ]] || \
+    fail "Claude admission did not emit the fixed disabled block"
+  [[ ! -s "$stderr_file" ]] || fail "Claude admission disclosed rejected input on stderr"
+}
+
+callback_rows() {
+  local project="$1"
+  node - "$project/.agentfs/trajectory.db" <<'NODE'
+const { DatabaseSync } = require("node:sqlite");
+const path = process.argv[2];
+try {
+  const db = new DatabaseSync(path, { readOnly: true });
+  const rows = db.prepare("SELECT record_json FROM capability_callbacks_v1 ORDER BY rowid").all();
+  process.stdout.write(JSON.stringify(rows.map((row) => JSON.parse(row.record_json))));
+  db.close();
+} catch {
+  process.stdout.write("[]");
+}
+NODE
+}
+
+assert_value_free_rows() {
+  local rows="$1"
+  local expected_outcome="$2"
+  node - "$rows" "$expected_outcome" <<'NODE'
+const rows = JSON.parse(process.argv[2]);
+const expected = process.argv[3];
+if (rows.length !== 1 || rows[0].outcome !== expected) process.exit(1);
+const forbidden = ["argument", "result", "prompt", "query", "path", "stack", "error_message", "secret"];
+const raw = JSON.stringify(rows[0]).toLowerCase();
+if (forbidden.some((name) => raw.includes(name))) process.exit(1);
+NODE
+}
+
+claude_hooks() {
+  local temp_root project decoy state_root start_hook finish_hook stdout_file stderr_file status payload rows
+  temp_root=$(mktemp -d)
+  trap 'rm -rf "$temp_root"' EXIT
+  project="$temp_root/project"
+  decoy="$temp_root/decoy"
+  state_root="$temp_root/state"
+  start_hook="$temp_root/capability-command-start.sh"
+  finish_hook="$temp_root/capability-command-finish.sh"
+  stdout_file="$temp_root/stdout"
+  stderr_file="$temp_root/stderr"
+  mkdir -p "$project" "$decoy"
+
+  validate_fixture
+  [[ -f "$CLAUDE_START" ]] || fail "Claude capability start hook is absent"
+  [[ -f "$CLAUDE_FINISH" ]] || fail "Claude capability finish hook is absent"
+  install_claude_hook_fixture "$CLAUDE_START" "$start_hook"
+  install_claude_hook_fixture "$CLAUDE_FINISH" "$finish_hook"
+
+  status=0
+  run_claude_hook "$start_hook" "$project" "$state_root" '{bad-json' "$stdout_file" "$stderr_file" || status=$?
+  assert_fixed_block "$stdout_file" "$stderr_file" "$status"
+
+  payload=$(node - "$FIXTURE" "$project" <<'NODE'
+const fixture = require(process.argv[2]);
+const value = structuredClone(fixture.claude.events.UserPromptExpansion.sample);
+value.cwd = process.argv[3];
+value.transcript_path = `${process.argv[3]}/transcript.jsonl`;
+value.command_name = "wiki-query";
+value.session_id = "claude-enabled-no-measurement";
+process.stdout.write(JSON.stringify(value));
+NODE
+)
+  write_capability_config "$project" true false
+  run_claude_hook "$start_hook" "$project" "$state_root" "$payload" "$stdout_file" "$stderr_file" 1 || \
+    fail "enabled unmeasured Claude command was changed"
+  [[ "$(cat "$stdout_file")" == '{}' ]] || fail "enabled Claude command was not passed through unchanged"
+  [[ "$(callback_rows "$project")" == '[]' ]] || fail "enabled unmeasured Claude command created callback state"
+  [[ ! -e "$state_root/capability-leases-v1" ]] || fail "enabled unmeasured Claude command created lease state"
+
+  for logging in false true; do
+    local trajectory=1
+    [[ "$logging" == true ]] || trajectory=0
+    write_capability_config "$project" false "$logging"
+    payload=$(node - "$FIXTURE" "$project" "$logging" <<'NODE'
+const fixture = require(process.argv[2]);
+const value = structuredClone(fixture.claude.events.UserPromptExpansion.sample);
+value.cwd = process.argv[3];
+value.transcript_path = `${process.argv[3]}/transcript.jsonl`;
+value.session_id = `claude-disabled-unmeasured-${process.argv[4]}`;
+process.stdout.write(JSON.stringify(value));
+NODE
+)
+    status=0
+    run_claude_hook "$start_hook" "$project" "$state_root" "$payload" "$stdout_file" "$stderr_file" "$trajectory" || status=$?
+    assert_fixed_block "$stdout_file" "$stderr_file" "$status"
+    [[ "$(callback_rows "$project")" == '[]' ]] || fail "disabled unmeasured Claude command created callback state"
+  done
+
+  write_capability_config "$project" false true
+  payload=$(node - "$FIXTURE" "$project" <<'NODE'
+const fixture = require(process.argv[2]);
+const value = structuredClone(fixture.claude.events.UserPromptExpansion.sample);
+value.cwd = process.argv[3];
+value.transcript_path = `${process.argv[3]}/transcript.jsonl`;
+value.session_id = "claude-disabled-measured";
+process.stdout.write(JSON.stringify(value));
+NODE
+)
+  status=0
+  run_claude_hook "$start_hook" "$project" "$state_root" "$payload" "$stdout_file" "$stderr_file" 1 || status=$?
+  assert_fixed_block "$stdout_file" "$stderr_file" "$status"
+  rows=$(callback_rows "$project")
+  assert_value_free_rows "$rows" disabled || fail "disabled Claude command did not settle one value-free final"
+
+  write_capability_config "$project" true true
+  for terminal in Stop StopFailure; do
+    local session="claude-${terminal,,}"
+    payload=$(node - "$FIXTURE" "$project" "$session" <<'NODE'
+const fixture = require(process.argv[2]);
+const value = structuredClone(fixture.claude.events.UserPromptExpansion.sample);
+value.cwd = process.argv[3];
+value.transcript_path = `${process.argv[3]}/transcript.jsonl`;
+value.session_id = process.argv[4];
+process.stdout.write(JSON.stringify(value));
+NODE
+)
+    run_claude_hook "$start_hook" "$project" "$state_root" "$payload" "$stdout_file" "$stderr_file" 1 || \
+      fail "Claude start failed for $terminal"
+    payload=$(node - "$FIXTURE" "$project" "$session" "$terminal" <<'NODE'
+const fixture = require(process.argv[2]);
+const value = structuredClone(fixture.claude.events[process.argv[5]].sample);
+value.cwd = process.argv[3];
+value.transcript_path = `${process.argv[3]}/transcript.jsonl`;
+value.session_id = process.argv[4];
+process.stdout.write(JSON.stringify(value));
+NODE
+)
+    run_claude_hook "$finish_hook" "$project" "$state_root" "$payload" "$stdout_file" "$stderr_file" 1 || \
+      fail "Claude $terminal hook changed the owner terminal"
+  done
+  rows=$(callback_rows "$project")
+  node - "$rows" <<'NODE' || fail "Claude terminal hooks did not settle exact success/error outcomes"
+const rows = JSON.parse(process.argv[2]);
+const outcomes = rows.map((row) => row.outcome).sort();
+if (outcomes.join(",") !== "disabled,error,success") process.exit(1);
+NODE
+
+  payload=$(node - "$FIXTURE" "$project" <<'NODE'
+const fixture = require(process.argv[2]);
+const value = structuredClone(fixture.claude.events.UserPromptExpansion.sample);
+value.cwd = process.argv[3];
+value.transcript_path = `${process.argv[3]}/transcript.jsonl`;
+value.session_id = "claude-abandon";
+process.stdout.write(JSON.stringify(value));
+NODE
+)
+  run_claude_hook "$start_hook" "$project" "$state_root" "$payload" "$stdout_file" "$stderr_file" 1 || fail "Claude abandonment start failed"
+  payload=$(node - "$FIXTURE" "$project" <<'NODE'
+const fixture = require(process.argv[2]);
+const value = structuredClone(fixture.claude.events.CwdChanged.sample);
+value.cwd = process.argv[3];
+value.old_cwd = process.argv[3];
+value.new_cwd = process.argv[4];
+value.session_id = "claude-abandon";
+process.stdout.write(JSON.stringify(value));
+NODE
+"$decoy")
+  run_claude_hook "$finish_hook" "$decoy" "$state_root" "$payload" "$stdout_file" "$stderr_file" 1 || fail "Claude CwdChanged observation failed"
+  payload=$(node - "$FIXTURE" "$decoy" <<'NODE'
+const fixture = require(process.argv[2]);
+const value = structuredClone(fixture.claude.events.SessionEnd.sample);
+value.cwd = process.argv[3];
+value.transcript_path = `${process.argv[3]}/transcript.jsonl`;
+value.session_id = "claude-abandon";
+process.stdout.write(JSON.stringify(value));
+NODE
+)
+  run_claude_hook "$finish_hook" "$decoy" "$state_root" "$payload" "$stdout_file" "$stderr_file" 1 || fail "Claude SessionEnd cleanup failed"
+  [[ "$(callback_rows "$project")" == "$rows" ]] || fail "SessionEnd rewrote a settled terminal or emitted an abandonment final"
+  find "$state_root/capability-leases-v1" -type f -print -quit 2>/dev/null | grep -q . && fail "SessionEnd left an unfinished recoverable lease"
+
+  echo "PASS: Claude native capability hooks"
+}
+
 expect_red_claude() {
   local temp_root
   temp_root=$(mktemp -d)
@@ -160,7 +382,10 @@ case "$mode" in
   --live-opencode)
     live_opencode
     ;;
-  claude-hooks|opencode-plugin|opencode-sync-modes|claude-owner-only|opencode-command-owner-only|opencode-owner-only|evidence-scope)
+  claude-hooks)
+    claude_hooks
+    ;;
+  opencode-plugin|opencode-sync-modes|claude-owner-only|opencode-command-owner-only|opencode-owner-only|evidence-scope)
     fail "production mode '$mode' is intentionally RED until its owning Phase 18 plan extends this driver"
     ;;
   *)
