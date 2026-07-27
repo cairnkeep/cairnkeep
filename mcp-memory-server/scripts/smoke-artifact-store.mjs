@@ -1,17 +1,28 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
+    closeSync,
+    copyFileSync,
     existsSync,
+    mkdirSync,
     mkdtempSync,
+    openSync,
     readFileSync,
+    readdirSync,
     rmSync,
+    statSync,
+    writeFileSync,
+    writeSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { AgentFS } from "agentfs-sdk";
+
 const EXPECTED_RED_EXIT = 86;
 const CORE_RED_MARKER = "PHASE17_RED:ARTIFACT_STORE_MISSING";
+const LIFECYCLE_RED_MARKER = "PHASE17_RED:ARTIFACT_LIFECYCLE_MISSING";
 const here = dirname(fileURLToPath(import.meta.url));
 const serverRoot = resolve(here, "..");
 const projectRoot = resolve(serverRoot, "..");
@@ -329,6 +340,588 @@ async function testCoreService(schemaModule, storeModule) {
     }
 }
 
+async function withEnvironment(values, operation) {
+    const prior = new Map();
+    for (const [name, value] of Object.entries(values)) {
+        prior.set(name, process.env[name]);
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = String(value);
+    }
+    try {
+        return await operation();
+    } finally {
+        for (const [name, value] of prior) {
+            if (value === undefined) delete process.env[name];
+            else process.env[name] = value;
+        }
+    }
+}
+
+function filesUnder(root) {
+    if (!existsSync(root)) return [];
+    const files = [];
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+        const path = join(root, entry.name);
+        if (entry.isDirectory()) files.push(...filesUnder(path));
+        else files.push(path);
+    }
+    return files;
+}
+
+function bytesFromExisting(paths) {
+    return Buffer.concat(paths.filter(existsSync).map((path) => readFileSync(path)));
+}
+
+function assertSentinelsAbsent(value, sentinels, surface) {
+    const bytes = Buffer.isBuffer(value) ? value : Buffer.from(String(value), "utf8");
+    for (const sentinel of sentinels) {
+        assert.equal(bytes.includes(Buffer.from(sentinel)), false, `${surface} leaked ${sentinel}`);
+    }
+}
+
+function compactionWrite(sessionRef, suffix, overrides = {}) {
+    return {
+        kind: "compaction_summary",
+        session_ref: sessionRef,
+        media_type: "text/markdown",
+        provenance: { producer: "compaction-fixture", harness: "claude-code" },
+        content: {
+            raw_summary: `Goal ${suffix}\n\nDecision ${suffix}`,
+            task_goals: [`goal-${suffix}`],
+            decisions_made: [`decision-${suffix}`],
+            open_todos: [`todo-${suffix}`],
+            critical_error_traces: [],
+            completeness: {
+                task_goals: "complete",
+                decisions_made: "complete",
+                open_todos: "complete",
+                critical_error_traces: "complete",
+            },
+            trigger: "manual",
+        },
+        ...overrides,
+    };
+}
+
+function testLimitContract(schemaModule) {
+    const {
+        ARTIFACT_DEFAULT_MAX_BYTES,
+        ARTIFACT_DEFAULT_RETENTION_DAYS,
+        ARTIFACT_DEFAULT_SESSION_MAX_BYTES,
+        ARTIFACT_DEFAULT_STORE_MAX_BYTES,
+        COMPACTION_DEFAULT_MAX_REVISIONS,
+        GENERATED_FILE_MAX_SNAPSHOT_BYTES,
+        getArtifactLimits,
+    } = schemaModule;
+    assert.equal(ARTIFACT_DEFAULT_MAX_BYTES, 1024 * 1024);
+    assert.equal(ARTIFACT_DEFAULT_SESSION_MAX_BYTES, 16 * 1024 * 1024);
+    assert.equal(ARTIFACT_DEFAULT_STORE_MAX_BYTES, 256 * 1024 * 1024);
+    assert.equal(ARTIFACT_DEFAULT_RETENTION_DAYS, 30);
+    assert.equal(COMPACTION_DEFAULT_MAX_REVISIONS, 8);
+    assert.equal(GENERATED_FILE_MAX_SNAPSHOT_BYTES, 256 * 1024);
+
+    const envKeys = {
+        CAIRN_ARTIFACT_MAX_BYTES: "2048",
+        CAIRN_ARTIFACT_SESSION_MAX_BYTES: "4096",
+        CAIRN_ARTIFACT_STORE_MAX_BYTES: "8192",
+        CAIRN_ARTIFACT_RETENTION_DAYS: "7",
+        CAIRN_COMPACTION_MAX_REVISIONS: "3",
+    };
+    return withEnvironment(envKeys, () => {
+        assert.deepEqual(getArtifactLimits(), {
+            artifactMaxBytes: 2048,
+            sessionMaxBytes: 4096,
+            storeMaxBytes: 8192,
+            retentionDays: 7,
+            compactionMaxRevisions: 3,
+            generatedFileSnapshotMaxBytes: 2048,
+        });
+        return withEnvironment({ CAIRN_ARTIFACT_SESSION_MAX_BYTES: "1024" }, () => {
+            assert.throws(() => getArtifactLimits(), /session.*artifact|artifact.*session/i);
+            return withEnvironment({
+                CAIRN_ARTIFACT_SESSION_MAX_BYTES: "4096",
+                CAIRN_ARTIFACT_STORE_MAX_BYTES: "2048",
+            }, () => assert.throws(() => getArtifactLimits(), /store.*session|session.*store/i));
+        });
+    });
+}
+
+async function testRedactionAndBounds(schemaModule, storeModule) {
+    const {
+        getArtifactLimits,
+    } = schemaModule;
+    const {
+        deleteArtifact,
+        doctorArtifactStore,
+        getArtifactDbPath,
+        listArtifacts,
+        putArtifact,
+        readArtifact,
+        readLatestCompaction,
+    } = storeModule;
+    const scratch = mkdtempSync(join(tmpdir(), "cairn-artifact-privacy-"));
+    const config = join(scratch, ".ai", "artifact-redaction.json");
+    const sentinels = [
+        "sk-artifact-body-12345678",
+        "ARTIFACT-CUSTOM-7788",
+        "env-artifact-secret-9911",
+        "node-secret-7788",
+        "generated-label-7788",
+    ];
+    try {
+        mkdirSync(dirname(config), { recursive: true });
+        writeFileSync(config, JSON.stringify({
+            version: 1,
+            patterns: [
+                { pattern: "ARTIFACT-CUSTOM-[0-9]+", flags: "g" },
+                { pattern: "generated-label-[0-9]+", flags: "g", replacement: "redacted-label" },
+            ],
+        }));
+        await withEnvironment({
+            CAIRN_REDACTION_FILE: ".ai/artifact-redaction.json",
+            ARTIFACT_TEST_TOKEN: "env-artifact-secret-9911",
+        }, async () => {
+            const limits = getArtifactLimits();
+            const secretCompaction = compactionWrite("claude-code:privacy", "privacy", {
+                provenance: {
+                    producer: "ARTIFACT-CUSTOM-7788",
+                    source_event: "env-artifact-secret-9911",
+                    harness: "claude-code",
+                    native_id: "native-ARTIFACT-CUSTOM-7788",
+                },
+                content: {
+                    ...compactionWrite("claude-code:privacy", "privacy").content,
+                    raw_summary: "sk-artifact-body-12345678 env-artifact-secret-9911",
+                    task_goals: ["ARTIFACT-CUSTOM-7788"],
+                    decisions_made: ["safe"],
+                    open_todos: [],
+                    critical_error_traces: [],
+                },
+            });
+            const stored = await putArtifact(scratch, secretCompaction, limits);
+            assert.equal(stored.artifact.redaction.applied, true);
+            assert.ok(stored.artifact.redaction.replacement_count >= 4);
+            const recovered = await readLatestCompaction(scratch, "claude-code:privacy");
+            const listed = await listArtifacts(scratch, { session_ref: "claude-code:privacy" });
+            const read = await readArtifact(stored.artifact.artifact_id, scratch);
+
+            const generated = await putArtifact(scratch, {
+                kind: "generated_file",
+                session_ref: "cairn:generated",
+                node_ref: {
+                    scope: "project",
+                    address_space: "project-notes",
+                    key: "projects/generated-file",
+                },
+                media_type: "text/plain",
+                provenance: { producer: "generated-label-7788" },
+                content: {
+                    path_label: "generated/generated-label-7788.txt",
+                    file_digest: "c".repeat(64),
+                    logical_bytes: 12,
+                    binary: false,
+                    snapshot: "ARTIFACT-CUSTOM-7788",
+                },
+            }, limits);
+            assert.doesNotMatch(generated.artifact.content.path_label, /generated-label-7788/);
+            assertSentinelsAbsent(
+                JSON.stringify({ stored, recovered, listed, read, generated }),
+                sentinels,
+                "read/list/recovery output",
+            );
+
+            const rejectedOutputs = [];
+            await assert.rejects(async () => {
+                try {
+                    await putArtifact(scratch, {
+                        ...diffWrite({
+                            session_ref: "cairn:invalid-node",
+                            node_ref: {
+                                scope: "project",
+                                address_space: "project-notes",
+                                key: "projects/node-secret-7788",
+                            },
+                        }),
+                    }, limits);
+                } catch (error) {
+                    rejectedOutputs.push(String(error));
+                    throw error;
+                }
+            });
+            assertSentinelsAbsent(rejectedOutputs.join("\n"), sentinels, "validation output");
+
+            const utf8 = await withEnvironment({
+                CAIRN_ARTIFACT_MAX_BYTES: "1024",
+                CAIRN_ARTIFACT_SESSION_MAX_BYTES: "8192",
+                CAIRN_ARTIFACT_STORE_MAX_BYTES: "32768",
+            }, () => putArtifact(scratch, {
+                kind: "test_output",
+                session_ref: "cairn:utf8",
+                media_type: "text/plain",
+                provenance: { producer: "utf8-boundary" },
+                content: { text: `prefix-${"🙂".repeat(2048)}-suffix`, status: "passed" },
+            }, getArtifactLimits()));
+            assert.equal(utf8.artifact.truncation.truncated, true);
+            assert.equal(utf8.artifact.truncation.original_bytes > utf8.artifact.truncation.stored_bytes, true);
+            assert.ok(utf8.artifact.stored_bytes <= 1024);
+            assert.doesNotMatch(JSON.stringify(utf8.artifact), /�/);
+
+            const binary = await putArtifact(scratch, {
+                kind: "generated_file",
+                session_ref: "cairn:binary",
+                media_type: "application/octet-stream",
+                provenance: { producer: "binary-fixture" },
+                content: {
+                    path_label: "dist/output.bin",
+                    file_digest: "d".repeat(64),
+                    logical_bytes: 512,
+                    binary: true,
+                    snapshot: "must-not-survive",
+                },
+            }, limits);
+            assert.equal(binary.artifact.content.snapshot, undefined);
+            assert.equal(binary.artifact.content.metadata_only, true);
+
+            const oversized = await putArtifact(scratch, {
+                kind: "generated_file",
+                session_ref: "cairn:oversized",
+                media_type: "text/plain",
+                provenance: { producer: "oversized-fixture" },
+                content: {
+                    path_label: "dist/large.txt",
+                    file_digest: "e".repeat(64),
+                    logical_bytes: 300 * 1024,
+                    binary: false,
+                    snapshot: "x".repeat(300 * 1024),
+                },
+            }, limits);
+            assert.equal(oversized.artifact.content.snapshot, undefined);
+            assert.equal(oversized.artifact.content.metadata_only, true);
+
+            const deletion = await deleteArtifact(generated.artifact.artifact_id, scratch);
+            const doctor = await doctorArtifactStore(scratch, false, limits);
+            assertSentinelsAbsent(JSON.stringify({ deletion, doctor }), sentinels, "delete/doctor output");
+            assert.equal(deletion.content, undefined, "delete result must not echo a body");
+            assert.equal(doctor.ok, true);
+
+            const dbPath = getArtifactDbPath(scratch);
+            const durableBytes = bytesFromExisting([dbPath, `${dbPath}-wal`, `${dbPath}-shm`]);
+            assertSentinelsAbsent(durableBytes, sentinels, "database/WAL/SHM bytes");
+            const cairnFiles = filesUnder(scratch).filter((path) => !path.startsWith(join(scratch, ".ai")));
+            assertSentinelsAbsent(bytesFromExisting(cairnFiles), sentinels, "Cairnkeep files");
+            assert.equal(
+                filesUnder(scratch).some((path) => /(?:artifact|cairn).*(?:tmp|temp)$/i.test(path)),
+                false,
+                "raw candidate must not be copied to a Cairnkeep temporary file",
+            );
+        });
+    } finally {
+        rmSync(scratch, { recursive: true, force: true });
+    }
+}
+
+async function openRawStore(projectRoot) {
+    return AgentFS.open({ id: "artifacts", path: join(projectRoot, ".agentfs", "artifacts.db") });
+}
+
+async function testAutomaticBudgetsAndAge(storeModule) {
+    const { listArtifacts, pruneArtifacts, putArtifact } = storeModule;
+    const scratch = mkdtempSync(join(tmpdir(), "cairn-artifact-budgets-"));
+    const ageRoot = join(scratch, "age");
+    const budgetRoot = join(scratch, "budget");
+    const baseLimits = {
+        artifactMaxBytes: 2048,
+        sessionMaxBytes: 3600,
+        storeMaxBytes: 5000,
+        retentionDays: 365,
+        compactionMaxRevisions: 8,
+        generatedFileSnapshotMaxBytes: 2048,
+    };
+    const body = (label) => `${label}-${"x".repeat(1400)}`;
+    try {
+        const one = await putArtifact(budgetRoot, diffWrite({
+            session_ref: "cairn:budget-a",
+            content: { text: body("one") },
+        }), baseLimits, { now: new Date("2026-01-01T00:00:00.000Z") });
+        const two = await putArtifact(budgetRoot, {
+            kind: "test_output",
+            session_ref: "cairn:budget-a",
+            media_type: "text/plain",
+            provenance: { producer: "budget-fixture" },
+            content: { text: body("two"), status: "passed" },
+        }, baseLimits, { now: new Date("2026-01-01T00:00:01.000Z") });
+        const three = await putArtifact(budgetRoot, diffWrite({
+            session_ref: "cairn:budget-a",
+            content: { text: body("three") },
+        }), baseLimits, { now: new Date("2026-01-01T00:00:02.000Z") });
+        let listed = await listArtifacts(budgetRoot, { session_ref: "cairn:budget-a" });
+        assert.equal(listed.artifacts.some(({ artifact_id }) => artifact_id === one.artifact.artifact_id), false);
+        assert.deepEqual(
+            new Set(listed.artifacts.map(({ artifact_id }) => artifact_id)),
+            new Set([two.artifact.artifact_id, three.artifact.artifact_id]),
+            "per-session pruning must remove the oldest eligible artifact across kinds",
+        );
+
+        const four = await putArtifact(budgetRoot, diffWrite({
+            session_ref: "cairn:budget-b",
+            content: { text: body("four") },
+        }), baseLimits, { now: new Date("2026-01-01T00:00:03.000Z") });
+        const five = await putArtifact(budgetRoot, diffWrite({
+            session_ref: "cairn:budget-c",
+            content: { text: body("five") },
+        }), baseLimits, { now: new Date("2026-01-01T00:00:04.000Z") });
+        listed = await listArtifacts(budgetRoot);
+        assert.equal(listed.artifacts.some(({ artifact_id }) => artifact_id === two.artifact.artifact_id), false);
+        assert.deepEqual(
+            new Set(listed.artifacts.map(({ artifact_id }) => artifact_id)),
+            new Set([three.artifact.artifact_id, four.artifact.artifact_id, five.artifact.artifact_id]),
+            "store pruning must be global oldest-first without collapsing kinds",
+        );
+        assert.ok(listed.logical_bytes <= baseLimits.storeMaxBytes);
+
+        const oldest = await putArtifact(ageRoot, diffWrite({
+            session_ref: "cairn:age-a",
+            content: { text: "oldest" },
+        }), baseLimits, { now: new Date("2026-01-01T00:00:00.000Z") });
+        const older = await putArtifact(ageRoot, {
+            kind: "test_output",
+            session_ref: "cairn:age-b",
+            media_type: "text/plain",
+            provenance: { producer: "age-fixture" },
+            content: { text: "older", status: "passed" },
+        }, baseLimits, { now: new Date("2026-01-02T00:00:00.000Z") });
+        const ageLimits = { ...baseLimits, retentionDays: 30 };
+        const ageDryRun = await pruneArtifacts(ageRoot, ageLimits, {
+            dryRun: true,
+            includeProtected: false,
+            now: new Date("2026-03-01T00:00:00.000Z"),
+        });
+        assert.deepEqual(
+            ageDryRun.removed.map(({ artifact_id, reason }) => [artifact_id, reason]),
+            [
+                [oldest.artifact.artifact_id, "age"],
+                [older.artifact.artifact_id, "age"],
+            ],
+            "age pruning must report eligible artifacts oldest-first",
+        );
+        const fresh = await putArtifact(ageRoot, diffWrite({
+            session_ref: "cairn:age-new",
+            content: { text: "fresh" },
+        }), ageLimits, { now: new Date("2026-03-01T00:00:00.000Z") });
+        listed = await listArtifacts(ageRoot);
+        assert.deepEqual(listed.artifacts.map(({ artifact_id }) => artifact_id), [fresh.artifact.artifact_id]);
+    } finally {
+        rmSync(scratch, { recursive: true, force: true });
+    }
+}
+
+async function testLifecycleStore(schemaModule, storeModule) {
+    const { getArtifactLimits } = schemaModule;
+    const {
+        deleteArtifact,
+        doctorArtifactStore,
+        getArtifactDbPath,
+        listArtifacts,
+        pruneArtifacts,
+        putArtifact,
+        readArtifact,
+        readLatestCompaction,
+    } = storeModule;
+    for (const fn of [deleteArtifact, doctorArtifactStore, pruneArtifacts, readLatestCompaction]) {
+        assert.equal(typeof fn, "function", "artifact lifecycle export is missing");
+    }
+    await testAutomaticBudgetsAndAge(storeModule);
+    const scratch = mkdtempSync(join(tmpdir(), "cairn-artifact-lifecycle-"));
+    try {
+        const limits = await withEnvironment({
+            CAIRN_ARTIFACT_MAX_BYTES: "4096",
+            CAIRN_ARTIFACT_SESSION_MAX_BYTES: "16384",
+            CAIRN_ARTIFACT_STORE_MAX_BYTES: "65536",
+            CAIRN_ARTIFACT_RETENTION_DAYS: "30",
+            CAIRN_COMPACTION_MAX_REVISIONS: "8",
+        }, () => getArtifactLimits());
+        const first = await putArtifact(scratch, compactionWrite("claude-code:lifecycle", "one"), limits);
+        const kindAware = await putArtifact(scratch, diffWrite({
+            session_ref: "claude-code:lifecycle",
+            content: { text: "kind-aware-survivor" },
+        }), limits);
+        const concurrent = await Promise.all(["two", "three", "four"].map((suffix) => (
+            putArtifact(scratch, compactionWrite("claude-code:lifecycle", suffix), limits)
+        )));
+        const revisions = [first, ...concurrent].map(({ artifact }) => artifact.content.revision).sort((a, b) => a - b);
+        assert.deepEqual(revisions, [1, 2, 3, 4]);
+        const latest = await readLatestCompaction(scratch, "claude-code:lifecycle");
+        assert.equal(latest.content.revision, 4);
+        const latestProject = await readLatestCompaction(scratch);
+        assert.equal(latestProject.artifact_id, latest.artifact_id);
+
+        const beforeFault = await listArtifacts(scratch);
+        await assert.rejects(
+            putArtifact(scratch, diffWrite({ session_ref: "cairn:fault", content: { text: "fault-body" } }), limits, {
+                fault: "after-full-write",
+            }),
+            /fault/i,
+        );
+        assert.deepEqual(await listArtifacts(scratch), beforeFault, "fault injection split the transaction");
+
+        const dryRun = await pruneArtifacts(scratch, {
+            ...limits,
+            compactionMaxRevisions: 2,
+        }, { dryRun: true, includeProtected: false });
+        assert.equal(dryRun.removed.filter(({ reason }) => reason === "revision").length, 2);
+        assert.equal((await listArtifacts(scratch)).artifacts.length, beforeFault.artifacts.length);
+        const pruned = await pruneArtifacts(scratch, {
+            ...limits,
+            compactionMaxRevisions: 2,
+        }, { dryRun: false, includeProtected: false });
+        assert.equal(pruned.removed.filter(({ reason }) => reason === "revision").length, 2);
+        assert.equal(
+            (await listArtifacts(scratch)).artifacts.some(({ artifact_id }) => artifact_id === kindAware.artifact.artifact_id),
+            true,
+            "compaction revision pruning must not remove other artifact kinds",
+        );
+        assert.equal((await readLatestCompaction(scratch)).artifact_id, latest.artifact_id);
+
+        const protectedPrune = await pruneArtifacts(scratch, {
+            ...limits,
+            retentionDays: 0,
+            sessionMaxBytes: 4096,
+            storeMaxBytes: 4096,
+        }, { dryRun: false, includeProtected: false, now: new Date(Date.now() + 1000) });
+        assert.equal(
+            protectedPrune.removed.some(({ artifact_id }) => artifact_id === latest.artifact_id),
+            false,
+            "automatic prune removed the newest valid project compaction",
+        );
+        assert.equal((await readLatestCompaction(scratch)).artifact_id, latest.artifact_id);
+        const explicitPrune = await pruneArtifacts(scratch, {
+            ...limits,
+            retentionDays: 0,
+            sessionMaxBytes: 4096,
+            storeMaxBytes: 4096,
+        }, { dryRun: false, includeProtected: true, now: new Date(Date.now() + 2000) });
+        assert.equal(
+            explicitPrune.removed.some(({ artifact_id }) => artifact_id === latest.artifact_id),
+            true,
+            "includeProtected prune must be able to remove the protected compaction",
+        );
+        assert.equal(await readLatestCompaction(scratch), null);
+
+        const afterPrune = await putArtifact(scratch, compactionWrite("claude-code:lifecycle", "after-prune"), limits);
+        assert.equal(afterPrune.artifact.content.revision, 5, "compaction revisions must never be reused");
+        const deletionSentinel = "deleted-body-must-not-remain-8822";
+        const doomed = await putArtifact(scratch, diffWrite({
+            session_ref: "cairn:delete",
+            content: { text: deletionSentinel },
+        }), limits);
+        const deletion = await deleteArtifact(doomed.artifact.artifact_id, scratch);
+        assert.equal(deletion.deleted, true);
+        assert.equal(JSON.stringify(deletion).includes(deletionSentinel), false);
+        await assert.rejects(readArtifact(doomed.artifact.artifact_id, scratch), /not found/i);
+        const raw = await openRawStore(scratch);
+        try {
+            const allRows = await raw.kv.list("");
+            const serialized = JSON.stringify(allRows);
+            assert.equal(serialized.includes(doomed.artifact.artifact_id), false, "delete left an index/dedupe/pointer reference");
+            assert.equal(serialized.includes(deletionSentinel), false, "delete left a body or tombstone");
+            assert.equal(allRows.some(({ key }) => /tombstone|deleted/i.test(key)), false, "delete created a tombstone");
+        } finally {
+            await raw.close();
+        }
+        assert.equal(
+            bytesFromExisting([getArtifactDbPath(scratch), `${getArtifactDbPath(scratch)}-wal`, `${getArtifactDbPath(scratch)}-shm`])
+                .includes(Buffer.from(deletionSentinel)),
+            false,
+            "hard delete left body bytes in SQLite storage",
+        );
+
+        const repairTarget = await putArtifact(scratch, compactionWrite("claude-code:repair", "repair"), limits);
+        const corrupt = await openRawStore(scratch);
+        try {
+            const indexRows = await corrupt.kv.list("artifact/index/");
+            const pointerRows = await corrupt.kv.list("compaction/latest/");
+            assert.ok(indexRows.length >= 1 && pointerRows.length >= 1);
+            await corrupt.kv.delete(indexRows[0].key);
+            await corrupt.kv.delete(pointerRows[0].key);
+        } finally {
+            await corrupt.close();
+        }
+        const detected = await doctorArtifactStore(scratch, false, limits);
+        assert.equal(detected.ok, false);
+        assert.ok(detected.issues.some((issue) => /index|pointer/i.test(issue)));
+        const repaired = await doctorArtifactStore(scratch, true, limits);
+        assert.equal(repaired.ok, true);
+        assert.equal(repaired.repaired, true);
+        assert.equal((await readArtifact(repairTarget.artifact.artifact_id, scratch)).artifact_id, repairTarget.artifact.artifact_id);
+
+        const authority = await openRawStore(scratch);
+        const fullKey = `artifact/full/${repairTarget.artifact.artifact_id}`;
+        let corruptBody;
+        try {
+            corruptBody = await authority.kv.get(fullKey);
+            assert.ok(corruptBody);
+            await authority.kv.set(fullKey, {
+                ...corruptBody,
+                content: { ...corruptBody.content, raw_summary: "authoritative-corruption" },
+            });
+        } finally {
+            await authority.close();
+        }
+        const authorityFailed = await doctorArtifactStore(scratch, true, limits);
+        assert.equal(authorityFailed.ok, false);
+        assert.equal(authorityFailed.repaired, false);
+        assert.ok(authorityFailed.issues.some((issue) => /digest|authoritative|full record/i.test(issue)));
+        const authorityAfter = await openRawStore(scratch);
+        try {
+            assert.deepEqual(await authorityAfter.kv.get(fullKey), {
+                ...corruptBody,
+                content: { ...corruptBody.content, raw_summary: "authoritative-corruption" },
+            });
+        } finally {
+            await authorityAfter.close();
+        }
+
+        const sqliteRoot = join(scratch, "sqlite-corrupt");
+        mkdirSync(join(sqliteRoot, ".agentfs"), { recursive: true });
+        const sqlitePath = join(sqliteRoot, ".agentfs", "artifacts.db");
+        copyFileSync(getArtifactDbPath(scratch), sqlitePath);
+        const fd = openSync(sqlitePath, "r+");
+        try {
+            writeSync(fd, Buffer.from("BROKEN-SQLITE!!!"), 0, 16, 0);
+        } finally {
+            closeSync(fd);
+        }
+        const sqliteBytes = readFileSync(sqlitePath);
+        const sqliteFailed = await doctorArtifactStore(sqliteRoot, true, limits);
+        assert.equal(sqliteFailed.ok, false);
+        assert.equal(sqliteFailed.repaired, false);
+        assert.equal(sqliteFailed.integrity, "failed");
+        assert.deepEqual(readFileSync(sqlitePath), sqliteBytes, "doctor modified authoritative SQLite corruption");
+        assert.equal(statSync(getArtifactDbPath(scratch)).mode & 0o777, 0o600);
+    } finally {
+        rmSync(scratch, { recursive: true, force: true });
+    }
+}
+
+async function runLifecycle(mode) {
+    const { schema, store } = await loadCoreModules();
+    const required = [
+        "deleteArtifact",
+        "doctorArtifactStore",
+        "pruneArtifacts",
+        "readLatestCompaction",
+    ];
+    const missing = required.filter((name) => typeof store[name] !== "function");
+    if (missing.length > 0) {
+        const error = new Error(`Missing artifact lifecycle exports: ${missing.join(", ")}`);
+        error.code = "ERR_ARTIFACT_LIFECYCLE_MISSING";
+        throw error;
+    }
+    await testLimitContract(schema);
+    await testRedactionAndBounds(schema, store);
+    if (mode !== "--schema-redaction-only") await testLifecycleStore(schema, store);
+}
+
 async function runCore(mode) {
     const { schema, store } = await loadCoreModules();
     if (mode !== "--service-only") testSchemaContract(schema);
@@ -357,11 +950,26 @@ async function main() {
         }
         throw new Error("Artifact store core unexpectedly exists; run the GREEN contract instead.");
     }
+    if (mode === "--expect-red-lifecycle") {
+        runBaseline();
+        try {
+            await runLifecycle();
+        } catch (error) {
+            if (isMissingCoreModule(error) || error?.code === "ERR_ARTIFACT_LIFECYCLE_MISSING") {
+                console.log(LIFECYCLE_RED_MARKER);
+                process.exitCode = EXPECTED_RED_EXIT;
+                return;
+            }
+            throw error;
+        }
+        throw new Error("Artifact lifecycle unexpectedly exists; run the GREEN contract instead.");
+    }
     if (mode && !["--schema-redaction-only", "--service-only"].includes(mode)) {
         throw new Error(`Unknown smoke-artifact-store mode: ${mode}`);
     }
     await runCore(mode);
-    console.log("PASS: artifact schema and immutable core store contract");
+    await runLifecycle(mode);
+    console.log("PASS: artifact schema, privacy and lifecycle store contract");
 }
 
 await main();
