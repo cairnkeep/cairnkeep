@@ -27,6 +27,7 @@
     "CONTRIBUTING.md",
     "SECURITY.md",
     "mcp-memory-server/dist/",
+    "mcp-memory-server/scripts/fixtures/compaction-*.json",
     "mcp-memory-server/package.json",
     "AGENTS.md"
   ],
