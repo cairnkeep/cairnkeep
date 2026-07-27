@@ -34,9 +34,7 @@ const expected = ["memory.write", "memory.search", "notes.distill", "wiki", "gra
 if (JSON.stringify(ids) !== JSON.stringify(expected)) process.exit(1);
 for (const path of completionPaths) {
   const output = fs.readFileSync(path, "utf8");
-  const positions = ids.map((id) => output.indexOf(id));
-  if (positions.some((position) => position < 0)) process.exit(1);
-  if (positions.some((position, index) => index > 0 && position <= positions[index - 1])) process.exit(1);
+  if (!output.includes(ids.join(" "))) process.exit(1);
 }
 NODE
 
