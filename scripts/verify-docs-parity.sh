@@ -109,6 +109,65 @@ EOF
   return "$failed"
 }
 
+check_artifact_contract() {
+  local failed=0 key value source_term
+
+  while IFS='|' read -r key value source_term; do
+    [[ -n "$key" ]] || continue
+    grep -qF "$key" mcp-memory-server/src/artifact-schema.ts || {
+      echo "FATAL: artifact env key '$key' is missing from source" >&2
+      failed=1
+    }
+    grep -qF "$source_term" mcp-memory-server/src/artifact-schema.ts || {
+      echo "FATAL: artifact default '$key=$value' is missing from source" >&2
+      failed=1
+    }
+    grep -qxF "# $key=$value" templates/env.example.template || {
+      echo "FATAL: artifact default '$key=$value' is missing from env.example" >&2
+      failed=1
+    }
+    grep -qF "$key" README.md docs/operating.md || {
+      echo "FATAL: artifact env key '$key' is missing from public configuration docs" >&2
+      failed=1
+    }
+    grep -qF "$value" README.md docs/operating.md || {
+      echo "FATAL: artifact default '$key=$value' is missing from public configuration docs" >&2
+      failed=1
+    }
+  done <<'EOF'
+CAIRN_ARTIFACT_MAX_BYTES|1048576|ARTIFACT_DEFAULT_MAX_BYTES = 1024 * 1024
+CAIRN_ARTIFACT_SESSION_MAX_BYTES|16777216|ARTIFACT_DEFAULT_SESSION_MAX_BYTES = 16 * 1024 * 1024
+CAIRN_ARTIFACT_STORE_MAX_BYTES|268435456|ARTIFACT_DEFAULT_STORE_MAX_BYTES = 256 * 1024 * 1024
+CAIRN_ARTIFACT_RETENTION_DAYS|30|ARTIFACT_DEFAULT_RETENTION_DAYS = 30
+CAIRN_COMPACTION_MAX_REVISIONS|8|COMPACTION_DEFAULT_MAX_REVISIONS = 8
+CAIRN_ARTIFACT_GENERATED_FILE_SNAPSHOT_MAX_BYTES|262144|GENERATED_FILE_MAX_SNAPSHOT_BYTES = 256 * 1024
+EOF
+
+  for key in CAIRN_COMPACTION_CAPTURE CAIRN_ARTIFACT_STORE CAIRN_ARTIFACT_HTTP; do
+    grep -qF "$key" mcp-memory-server/src/artifact-schema.ts README.md docs/operating.md docs/privacy-and-data-flow.md || {
+      echo "FATAL: artifact feature flag '$key' is not source/docs complete" >&2
+      failed=1
+    }
+  done
+
+  for source_term in artifact_write artifact_read artifact_list artifact_delete; do
+    grep -qF "\"$source_term\"" mcp-memory-server/src/index.ts || failed=1
+    grep -qF "$source_term" README.md docs/operating.md docs/privacy-and-data-flow.md || failed=1
+  done
+  for source_term in 'list [--kind K] [--session REF] [--json]' 'show <artifact-id-or-prefix> [--json]' 'delete <artifact-id-or-prefix> [--dry-run] [--json]' 'prune [--dry-run] [--include-protected] [--json]'; do
+    grep -qF "$source_term" mcp-memory-server/src/artifact-cli.ts || failed=1
+  done
+  grep -qF '.agentfs/artifacts.db' docs/storage.md docs/privacy-and-data-flow.md || failed=1
+  grep -qF 'CAIRN_ARTIFACT_HTTP' mcp-memory-server/src/index.ts README.md docs/operating.md docs/privacy-and-data-flow.md || failed=1
+  grep -qE 'redact[^.]{0,180}(before|then)[^.]{0,180}(digest|index|write)' docs/privacy-and-data-flow.md || failed=1
+  grep -qE 'default uninstall retains|Default uninstall retains' docs/storage.md docs/privacy-and-data-flow.md || failed=1
+  grep -qF -- '--purge-memory PROJECT' docs/storage.md || failed=1
+  grep -qF 'revert.sh' docs/storage.md docs/privacy-and-data-flow.md || failed=1
+
+  [[ "$failed" -eq 0 ]] && echo "[artifact-contract] OK: artifact flags/defaults/tools/paths/privacy/uninstall match source"
+  return "$failed"
+}
+
 main() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -127,6 +186,7 @@ main() {
   check_env_keys || failed=1
   check_commands || failed=1
   check_typed_contract || failed=1
+  check_artifact_contract || failed=1
 
   if [[ "$failed" -ne 0 ]]; then
     echo "FATAL: docs-parity check found drift (see above) -- SC-02 not yet satisfied" >&2

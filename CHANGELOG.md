@@ -24,6 +24,13 @@ All notable user-facing changes are documented here. This project follows
 - Add default-off typed memory metadata/tags, hard-filtered discovery,
   history-aware structured `memory_import`, and logical project/shared note
   address spaces with journaled crash recovery and doctor integration.
+- Add independent default-off compaction continuity for supported Claude Code
+  and OpenCode seams, capturing only harness-produced summaries into local,
+  redacted, bounded immutable revisions with structured fresh-session recovery.
+- Add a separate local artifact store for compaction summaries, diffs, test
+  output, and generated-file metadata/snapshots; four gated MCP tools;
+  `cairn artifact list|show|delete|prune`; doctor, completion, package, and
+  backup-first uninstall coverage; and separately consented HTTP access.
 
 ### Fixed
 
@@ -32,7 +39,7 @@ All notable user-facing changes are documented here. This project follows
 - Make the audit script executable so its rendered systemd service target can
   run directly.
 
-Capture and note distillation/enrichment remain disabled by default. Existing
+Trajectory/compaction capture, artifact access, and note distillation/enrichment remain disabled by default. Existing
 MCP tools, memory database paths, and remote HTTP behavior are unchanged. No
 memory-quality or efficiency improvement is claimed before the evaluation
 harness measures it.

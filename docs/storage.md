@@ -19,6 +19,7 @@ registration, memory remains on that computer.
 |---|---|
 | `project` | `<server working directory>/.agentfs/project.db` |
 | Opt-in session trajectories | `<harness project root>/.agentfs/trajectory.db` |
+| Opt-in local artifacts and compaction revisions | `<project root>/.agentfs/artifacts.db` |
 | Opt-in derived hindsight notes | `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/notes/` |
 | Any named/global scope, such as `identity` or `work` | `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/<scope>.db` |
 
@@ -49,6 +50,54 @@ all-project runs. Occurrence provenance is capped at 1024 entries per note and
 the processed-session ledger at 4096 digests per project. Note bodies do not
 expire automatically: inspect/delete them according to your own retention
 policy. Trajectory pruning does not delete already-derived notes.
+
+## Artifact storage
+
+Artifacts are deliberately separate from memory and trajectories. Local
+compaction hooks, recovery, operator commands, and stdio MCP tools use
+`<project>/.agentfs/artifacts.db` with restrictive permissions. Existing
+memory/trajectory databases are not migrated, rewritten, or mirrored into it.
+SQLite `-wal` and `-shm` sidecars share the same sensitive backup boundary.
+
+The schema-v1 authoritative rows are immutable full envelopes containing ID,
+kind, creation time, stable session reference, optional typed-node reference,
+media type, logical/stored bytes, digest, provenance, redaction/truncation
+metadata, optional supersession, and bounded content. Small derived namespaces
+hold created/session/kind indexes, request-dedupe bindings, monotonic
+`compaction/sequence/<session>` counters, and latest session/project pointers.
+Artifact indexes contain value-minimized metadata and references, never bodies.
+Full record, indexes, dedupe, counter, and pointer updates share one immediate
+transaction. An identical retry returns the existing ID; changed content
+appends a new immutable revision. Deleted revision numbers are never reused.
+
+Defaults are 1 MiB per artifact, 16 MiB per session, 256 MiB total, 30 days,
+eight compaction revisions per session, and a 256 KiB generated-file snapshot
+cap (or the lower artifact cap). Automatic retention applies age and revision
+limits, then removes the oldest eligible records to meet session/store budgets.
+It protects the newest valid project compaction. Explicit delete or
+`cairn artifact prune --include-protected` may remove that record. Hard delete
+removes content, indexes, dedupe rows, and affected pointers; there is no
+tombstone or hidden retained body.
+
+`cairn doctor` validates SQLite integrity, schema, authoritative envelopes and
+digests, derived indexes, dedupe state, revision pointers, and retention state.
+`--repair` rebuilds only safely derived indexes/dedupe/pointers from valid full
+records. Unsupported schema, invalid full records, digest mismatch, or SQLite
+corruption remains failed and untouched; preserve `.agentfs/artifacts.db` and
+its sidecars before manual inspection.
+
+Generated-file `path_label` values are contained project-relative labels only.
+They are never dereferenced by MCP, CLI, capture, doctor, or recovery. Binary
+or oversized candidates become metadata-only; optional inline text is bounded.
+
+For separately enabled HTTP artifact access, the server requires a validated
+`X-Cairn-Project` and derives the database under the server-side configured
+base directory as `${CAIRN_AGENTFS_BASE_DIR}/<project-id>/artifacts.db`.
+Clients cannot supply a filesystem path, and different project identities use
+separate derived roots. The bearer token still defines the trust domain.
+Neither `CAIRN_ARTIFACT_HTTP` nor remote memory registration redirects local
+compaction hooks or trajectories.
+Artifact backup follows the project `.agentfs/` backup boundary described below.
 
 When the memory server runs in the official container, the same rule applies:
 the process stores databases below `/data`, normally backed by the
@@ -144,6 +193,12 @@ is not included in `cairn memory export`. `cairn uninstall PROJECT` retains the
 whole `.agentfs/` directory by default. `cairn uninstall --purge-memory PROJECT`
 backs it up and removes it, including memory and trajectories; the generated
 `revert.sh` can restore it.
+
+The same boundary includes `<project>/.agentfs/artifacts.db` and its sidecars.
+`cairn memory export` does not include artifacts. Default uninstall retains the
+whole `.agentfs/` tree. `cairn uninstall --purge-memory PROJECT` backs it up
+before removal, and the generated `revert.sh` restores the exact durable bytes.
+No automatic export or migration of existing artifact stores is performed.
 
 Global hindsight notes share the `${CAIRN_AGENTFS_BASE_DIR}` durable-store
 boundary. `cairn uninstall` keeps them by default. `cairn uninstall

@@ -93,13 +93,15 @@ Step 3 installs into `~/.claude` (override with `CLAUDE_CONFIG_DIR` or
   `repo-review`, `graphify`, `context-explore`
 - **7 agents** → `agents/`: `code-reviewer`, the three `security-*` agents, and
   the three `wiki-*` agents
-- **4 hooks** → `hooks/`, registered in `settings.json`:
+- **5 hooks** → `hooks/`, registered in `settings.json`:
   - `memory-wakeup.sh` on **SessionStart** — surfaces AgentFS memory + wiki index
   - `memory-capture.sh` on **SessionEnd** — extracts memory candidates to staging
   - `memory-recall.sh` on **PreToolUse** (Edit/Write/MultiEdit) — injects
     file-specific memory before an edit
   - `context-explore-pretask.sh` on **UserPromptSubmit** — inert unless the
     separate context-exploration opt-in is enabled
+  - `compaction-capture.sh` on **PostCompact** — inert unless local compaction
+    continuity is enabled
 - **scaffold templates** → `templates/`, used by `/security-audit` and `/wiki-*`
 
 Re-running `sync-claude-assets.sh --apply` is idempotent; use `--check` to see
@@ -209,6 +211,16 @@ vendor or host.
 | `CAIRN_TRAJECTORY_STORE_MAX_BYTES` | Logical local trajectory budget (default `268435456`, 256 MiB; must be at least the session maximum) |
 | `CAIRN_TRAJECTORY_RETENTION_DAYS` | Age retention applied on capture/prune (default `30`; `0` removes sessions once they are older than the current instant) |
 | `CAIRN_TRAJECTORY_REDACTION_FILE` | Optional redaction JSON path contained by the project (default `.ai/trajectory-redaction.json` when that file exists) |
+| `CAIRN_REDACTION_FILE` | Optional project-contained redaction JSON shared by trajectories and artifacts; takes precedence over `CAIRN_TRAJECTORY_REDACTION_FILE` |
+| `CAIRN_COMPACTION_CAPTURE` | Opt in to supported local compaction capture and automatic structured recovery (off by default; unset means zero new work) |
+| `CAIRN_ARTIFACT_STORE` | Expose the four local stdio artifact tools (off by default; independent of compaction capture) |
+| `CAIRN_ARTIFACT_HTTP` | Separately expose artifact tools over authenticated HTTP (off by default; also requires `CAIRN_ARTIFACT_STORE`) |
+| `CAIRN_ARTIFACT_MAX_BYTES` | Per-artifact stored-byte cap (default `1048576`, minimum `1024`) |
+| `CAIRN_ARTIFACT_SESSION_MAX_BYTES` | Per-session logical-byte cap (default `16777216`; at least the artifact cap) |
+| `CAIRN_ARTIFACT_STORE_MAX_BYTES` | Total logical-byte cap (default `268435456`; at least the session cap) |
+| `CAIRN_ARTIFACT_RETENTION_DAYS` | Age retention in days (default `30`, minimum `0`) |
+| `CAIRN_COMPACTION_MAX_REVISIONS` | Immutable compaction revisions retained per session (default `8`, minimum `1`) |
+| `CAIRN_ARTIFACT_GENERATED_FILE_SNAPSHOT_MAX_BYTES` | Generated-file inline snapshot cap (default `262144`; effective cap is the lower of this and the artifact cap) |
 | `CAIRN_NOTE_DISTILLATION` | Master opt-in for local one-shot/scheduled hindsight distillation and exact lookup (unset/default → disabled before I/O) |
 | `CAIRN_NOTE_ENRICHMENT` | Separate opt-in for provider prose enrichment; credentials alone never enable it |
 | `CAIRN_NOTE_ENRICHMENT_MODEL` | Explicit OpenAI-compatible chat model for note enrichment (no default) |
@@ -386,6 +398,7 @@ is guarded and **fails closed**:
 | `CAIRN_MEMORY_HTTP_TOKEN` | **Required** in HTTP mode — clients send `Authorization: Bearer <token>`; the server refuses to start without it |
 | `CAIRN_MEMORY_HTTP_ALLOWED_ORIGINS` | Comma-separated browser origins allowed via CORS (default: none — no cross-origin access) |
 | `CAIRN_MEMORY_HTTP_ALLOWED_HOSTS` | Comma-separated allowed `Host` headers for DNS-rebinding protection (default: the bind host + `localhost` on the chosen port) |
+| `CAIRN_ARTIFACT_HTTP` | Additional consent for artifact tools (default off; requires `CAIRN_ARTIFACT_STORE`, a valid `X-Cairn-Project`, bearer auth, and the normal Host/CORS checks) |
 
 Requests without a valid bearer token get `401`; requests with an unexpected
 `Host` header get `403`. Keep HTTP mode bound to `127.0.0.1` unless you have a
@@ -487,6 +500,13 @@ cd /path/to/project && cairn doctor
 cd /path/to/project && cairn doctor --repair
 ```
 
+The same command checks `.agentfs/artifacts.db`. Absence is a healthy skip
+because both producers are opt-in. A valid schema, full-record digest, index,
+dedupe row, compaction pointer, and retention state passes. `--repair` may
+rebuild only derived indexes/dedupe/pointers from valid authoritative records.
+Unsupported schema, SQLite failure, invalid full records, or digest corruption
+fails untouched with guidance to preserve the database before manual recovery.
+
 ### Structured session trajectories (opt-in)
 
 Trajectory capture is disabled by default. To enable it for a launched Claude
@@ -514,6 +534,67 @@ enable capture. Add bounded regular-expression entries there only for
 project-specific secrets; built-in credential patterns always apply. See
 [Privacy and data flow](privacy-and-data-flow.md) for the exact capture boundary
 and [Memory storage and deployment](storage.md) for retention and backup.
+
+### Compaction continuity and artifacts (opt-in)
+
+The two flags are independent and off by default. Enable either in the private
+project `.ai/.env`, sync the harness assets, and restart both the harness and
+the MCP server when changing tool registration:
+
+```bash
+cd /path/to/project
+printf '%s\n' 'CAIRN_COMPACTION_CAPTURE=1' >> .ai/.env
+printf '%s\n' 'CAIRN_ARTIFACT_STORE=1' >> .ai/.env
+cairn sync --apply                 # Claude Code PostCompact + SessionStart
+# OpenCode: re-run scripts/sync-opencode-plugin-assets.sh --apply from a clone
+# Restart the harness and cairn-memory after changing flags.
+
+# Disable: remove/comment both lines, sync again, and restart.
+```
+
+Compaction continuity accepts only the pinned supported Claude Code
+`PostCompact` and OpenCode `session.compacted` families. Unknown or malformed
+versions fail open, retain none of the unknown payload, and leave only a
+bounded value-free doctor diagnostic. The flag is checked before parsing,
+SDK, subprocess, filesystem, database, network, stdout, stderr, or injection
+work. Capture forwards the harness-produced summary unchanged to the local
+normalizer; it never generates a summary, changes a prompt, or triggers
+compaction.
+
+Automatic recovery prefers the exact current/resumed harness session. When a
+fresh session has no match, it chooses the newest valid project compaction. It
+injects provenance, revision, time, age, completeness, and only structured
+goals/decisions/TODOs/critical errors. Old state is still shown with a stale
+warning to validate it against the repository. The redacted raw summary is
+available only through explicit `artifact_read` or `cairn artifact show`.
+
+`CAIRN_ARTIFACT_STORE=1` registers exactly `artifact_write`, `artifact_read`,
+`artifact_list`, and `artifact_delete`. The first schema supports exactly
+`compaction_summary`, `diff`, `test_output`, and `generated_file`. Writes are
+bounded inline values; generated-file paths are labels and are never read.
+Operator commands remain available for already-retained local data:
+
+```bash
+cairn artifact list --kind compaction_summary --session SESSION-REF --json
+cairn artifact show ARTIFACT-ID --json
+cairn artifact delete ARTIFACT-ID --dry-run --json
+cairn artifact delete ARTIFACT-ID --json
+cairn artifact prune --dry-run --json
+cairn artifact prune --dry-run --include-protected --json
+```
+
+Defaults are 1 MiB per artifact, 16 MiB per session, 256 MiB total, 30 days,
+eight compaction revisions, and a 256 KiB generated-file snapshot cap. Pruning
+is oldest-first after age/revision eligibility and protects the newest valid
+project compaction unless `--include-protected` or explicit delete is used.
+Hard delete removes the body and derived rows with no tombstone.
+
+No key, model, endpoint, or network is required. Stdio access needs only
+`CAIRN_ARTIFACT_STORE`. HTTP requires double consent—both artifact flags—plus
+the existing bearer token, allowed `Host`, CORS policy, and a valid
+`X-Cairn-Project`; the latter derives an isolated server-side artifact root.
+Artifact HTTP does not expose trajectories. See [storage](storage.md#artifact-storage)
+and [privacy](privacy-and-data-flow.md#compaction-and-artifact-flows).
 
 ### Hindsight notes (opt-in)
 

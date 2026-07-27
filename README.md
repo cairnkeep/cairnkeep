@@ -14,7 +14,7 @@ across sessions, projects, and harnesses (Claude Code, OpenCode, Pi, …).
 ## Status
 
 Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync`, `sync-pi`,
-`doctor`, `trajectory`, `notes`, `memory`, `audit-timer`, `completion`, `uninstall`) installable via
+`doctor`, `trajectory`, `artifact`, `notes`, `memory`, `audit-timer`, `completion`, `uninstall`) installable via
 `npm i -g @cairnkeep/cli`, and the
 operating layer (commands,
 agents, hooks) installed on Claude Code and OpenCode, plus a native Pi
@@ -70,6 +70,7 @@ storage paths, secrets, and private derived images, see
 - **`bin/cairn`** — the CLI. `cairn bootstrap [path]` scaffolds a project's
   `.ai/` launchers + env; `cairn doctor` health-checks the configured pieces;
   `cairn trajectory list|show|prune` manages opt-in local session trajectories;
+  `cairn artifact list|show|delete|prune` manages opt-in local artifacts;
   `cairn notes distill|search-error|promote|doctor` compiles and searches
   default-off local hindsight notes outside the online agent path;
   `cairn memory export|import` relocates the durable store between machines
@@ -229,6 +230,16 @@ search):
 | `CAIRN_TRAJECTORY_STORE_MAX_BYTES` | Maximum logical bytes across local trajectories (default `268435456`, 256 MiB) |
 | `CAIRN_TRAJECTORY_RETENTION_DAYS` | Retain captured sessions for this many days (default `30`) |
 | `CAIRN_TRAJECTORY_REDACTION_FILE` | Optional project-contained redaction config (default `.ai/trajectory-redaction.json` when present) |
+| `CAIRN_REDACTION_FILE` | Optional project-contained redaction config shared by trajectories and artifacts (falls back to `CAIRN_TRAJECTORY_REDACTION_FILE`) |
+| `CAIRN_COMPACTION_CAPTURE` | Opt in to local harness-produced compaction capture and fresh-session recovery (off by default) |
+| `CAIRN_ARTIFACT_STORE` | Expose four local stdio artifact tools (off by default; independent of compaction capture) |
+| `CAIRN_ARTIFACT_HTTP` | Separately consent to artifact tools over authenticated HTTP (off by default; also requires `CAIRN_ARTIFACT_STORE`) |
+| `CAIRN_ARTIFACT_MAX_BYTES` | Maximum stored bytes per artifact (default `1048576`, 1 MiB) |
+| `CAIRN_ARTIFACT_SESSION_MAX_BYTES` | Maximum logical bytes per artifact session (default `16777216`, 16 MiB) |
+| `CAIRN_ARTIFACT_STORE_MAX_BYTES` | Maximum logical bytes in one artifact store (default `268435456`, 256 MiB) |
+| `CAIRN_ARTIFACT_RETENTION_DAYS` | Artifact age retention (default `30`) |
+| `CAIRN_COMPACTION_MAX_REVISIONS` | Retained compaction revisions per session (default `8`) |
+| `CAIRN_ARTIFACT_GENERATED_FILE_SNAPSHOT_MAX_BYTES` | Generated-file inline snapshot cap (default `262144`, 256 KiB; lower if the artifact cap is lower) |
 | `CAIRN_NOTE_DISTILLATION` | Opt in to one-shot/scheduled local note distillation and lookup (default off) |
 | `CAIRN_NOTE_ENRICHMENT` | Separately opt in to remote/local prose enrichment; never implied by credentials (default off) |
 | `CAIRN_NOTE_ENRICHMENT_MODEL` | Explicit chat model for optional note enrichment (no default) |
@@ -274,6 +285,39 @@ only digests, counts, keys, and actions—never supplied values. The default
 reject policy cannot overwrite; explicit supersede preserves typed history.
 Note addresses require `scope: project` and logical keys, never filesystem
 paths. See the [operating guide](docs/operating.md#typed-memory-nodes-and-note-address-spaces-opt-in).
+
+### Compaction continuity and artifacts (opt-in)
+
+`CAIRN_COMPACTION_CAPTURE=1` captures only harness-produced compaction summaries
+from the supported Claude Code `PostCompact` and OpenCode `session.compacted`
+seams. It stores redacted immutable revisions locally and injects the latest
+valid structured goals, decisions, TODOs, and critical errors when a session
+starts. A resumed session is preferred; a fresh session falls back to the
+newest valid project summary and marks stale context for validation. The raw
+redacted summary is available only through an explicit read. Cairnkeep never
+generates or triggers compaction.
+
+`CAIRN_ARTIFACT_STORE=1` independently exposes exactly four stdio MCP tools:
+`artifact_write`, `artifact_read`, `artifact_list`, and `artifact_delete`.
+The initial kinds are exactly `compaction_summary`, `diff`, `test_output`, and
+`generated_file`. Generated-file paths are labels only; the server never reads
+them. Operators can inspect retained local data whether or not MCP writes are
+currently enabled:
+
+```bash
+cairn artifact list --kind compaction_summary --json
+cairn artifact show ARTIFACT-ID --json
+cairn artifact delete ARTIFACT-ID --dry-run --json
+cairn artifact prune --dry-run --include-protected --json
+```
+
+Both capabilities are default-off, local, and require no key, model, endpoint,
+telemetry, or network. Remote tools require double consent:
+`CAIRN_ARTIFACT_STORE=1` plus `CAIRN_ARTIFACT_HTTP=1`, as well as the existing
+bearer, `Host`, and validated `X-Cairn-Project` controls. Artifact HTTP never
+exposes trajectory data. See the [operating guide](docs/operating.md#compaction-continuity-and-artifacts-opt-in),
+[storage contract](docs/storage.md#artifact-storage), and
+[privacy flows](docs/privacy-and-data-flow.md#compaction-and-artifact-flows).
 
 ## More
 

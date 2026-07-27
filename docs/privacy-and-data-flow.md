@@ -24,6 +24,12 @@ request unless the corresponding endpoint and credential are configured.
 | Typed lifecycle and inline `memory_import` over authenticated HTTP | MCP requests and responses, including supplied values | The explicitly registered Cairnkeep HTTP server; import results omit values |
 | Project/shared note lifecycle over local stdio | None | Canonical Markdown, history, replay, and journals remain in the server-controlled notes root |
 | Project/shared note lifecycle over authenticated HTTP | MCP requests and responses, including complete note records | The explicitly registered server; clients send logical keys, never server filesystem paths |
+| Claude `PostCompact` compaction capture | None | Redacted local `<project>/.agentfs/artifacts.db`; no model or HTTP path |
+| OpenCode `session.compacted` + local SDK fetch | None | Redacted local `<project>/.agentfs/artifacts.db`; no model or HTTP path |
+| Explicit artifact tools over local stdio | None | Inline artifact values remain in the local project artifact store |
+| Separately enabled artifact tools over HTTP | MCP artifact requests and explicit read responses | The authenticated server selected by the client; requires `CAIRN_ARTIFACT_STORE`, `CAIRN_ARTIFACT_HTTP`, bearer/Host checks, and validated project identity |
+| Automatic compaction recovery | None | Structured categories are injected locally; raw summary and other bodies are excluded |
+| Explicit artifact read/show | The redacted body only when HTTP is separately enabled and the operator/client explicitly reads it | Local terminal/stdio, or the explicitly registered authenticated server |
 
 Model endpoints may be local or remote. Cairnkeep cannot determine a provider's
 retention, training, or logging policy; verify it before sending confidential
@@ -62,6 +68,84 @@ verifies and preserves the completed mutation, then removes only transaction
 artifacts. Unverifiable committed state remains blocked and is not rolled back.
 Default uninstall retains this state; explicit `--purge-memory` backs it up
 before removal and its `revert.sh` restores it.
+
+Artifact envelopes, redacted content, digests, indexes, dedupe bindings,
+revision counters, latest pointers, SQLite sidecars, backups, and explicit
+read/CLI output are sensitive data at rest. They are not application-level
+encrypted. Default uninstall retains them; purge is backup-first and the
+generated revert restores exact bytes. Hard delete and explicit prune remove
+content plus derived references without keeping a tombstone.
+
+## Compaction and artifact flows
+
+Both `CAIRN_COMPACTION_CAPTURE` and `CAIRN_ARTIFACT_STORE` are default-off and
+independent. With a flag off, its adapter returns before new parsing, SDK,
+subprocess, file/database, network, stdout/stderr, or context-injection work.
+Credentials never imply either flag. No model call, telemetry, automatic
+remote discovery, or default egress is introduced.
+
+Claude local capture:
+
+```text
+documented PostCompact stdin (session/cwd/trigger/compact_summary)
+  → supported-version validation
+  → recursive redaction
+  → truncate / digest / index / write
+  → local .agentfs/artifacts.db
+```
+
+OpenCode local capture:
+
+```text
+session.compacted session ID
+  → local SDK get(session) + messages(session)
+  → select the pinned completed summary shape
+  → recursive redaction
+  → truncate / digest / index / write
+  → local .agentfs/artifacts.db
+```
+
+Unknown versions/shapes fail open. Their payload is not logged, serialized,
+temporarily copied, digested, indexed, or retained; doctor receives only a
+bounded value-free reason. Artifact candidates are redacted before digest, index, temporary storage, or any Cairnkeep write.
+Truncation also happens only after redaction. The same recursive
+built-ins and bounded project redaction file used by trajectory capture apply.
+
+Explicit artifact ingress:
+
+```text
+local stdio artifact_write (CAIRN_ARTIFACT_STORE)
+  → bounded inline schema → redact → truncate → digest/index/write locally
+
+authenticated HTTP artifact_write (both artifact flags)
+  → bearer + Host/CORS + X-Cairn-Project
+  → server-derived project root → same bounded redaction/write path
+```
+
+The four accepted kinds are `compaction_summary`, `diff`, `test_output`, and
+`generated_file`. Generated-file paths are labels only and are never read;
+binary or oversized bodies become metadata-only. There is no ambient command
+output capture, filesystem watcher, or caller-selected path dereference.
+
+Recovery egress is local and concise:
+
+```text
+current-session latest valid compaction, else newest valid project compaction
+  → provenance/freshness/completeness + four structured categories
+  → harness SessionStart/system-transform context
+```
+
+Raw summaries are on-demand only through explicit `artifact_read` or
+`cairn artifact show`; automatic recovery never injects them or another
+artifact body. Lists, writes, deletes, pruning, and doctor omit bodies. Stored
+redacted content is still sensitive and can be exposed by an explicit read.
+
+HTTP artifact egress is separately enabled by `CAIRN_ARTIFACT_HTTP` in
+addition to `CAIRN_ARTIFACT_STORE` and existing authenticated transport
+controls. It exposes only the four artifact tools, never trajectories,
+compaction hooks, or a generic filesystem. With HTTP consent absent, remote
+clients cannot observe artifact schemas or content. Artifacts have no default egress.
+Artifacts have no telemetry; local capture/recovery never uses the HTTP route.
 
 ## Structured trajectory capture
 
