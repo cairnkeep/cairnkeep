@@ -164,6 +164,7 @@ function correlationKey(issuance: OperatingCapabilityIssuance): string {
     const digest = createHash("sha256")
         .update([
             issuance.capability_id,
+            issuance.invocation_id,
             issuance.correlation_id,
             issuance.harness,
             issuance.source,
@@ -216,14 +217,6 @@ function recordMatchesIssuance(record: CapabilityCallbackRecord, issuance: Opera
         && record.started_at === issuance.started_at
         && record.state_source === issuance.state_source
         && record.configuration_digest === issuance.configuration_digest;
-}
-
-function recordMatchesCorrelation(record: CapabilityCallbackRecord, issuance: OperatingCapabilityIssuance): boolean {
-    return record.capability_id === issuance.capability_id
-        && record.correlation_id === issuance.correlation_id
-        && record.harness === issuance.harness
-        && record.source === issuance.source
-        && record.transport === issuance.transport;
 }
 
 async function assertCompatibleSchema(agent: AgentFS, allowMissing: boolean): Promise<void> {
@@ -323,7 +316,7 @@ export async function issueOperatingCapability(
                 if (retained.some(({ issuance: existing }) => existing.invocation_id === issuance.invocation_id)) {
                     return false;
                 }
-                if (finalRows.some(({ record }) => recordMatchesCorrelation(record, issuance))) return false;
+                if (finalRows.some(({ record }) => record.invocation_id === issuance.invocation_id)) return false;
                 const correlation = await agent.kv.get<unknown>(correlationKey(issuance));
                 if (correlation !== undefined) return false;
                 if (options.testStoreFault === "write") throw new Error("Injected capability store write fault.");
