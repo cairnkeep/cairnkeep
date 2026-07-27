@@ -55,7 +55,7 @@ const NODE_COMMANDS = [
   ["node-version", "node --version", "runtime-identity"],
   [
     "fixture-git-init",
-    "rm -f .git && git init -q && git config user.name 'Runtime Evidence' && git config user.email 'runtime-evidence@example.invalid' && git add -A && git commit -qm runtime-evidence-fixture",
+    "rm -f .git && git init -q && git fetch -q .cairn-runtime-evidence.bundle HEAD && git reset -q --mixed FETCH_HEAD && rm -f .cairn-runtime-evidence.bundle && git config user.name 'Runtime Evidence' && git config user.email 'runtime-evidence@example.invalid'",
     "runtime-setup",
   ],
   ["root-install", "npm ci --offline", "runtime-setup"],
@@ -517,6 +517,11 @@ function captureEvidence(evidenceDirectory, sourceCommit) {
       };
       assert.equal(fixtureVersions.claude, "2.1.220", "Claude fixture version changed");
       assert.equal(fixtureVersions.opencode, "1.17.20", "OpenCode fixture version changed");
+      const historyBundle = join(worktree, ".cairn-runtime-evidence.bundle");
+      requireSuccess(
+        git(worktree, ["bundle", "create", historyBundle, "HEAD"], { timeout: 120_000 }),
+        "create portable runtime evidence history",
+      );
       const rows = [];
       for (const [runtime, image] of [...NODE_IMAGES, ["bash-3.2", BASH_IMAGE]]) {
         assertDetachedSourceClean(worktree, sourceCommit);
