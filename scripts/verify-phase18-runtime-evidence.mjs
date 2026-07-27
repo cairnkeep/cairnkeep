@@ -62,15 +62,29 @@ const NODE_COMMANDS = [
   ["server-install", "npm --prefix mcp-memory-server ci --offline", "runtime-setup"],
   ["server-build", "npm --prefix mcp-memory-server run build", "core-lifecycle"],
   ["server-test", "npm --prefix mcp-memory-server test", "core-lifecycle"],
+  [
+    "operating-sequential",
+    "node mcp-memory-server/scripts/smoke-capability-logging.mjs --operating-sequential-only",
+    "invocation-isolation",
+  ],
+  [
+    "session-isolation",
+    "node mcp-memory-server/scripts/smoke-capability-harness.mjs --session-isolation",
+    "policy-isolation",
+  ],
   ["capability-lifecycle", "bash scripts/test-phase18-capability-lifecycle.sh full", "core-lifecycle"],
   ["native-boundary", "bash scripts/test-phase18-capability-lifecycle.sh native-boundary", "native-boundary"],
   ["claude-native", "bash scripts/test-phase18-harness-boundary.sh claude-hooks", "claude-native"],
   ["opencode-native", "bash scripts/test-phase18-harness-boundary.sh opencode-plugin", "opencode-native"],
+  ["opencode-disposal", "bash scripts/test-phase18-harness-boundary.sh opencode-disposal", "opencode-native"],
   ["opencode-overlay", "bash scripts/test-phase18-harness-boundary.sh opencode-sync-modes", "install-lifecycle"],
   ["launcher-overlay", "bash scripts/test-launcher-hooks.sh opencode-all-sync-modes", "install-lifecycle"],
+  ["launcher-recovery", "bash scripts/test-launcher-hooks.sh capability-recovery", "production-lifecycle"],
   ["package-install", "bash scripts/test-package-install.sh", "install-lifecycle"],
   ["uninstall", "bash scripts/test-uninstall.sh", "install-lifecycle"],
   ["docs-parity", "bash scripts/verify-docs-parity.sh", "documentation-parity"],
+  ["root-test", "npm test", "full-regression"],
+  ["repository-hygiene", "bash scripts/verify-no-private-references.sh", "repository-hygiene"],
 ];
 const BASH_COMMANDS = [
   ["bash-version", "bash --version", "runtime-identity"],
@@ -86,11 +100,16 @@ const SUPPORTED_EVIDENCE_SCOPES = new Set([
   "runtime-setup",
   "runtime-portability",
   "core-lifecycle",
+  "invocation-isolation",
+  "policy-isolation",
   "native-boundary",
   "claude-native",
   "opencode-native",
   "install-lifecycle",
+  "production-lifecycle",
   "documentation-parity",
+  "full-regression",
+  "repository-hygiene",
 ]);
 
 function usage() {
@@ -744,6 +763,33 @@ function selfTest() {
     omittedManifest.logs[1].commands.pop();
     writeFileSync(join(omittedCommand, "manifest.json"), JSON.stringify(omittedManifest));
     expectFailure("omitted required command", () => verifyEvidence(omittedCommand, commit));
+
+    for (const requiredId of [
+      "operating-sequential",
+      "session-isolation",
+      "opencode-disposal",
+      "launcher-recovery",
+      "root-test",
+      "repository-hygiene",
+    ]) {
+      const missingNewCommand = join(root, `missing-${requiredId}`);
+      writeFixture(missingNewCommand, commit);
+      const missingManifest = JSON.parse(readFileSync(join(missingNewCommand, "manifest.json"), "utf8"));
+      for (const log of missingManifest.logs.filter(({ runtime }) => runtime.startsWith("node-"))) {
+        log.commands = log.commands.filter(({ id }) => id !== requiredId);
+      }
+      writeFileSync(join(missingNewCommand, "manifest.json"), JSON.stringify(missingManifest));
+      expectFailure(`missing new command ${requiredId}`, () => verifyEvidence(missingNewCommand, commit));
+    }
+
+    const failedNewCommand = join(root, "failed-new-command");
+    writeFixture(failedNewCommand, commit);
+    const failedManifest = JSON.parse(readFileSync(join(failedNewCommand, "manifest.json"), "utf8"));
+    const failedRecord = failedManifest.logs[0].commands.find(({ id }) => id === "launcher-recovery");
+    failedRecord.exit_status = 23;
+    failedRecord.result = "fail";
+    writeFileSync(join(failedNewCommand, "manifest.json"), JSON.stringify(failedManifest));
+    expectFailure("failed new command", () => verifyEvidence(failedNewCommand, commit));
 
     const liveMatrix = join(root, "live-matrix.json");
     writeLiveMatrixFixture(liveMatrix);

@@ -31,7 +31,6 @@ const trajectoryDbRelative = join(".agentfs", "trajectory.db");
 const RECORD_PREFIX = "capability-callback/v1/record/";
 const PENDING_PREFIX = "capability-callback/v1/pending/";
 const OPERATING_RED_MARKER = "PHASE18_RED:OPERATING_FINISH_CONSENT_PROVENANCE";
-const OPERATING_SEQUENTIAL_RED_MARKER = "PHASE18_RED:INVOCATION_SCOPED_CORRELATION";
 const META_KEY = "capability-callback/meta/schema-version";
 const ALLOWED_FIELDS = [
     "capability_id",
@@ -500,16 +499,8 @@ async function operatingSequentialChecks() {
             "first terminal replay settled twice",
         );
 
-        const secondIssued = await store.issueOperatingCapability(root, second);
-        if (!secondIssued) {
-            const pending = await rawRows(root);
-            const finals = (await store.listCapabilityRecords(root)).records;
-            assert.equal(pending.filter(({ key }) => key.startsWith(PENDING_PREFIX)).length, 0,
-                "known correlation defect left a second pending issuance");
-            assert.deepEqual(finals.map(({ invocation_id }) => invocation_id), [first.invocation_id],
-                "known correlation defect did not retain exactly the first final");
-            throw new Error("expected-invocation-scoped-correlation-defect");
-        }
+        assert.equal(await store.issueOperatingCapability(root, second), true,
+            "second invocation sharing the session correlation was not issued");
 
         assert.equal(
             await store.settleOperatingCapability(root, second, sequentialFinal(second, "2026-07-27T08:28:01.125Z")),
@@ -909,22 +900,15 @@ async function main() {
     }
     if (mode === "--operating-sequential-only") {
         await schemaChecks();
-        try {
-            await operatingSequentialChecks();
-        } catch (error) {
-            if (error instanceof Error && error.message === "expected-invocation-scoped-correlation-defect") {
-                console.log(OPERATING_SEQUENTIAL_RED_MARKER);
-                process.exitCode = EXPECTED_RED_EXIT;
-                return;
-            }
-            throw error;
-        }
-        throw new Error("Invocation-scoped correlation is no longer RED; promote the regression to the GREEN suite.");
+        await operatingSequentialChecks();
+        console.log("PASS: invocation-scoped correlation with shared session identity");
+        return;
     }
     await schemaChecks();
     await storeChecks();
     await adapterChecks();
     await operatingFinishChecks();
+    await operatingSequentialChecks();
     console.log("PASS: capability callback privacy, consent and fail-open contract");
 }
 
