@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "registry": [
+    {
+      "id": "memory.write",
+      "kind": "mcp-tool",
+      "owner": "mcp-memory-server:index#memory_write",
+      "environment": "CAIRN_CAPABILITY_MEMORY_WRITE",
+      "compatibility_default": true,
+      "restart_required": true,
+      "logging_policy": "final-callback"
+    },
+    {
+      "id": "memory.search",
+      "kind": "mcp-tool",
+      "owner": "mcp-memory-server:index#memory_search",
+      "environment": "CAIRN_CAPABILITY_MEMORY_SEARCH",
+      "compatibility_default": true,
+      "restart_required": true,
+      "logging_policy": "final-callback"
+    },
+    {
+      "id": "notes.distill",
+      "kind": "offline-job",
+      "owner": "mcp-memory-server:note-cli#distill",
+      "environment": "CAIRN_CAPABILITY_NOTES_DISTILL",
+      "compatibility_default": false,
+      "restart_required": false,
+      "logging_policy": "final-callback"
+    },
+    {
+      "id": "wiki",
+      "kind": "operating-workflow",
+      "owner": "operating-layer:wiki",
+      "environment": "CAIRN_CAPABILITY_WIKI",
+      "compatibility_default": true,
+      "restart_required": false,
+      "logging_policy": "final-callback"
+    },
+    {
+      "id": "graph",
+      "kind": "operating-workflow",
+      "owner": "operating-layer:graph",
+      "environment": "CAIRN_CAPABILITY_GRAPH",
+      "compatibility_default": false,
+      "restart_required": false,
+      "logging_policy": "final-callback"
+    },
+    {
+      "id": "security.audit",
+      "kind": "operating-workflow",
+      "owner": "operating-layer:security-audit",
+      "environment": "CAIRN_CAPABILITY_SECURITY_AUDIT",
+      "compatibility_default": true,
+      "restart_required": false,
+      "logging_policy": "final-callback"
+    },
+    {
+      "id": "route.check",
+      "kind": "mcp-tool",
+      "owner": "mcp-memory-server:index#route_check",
+      "environment": "CAIRN_CAPABILITY_ROUTE_CHECK",
+      "compatibility_default": true,
+      "restart_required": true,
+      "logging_policy": "final-callback"
+    },
+    {
+      "id": "context.explore",
+      "kind": "mcp-tool",
+      "owner": "mcp-memory-server:index#context_explore",
+      "environment": "CAIRN_CAPABILITY_CONTEXT_EXPLORE",
+      "compatibility_default": true,
+      "restart_required": true,
+      "logging_policy": "final-callback"
+    }
+  ],
+  "empty_config": {
+    "schema_version": 1,
+    "capabilities": {},
+    "logging": {
+      "callbacks": false
+    }
+  },
+  "canonical_status": {
+    "schema_version": 1,
+    "contract_enabled": true,
+    "logging": {
+      "enabled": false,
+      "source": "compatibility"
+    },
+    "configuration_digest": "$computed",
+    "capabilities": [
+      { "id": "memory.write", "kind": "mcp-tool", "enabled": true, "source": "compatibility", "restart_required": true },
+      { "id": "memory.search", "kind": "mcp-tool", "enabled": true, "source": "compatibility", "restart_required": true },
+      { "id": "notes.distill", "kind": "offline-job", "enabled": false, "source": "compatibility", "restart_required": false },
+      { "id": "wiki", "kind": "operating-workflow", "enabled": true, "source": "compatibility", "restart_required": false },
+      { "id": "graph", "kind": "operating-workflow", "enabled": false, "source": "compatibility", "restart_required": false },
+      { "id": "security.audit", "kind": "operating-workflow", "enabled": true, "source": "compatibility", "restart_required": false },
+      { "id": "route.check", "kind": "mcp-tool", "enabled": true, "source": "compatibility", "restart_required": true },
+      { "id": "context.explore", "kind": "mcp-tool", "enabled": true, "source": "compatibility", "restart_required": true }
+    ],
+    "issues": []
+  },
+  "cases": {
+    "malformed": {
+      "malformed_bytes": "{\"schema_version\":1,\"capabilities\":",
+      "issue_code": "invalid-config"
+    },
+    "unknown_id": {
+      "config": {
+        "schema_version": 1,
+        "capabilities": { "memory.write": false, "unknown.owner": false },
+        "logging": { "callbacks": false }
+      },
+      "issue_code": "unknown-capability"
+    },
+    "invalid_row": {
+      "config": {
+        "schema_version": 1,
+        "capabilities": { "memory.write": "sentinel-raw-value", "memory.search": false },
+        "logging": { "callbacks": false }
+      },
+      "issue_code": "invalid-capability-value"
+    },
+    "reordered": {
+      "left": "{\"schema_version\":1,\"capabilities\":{\"wiki\":false,\"memory.write\":true},\"logging\":{\"callbacks\":true}}",
+      "right": "{\n  \"logging\": {\"callbacks\": true},\n  \"capabilities\": {\"memory.write\": true, \"wiki\": false},\n  \"schema_version\": 1\n}\n"
+    },
+    "concurrent_write": {
+      "first": { "id": "memory.write", "enabled": false },
+      "second": { "id": "wiki", "enabled": false }
+    }
+  }
+}
