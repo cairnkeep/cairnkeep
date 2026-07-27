@@ -3,6 +3,8 @@ import { readdirSync, statSync } from "node:fs";
 import type { Dirent } from "node:fs";
 import { join, resolve } from "node:path";
 
+import { startOperatingCapability, withCapability } from "./capability-adapter.js";
+import { isCapabilityContractEnabled, resolveCapabilityStatus } from "./capability-config.js";
 import { distillProject } from "./note-distiller.js";
 import { isNoteDistillationEnabled } from "./note-schema.js";
 import { doctorNoteStore, promoteNotes, searchHindsight } from "./note-store.js";
@@ -87,6 +89,26 @@ function output(value: unknown, json: boolean, human: string): void {
     process.stdout.write(`${json ? JSON.stringify(value) : human}\n`);
 }
 
+function validCorrelationId(value: string | undefined): string | undefined {
+    return value !== undefined
+        && value !== "unknown"
+        && /^(?:cairn:)?[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(value)
+        ? value
+        : undefined;
+}
+
+async function withEnabledCompatibility<T>(callback: () => Promise<T>): Promise<T> {
+    if (isNoteDistillationEnabled()) return callback();
+    const previous = process.env.CAIRN_NOTE_DISTILLATION;
+    process.env.CAIRN_NOTE_DISTILLATION = "1";
+    try {
+        return await callback();
+    } finally {
+        if (previous === undefined) delete process.env.CAIRN_NOTE_DISTILLATION;
+        else process.env.CAIRN_NOTE_DISTILLATION = previous;
+    }
+}
+
 async function main(): Promise<void> {
     const [command = "help", ...args] = process.argv.slice(2);
     if (["help", "--help", "-h"].includes(command)) {
@@ -94,7 +116,8 @@ async function main(): Promise<void> {
         return;
     }
     const json = args.includes("--json");
-    if (!isNoteDistillationEnabled()) {
+    const contractEnabled = isCapabilityContractEnabled();
+    if (!contractEnabled && !isNoteDistillationEnabled()) {
         disabled(json);
         return;
     }
@@ -105,30 +128,64 @@ async function main(): Promise<void> {
         const project = valueAfter(args, "--project");
         const sessionId = valueAfter(args, "--session");
         const paraRoot = valueAfter(args, "--para-root");
-        if (allProjects) {
-            if (!paraRoot || project || sessionId) throw new Error("--all-projects requires --para-root and cannot be combined with --project or --session.");
-            const projects = findTrajectoryProjects(paraRoot);
-            const results = [];
-            for (const projectRoot of projects) {
-                try {
-                    results.push(await distillProject({ projectRoot }));
-                } catch (error) {
-                    results.push({
-                        schema_version: 1,
-                        enabled: true,
-                        project_root: projectRoot,
-                        created: [], updated: [], already_processed: [], enrichment_skipped: [], enrichment_failed: [],
-                        failed: [{ session_id: "*", error: error instanceof Error ? error.message : String(error) }],
-                    });
-                }
-            }
-            const value = { schema_version: 1, enabled: true, projects_scanned: projects.length, results };
-            output(value, json, `Scanned ${projects.length} project(s).`);
+        if (allProjects && (!paraRoot || project || sessionId)) {
+            throw new Error("--all-projects requires --para-root and cannot be combined with --project or --session.");
+        }
+        if (!allProjects && paraRoot) throw new Error("--para-root is valid only with --all-projects.");
+        const capabilityProjectRoot = resolve(project ?? process.cwd());
+        const correlationId = validCorrelationId(sessionId);
+        const snapshot = contractEnabled
+            ? await resolveCapabilityStatus({ projectRoot: capabilityProjectRoot })
+            : undefined;
+        const capabilityOptions = snapshot === undefined ? undefined : {
+            projectRoot: capabilityProjectRoot,
+            snapshot,
+            capabilityId: "notes.distill" as const,
+            classification: {
+                harness: "other" as const,
+                source: "notes-cli" as const,
+                transport: "local-process" as const,
+            },
+            ...(correlationId === undefined ? {} : { correlationId }),
+        };
+        const capability = snapshot?.capabilities.find(({ id }) => id === "notes.distill");
+        if (contractEnabled && capability?.enabled !== true) {
+            if (capabilityOptions) await startOperatingCapability(capabilityOptions);
+            disabled(json);
             return;
         }
-        if (paraRoot) throw new Error("--para-root is valid only with --all-projects.");
-        const value = await distillProject({ projectRoot: resolve(project ?? process.cwd()), ...(sessionId ? { sessionId } : {}) });
+        if (allProjects) {
+            const run = async () => {
+                const projects = findTrajectoryProjects(paraRoot as string);
+                const results = [];
+                for (const projectRoot of projects) {
+                    try {
+                        results.push(await distillProject({ projectRoot }));
+                    } catch (error) {
+                        results.push({
+                            schema_version: 1,
+                            enabled: true,
+                            project_root: projectRoot,
+                            created: [], updated: [], already_processed: [], enrichment_skipped: [], enrichment_failed: [],
+                            failed: [{ session_id: "*", error: error instanceof Error ? error.message : String(error) }],
+                        });
+                    }
+                }
+                return { schema_version: 1, enabled: true, projects_scanned: projects.length, results };
+            };
+            const execute = () => contractEnabled ? withEnabledCompatibility(run) : run();
+            const value = await (capabilityOptions ? withCapability(capabilityOptions, execute)() : execute());
+            output(value, json, `Scanned ${value.projects_scanned} project(s).`);
+            return;
+        }
+        const distill = () => distillProject({ projectRoot: capabilityProjectRoot, ...(sessionId ? { sessionId } : {}) });
+        const run = () => contractEnabled ? withEnabledCompatibility(distill) : distill();
+        const value = await (capabilityOptions ? withCapability(capabilityOptions, run)() : run());
         output(value, json, `Created ${value.created.length}, updated ${value.updated.length}, already processed ${value.already_processed.length}.`);
+        return;
+    }
+    if (!isNoteDistillationEnabled()) {
+        disabled(json);
         return;
     }
     if (command === "search-error") {

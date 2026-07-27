@@ -111,7 +111,14 @@ async function readIndexes(agent: AgentFS): Promise<Array<{ key: string; value: 
 
 async function assertCompatibleSchema(agent: AgentFS, allowMissing: boolean): Promise<void> {
     const version = await agent.kv.get<number>(META_KEY);
-    if (version === undefined && allowMissing) return;
+    if (version === undefined) {
+        if (allowMissing) return;
+        const [sessions, indexes] = await Promise.all([
+            agent.kv.list(SESSION_PREFIX),
+            agent.kv.list(INDEX_PREFIX),
+        ]);
+        if (sessions.length === 0 && indexes.length === 0) return;
+    }
     if (version !== TRAJECTORY_SCHEMA_VERSION) {
         throw new Error(
             version === undefined
@@ -325,7 +332,9 @@ export async function doctorTrajectoryStore(
         }
 
         if (!integrityOk) issues.unshift("SQLite integrity check failed");
-        if (storedVersion === undefined) issues.push("schema metadata is missing");
+        if (storedVersion === undefined && (sessionRows.length > 0 || indexRows.length > 0)) {
+            issues.push("schema metadata is missing");
+        }
         else if (storedVersion !== TRAJECTORY_SCHEMA_VERSION) {
             issues.push(`unsupported schema version ${String(storedVersion)}`);
         }
