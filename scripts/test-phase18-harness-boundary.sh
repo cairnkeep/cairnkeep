@@ -326,6 +326,18 @@ NODE
   echo "PASS: Claude native capability hooks"
 }
 
+claude_owner_only() {
+  [[ ! -e "$ROOT/claude/hooks/capability-command-start.sh" ]] || fail "capability start hook entered the normal hook tree"
+  [[ ! -e "$ROOT/claude/hooks/capability-command-finish.sh" ]] || fail "capability finish hook entered the normal hook tree"
+  grep -qF 'harness-before' "$CLAUDE_START" || fail "Claude admission is not owned by the native coordinator"
+  grep -qF 'harness-terminal' "$CLAUDE_FINISH" || fail "Claude terminal settlement is not owned by the native coordinator"
+  if grep -q -E 'cairn capabilities (guard|start|finish)' "$CLAUDE_START" "$CLAUDE_FINISH"; then
+    fail "Claude native hooks delegate through obsolete model-authored operations"
+  fi
+  claude_hooks
+  echo "PASS: Claude native hook owner is isolated from the normal hook tree"
+}
+
 expect_red_claude() {
   local temp_root
   temp_root=$(mktemp -d)
@@ -405,7 +417,10 @@ case "$mode" in
   claude-hooks)
     claude_hooks
     ;;
-  opencode-plugin|opencode-sync-modes|claude-owner-only|opencode-command-owner-only|opencode-owner-only|evidence-scope)
+  claude-owner-only)
+    claude_owner_only
+    ;;
+  opencode-plugin|opencode-sync-modes|opencode-command-owner-only|opencode-owner-only|evidence-scope)
     fail "production mode '$mode' is intentionally RED until its owning Phase 18 plan extends this driver"
     ;;
   *)

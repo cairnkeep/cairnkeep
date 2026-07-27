@@ -13,15 +13,16 @@ Options:
   --check            Verify that the live assets match the repo copy (default)
   --apply            Copy the repo-managed assets into the live Claude tree, then verify
   --capability-overlay
-                     Select guarded command overlays for a contract-enabled isolated root
+                     Select guarded commands and native capability hooks only when
+                     CAIRN_CAPABILITY_CONTRACT is also enabled
   --live-root PATH   Override the live Claude root (default: $CLAUDE_CONFIG_DIR or $HOME/.claude)
   -h, --help         Show this help text
 
 Notes:
   - Claude assets source of truth lives under ./claude/ (commands/, agents/).
   - Installs claude/commands/*.md -> <live>/commands/ and claude/agents/*.md -> <live>/agents/.
-  - --capability-overlay substitutes only matching files from
-    claude/capability-contract/; normal mode never reads or installs that tree.
+  - --capability-overlay substitutes matching files from claude/capability-contract/
+    only with the master switch enabled; all other modes ignore that tree.
   - Also installs templates/{security,wiki}-*.template -> <live>/templates/ so the
     /security-audit and /wiki-* commands can scaffold from $HOME/.claude/templates/.
   - Renders claude/hooks/*.sh -> <live>/hooks/ (substituting @@INFRA_ROOT@@) and
@@ -49,6 +50,21 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+capability_contract_enabled() {
+  local value="${CAIRN_CAPABILITY_CONTRACT:-}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  case "$value" in
+    1|[Tt][Rr][Uu][Ee]|[Yy][Ee][Ss]|[Oo][Nn]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+CAPABILITY_OVERLAY_ACTIVE=0
+if [[ "$CAPABILITY_OVERLAY" -eq 1 ]] && capability_contract_enabled; then
+  CAPABILITY_OVERLAY_ACTIVE=1
+fi
+
 if [[ ! -d "$CLAUDE_SOURCE" ]]; then
   echo "No repo-managed Claude assets found at $CLAUDE_SOURCE" >&2
   exit 1
@@ -61,7 +77,7 @@ DSTS=()
 # 1. claude/ tree -> <live>/...
 while IFS= read -r rel; do
   src="$CLAUDE_SOURCE/$rel"
-  if [[ "$CAPABILITY_OVERLAY" -eq 1 && -f "$CLAUDE_SOURCE/capability-contract/$rel" ]]; then
+  if [[ "$CAPABILITY_OVERLAY_ACTIVE" -eq 1 && -f "$CLAUDE_SOURCE/capability-contract/$rel" ]]; then
     src="$CLAUDE_SOURCE/capability-contract/$rel"
   fi
   SRCS+=("$src")
@@ -81,6 +97,8 @@ if ((${#SRCS[@]} == 0)); then
 fi
 
 status=0
+HOOK_LIVE_DIR="$LIVE_ROOT/hooks"
+SETTINGS_FILE="$LIVE_ROOT/settings.json"
 for i in "${!SRCS[@]}"; do
   src="${SRCS[$i]}"
   dst="${DSTS[$i]}"
@@ -99,12 +117,76 @@ for i in "${!SRCS[@]}"; do
   fi
 done
 
+# Capability hooks are intentionally outside claude/hooks so the legacy loop
+# above cannot discover, render, register, or execute them. They enter an
+# isolated root only through the effective overlay branch.
+if [[ "$CAPABILITY_OVERLAY_ACTIVE" -eq 1 ]]; then
+  for hook_src in "$CLAUDE_SOURCE"/capability-contract/hooks/*.sh; do
+    [[ -f "$hook_src" ]] || continue
+    hook_name="$(basename "$hook_src")"
+    hook_dst="$HOOK_LIVE_DIR/$hook_name"
+    hook_cmd="bash \"$hook_dst\""
+    case "$hook_name" in
+      capability-command-start.sh)
+        hook_event_specs='UserPromptExpansion:wiki-ingest|wiki-query|wiki-lint|graphify|security-audit'
+        ;;
+      capability-command-finish.sh)
+        hook_event_specs=$'Stop\nStopFailure\nCwdChanged\nSessionEnd'
+        ;;
+      *)
+        continue
+        ;;
+    esac
+
+    if [[ "$MODE" == "apply" ]]; then
+      mkdir -p "$HOOK_LIVE_DIR"
+      sed "s|@@INFRA_ROOT@@|$ROOT_DIR|g" "$hook_src" > "$hook_dst"
+      chmod +x "$hook_dst"
+      echo "installed: hooks/$hook_name"
+    fi
+
+    while IFS= read -r event_spec; do
+      [[ -n "$event_spec" ]] || continue
+      event="${event_spec%%:*}"
+      matcher="${event_spec#*:}"
+      [[ "$matcher" == "$event_spec" ]] && matcher=""
+      if [[ "$MODE" == "apply" ]]; then
+        node -e '
+const fs = require("fs");
+const [p, cmd, token, event, matcher] = process.argv.slice(1);
+let s = {};
+if (fs.existsSync(p)) {
+  try { s = JSON.parse(fs.readFileSync(p, "utf8")); }
+  catch (e) { console.error("settings.json parse failed, leaving untouched"); process.exit(1); }
+}
+s.hooks = s.hooks || {};
+s.hooks[event] = Array.isArray(s.hooks[event]) ? s.hooks[event] : [];
+const already = s.hooks[event].some((entry) =>
+  Array.isArray(entry.hooks) && entry.hooks.some((h) => typeof h.command === "string" && h.command.includes(token)));
+if (already) { console.log(`ok: ${event} hook already registered`); process.exit(0); }
+if (fs.existsSync(p)) fs.copyFileSync(p, p + ".bak");
+const entry = matcher
+  ? { matcher, hooks: [{ type: "command", command: cmd }] }
+  : { hooks: [{ type: "command", command: cmd }] };
+s.hooks[event].push(entry);
+fs.writeFileSync(p, JSON.stringify(s, null, 2) + "\n");
+console.log(`registered: ${event} hook${matcher ? " (" + matcher + ")" : ""}`);
+' "$SETTINGS_FILE" "$hook_cmd" "$hook_dst" "$event" "$matcher" || status=1
+      else
+        if [[ -f "$hook_dst" ]] && grep -qF "$hook_name" "$SETTINGS_FILE" 2>/dev/null; then
+          echo "ok: hooks/$hook_name ($event)"
+        else
+          echo "DRIFT: hooks/$hook_name ($event)"
+          status=1
+        fi
+      fi
+    done <<< "$hook_event_specs"
+  done
+fi
+
 # Claude hooks: render @@INFRA_ROOT@@ and register each hook on its correct
 # event in <live>/settings.json. This is the one place that touches the global
 # user settings; it backs up first and matches by command so re-runs are no-ops.
-HOOK_LIVE_DIR="$LIVE_ROOT/hooks"
-SETTINGS_FILE="$LIVE_ROOT/settings.json"
-
 # Map hook filename -> "event[:matcher][@timeout]". matcher only for
 # PreToolUse-style events; an optional trailing "@timeout" (seconds) threads
 # an explicit per-hook timeout into the settings.json registration entry so

@@ -39,26 +39,28 @@ export OPENCODE_LOG="$tmp/opencode.log"
 # overlay request with the master off must contain no capability hook bytes or
 # registrations; only master-on plus --capability-overlay may install them.
 normal_sync="$tmp/claude-normal-sync"
-master_off_sync="$tmp/claude-master-off-sync"
+normal_sync_before="$tmp/claude-normal-sync-before"
 master_on_sync="$tmp/claude-master-on-sync"
 env -u CAIRN_CAPABILITY_CONTRACT \
   "$ROOT/scripts/sync-claude-assets.sh" --apply --live-root "$normal_sync" >/dev/null
+cp -a "$normal_sync" "$normal_sync_before"
 CAIRN_CAPABILITY_CONTRACT=0 \
-  "$ROOT/scripts/sync-claude-assets.sh" --apply --capability-overlay --live-root "$master_off_sync" >/dev/null
-for live in "$normal_sync" "$master_off_sync"; do
+  "$ROOT/scripts/sync-claude-assets.sh" --apply --capability-overlay --live-root "$normal_sync" >/dev/null
+for live in "$normal_sync" "$normal_sync_before"; do
   [[ ! -e "$live/hooks/capability-command-start.sh" ]] || fail "inert Claude sync installed start-hook bytes"
   [[ ! -e "$live/hooks/capability-command-finish.sh" ]] || fail "inert Claude sync installed finish-hook bytes"
   ! grep -R -qF 'capability-command-' "$live" || fail "inert Claude sync registered a capability hook"
   [[ ! -e "$repo/.agentfs/trajectory.db" ]] || fail "inert Claude sync created measurement state"
 done
-diff -qr "$normal_sync" "$master_off_sync" >/dev/null || fail "master-off overlay differs from exact normal sync"
+diff -qr "$normal_sync_before" "$normal_sync" >/dev/null || fail "master-off overlay differs from exact normal sync"
 
 CAIRN_CAPABILITY_CONTRACT=1 \
   "$ROOT/scripts/sync-claude-assets.sh" --apply --capability-overlay --live-root "$master_on_sync" >/dev/null
 for name in capability-command-start.sh capability-command-finish.sh; do
   installed="$master_on_sync/hooks/$name"
   [[ -x "$installed" ]] || fail "enabled Claude overlay omitted $name"
-  grep -qF "$ROOT/mcp-memory-server/dist/capability-cli.js" "$installed" || fail "enabled Claude hook was not rendered"
+  grep -qF "INFRA_ROOT=\"$ROOT\"" "$installed" || fail "enabled Claude hook was not rendered"
+  grep -qF 'mcp-memory-server/dist/capability-cli.js' "$installed" || fail "enabled Claude hook omitted coordinator delegation"
 done
 node - "$master_on_sync/settings.json" <<'NODE' || fail "enabled Claude overlay registrations are incomplete"
 const fs = require("node:fs");
