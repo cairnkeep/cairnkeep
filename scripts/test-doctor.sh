@@ -127,9 +127,13 @@ node --input-type=module - "$ROOT" "$artifact_project" <<'NODE'
 import { join } from "node:path";
 const { AgentFS } = await import(process.argv[2] + "/mcp-memory-server/node_modules/agentfs-sdk/dist/index_node.js");
 const agent = await AgentFS.open({ id: "artifacts", path: join(process.argv[3], ".agentfs", "artifacts.db") });
-const rows = await agent.kv.list("artifact/index/");
-if (rows.length === 0) throw new Error("missing derived index fixture");
-await agent.kv.delete(rows[0].key);
+const fullRows = await agent.kv.list("artifact/full/");
+const dedupeRows = await agent.kv.list("artifact/index/dedupe/");
+if (fullRows.length !== 1 || dedupeRows.length !== 1) throw new Error("missing derived doctor fixture");
+const artifact = fullRows[0].value;
+await agent.kv.delete(dedupeRows[0].key);
+await agent.kv.set("artifact/index/dedupe/orphan-public-doctor", artifact.artifact_id);
+await agent.kv.set(`compaction/sequence/${artifact.session_ref}`, 0);
 await agent.close();
 NODE
 if ( cd "$artifact_project" && "$doctor" ) >"$tmp/artifact-derived.out" 2>&1; then
@@ -139,6 +143,85 @@ fi
   fail "doctor did not repair derived artifact state:\n$(cat "$tmp/artifact-repaired.out")"
 grep -q "\[PASS\] artifact store repaired" "$tmp/artifact-repaired.out" || \
   fail "expected the derived artifact repair PASS line"
+
+node --input-type=module - "$ROOT" "$artifact_project" <<'NODE'
+import { join } from "node:path";
+const { AgentFS } = await import(process.argv[2] + "/mcp-memory-server/node_modules/agentfs-sdk/dist/index_node.js");
+const agent = await AgentFS.open({ id: "artifacts", path: join(process.argv[3], ".agentfs", "artifacts.db") });
+const fullRows = await agent.kv.list("artifact/full/");
+const dedupeRows = await agent.kv.list("artifact/index/dedupe/");
+if (fullRows.length !== 1 || dedupeRows.length !== 1) throw new Error("derived repair did not restore the exact maps");
+const artifact = fullRows[0].value;
+const sequenceKey = `compaction/sequence/${artifact.session_ref}`;
+if (await agent.kv.get(sequenceKey) !== artifact.content.revision) throw new Error("derived repair did not restore the retained sequence");
+await agent.kv.set(sequenceKey, artifact.content.revision + 8);
+await agent.close();
+NODE
+( cd "$artifact_project" && "$doctor" --repair ) >"$tmp/artifact-higher-sequence.out" 2>&1 || \
+  fail "doctor rejected a valid higher historical sequence:\n$(cat "$tmp/artifact-higher-sequence.out")"
+node --input-type=module - "$ROOT" "$artifact_project" <<'NODE'
+import { join } from "node:path";
+const { AgentFS } = await import(process.argv[2] + "/mcp-memory-server/node_modules/agentfs-sdk/dist/index_node.js");
+const agent = await AgentFS.open({ id: "artifacts", path: join(process.argv[3], ".agentfs", "artifacts.db") });
+const [artifact] = (await agent.kv.list("artifact/full/")).map((row) => row.value);
+if (await agent.kv.get(`compaction/sequence/${artifact.session_ref}`) !== artifact.content.revision + 8) {
+  throw new Error("doctor lowered a valid higher historical sequence");
+}
+await agent.close();
+NODE
+
+node --input-type=module - "$ROOT" "$artifact_project" <<'NODE'
+const { AgentFS } = await import(process.argv[2] + "/mcp-memory-server/node_modules/agentfs-sdk/dist/index_node.js");
+const { putArtifact } = await import(process.argv[2] + "/mcp-memory-server/dist/artifact-store.js");
+const { join } = await import("node:path");
+const agent = await AgentFS.open({ id: "artifacts", path: join(process.argv[3], ".agentfs", "artifacts.db") });
+const [stored] = (await agent.kv.list("artifact/full/")).map((row) => row.value);
+await agent.close();
+const { revision: _revision, ...content } = stored.content;
+await putArtifact(process.argv[3], {
+  kind: stored.kind,
+  session_ref: stored.session_ref,
+  media_type: stored.media_type,
+  provenance: stored.provenance,
+  content: {
+    ...content,
+    raw_summary: `${content.raw_summary}\nretention-fixture`,
+    task_goals: [...content.task_goals, "retention-fixture"],
+  },
+}, {
+  artifactMaxBytes: 4096,
+  sessionMaxBytes: 65536,
+  storeMaxBytes: 262144,
+  retentionDays: 3650,
+  compactionMaxRevisions: 8,
+  generatedFileSnapshotMaxBytes: 4096,
+});
+NODE
+node --input-type=module - "$ROOT" "$artifact_project" "$tmp/artifact-full-before.json" <<'NODE'
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+const { AgentFS } = await import(process.argv[2] + "/mcp-memory-server/node_modules/agentfs-sdk/dist/index_node.js");
+const agent = await AgentFS.open({ id: "artifacts", path: join(process.argv[3], ".agentfs", "artifacts.db") });
+writeFileSync(process.argv[4], JSON.stringify(await agent.kv.list("artifact/full/")));
+await agent.close();
+NODE
+if ( cd "$artifact_project" && CAIRN_COMPACTION_MAX_REVISIONS=1 "$doctor" ) >"$tmp/artifact-retention.out" 2>&1; then
+  fail "doctor should fail for retained artifacts over the configured revision limit:\n$(cat "$tmp/artifact-retention.out")"
+fi
+if ( cd "$artifact_project" && CAIRN_COMPACTION_MAX_REVISIONS=1 "$doctor" --repair ) >"$tmp/artifact-retention-repair.out" 2>&1; then
+  fail "doctor repair should leave retention violations unresolved:\n$(cat "$tmp/artifact-retention-repair.out")"
+fi
+grep -q "\[FAIL\] artifact store could not be repaired safely" "$tmp/artifact-retention-repair.out" || \
+  fail "expected a failed non-destructive retention repair result"
+node --input-type=module - "$ROOT" "$artifact_project" "$tmp/artifact-full-before.json" <<'NODE'
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+const { AgentFS } = await import(process.argv[2] + "/mcp-memory-server/node_modules/agentfs-sdk/dist/index_node.js");
+const agent = await AgentFS.open({ id: "artifacts", path: join(process.argv[3], ".agentfs", "artifacts.db") });
+const after = JSON.stringify(await agent.kv.list("artifact/full/"));
+await agent.close();
+if (after !== readFileSync(process.argv[4], "utf8")) throw new Error("doctor repair changed authoritative rows for a retention violation");
+NODE
 
 node --input-type=module - "$ROOT" "$artifact_project" <<'NODE'
 import { join } from "node:path";

@@ -239,6 +239,27 @@ function contentWithTruncation(input: ArtifactWriteInput, limits: ArtifactLimits
     };
 }
 
+function requestDigestFor(input: {
+    kind: ArtifactKind;
+    session_ref: string;
+    node_ref?: ArtifactNodeRef;
+    media_type: string;
+    provenance: ArtifactEnvelope["provenance"];
+    supersedes?: string;
+    content: unknown;
+}): string {
+    return sha256Hex(canonicalBytes({
+        schema_version: ARTIFACT_SCHEMA_VERSION,
+        kind: input.kind,
+        session_ref: input.session_ref,
+        ...(input.node_ref ? { node_ref: input.node_ref } : {}),
+        media_type: input.media_type,
+        provenance: input.provenance,
+        ...(input.supersedes ? { supersedes: input.supersedes } : {}),
+        content: input.content,
+    }));
+}
+
 function prepareInput(projectRoot: string, candidate: unknown, limits: ArtifactLimits): {
     input: ArtifactWriteInput;
     content: Record<string, unknown>;
@@ -265,8 +286,7 @@ function prepareInput(projectRoot: string, candidate: unknown, limits: ArtifactL
         throw new Error("Artifact node reference is invalid.");
     }
     const prepared = contentWithTruncation(input, limits);
-    const requestDigest = sha256Hex(canonicalBytes({
-        schema_version: ARTIFACT_SCHEMA_VERSION,
+    const requestDigest = requestDigestFor({
         kind: input.kind,
         session_ref: input.session_ref,
         ...(input.node_ref ? { node_ref: input.node_ref } : {}),
@@ -274,7 +294,7 @@ function prepareInput(projectRoot: string, candidate: unknown, limits: ArtifactL
         provenance: input.provenance,
         ...(input.supersedes ? { supersedes: input.supersedes } : {}),
         content: prepared.content,
-    }));
+    });
     return {
         input,
         content: prepared.content,
@@ -645,7 +665,152 @@ export async function recordUnsupportedCompactionAdapter(
     });
 }
 
-export async function doctorArtifactStore(projectRoot = process.cwd(), repair = false, _limits = getArtifactLimits()): Promise<ArtifactDoctorResult> {
+type DoctorDerivedState = {
+    issues: string[];
+    unsafeSequenceIssues: string[];
+    expectedIndexes: Map<string, ArtifactIndex>;
+    expectedDedupe: Map<string, string>;
+    sequenceRepairs: Map<string, number>;
+    actualIndexCount: number;
+    repairNeeded: boolean;
+};
+
+function addIssue(issues: string[], issue: string): void {
+    if (!issues.includes(issue)) issues.push(issue);
+}
+
+function requestDigestForArtifact(artifact: ArtifactEnvelope): string {
+    const content = artifact.kind === "compaction_summary"
+        ? Object.fromEntries(Object.entries(artifact.content).filter(([key]) => key !== "revision"))
+        : artifact.content;
+    return requestDigestFor({
+        kind: artifact.kind,
+        session_ref: artifact.session_ref,
+        ...(artifact.node_ref ? { node_ref: artifact.node_ref } : {}),
+        media_type: artifact.media_type,
+        provenance: artifact.provenance,
+        ...(artifact.supersedes ? { supersedes: artifact.supersedes } : {}),
+        content,
+    });
+}
+
+async function inspectDoctorDerivedState(agent: AgentFS, artifacts: ArtifactEnvelope[]): Promise<DoctorDerivedState> {
+    const issues: string[] = [];
+    const unsafeSequenceIssues: string[] = [];
+    let repairNeeded = false;
+
+    const expectedIndexes = new Map(artifacts.flatMap((artifact) => indexEntries(artifact)));
+    const actualIndexes = new Map((await agent.kv.list(INDEX_PREFIX))
+        .filter((row) => !row.key.startsWith(DEDUPE_PREFIX))
+        .map((row) => [row.key, row.value]));
+    for (const [key, value] of expectedIndexes) {
+        if (canonicalJson(actualIndexes.get(key)) !== canonicalJson(value)) {
+            addIssue(issues, "Missing or stale artifact index.");
+            repairNeeded = true;
+        }
+    }
+    for (const key of actualIndexes.keys()) {
+        if (!expectedIndexes.has(key)) {
+            addIssue(issues, "Orphan artifact index.");
+            repairNeeded = true;
+        }
+    }
+
+    const expectedDedupe = new Map<string, string>();
+    for (const artifact of artifacts) {
+        expectedDedupe.set(`${DEDUPE_PREFIX}${requestDigestForArtifact(artifact)}`, artifact.artifact_id);
+    }
+    const actualDedupe = new Map((await agent.kv.list(DEDUPE_PREFIX)).map((row) => [row.key, row.value]));
+    for (const [key, value] of expectedDedupe) {
+        if (actualDedupe.get(key) !== value) {
+            addIssue(issues, "Missing or stale artifact dedupe binding.");
+            repairNeeded = true;
+        }
+    }
+    for (const key of actualDedupe.keys()) {
+        if (!expectedDedupe.has(key)) {
+            addIssue(issues, "Orphan artifact dedupe binding.");
+            repairNeeded = true;
+        }
+    }
+
+    const expectedPointers = new Map<string, string>();
+    for (const artifact of sortedOldest(artifacts)) {
+        if (artifact.kind === "compaction_summary") {
+            expectedPointers.set(`${SESSION_LATEST_PREFIX}${artifact.session_ref}`, artifact.artifact_id);
+        }
+    }
+    const latest = newestCompaction(artifacts);
+    if (latest) expectedPointers.set(PROJECT_LATEST_KEY, latest.artifact_id);
+    const actualPointers = new Map((await agent.kv.list("compaction/latest/")).map((row) => [row.key, row.value]));
+    for (const [key, value] of expectedPointers) {
+        if (actualPointers.get(key) !== value) {
+            addIssue(issues, "Missing or stale compaction pointer.");
+            repairNeeded = true;
+        }
+    }
+    for (const key of actualPointers.keys()) {
+        if (!expectedPointers.has(key)) {
+            addIssue(issues, "Orphan compaction pointer.");
+            repairNeeded = true;
+        }
+    }
+
+    const retainedMaximums = new Map<string, number>();
+    for (const artifact of artifacts) {
+        if (artifact.kind !== "compaction_summary") continue;
+        retainedMaximums.set(
+            artifact.session_ref,
+            Math.max(retainedMaximums.get(artifact.session_ref) ?? 0, artifact.content.revision),
+        );
+    }
+    const sequenceRows = new Map((await agent.kv.list(SEQUENCE_PREFIX)).map((row) => [row.key, row.value]));
+    const sequenceRepairs = new Map<string, number>();
+    for (const [sessionRef, maximum] of retainedMaximums) {
+        const key = `${SEQUENCE_PREFIX}${sessionRef}`;
+        const value = sequenceRows.get(key);
+        if (!Number.isSafeInteger(value) || Number(value) <= 0 || Number(value) < maximum) {
+            addIssue(issues, "Missing or regressed compaction sequence.");
+            sequenceRepairs.set(key, maximum);
+            repairNeeded = true;
+        }
+    }
+    for (const [key, value] of sequenceRows) {
+        const sessionRef = key.slice(SEQUENCE_PREFIX.length);
+        if (retainedMaximums.has(sessionRef)) continue;
+        if (!sessionRef || !Number.isSafeInteger(value) || Number(value) <= 0) {
+            addIssue(unsafeSequenceIssues, "Invalid non-derivable compaction sequence.");
+        }
+    }
+
+    return {
+        issues,
+        unsafeSequenceIssues,
+        expectedIndexes,
+        expectedDedupe,
+        sequenceRepairs,
+        actualIndexCount: actualIndexes.size,
+        repairNeeded,
+    };
+}
+
+function inspectRetentionState(artifacts: ArtifactEnvelope[], limits: ArtifactLimits): string[] {
+    const issues: string[] = [];
+    const planned = planPrune(artifacts, limits, {
+        dryRun: true,
+        includeProtected: false,
+        now: new Date(),
+    });
+    for (const item of planned) {
+        if (item.reason === "age") addIssue(issues, "Artifact retention age limit exceeded.");
+        if (item.reason === "revision") addIssue(issues, "Compaction revision retention limit exceeded.");
+        if (item.reason === "session_budget") addIssue(issues, "Artifact session logical byte limit exceeded.");
+        if (item.reason === "store_budget") addIssue(issues, "Artifact store logical byte limit exceeded.");
+    }
+    return issues;
+}
+
+export async function doctorArtifactStore(projectRoot = process.cwd(), repair = false, limits = getArtifactLimits()): Promise<ArtifactDoctorResult> {
     const dbPath = getArtifactDbPath(projectRoot);
     if (!existsSync(dbPath)) {
         return { schema_version: 1, exists: false, ok: true, repaired: false, integrity: "not_present", valid_artifacts: 0, indexed_artifacts: 0, issues: [] };
@@ -664,67 +829,48 @@ export async function doctorArtifactStore(projectRoot = process.cwd(), repair = 
         if (!integrityOk) {
             return { schema_version: 1, exists: true, ok: false, repaired: false, integrity: "failed", valid_artifacts: 0, indexed_artifacts: 0, issues: ["SQLite integrity check failed."] };
         }
-        const issues: string[] = [];
+
+        const authoritativeIssues: string[] = [];
         const version = await agent.kv.get<number>(META_KEY);
-        if (version !== ARTIFACT_SCHEMA_VERSION) issues.push("Artifact schema metadata is missing or unsupported.");
-        const fullRows = await agent.kv.list(FULL_PREFIX);
+        if (version !== ARTIFACT_SCHEMA_VERSION) authoritativeIssues.push("Artifact schema metadata is missing or unsupported.");
         const artifacts: ArtifactEnvelope[] = [];
-        let authoritativeInvalid = false;
-        for (const row of fullRows) {
+        for (const row of await agent.kv.list(FULL_PREFIX)) {
             const parsed = artifactEnvelopeSchema.safeParse(row.value);
             if (!parsed.success) {
-                issues.push("Invalid authoritative full record.");
-                authoritativeInvalid = true;
+                addIssue(authoritativeIssues, "Invalid authoritative full record.");
                 continue;
             }
             if (sha256Hex(canonicalBytes(parsed.data.content)) !== parsed.data.content_digest) {
-                issues.push(`Authoritative full record digest mismatch: ${parsed.data.artifact_id}`);
-                authoritativeInvalid = true;
+                addIssue(authoritativeIssues, "Authoritative full record digest mismatch.");
                 continue;
             }
             artifacts.push(parsed.data);
         }
-        const expectedIndexes = new Map(artifacts.flatMap((artifact) => indexEntries(artifact)));
-        const actualIndexes = new Map((await agent.kv.list(INDEX_PREFIX))
-            .filter((row) => !row.key.startsWith(DEDUPE_PREFIX)).map((row) => [row.key, row.value]));
-        for (const [key, value] of expectedIndexes) if (canonicalJson(actualIndexes.get(key)) !== canonicalJson(value)) issues.push("Missing or stale artifact index.");
-        for (const key of actualIndexes.keys()) if (!expectedIndexes.has(key)) issues.push("Orphan artifact index.");
-        const expectedPointers = new Map<string, string>();
-        for (const artifact of sortedOldest(artifacts)) {
-            if (artifact.kind === "compaction_summary") expectedPointers.set(`${SESSION_LATEST_PREFIX}${artifact.session_ref}`, artifact.artifact_id);
-        }
-        const latest = newestCompaction(artifacts);
-        if (latest) expectedPointers.set(PROJECT_LATEST_KEY, latest.artifact_id);
-        const actualPointers = new Map((await agent.kv.list("compaction/latest/")).map((row) => [row.key, String(row.value)]));
-        for (const [key, value] of expectedPointers) if (actualPointers.get(key) !== value) issues.push("Missing or stale compaction pointer.");
-        for (const key of actualPointers.keys()) if (!expectedPointers.has(key)) issues.push("Orphan compaction pointer.");
 
+        let derived = await inspectDoctorDerivedState(agent, artifacts);
+        const retentionIssues = inspectRetentionState(artifacts, limits);
         let repaired = false;
-        if (repair && issues.length > 0 && !authoritativeInvalid && version === ARTIFACT_SCHEMA_VERSION) {
+        if (repair
+            && derived.repairNeeded
+            && authoritativeIssues.length === 0
+            && derived.unsafeSequenceIssues.length === 0) {
             const repairAgent = agent;
             await inImmediateTransaction(repairAgent, async () => {
                 for (const row of await repairAgent.kv.list(INDEX_PREFIX)) await repairAgent.kv.delete(row.key);
-                for (const [key, value] of expectedIndexes) await repairAgent.kv.set(key, value);
-                for (const artifact of artifacts) {
-                    const requestDigest = sha256Hex(canonicalBytes({
-                        schema_version: 1,
-                        kind: artifact.kind,
-                        session_ref: artifact.session_ref,
-                        ...(artifact.node_ref ? { node_ref: artifact.node_ref } : {}),
-                        media_type: artifact.media_type,
-                        provenance: artifact.provenance,
-                        ...(artifact.supersedes ? { supersedes: artifact.supersedes } : {}),
-                        content: artifact.kind === "compaction_summary"
-                            ? Object.fromEntries(Object.entries(artifact.content).filter(([key]) => key !== "revision"))
-                            : artifact.content,
-                    }));
-                    await repairAgent.kv.set(`${DEDUPE_PREFIX}${requestDigest}`, artifact.artifact_id);
-                }
+                for (const [key, value] of derived.expectedIndexes) await repairAgent.kv.set(key, value);
+                for (const [key, value] of derived.expectedDedupe) await repairAgent.kv.set(key, value);
                 await rebuildPointers(repairAgent);
+                for (const [key, value] of derived.sequenceRepairs) await repairAgent.kv.set(key, value);
             });
             repaired = true;
-            issues.length = 0;
+            derived = await inspectDoctorDerivedState(agent, artifacts);
         }
+        const issues = [
+            ...authoritativeIssues,
+            ...derived.issues,
+            ...derived.unsafeSequenceIssues,
+            ...retentionIssues,
+        ];
         return {
             schema_version: 1,
             exists: true,
@@ -732,7 +878,7 @@ export async function doctorArtifactStore(projectRoot = process.cwd(), repair = 
             repaired,
             integrity: "ok",
             valid_artifacts: artifacts.length,
-            indexed_artifacts: repaired ? expectedIndexes.size : actualIndexes.size,
+            indexed_artifacts: derived.actualIndexCount,
             issues,
         };
     } catch {

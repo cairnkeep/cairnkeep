@@ -1303,6 +1303,7 @@ async function main() {
     }
     await runCore(mode);
     await runLifecycle(mode);
+    if (mode === undefined) await runDoctorGap();
     console.log("PASS: artifact schema, privacy and lifecycle store contract");
 }
 
