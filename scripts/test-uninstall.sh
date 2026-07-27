@@ -34,6 +34,22 @@ process.stdout.write(String(count))
 ' "$1" memory-wakeup.sh memory-capture.sh compaction-capture.sh memory-recall.sh context-explore-pretask.sh
 }
 
+capability_hook_count() {
+  node -e '
+const fs = require("fs")
+const settings = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+let count = 0
+for (const entries of Object.values(settings.hooks ?? {})) {
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    for (const hook of Array.isArray(entry.hooks) ? entry.hooks : []) {
+      if (typeof hook.command === "string" && /capability-command-(start|finish)\.sh/.test(hook.command)) count += 1
+    }
+  }
+}
+process.stdout.write(String(count))
+' "$1"
+}
+
 # Isolated environment: fake HOME + stubbed system commands.
 mkdir -p "$SB/home" "$SB/bin"
 printf '#!/usr/bin/env bash\ntrue\n' >"$SB/bin/claude"
@@ -88,6 +104,53 @@ cp "$PROJECT_DATA/.ai/operator-state.bin" "$SB/operator-state.before.bin"
 cp "$PROJECT_DATA/.agentfs/artifacts.db" "$SB/artifacts.before.db"
 cp "$PROJECT_DATA/.agentfs/trajectory.db" "$SB/trajectory.before.db"
 cp "$PROJECT_DATA/.agentfs/trajectory.db-wal" "$SB/trajectory.before.db-wal"
+
+# Normal and master-off sync are the same inert installation. Replaying an
+# explicit overlay request with the master off must not change any legacy byte,
+# registration, process state, block state, or measurement state.
+CLAUDE_INERT="$SB/claude-inert"
+OPENCODE_INERT="$SB/opencode-inert"
+env -u CAIRN_CAPABILITY_CONTRACT \
+  "$ROOT_DIR/scripts/sync-claude-assets.sh" --apply --live-root "$CLAUDE_INERT" >/dev/null
+env -u CAIRN_CAPABILITY_CONTRACT \
+  "$ROOT_DIR/scripts/sync-opencode-wiki-assets.sh" --apply --live-root "$OPENCODE_INERT" >/dev/null
+env -u CAIRN_CAPABILITY_CONTRACT \
+  "$ROOT_DIR/scripts/sync-opencode-graphify-assets.sh" --apply --live-root "$OPENCODE_INERT" >/dev/null
+env -u CAIRN_CAPABILITY_CONTRACT \
+  "$ROOT_DIR/scripts/sync-opencode-security-assets.sh" --apply --live-root "$OPENCODE_INERT" >/dev/null
+cp -a "$CLAUDE_INERT" "$SB/claude-inert.before"
+cp -a "$OPENCODE_INERT" "$SB/opencode-inert.before"
+CAIRN_CAPABILITY_CONTRACT=0 \
+  "$ROOT_DIR/scripts/sync-claude-assets.sh" --apply --capability-overlay --live-root "$CLAUDE_INERT" >/dev/null
+CAIRN_CAPABILITY_CONTRACT=0 \
+  "$ROOT_DIR/scripts/sync-opencode-wiki-assets.sh" --apply --capability-overlay --live-root "$OPENCODE_INERT" >/dev/null
+CAIRN_CAPABILITY_CONTRACT=0 \
+  "$ROOT_DIR/scripts/sync-opencode-graphify-assets.sh" --apply --capability-overlay --live-root "$OPENCODE_INERT" >/dev/null
+CAIRN_CAPABILITY_CONTRACT=0 \
+  "$ROOT_DIR/scripts/sync-opencode-security-assets.sh" --apply --capability-overlay --live-root "$OPENCODE_INERT" >/dev/null
+check "master-off Claude sync is exact normal identity" "$(diff -qr "$SB/claude-inert.before" "$CLAUDE_INERT" >/dev/null && echo yes || echo no)" "yes"
+check "master-off OpenCode sync is exact normal identity" "$(diff -qr "$SB/opencode-inert.before" "$OPENCODE_INERT" >/dev/null && echo yes || echo no)" "yes"
+check "inert Claude sync has no native hooks" "$([[ -e "$CLAUDE_INERT/hooks/capability-command-start.sh" || -e "$CLAUDE_INERT/hooks/capability-command-finish.sh" ]] && echo no || echo yes)" "yes"
+check "inert OpenCode sync has no native plugin" "$([[ -e "$OPENCODE_INERT/plugins/capability-command.ts" ]] && echo no || echo yes)" "yes"
+check "inert sync creates no measurement state" "$([[ -e "$SB/inert-state" ]] && echo no || echo yes)" "yes"
+
+# Enabled sync owns one isolated project overlay containing legacy operating
+# assets plus the native hook/plugin registrations. The whole overlay is a
+# reversible managed unit; normal roots above are never cleanup targets.
+CLAUDE_OVERLAY="$PROJECT_DATA/.ai/capability-contract/claude"
+OPENCODE_OVERLAY="$PROJECT_DATA/.ai/capability-contract/opencode"
+CAIRN_CAPABILITY_CONTRACT=1 \
+  "$ROOT_DIR/scripts/sync-claude-assets.sh" --apply --capability-overlay --live-root "$CLAUDE_OVERLAY" >/dev/null
+CAIRN_CAPABILITY_CONTRACT=1 \
+  "$ROOT_DIR/scripts/sync-opencode-wiki-assets.sh" --apply --capability-overlay --live-root "$OPENCODE_OVERLAY" >/dev/null
+CAIRN_CAPABILITY_CONTRACT=1 \
+  "$ROOT_DIR/scripts/sync-opencode-graphify-assets.sh" --apply --capability-overlay --live-root "$OPENCODE_OVERLAY" >/dev/null
+CAIRN_CAPABILITY_CONTRACT=1 \
+  "$ROOT_DIR/scripts/sync-opencode-security-assets.sh" --apply --capability-overlay --live-root "$OPENCODE_OVERLAY" >/dev/null
+check "enabled overlay registers five Claude hook events" "$(capability_hook_count "$CLAUDE_OVERLAY/settings.json")" "5"
+check "enabled overlay registers one OpenCode plugin" "$([[ -f "$OPENCODE_OVERLAY/plugins/capability-command.ts" ]] && echo yes || echo no)" "yes"
+check "enabled overlay contains no retired prompt owner" "$([[ -d "$CLAUDE_OVERLAY/capability-contract/commands" || -d "$OPENCODE_OVERLAY/capability-contract/command" || -d "$OPENCODE_OVERLAY/capability-contract/workflows" ]] && echo no || echo yes)" "yes"
+overlay_before=$(tree_hash "$PROJECT_DATA/.ai/capability-contract")
 project_before=$(tree_hash "$PROJECT_DATA")
 
 # --- dry-run must change nothing -------------------------------------------
@@ -109,6 +172,9 @@ check "default uninstall keeps notes" "$(sha256sum "$SB/home/.cairnkeep/notes/pr
 check "default uninstall keeps all typed and journal bytes" "$(tree_hash "$SB/home/.cairnkeep")" "$store_before"
 check "default uninstall keeps artifact bytes exact" "$(cmp -s "$SB/artifacts.before.db" "$PROJECT_DATA/.agentfs/artifacts.db" && echo yes || echo no)" "yes"
 check "default uninstall removes managed capability config" "$([[ -e "$PROJECT_DATA/.ai/capabilities.json" ]] && echo no || echo yes)" "yes"
+check "default uninstall removes managed capability overlay" "$([[ -e "$PROJECT_DATA/.ai/capability-contract" ]] && echo no || echo yes)" "yes"
+check "default uninstall leaves normal Claude installation exact" "$(diff -qr "$SB/claude-inert.before" "$CLAUDE_INERT" >/dev/null && echo yes || echo no)" "yes"
+check "default uninstall leaves normal OpenCode installation exact" "$(diff -qr "$SB/opencode-inert.before" "$OPENCODE_INERT" >/dev/null && echo yes || echo no)" "yes"
 check "default uninstall keeps unrelated .ai bytes exact" "$(cmp -s "$SB/operator-state.before.bin" "$PROJECT_DATA/.ai/operator-state.bin" && echo yes || echo no)" "yes"
 check "default uninstall keeps callback DB exact" "$(cmp -s "$SB/trajectory.before.db" "$PROJECT_DATA/.agentfs/trajectory.db" && echo yes || echo no)" "yes"
 check "default uninstall keeps callback WAL exact" "$(cmp -s "$SB/trajectory.before.db-wal" "$PROJECT_DATA/.agentfs/trajectory.db-wal" && echo yes || echo no)" "yes"
@@ -122,6 +188,9 @@ check "assets restored" "$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' '
 check "settings.json identical" "$(cmp -s "$SB/settings.before.json" "$LIVE/settings.json" && echo yes || echo no)" "yes"
 check "Pi extension restored" "$(cmp -s "$SB/pi.before.ts" "$PI_LIVE/extensions/cairnkeep-trajectory.ts" && echo yes || echo no)" "yes"
 check "capability config bytes restored" "$(cmp -s "$SB/capabilities.before.json" "$PROJECT_DATA/.ai/capabilities.json" && echo yes || echo no)" "yes"
+check "capability overlay bytes restored" "$(tree_hash "$PROJECT_DATA/.ai/capability-contract")" "$overlay_before"
+check "capability hook registrations restored" "$(capability_hook_count "$CLAUDE_OVERLAY/settings.json")" "5"
+check "capability plugin restored" "$([[ -f "$OPENCODE_OVERLAY/plugins/capability-command.ts" ]] && echo yes || echo no)" "yes"
 check "capability config mode restored" "$(stat -c '%a' "$PROJECT_DATA/.ai/capabilities.json" 2>/dev/null || stat -f '%Lp' "$PROJECT_DATA/.ai/capabilities.json")" "600"
 check "unrelated .ai bytes remain exact after revert" "$(cmp -s "$SB/operator-state.before.bin" "$PROJECT_DATA/.ai/operator-state.bin" && echo yes || echo no)" "yes"
 

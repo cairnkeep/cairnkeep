@@ -54,23 +54,20 @@ for required in \
   mcp-memory-server/dist/capability-store.js \
   mcp-memory-server/dist/capability-adapter.js \
   mcp-memory-server/dist/capability-cli.js \
-  claude/capability-contract/commands/graphify.md \
-  claude/capability-contract/commands/security-audit.md \
-  claude/capability-contract/commands/wiki-ingest.md \
-  claude/capability-contract/commands/wiki-lint.md \
-  claude/capability-contract/commands/wiki-query.md \
-  opencode/capability-contract/command/graphify.md \
-  opencode/capability-contract/command/security-audit.md \
-  opencode/capability-contract/command/wiki-ingest.md \
-  opencode/capability-contract/command/wiki-lint.md \
-  opencode/capability-contract/command/wiki-query.md \
-  opencode/capability-contract/workflows/security-audit-workflow.md \
-  opencode/capability-contract/workflows/wiki-ingest-workflow.md \
-  opencode/capability-contract/workflows/wiki-lint-workflow.md \
-  opencode/capability-contract/workflows/wiki-query-workflow.md
+  claude/capability-contract/hooks/capability-command-start.sh \
+  claude/capability-contract/hooks/capability-command-finish.sh \
+  opencode/capability-contract/plugins/capability-command.ts
 do
   [[ -f "$installed_root/$required" ]] || fail "npm tarball omitted $required"
 done
+
+if find \
+  "$installed_root/claude/capability-contract/commands" \
+  "$installed_root/opencode/capability-contract/command" \
+  "$installed_root/opencode/capability-contract/workflows" \
+  -type f -print 2>/dev/null | grep -q .; then
+  fail "npm tarball included a retired capability prompt owner"
+fi
 
 CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities status --json >"$tmp/capability-status.json" \
   || fail "installed package capability status failed"
