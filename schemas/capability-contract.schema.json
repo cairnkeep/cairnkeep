@@ -42,7 +42,6 @@
     "loggingConfig": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["callbacks"],
       "properties": {
         "callbacks": { "type": "boolean" }
       }

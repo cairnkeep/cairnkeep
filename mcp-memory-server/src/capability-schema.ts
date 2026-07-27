@@ -43,7 +43,7 @@ export const capabilityOverridesSchema = z.partialRecord(
 );
 
 export const capabilityLoggingConfigSchema = z.strictObject({
-    callbacks: z.boolean(),
+    callbacks: z.boolean().optional(),
 });
 
 export const capabilityManagedConfigSchema = z.strictObject({
