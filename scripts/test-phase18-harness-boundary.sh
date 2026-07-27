@@ -164,6 +164,182 @@ if (forbidden.some((name) => raw.includes(name))) process.exit(1);
 NODE
 }
 
+assert_opencode_result() {
+  local result="$1"
+  local expected="$2"
+  node - "$result" "$expected" <<'NODE'
+const value = JSON.parse(process.argv[2]);
+const expected = process.argv[3];
+const admission = value.calls.find((call) => call.boundary === "command.execute.before");
+if (!admission || admission.result !== expected) process.exit(1);
+if (expected === "blocked" && admission.error !== "Cairn capability disabled.") process.exit(1);
+if (expected === "allowed" && admission.parts !== 0) process.exit(1);
+NODE
+}
+
+run_opencode_scenario() {
+  local plugin="$1"
+  local project="$2"
+  local state_root="$3"
+  local scenario="$4"
+  local session="$5"
+  local trajectory="${6:-1}"
+  (
+    cd "$project"
+    env \
+      CAIRN_CAPABILITY_CONTRACT=1 \
+      CAIRN_HARNESS_STATE_DIR="$state_root" \
+      CAIRN_TRAJECTORY_CAPTURE="$trajectory" \
+      CAIRN_TEST_SESSION="$session" \
+      node --experimental-strip-types "$OPENCODE_HARNESS" \
+        "$plugin" "$project" "$FIXTURE" "$scenario"
+  )
+}
+
+opencode_plugin() {
+  local temp_root plugin result rows case_root project decoy state_root
+  temp_root=$(mktemp -d)
+  trap "rm -rf '$temp_root'" EXIT
+  plugin="$temp_root/capability-command.ts"
+
+  validate_fixture
+  [[ -f "$OPENCODE_PLUGIN" ]] || fail "OpenCode capability plugin is absent"
+  sed "s|@@INFRA_ROOT@@|$ROOT|g" "$OPENCODE_PLUGIN" > "$plugin"
+
+  result=$(node --experimental-strip-types "$OPENCODE_HARNESS" \
+    "$plugin" "$temp_root/contract-project" "$FIXTURE" contract)
+  node - "$result" <<'NODE' || fail "OpenCode implementation disagrees with the pinned contract"
+const value = JSON.parse(process.argv[2]);
+if (value.fixture.version !== "1.17.20") process.exit(1);
+if (value.fixture.commit !== "4473fc3c9055046183990a965d68df3db7ea6f62") process.exit(1);
+if (value.calls.length !== 0) process.exit(1);
+NODE
+
+  case_root="$temp_root/malformed"
+  project="$case_root/project"
+  decoy="$project-decoy"
+  state_root="$case_root/state"
+  mkdir -p "$project" "$decoy"
+  write_capability_config "$project" true true
+  result=$(run_opencode_scenario "$plugin" "$project" "$state_root" malformed-admission malformed 1)
+  assert_opencode_result "$result" blocked || fail "malformed OpenCode admission did not fail closed"
+  [[ "$(callback_rows "$project")" == '[]' ]] || fail "malformed OpenCode admission created callback state"
+  [[ ! -e "$state_root/capability-leases-v1" ]] || fail "malformed OpenCode admission created lease state"
+
+  case_root="$temp_root/identity"
+  project="$case_root/project"
+  decoy="$project-decoy"
+  state_root="$case_root/state"
+  mkdir -p "$project" "$decoy"
+  write_capability_config "$project" true true
+  result=$(run_opencode_scenario "$plugin" "$project" "$state_root" identity-mismatch identity 1)
+  assert_opencode_result "$result" blocked || fail "ambiguous OpenCode project identity did not fail closed"
+  [[ "$(callback_rows "$project")" == '[]' ]] || fail "ambiguous OpenCode identity created callback state"
+
+  for consent in false:1 true:0; do
+    local logging=${consent%%:*}
+    local trajectory=${consent#*:}
+    case_root="$temp_root/enabled-$logging-$trajectory"
+    project="$case_root/project"
+    decoy="$project-decoy"
+    state_root="$case_root/state"
+    mkdir -p "$project" "$decoy"
+    write_capability_config "$project" true "$logging"
+    result=$(run_opencode_scenario "$plugin" "$project" "$state_root" admission "enabled-$logging-$trajectory" "$trajectory")
+    assert_opencode_result "$result" allowed || fail "enabled unmeasured OpenCode command changed owner execution"
+    [[ "$(callback_rows "$project")" == '[]' ]] || fail "enabled unmeasured OpenCode command created callback state"
+    [[ ! -e "$state_root/capability-leases-v1" ]] || fail "enabled unmeasured OpenCode command created lease state"
+  done
+
+  for consent in false:1 true:0; do
+    local logging=${consent%%:*}
+    local trajectory=${consent#*:}
+    case_root="$temp_root/disabled-$logging-$trajectory"
+    project="$case_root/project"
+    decoy="$project-decoy"
+    state_root="$case_root/state"
+    mkdir -p "$project" "$decoy"
+    write_capability_config "$project" false "$logging"
+    result=$(run_opencode_scenario "$plugin" "$project" "$state_root" admission "disabled-$logging-$trajectory" "$trajectory")
+    assert_opencode_result "$result" blocked || fail "disabled unmeasured OpenCode command did not return the fixed block"
+    [[ "$(callback_rows "$project")" == '[]' ]] || fail "disabled unmeasured OpenCode command created callback state"
+    find "$state_root/capability-leases-v1" -type f -print -quit 2>/dev/null | grep -q . && \
+      fail "disabled unmeasured OpenCode command left lease state"
+  done
+
+  case_root="$temp_root/disabled-measured"
+  project="$case_root/project"
+  decoy="$project-decoy"
+  state_root="$case_root/state"
+  mkdir -p "$project" "$decoy"
+  write_capability_config "$project" false true
+  result=$(run_opencode_scenario "$plugin" "$project" "$state_root" admission disabled-measured 1)
+  assert_opencode_result "$result" blocked || fail "disabled measured OpenCode command did not return the fixed block"
+  rows=$(callback_rows "$project")
+  assert_value_free_rows "$rows" disabled || fail "disabled OpenCode command did not settle one value-free final"
+
+  for terminal in success error; do
+    case_root="$temp_root/$terminal"
+    project="$case_root/project"
+    decoy="$project-decoy"
+    state_root="$case_root/state"
+    mkdir -p "$project" "$decoy"
+    write_capability_config "$project" true true
+    result=$(run_opencode_scenario "$plugin" "$project" "$state_root" "$terminal" "terminal-$terminal" 1)
+    assert_opencode_result "$result" allowed || fail "OpenCode $terminal terminal changed owner execution"
+    rows=$(callback_rows "$project")
+    assert_value_free_rows "$rows" "$terminal" || fail "OpenCode $terminal terminal did not settle exactly once"
+  done
+
+  case_root="$temp_root/duplicate"
+  project="$case_root/project"
+  decoy="$project-decoy"
+  state_root="$case_root/state"
+  mkdir -p "$project" "$decoy"
+  write_capability_config "$project" true true
+  result=$(run_opencode_scenario "$plugin" "$project" "$state_root" duplicate-success duplicate 1)
+  assert_opencode_result "$result" allowed || fail "duplicate OpenCode success changed owner execution"
+  rows=$(callback_rows "$project")
+  assert_value_free_rows "$rows" success || fail "duplicate OpenCode terminal delivery was not idempotent"
+
+  case_root="$temp_root/settled-delete"
+  project="$case_root/project"
+  decoy="$project-decoy"
+  state_root="$case_root/state"
+  mkdir -p "$project" "$decoy"
+  write_capability_config "$project" true true
+  result=$(run_opencode_scenario "$plugin" "$project" "$state_root" settled-then-delete settled-delete 1)
+  assert_opencode_result "$result" allowed || fail "settled OpenCode command changed owner execution"
+  rows=$(callback_rows "$project")
+  assert_value_free_rows "$rows" success || fail "session deletion replaced a settled OpenCode terminal"
+
+  case_root="$temp_root/abandonment"
+  project="$case_root/project"
+  decoy="$project-decoy"
+  state_root="$case_root/state"
+  mkdir -p "$project" "$decoy"
+  write_capability_config "$project" true true
+  result=$(run_opencode_scenario "$plugin" "$project" "$state_root" abandonment abandonment 1)
+  assert_opencode_result "$result" allowed || fail "OpenCode abandonment changed owner execution"
+  [[ "$(callback_rows "$project")" == '[]' ]] || fail "OpenCode abandonment created a final callback"
+  find "$state_root/capability-leases-v1" -type f -print -quit 2>/dev/null | grep -q . && \
+    fail "OpenCode abandonment left an unfinished recoverable lease"
+
+  case_root="$temp_root/cwd-drift"
+  project="$case_root/project"
+  decoy="$project-decoy"
+  state_root="$case_root/state"
+  mkdir -p "$project" "$decoy"
+  write_capability_config "$project" true true
+  result=$(run_opencode_scenario "$plugin" "$project" "$state_root" cwd-drift-success cwd-drift 1)
+  assert_opencode_result "$result" allowed || fail "OpenCode cwd drift changed owner execution"
+  rows=$(callback_rows "$project")
+  assert_value_free_rows "$rows" success || fail "OpenCode cwd drift rebound immutable project identity"
+  [[ "$(callback_rows "$decoy")" == '[]' ]] || fail "OpenCode cwd drift wrote callback state to the decoy project"
+
+  echo "PASS: OpenCode native capability plugin"
+}
+
 claude_hooks() {
   local temp_root project decoy state_root start_hook finish_hook stdout_file stderr_file status payload rows
   temp_root=$(mktemp -d)
@@ -421,7 +597,11 @@ case "$mode" in
     claude_owner_only
     ;;
   opencode-plugin|opencode-sync-modes|opencode-command-owner-only|opencode-owner-only|evidence-scope)
-    fail "production mode '$mode' is intentionally RED until its owning Phase 18 plan extends this driver"
+    if [[ "$mode" == "opencode-plugin" ]]; then
+      opencode_plugin
+    else
+      fail "production mode '$mode' is intentionally RED until its owning Phase 18 plan extends this driver"
+    fi
     ;;
   *)
     usage >&2

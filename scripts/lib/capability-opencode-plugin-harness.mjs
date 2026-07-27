@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const [pluginPath, repoPath, fixturePath, scenario = "contract"] = process.argv.slice(2);
+const sessionID = process.env.CAIRN_TEST_SESSION ?? "session-fixture";
 
 assert.ok(
   pluginPath && repoPath && fixturePath,
@@ -60,10 +61,28 @@ for (const [name, eventContract] of Object.entries(contract.events)) {
     eventContract.properties_optional_fields,
   );
   assert.equal(eventContract.sample.type, name);
+  if (name === "session.deleted") {
+    assertExactKeys(
+      eventContract.sample.properties.info,
+      eventContract.info_required_fields,
+      eventContract.info_optional_fields,
+    );
+    assertExactKeys(
+      eventContract.sample.properties.info.time,
+      eventContract.time_required_fields,
+      eventContract.time_optional_fields,
+    );
+  }
 }
 
 const module = await import(`${pathToFileURL(pluginPath).href}?test=${Date.now()}`);
 assert.equal(typeof module.CapabilityCommandPlugin, "function");
+assert.deepEqual(module.OPENCODE_CAPABILITY_CONTRACT, {
+  version: contract.version,
+  sourceCommit: contract.source.commit,
+  admissionHook: contract.hook.name,
+  terminalEvents: contract.lifecycle,
+});
 
 const calls = [];
 const client = {
@@ -82,7 +101,10 @@ const client = {
 };
 const plugin = await module.CapabilityCommandPlugin({
   client,
-  project: { id: "project-fixture", worktree: repoPath },
+  project: {
+    id: "project-fixture",
+    worktree: scenario === "identity-mismatch" ? `${repoPath}-decoy` : repoPath,
+  },
   directory: repoPath,
   worktree: repoPath,
   serverUrl: new URL("http://127.0.0.1:4096"),
@@ -97,6 +119,8 @@ assert.equal(typeof plugin.event, "function");
 async function commandBefore() {
   const input = structuredClone(contract.hook.input.sample);
   const output = structuredClone(contract.hook.output.sample);
+  input.sessionID = sessionID;
+  if (scenario === "malformed-admission") input.unexpected = "rejected";
   try {
     await plugin[contract.hook.name](input, output);
     calls.push({ boundary: contract.hook.name, result: "allowed", parts: output.parts.length });
@@ -111,6 +135,8 @@ async function commandBefore() {
 
 async function deliver(eventName) {
   const event = structuredClone(contract.events[eventName].sample);
+  if (eventName === "session.deleted") event.properties.info.id = sessionID;
+  else event.properties.sessionID = sessionID;
   await plugin.event({ event });
   calls.push({ boundary: "event", event: eventName });
 }
@@ -123,6 +149,10 @@ const scenarios = new Set([
   "error",
   "abandonment",
   "duplicate-success",
+  "settled-then-delete",
+  "cwd-drift-success",
+  "malformed-admission",
+  "identity-mismatch",
 ]);
 assert.ok(scenarios.has(scenario), `unsupported scenario: ${scenario}`);
 
@@ -134,6 +164,14 @@ if (scenario === "abandonment") await deliver("session.deleted");
 if (scenario === "duplicate-success") {
   await deliver("session.idle");
   await deliver("session.status");
+  await deliver("session.idle");
+}
+if (scenario === "settled-then-delete") {
+  await deliver("session.idle");
+  await deliver("session.deleted");
+}
+if (scenario === "cwd-drift-success") {
+  process.chdir(`${repoPath}-decoy`);
   await deliver("session.idle");
 }
 
