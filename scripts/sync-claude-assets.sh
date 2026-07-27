@@ -4,7 +4,7 @@ shopt -s nullglob
 
 usage() {
   cat <<'EOF'
-Usage: sync-claude-assets.sh [--check|--apply] [--live-root PATH]
+Usage: sync-claude-assets.sh [--check|--apply] [--capability-overlay] [--live-root PATH]
 
 Compare or sync the repo-managed Claude Code assets (commands, agents) and the
 security/wiki scaffold templates against the live Claude Code config tree.
@@ -12,12 +12,16 @@ security/wiki scaffold templates against the live Claude Code config tree.
 Options:
   --check            Verify that the live assets match the repo copy (default)
   --apply            Copy the repo-managed assets into the live Claude tree, then verify
+  --capability-overlay
+                     Select guarded command overlays for a contract-enabled isolated root
   --live-root PATH   Override the live Claude root (default: $CLAUDE_CONFIG_DIR or $HOME/.claude)
   -h, --help         Show this help text
 
 Notes:
   - Claude assets source of truth lives under ./claude/ (commands/, agents/).
   - Installs claude/commands/*.md -> <live>/commands/ and claude/agents/*.md -> <live>/agents/.
+  - --capability-overlay substitutes only matching files from
+    claude/capability-contract/; normal mode never reads or installs that tree.
   - Also installs templates/{security,wiki}-*.template -> <live>/templates/ so the
     /security-audit and /wiki-* commands can scaffold from $HOME/.claude/templates/.
   - Renders claude/hooks/*.sh -> <live>/hooks/ (substituting @@INFRA_ROOT@@) and
@@ -32,11 +36,13 @@ CLAUDE_SOURCE="$ROOT_DIR/claude"
 TEMPLATE_SOURCE="$ROOT_DIR/templates"
 LIVE_ROOT="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 MODE="check"
+CAPABILITY_OVERLAY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check) MODE="check"; shift ;;
     --apply) MODE="apply"; shift ;;
+    --capability-overlay) CAPABILITY_OVERLAY=1; shift ;;
     --live-root) LIVE_ROOT="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
@@ -54,9 +60,13 @@ DSTS=()
 
 # 1. claude/ tree -> <live>/...
 while IFS= read -r rel; do
-  SRCS+=("$CLAUDE_SOURCE/$rel")
+  src="$CLAUDE_SOURCE/$rel"
+  if [[ "$CAPABILITY_OVERLAY" -eq 1 && -f "$CLAUDE_SOURCE/capability-contract/$rel" ]]; then
+    src="$CLAUDE_SOURCE/capability-contract/$rel"
+  fi
+  SRCS+=("$src")
   DSTS+=("$LIVE_ROOT/$rel")
-done < <(cd "$CLAUDE_SOURCE" && find . -type f -name '*.md' | sed 's|^\./||' | sort)
+done < <(cd "$CLAUDE_SOURCE" && find . -path './capability-contract' -prune -o -type f -name '*.md' -print | sed 's|^\./||' | sort)
 
 # 2. security/wiki scaffold templates -> <live>/templates/
 for tpl in "$TEMPLATE_SOURCE"/security-*.template "$TEMPLATE_SOURCE"/wiki-*.template; do
