@@ -20,6 +20,7 @@ import { AgentFS } from "agentfs-sdk";
 
 const EXPECTED_RED_EXIT = 86;
 const RED_MARKER = "PHASE18_RED:CAPABILITY_HARNESS_BOUNDARY";
+const SESSION_ISOLATION_RED_MARKER = "PHASE18_RED:SESSION_POLICY_ISOLATION";
 const here = dirname(fileURLToPath(import.meta.url));
 const serverRoot = resolve(here, "..");
 const projectRoot = resolve(serverRoot, "..");
@@ -36,11 +37,13 @@ const SENTINELS = [
     "result-sentinel-18-17",
     "raw-error-sentinel-18-17",
 ];
+const ALLOW = { schema_version: 1, decision: "allow" };
+const BLOCK = { schema_version: 1, decision: "block", reason: "capability-disabled" };
 
 function mode() {
     const [selected, ...extra] = process.argv.slice(2);
     assert.equal(extra.length, 0, "smoke-capability-harness accepts at most one mode");
-    assert.equal([undefined, "--expect-red", "--core", "--crash-cwd"].includes(selected), true,
+    assert.equal([undefined, "--expect-red", "--core", "--crash-cwd", "--session-isolation"].includes(selected), true,
         `unknown smoke-capability-harness mode: ${String(selected)}`);
     return selected;
 }
@@ -398,6 +401,142 @@ async function crashAndCwdChecks(coordinator) {
     }
 }
 
+async function sessionIsolationChecks(coordinator) {
+    assertCoordinatorSurface(coordinator);
+    let observedKnownDefect = false;
+
+    for (const [label, overrides] of [
+        ["master off", { CAIRN_CAPABILITY_CONTRACT: "0" }],
+        ["logging off", { CAIRN_CAPABILITY_LOGGING: "0" }],
+        ["trajectory capture off", { CAIRN_TRAJECTORY_CAPTURE: "0" }],
+    ]) {
+        const fixture = fixtureRoot(`session-isolation-${label.replaceAll(" ", "-")}`);
+        try {
+            const env = fullEnvironment({ CAIRN_HARNESS_STATE_DIR: fixture.state, ...overrides });
+            const decision = await withEnvironment(env, () => coordinator.beginHarnessCapability(beforeInput(fixture.original)));
+            assert.deepEqual(decision, ALLOW, `${label} changed the legacy allow decision`);
+            await assertNoState(fixture.original, fixture.state, label);
+            const bytes = rawBytes(fixture.original, fixture.state).toString("utf8");
+            for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `${label} leaked ${sentinel}`);
+        } finally {
+            rmSync(fixture.base, { recursive: true, force: true });
+        }
+    }
+
+    const collision = fixtureRoot("session-isolation-collision");
+    try {
+        const session = "session-isolation-collision-18-28";
+        const env = fullEnvironment({
+            CAIRN_HARNESS_STATE_DIR: collision.state,
+            CAIRN_CAPABILITY_SECURITY_AUDIT: "0",
+        });
+        const wiki = await withEnvironment(env, () => coordinator.beginHarnessCapability(beforeInput(collision.original, {
+            session_id: session,
+            command: "wiki-query",
+        })));
+        assert.deepEqual(wiki, { schema_version: 1, decision: "allow" });
+        assert.equal((await rows(collision.original, PENDING_PREFIX)).length, 1, "active wiki omitted its pending issuance");
+        assert.equal(allFiles(collision.state).length, 1, "active wiki omitted its lease");
+
+        const security = await withEnvironment(env, () => coordinator.beginHarnessCapability(beforeInput(collision.original, {
+            session_id: session,
+            command: "security-audit",
+        })));
+        let securityOwnerCalls = 0;
+        if (security.decision === "allow") securityOwnerCalls += 1;
+        if (security.decision === "allow") {
+            assert.equal(securityOwnerCalls, 1, "known policy-isolation defect was not exercised");
+            assert.equal((await rows(collision.original, PENDING_PREFIX)).length, 1,
+                "known policy-isolation defect overwrote the wiki pending issuance");
+            assert.equal((await rows(collision.original, FINAL_PREFIX)).length, 0,
+                "known policy-isolation defect unexpectedly wrote a security final");
+            const lease = JSON.parse(readFileSync(allFiles(collision.state)[0], "utf8"));
+            assert.equal(lease.command, "wiki-query", "known policy-isolation defect overwrote the wiki lease");
+            observedKnownDefect = true;
+        } else {
+            assert.deepEqual(security, { schema_version: 1, decision: "block", reason: "capability-disabled" });
+            assert.equal(securityOwnerCalls, 0, "disabled security owner was reached");
+            const finals = (await rows(collision.original, FINAL_PREFIX)).map(({ value }) => value);
+            assert.equal(finals.filter(({ capability_id, outcome }) => capability_id === "security.audit" && outcome === "disabled").length, 1,
+                "blocked security invocation did not retain one disabled final");
+            assert.equal((await rows(collision.original, PENDING_PREFIX)).length, 1,
+                "blocked security invocation consumed the active wiki issuance");
+            assert.equal(allFiles(collision.state).some((path) => JSON.parse(readFileSync(path, "utf8")).command === "wiki-query"), true,
+                "blocked security invocation overwrote the active wiki lease");
+        }
+
+        const firstTerminal = await withEnvironment(env, () => coordinator.finishHarnessCapability(terminalInput({
+            session_id: session,
+            outcome: "success",
+        })));
+        assert.equal(firstTerminal.finalized, true, "wiki terminal did not settle its own invocation");
+        const replay = await withEnvironment(env, () => coordinator.finishHarnessCapability(terminalInput({
+            session_id: session,
+            outcome: "success",
+        })));
+        assert.deepEqual(replay, { schema_version: 1, finalized: false }, "wiki terminal replay appended another final");
+        const collisionFinals = (await rows(collision.original, FINAL_PREFIX)).map(({ value }) => value);
+        assert.equal(collisionFinals.filter(({ capability_id }) => capability_id === "wiki").length, 1,
+            "collision did not retain exactly one wiki final");
+        assert.equal(collisionFinals.length, security.decision === "allow" ? 1 : 2,
+            "collision retained the wrong total final count");
+        assert.equal((await rows(collision.original, PENDING_PREFIX)).length, 0, "collision settlement left pending rows");
+        assert.deepEqual(allFiles(collision.state), [], "collision settlement left a lease");
+        const bytes = rawBytes(collision.original, collision.state).toString("utf8");
+        for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `collision state leaked ${sentinel}`);
+    } finally {
+        rmSync(collision.base, { recursive: true, force: true });
+    }
+
+    for (const [label, command, overrides, expectedDecision, expectedOutcome] of [
+        ["enabled", "wiki-query", {}, { schema_version: 1, decision: "allow" }, "success"],
+        ["disabled", "security-audit", { CAIRN_CAPABILITY_SECURITY_AUDIT: "0" }, BLOCK, "disabled"],
+    ]) {
+        const fixture = fixtureRoot(`session-isolation-sequential-${label}`);
+        try {
+            const session = `session-isolation-sequential-${label}-18-28`;
+            const env = fullEnvironment({ CAIRN_HARNESS_STATE_DIR: fixture.state, ...overrides });
+            for (let index = 0; index < 2; index += 1) {
+                const decision = await withEnvironment(env, () => coordinator.beginHarnessCapability(beforeInput(fixture.original, {
+                    session_id: session,
+                    command,
+                })));
+                assert.deepEqual(decision, expectedDecision, `${label} invocation ${index + 1} changed its policy decision`);
+                if (expectedOutcome === "success") {
+                    const terminal = await withEnvironment(env, () => coordinator.finishHarnessCapability(terminalInput({
+                        session_id: session,
+                        outcome: "success",
+                    })));
+                    if (index === 0) assert.equal(terminal.finalized, true, "first enabled invocation did not finalize");
+                    else if (!terminal.finalized) observedKnownDefect = true;
+                    const replay = await withEnvironment(env, () => coordinator.finishHarnessCapability(terminalInput({
+                        session_id: session,
+                        outcome: "success",
+                    })));
+                    assert.deepEqual(replay, { schema_version: 1, finalized: false }, `${label} terminal replay finalized`);
+                }
+            }
+            const finals = (await rows(fixture.original, FINAL_PREFIX)).map(({ value }) => value);
+            if (finals.length === 1) observedKnownDefect = true;
+            else assert.equal(finals.length, 2, `${label} sequential invocations did not retain two finals`);
+            assert.equal(new Set(finals.map(({ invocation_id }) => invocation_id)).size, finals.length,
+                `${label} sequential finals reused an invocation ID`);
+            assert.equal(finals.every(({ correlation_id }) => correlation_id === session), true,
+                `${label} sequential finals changed the explicit session correlation`);
+            assert.equal(finals.every(({ outcome }) => outcome === expectedOutcome), true,
+                `${label} sequential final used the wrong outcome`);
+            assert.equal((await rows(fixture.original, PENDING_PREFIX)).length, 0, `${label} sequential path left pending rows`);
+            assert.deepEqual(allFiles(fixture.state), [], `${label} sequential path left a lease`);
+            const bytes = rawBytes(fixture.original, fixture.state).toString("utf8");
+            for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `${label} sequential state leaked ${sentinel}`);
+        } finally {
+            rmSync(fixture.base, { recursive: true, force: true });
+        }
+    }
+
+    if (observedKnownDefect) throw new Error("expected-session-policy-isolation-defect");
+}
+
 async function cliChecks() {
     const help = run(process.execPath, [capabilityCliPath, "--help"]);
     assertSuccess(help, "capability CLI public help");
@@ -488,6 +627,19 @@ async function main() {
     }
     if (selected === "--expect-red") {
         throw new Error("The shared harness coordinator unexpectedly exists; run the GREEN modes instead.");
+    }
+    if (selected === "--session-isolation") {
+        try {
+            await sessionIsolationChecks(coordinator);
+        } catch (error) {
+            if (error instanceof Error && error.message === "expected-session-policy-isolation-defect") {
+                console.log(SESSION_ISOLATION_RED_MARKER);
+                process.exitCode = EXPECTED_RED_EXIT;
+                return;
+            }
+            throw error;
+        }
+        throw new Error("Session policy isolation is no longer RED; promote the regression to the GREEN suite.");
     }
     if (selected !== "--crash-cwd") await coreChecks(coordinator);
     if (selected !== "--core") await crashAndCwdChecks(coordinator);

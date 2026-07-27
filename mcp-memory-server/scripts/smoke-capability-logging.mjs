@@ -29,7 +29,9 @@ const adapterModulePath = join(serverRoot, "dist", "capability-adapter.js");
 const capabilityCliPath = join(serverRoot, "dist", "capability-cli.js");
 const trajectoryDbRelative = join(".agentfs", "trajectory.db");
 const RECORD_PREFIX = "capability-callback/v1/record/";
+const PENDING_PREFIX = "capability-callback/v1/pending/";
 const OPERATING_RED_MARKER = "PHASE18_RED:OPERATING_FINISH_CONSENT_PROVENANCE";
+const OPERATING_SEQUENTIAL_RED_MARKER = "PHASE18_RED:INVOCATION_SCOPED_CORRELATION";
 const META_KEY = "capability-callback/meta/schema-version";
 const ALLOWED_FIELDS = [
     "capability_id",
@@ -81,6 +83,7 @@ function assertMode() {
         "--notes-only",
         "--operating-finish-only",
         "--expect-red-operating-finish",
+        "--operating-sequential-only",
     ];
     assert.equal(extra.length, 0, "smoke-capability-logging accepts at most one mode");
     assert.equal(modes.includes(mode), true, `Unknown smoke-capability-logging mode: ${String(mode)}`);
@@ -307,6 +310,29 @@ function safeFinishResult(handle) {
     };
 }
 
+function sequentialIssuance(invocationId, startedAt) {
+    return {
+        schema_version: 1,
+        capability_id: "wiki",
+        invocation_id: invocationId,
+        correlation_id: "claude-code:shared-session-18-28",
+        harness: "claude-code",
+        source: "operating-command",
+        transport: "harness-command",
+        started_at: startedAt,
+        state_source: "environment",
+        configuration_digest: DIGEST,
+    };
+}
+
+function sequentialFinal(handle, finishedAt) {
+    return finalRecord({
+        ...handle,
+        finished_at: finishedAt,
+        duration_ms: Math.max(0, Date.parse(finishedAt) - Date.parse(handle.started_at)),
+    });
+}
+
 async function finalRecords(root) {
     if (!existsSync(join(root, trajectoryDbRelative))) return [];
     const script = [
@@ -419,6 +445,94 @@ async function operatingFinishChecks() {
         for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `replay store leaked ${sentinel}`);
     } finally {
         rmSync(replayRoot, { recursive: true, force: true });
+    }
+}
+
+async function operatingSequentialChecks() {
+    const store = await loadStore();
+
+    for (const [label, overrides] of [
+        ["master off", { CAIRN_CAPABILITY_CONTRACT: "0" }],
+        ["logging off", { CAIRN_CAPABILITY_LOGGING: "0" }],
+        ["trajectory capture off", { CAIRN_TRAJECTORY_CAPTURE: "0" }],
+    ]) {
+        const root = mkdtempSync(join(tmpdir(), "cairn-operating-sequential-inert-"));
+        try {
+            const result = runOperatingCli(root, [
+                "start",
+                "wiki",
+                "--harness", "claude-code",
+                "--source", "operating-command",
+                "--transport", "harness-command",
+                "--session", "claude-code:shared-session-18-28",
+            ], operatingEnvironment(overrides));
+            assert.deepEqual(result, {
+                schema_version: 1,
+                capability_id: "wiki",
+                disabled: false,
+                measured: false,
+            }, `${label} did not retain the payload-free bypass result`);
+            await assertNoStore(root, label);
+            const bytes = rawStoreBytes(root).toString("utf8");
+            for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `${label} leaked ${sentinel}`);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    }
+
+    const root = mkdtempSync(join(tmpdir(), "cairn-operating-sequential-"));
+    try {
+        const first = sequentialIssuance(`cap:${randomUUID()}`, "2026-07-27T08:28:00.000Z");
+        const second = sequentialIssuance(`cap:${randomUUID()}`, "2026-07-27T08:28:01.000Z");
+        assert.notEqual(first.invocation_id, second.invocation_id);
+        assert.equal(first.correlation_id, second.correlation_id);
+
+        assert.equal(await store.issueOperatingCapability(root, first), true, "first invocation was not issued");
+        assert.equal(await store.issueOperatingCapability(root, first), false, "duplicate first invocation was reissued");
+        assert.equal(
+            await store.settleOperatingCapability(root, first, sequentialFinal(first, "2026-07-27T08:28:00.125Z")),
+            true,
+            "first invocation was not settled",
+        );
+        assert.equal(
+            await store.settleOperatingCapability(root, first, sequentialFinal(first, "2026-07-27T08:28:00.250Z")),
+            false,
+            "first terminal replay settled twice",
+        );
+
+        const secondIssued = await store.issueOperatingCapability(root, second);
+        if (!secondIssued) {
+            const pending = await rawRows(root);
+            const finals = (await store.listCapabilityRecords(root)).records;
+            assert.equal(pending.filter(({ key }) => key.startsWith(PENDING_PREFIX)).length, 0,
+                "known correlation defect left a second pending issuance");
+            assert.deepEqual(finals.map(({ invocation_id }) => invocation_id), [first.invocation_id],
+                "known correlation defect did not retain exactly the first final");
+            throw new Error("expected-invocation-scoped-correlation-defect");
+        }
+
+        assert.equal(
+            await store.settleOperatingCapability(root, second, sequentialFinal(second, "2026-07-27T08:28:01.125Z")),
+            true,
+            "second invocation was not settled",
+        );
+        assert.equal(
+            await store.settleOperatingCapability(root, second, sequentialFinal(second, "2026-07-27T08:28:01.250Z")),
+            false,
+            "second terminal replay settled twice",
+        );
+        const rows = await rawRows(root);
+        assert.equal(rows.filter(({ key }) => key.startsWith(PENDING_PREFIX)).length, 0, "sequential settlement left pending rows");
+        const finals = (await store.listCapabilityRecords(root)).records;
+        assert.equal(finals.length, 2, "sequential invocations did not retain two finals");
+        assert.equal(new Set(finals.map(({ invocation_id }) => invocation_id)).size, 2, "sequential finals reused an invocation ID");
+        assert.equal(finals.every(({ correlation_id }) => correlation_id === first.correlation_id), true,
+            "sequential finals did not retain the explicit shared session correlation");
+        for (const record of finals) assertExactRecord(record);
+        const bytes = rawStoreBytes(root).toString("utf8");
+        for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `sequential store leaked ${sentinel}`);
+    } finally {
+        rmSync(root, { recursive: true, force: true });
     }
 }
 
@@ -792,6 +906,20 @@ async function main() {
         await operatingFinishChecks();
         console.log("PASS: operating finish consent and issued-start provenance contract");
         return;
+    }
+    if (mode === "--operating-sequential-only") {
+        await schemaChecks();
+        try {
+            await operatingSequentialChecks();
+        } catch (error) {
+            if (error instanceof Error && error.message === "expected-invocation-scoped-correlation-defect") {
+                console.log(OPERATING_SEQUENTIAL_RED_MARKER);
+                process.exitCode = EXPECTED_RED_EXIT;
+                return;
+            }
+            throw error;
+        }
+        throw new Error("Invocation-scoped correlation is no longer RED; promote the regression to the GREEN suite.");
     }
     await schemaChecks();
     await storeChecks();
