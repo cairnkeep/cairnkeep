@@ -21,6 +21,7 @@ usage() {
     "" \
     "Deterministic boundary modes:" \
     "  claude-hooks | opencode-plugin | opencode-sync-modes" \
+    "  opencode-disposal" \
     "  claude-owner-only | opencode-command-owner-only | opencode-owner-only" \
     "  claude-delegate-calls | opencode-delegate-calls | evidence-scope" \
     "" \
@@ -40,6 +41,8 @@ if (claudeEvents !== "CwdChanged,SessionEnd,Stop,StopFailure,UserPromptExpansion
 const openCodeEvents = Object.keys(fixture.opencode.events).sort().join(",");
 if (openCodeEvents !== "session.deleted,session.error,session.idle,session.status") process.exit(1);
 if (fixture.opencode.hook.name !== "command.execute.before") process.exit(1);
+if (fixture.opencode.dispose?.name !== "dispose") process.exit(1);
+if (fixture.opencode.dispose?.source_commit !== "4473fc3c9055046183990a965d68df3db7ea6f62") process.exit(1);
 NODE
 }
 
@@ -138,6 +141,25 @@ import { AgentFS } from "agentfs-sdk";
 const agent = await AgentFS.open({ id: "trajectory", path: process.argv[2] });
 try {
   const rows = await agent.kv.list("capability-callback/v1/record/");
+  process.stdout.write(JSON.stringify(rows.map((row) => row.value)));
+} finally {
+  await agent.close();
+}
+NODE
+  )
+}
+
+pending_rows() {
+  local project="$1"
+  local database="$project/.agentfs/trajectory.db"
+  [[ -f "$database" ]] || { printf '[]'; return; }
+  (
+    cd "$ROOT/mcp-memory-server"
+    NODE_NO_WARNINGS=1 node --input-type=module - "$database" <<'NODE'
+import { AgentFS } from "agentfs-sdk";
+const agent = await AgentFS.open({ id: "trajectory", path: process.argv[2] });
+try {
+  const rows = await agent.kv.list("capability-callback/v1/pending/");
   process.stdout.write(JSON.stringify(rows.map((row) => row.value)));
 } finally {
   await agent.close();
@@ -335,6 +357,158 @@ NODE
   [[ "$(callback_rows "$decoy")" == '[]' ]] || fail "OpenCode cwd drift wrote callback state to the decoy project"
 
   echo "PASS: OpenCode native capability plugin"
+}
+
+assert_dispose_completed() {
+  local result="$1"
+  node - "$result" <<'NODE'
+const value = JSON.parse(process.argv[2]);
+if (!value.dispose_present) process.exit(1);
+const disposal = value.calls.filter((call) => call.boundary === "dispose");
+if (disposal.length !== 1 || disposal[0].result !== "completed") process.exit(1);
+NODE
+}
+
+write_disposal_coordinator_fixture() {
+  local fixture_root="$1"
+  mkdir -p "$fixture_root/mcp-memory-server/dist"
+  cat > "$fixture_root/mcp-memory-server/dist/capability-cli.js" <<'NODE'
+#!/usr/bin/env node
+const fs = require("node:fs");
+const operation = process.argv[2];
+const chunks = [];
+process.stdin.on("data", (chunk) => chunks.push(chunk));
+process.stdin.on("end", () => {
+  const payload = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  fs.appendFileSync(process.env.CAIRN_BOUNDARY_TRACE, `${JSON.stringify({ operation, payload })}\n`);
+  const respond = () => {
+    if (operation === "harness-before") process.stdout.write('{"schema_version":1,"decision":"allow"}');
+    else process.stdout.write('{"schema_version":1,"finalized":true}');
+  };
+  if (operation === "harness-terminal" && process.env.CAIRN_TEST_HOLD_TERMINAL === "1") {
+    const timer = setInterval(() => {
+      if (!fs.existsSync(process.env.CAIRN_TEST_RELEASE_FILE)) return;
+      clearInterval(timer);
+      respond();
+    }, 10);
+    return;
+  }
+  respond();
+});
+NODE
+  chmod 700 "$fixture_root/mcp-memory-server/dist/capability-cli.js"
+}
+
+assert_disposal_trace() {
+  local trace="$1"
+  local scenario="$2"
+  node - "$trace" "$scenario" <<'NODE'
+const fs = require("node:fs");
+const [tracePath, scenario] = process.argv.slice(2);
+const raw = fs.readFileSync(tracePath, "utf8").trim();
+const rows = raw ? raw.split(/\n/).map(JSON.parse) : [];
+const expected = scenario === "dispose-terminal-race"
+  ? ["harness-before", "harness-terminal"]
+  : ["harness-before", "harness-terminal", "harness-before"];
+if (rows.map(({ operation }) => operation).join(",") !== expected.join(",")) process.exit(1);
+for (const row of rows) {
+  const keys = Object.keys(row.payload).sort().join(",");
+  const allowed = row.operation === "harness-before"
+    ? "command,harness,project_root,schema_version,session_id"
+    : "harness,outcome,schema_version,session_id";
+  if (keys !== allowed) process.exit(1);
+  if (row.payload.harness !== "opencode" || row.payload.schema_version !== 1) process.exit(1);
+}
+const terminals = rows.filter(({ operation }) => operation === "harness-terminal");
+if (terminals.length !== 1 || terminals[0].payload.outcome === "abandoned") process.exit(1);
+if (scenario === "dispose-terminal-race" && terminals[0].payload.outcome !== "success") process.exit(1);
+if (scenario === "terminal-next-admission" && terminals[0].payload.outcome !== "error") process.exit(1);
+NODE
+}
+
+opencode_disposal() {
+  local temp_root plugin result case_root project state_root rows fixture_root trace release scenario expected
+  temp_root=$(mktemp -d)
+  trap "rm -rf '$temp_root'" EXIT
+  plugin="$temp_root/capability-command.ts"
+
+  validate_fixture
+  sed "s|@@INFRA_ROOT@@|$ROOT|g" "$OPENCODE_PLUGIN" > "$plugin"
+  mkdir -p "$temp_root/contract-project"
+  result=$(node --experimental-strip-types "$OPENCODE_HARNESS" \
+    "$plugin" "$temp_root/contract-project" "$FIXTURE" dispose-contract)
+  if ! node - "$result" <<'NODE'
+const value = JSON.parse(process.argv[2]);
+process.exit(value.dispose_present ? 0 : 1);
+NODE
+  then
+    echo "PHASE18_RED:OPENCODE_DISPOSAL"
+    return 86
+  fi
+  assert_dispose_completed "$result" || fail "OpenCode dispose contract did not complete"
+
+  for scenario in dispose-unfinished dispose-multiple; do
+    case_root="$temp_root/$scenario"
+    project="$case_root/project"
+    state_root="$case_root/state"
+    mkdir -p "$project"
+    write_capability_config "$project" true true
+    result=$(run_opencode_scenario "$plugin" "$project" "$state_root" "$scenario" "$scenario" 1)
+    assert_dispose_completed "$result" || fail "$scenario did not invoke native disposal"
+    [[ "$(callback_rows "$project")" == '[]' ]] || fail "$scenario appended an abandonment final"
+    [[ "$(pending_rows "$project")" == '[]' ]] || fail "$scenario left pending issuance"
+    find "$state_root/capability-leases-v1" -type f -print -quit 2>/dev/null | grep -q . && \
+      fail "$scenario left a recoverable lease"
+  done
+
+  for scenario in dispose-settled-success dispose-settled-error; do
+    case_root="$temp_root/$scenario"
+    project="$case_root/project"
+    state_root="$case_root/state"
+    mkdir -p "$project"
+    write_capability_config "$project" true true
+    result=$(run_opencode_scenario "$plugin" "$project" "$state_root" "$scenario" "$scenario" 1)
+    assert_dispose_completed "$result" || fail "$scenario did not invoke native disposal"
+    rows=$(callback_rows "$project")
+    [[ "$scenario" == dispose-settled-success ]] && expected=success || expected=error
+    assert_value_free_rows "$rows" "$expected" || fail "$scenario rewrote or duplicated its settled final"
+    [[ "$(pending_rows "$project")" == '[]' ]] || fail "$scenario left pending issuance"
+    find "$state_root/capability-leases-v1" -type f -print -quit 2>/dev/null | grep -q . && \
+      fail "$scenario left a recoverable lease"
+  done
+
+  fixture_root="$temp_root/fixture-infra"
+  write_disposal_coordinator_fixture "$fixture_root"
+  sed "s|@@INFRA_ROOT@@|$fixture_root|g" "$OPENCODE_PLUGIN" > "$plugin"
+  project="$temp_root/mock-project"
+  mkdir -p "$project"
+
+  trace="$temp_root/master-off.trace"
+  : > "$trace"
+  result=$(CAIRN_CAPABILITY_CONTRACT=0 CAIRN_BOUNDARY_TRACE="$trace" \
+    CAIRN_TEST_SESSION=dispose-master-off \
+    node --experimental-strip-types "$OPENCODE_HARNESS" \
+      "$plugin" "$project" "$FIXTURE" dispose-master-off)
+  assert_dispose_completed "$result" || fail "master-off disposal did not return cleanly"
+  [[ ! -s "$trace" ]] || fail "master-off disposal invoked the coordinator"
+
+  for scenario in dispose-terminal-race terminal-next-admission; do
+    trace="$temp_root/$scenario.trace"
+    release="$temp_root/$scenario.release"
+    : > "$trace"
+    rm -f "$release"
+    result=$(CAIRN_CAPABILITY_CONTRACT=1 CAIRN_BOUNDARY_TRACE="$trace" \
+      CAIRN_TEST_HOLD_TERMINAL=1 CAIRN_TEST_RELEASE_FILE="$release" \
+      CAIRN_TEST_SESSION="$scenario" \
+      node --experimental-strip-types "$OPENCODE_HARNESS" \
+        "$plugin" "$project" "$FIXTURE" "$scenario")
+    if [[ "$scenario" == dispose-terminal-race ]]; then
+      assert_dispose_completed "$result" || fail "terminal/dispose race did not complete disposal"
+    fi
+    assert_disposal_trace "$trace" "$scenario" || fail "$scenario violated per-session ordering"
+  done
+
+  echo "PASS: OpenCode disposal and per-session ordering contract"
 }
 
 plugin_tree_digest() {
@@ -854,9 +1028,10 @@ case "$mode" in
   claude-owner-only)
     claude_owner_only
     ;;
-  opencode-plugin|opencode-sync-modes|opencode-command-owner-only|opencode-owner-only|claude-delegate-calls|opencode-delegate-calls|evidence-scope)
+  opencode-plugin|opencode-disposal|opencode-sync-modes|opencode-command-owner-only|opencode-owner-only|claude-delegate-calls|opencode-delegate-calls|evidence-scope)
     case "$mode" in
       opencode-plugin) opencode_plugin ;;
+      opencode-disposal) opencode_disposal ;;
       opencode-sync-modes) opencode_sync_modes ;;
       opencode-command-owner-only) opencode_command_owner_only ;;
       opencode-owner-only) opencode_owner_only ;;
