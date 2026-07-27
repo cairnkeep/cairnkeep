@@ -11,7 +11,7 @@ _cairn_complete() {
   COMPREPLY=()
   current=${COMP_WORDS[COMP_CWORD]}
   previous=${COMP_WORDS[COMP_CWORD-1]:-}
-  commands="bootstrap memory-server sync sync-pi doctor trajectory artifact notes memory audit-timer uninstall completion version help"
+  commands="bootstrap memory-server sync sync-pi doctor trajectory artifact capabilities notes memory audit-timer uninstall completion version help"
   if (( COMP_CWORD == 1 )); then
     COMPREPLY=( $(compgen -W "$commands" -- "$current") )
     return
@@ -23,6 +23,33 @@ _cairn_complete() {
     doctor) COMPREPLY=( $(compgen -W "--repair" -- "$current") ) ;;
     trajectory) COMPREPLY=( $(compgen -W "list show prune --json --dry-run" -- "$current") ) ;;
     artifact) COMPREPLY=( $(compgen -W "list show delete prune --kind --session --json --dry-run --include-protected" -- "$current") ) ;;
+    capabilities)
+      case "${COMP_WORDS[2]:-}" in
+        enable|disable)
+          if (( COMP_CWORD == 3 )); then
+            COMPREPLY=( $(compgen -W "memory.write memory.search notes.distill wiki graph security.audit route.check context.explore" -- "$current") )
+          else
+            COMPREPLY=( $(compgen -W "--json" -- "$current") )
+          fi
+          ;;
+        reset)
+          if (( COMP_CWORD == 3 )); then
+            COMPREPLY=( $(compgen -W "memory.write memory.search notes.distill wiki graph security.audit route.check context.explore --all" -- "$current") )
+          else
+            COMPREPLY=( $(compgen -W "--json" -- "$current") )
+          fi
+          ;;
+        logging)
+          if (( COMP_CWORD == 3 )); then
+            COMPREPLY=( $(compgen -W "enable disable reset" -- "$current") )
+          else
+            COMPREPLY=( $(compgen -W "--json" -- "$current") )
+          fi
+          ;;
+        list|status) COMPREPLY=( $(compgen -W "--json" -- "$current") ) ;;
+        *) COMPREPLY=( $(compgen -W "list status enable disable reset logging" -- "$current") ) ;;
+      esac
+      ;;
     notes) COMPREPLY=( $(compgen -W "distill search-error promote doctor --project --session --all-projects --para-root --text --component --with --confirm --repair --json" -- "$current") ) ;;
     memory) COMPREPLY=( $(compgen -W "path export import" -- "$current") ) ;;
     audit-timer) COMPREPLY=( $(compgen -W "--on-calendar --para-root --render-only" -- "$current") ) ;;
@@ -46,6 +73,7 @@ _cairn() {
     'doctor:check runtime dependencies and endpoints'
     'trajectory:inspect and prune local session trajectories'
     'artifact:inspect, delete, and prune local artifacts'
+    'capabilities:inspect and manage project capability state'
     'notes:distill and search local hindsight notes'
     'memory:manage the durable memory store'
     'audit-timer:install a memory and wiki audit timer'
@@ -73,6 +101,15 @@ _cairn() {
         *) _values 'artifact command' list show delete prune ;;
       esac
       ;;
+    capabilities)
+      case $words[3] in
+        list|status) _arguments '--json[emit JSON]' ;;
+        enable|disable) _arguments '1:capability ID:(memory.write memory.search notes.distill wiki graph security.audit route.check context.explore)' '--json[emit JSON]' ;;
+        reset) _arguments '1:capability ID:(memory.write memory.search notes.distill wiki graph security.audit route.check context.explore)' '--all[reset every override]' '--json[emit JSON]' ;;
+        logging) _values 'logging operation' enable disable reset '--json[emit JSON]' ;;
+        *) _values 'capability command' list status enable disable reset logging ;;
+      esac
+      ;;
     notes) _values 'notes command' distill search-error promote doctor ;;
     memory) _values 'memory command' path export import ;;
     audit-timer) _arguments '--on-calendar[systemd calendar]:calendar:' '--para-root[PARA root]:directory:_files -/' '--render-only[render directory]:directory:_files -/' ;;
@@ -87,8 +124,8 @@ EOF
   fish)
     cat <<'EOF'
 complete -c cairn -f
-for command in bootstrap memory-server sync sync-pi doctor trajectory artifact notes memory audit-timer uninstall completion version help
-    complete -c cairn -n "not __fish_seen_subcommand_from bootstrap memory-server sync sync-pi doctor trajectory artifact notes memory audit-timer uninstall completion version help" -a $command
+for command in bootstrap memory-server sync sync-pi doctor trajectory artifact capabilities notes memory audit-timer uninstall completion version help
+    complete -c cairn -n "not __fish_seen_subcommand_from bootstrap memory-server sync sync-pi doctor trajectory artifact capabilities notes memory audit-timer uninstall completion version help" -a $command
 end
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l apply
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l live-root -r
@@ -104,6 +141,12 @@ complete -c cairn -n "__fish_seen_subcommand_from artifact; and __fish_seen_subc
 complete -c cairn -n "__fish_seen_subcommand_from artifact; and __fish_seen_subcommand_from list show delete prune" -l json
 complete -c cairn -n "__fish_seen_subcommand_from artifact; and __fish_seen_subcommand_from delete prune" -l dry-run
 complete -c cairn -n "__fish_seen_subcommand_from artifact; and __fish_seen_subcommand_from prune" -l include-protected
+complete -c cairn -n "__fish_seen_subcommand_from capabilities; and not __fish_seen_subcommand_from list status enable disable reset logging" -a "list status enable disable reset logging"
+complete -c cairn -n "__fish_seen_subcommand_from capabilities; and __fish_seen_subcommand_from enable disable; and not __fish_seen_subcommand_from memory.write memory.search notes.distill wiki graph security.audit route.check context.explore" -a "memory.write memory.search notes.distill wiki graph security.audit route.check context.explore"
+complete -c cairn -n "__fish_seen_subcommand_from capabilities; and __fish_seen_subcommand_from reset; and not __fish_seen_subcommand_from memory.write memory.search notes.distill wiki graph security.audit route.check context.explore" -a "memory.write memory.search notes.distill wiki graph security.audit route.check context.explore"
+complete -c cairn -n "__fish_seen_subcommand_from capabilities; and __fish_seen_subcommand_from reset" -l all
+complete -c cairn -n "__fish_seen_subcommand_from capabilities; and __fish_seen_subcommand_from logging; and not __fish_seen_subcommand_from enable disable reset" -a "enable disable reset"
+complete -c cairn -n "__fish_seen_subcommand_from capabilities; and __fish_seen_subcommand_from list status enable disable reset logging" -l json
 complete -c cairn -n "__fish_seen_subcommand_from notes" -a "distill search-error promote doctor"
 complete -c cairn -n "__fish_seen_subcommand_from completion" -a "bash zsh fish"
 complete -c cairn -n "__fish_seen_subcommand_from uninstall" -l pi-live-root -r
