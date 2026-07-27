@@ -13,12 +13,24 @@ fail() {
 
 capability_env_keys='CAIRN_CAPABILITY_CONTRACT CAIRN_CAPABILITY_LOGGING CAIRN_CAPABILITY_MEMORY_WRITE CAIRN_CAPABILITY_MEMORY_SEARCH CAIRN_CAPABILITY_NOTES_DISTILL CAIRN_CAPABILITY_WIKI CAIRN_CAPABILITY_GRAPH CAIRN_CAPABILITY_SECURITY_AUDIT CAIRN_CAPABILITY_ROUTE_CHECK CAIRN_CAPABILITY_CONTEXT_EXPLORE'
 for key in $capability_env_keys; do
-  [[ $(grep -c "^# $key=" "$ROOT/templates/env.example.template") -eq 1 ]] ||
+  [[ $(grep -cxF "# $key=" "$ROOT/templates/env.example.template") -eq 1 ]] ||
     fail "environment template must document exactly one commented $key entry"
   if grep -q "^[[:space:]]*$key=" "$ROOT/templates/env.example.template"; then
     fail "environment template enabled $key by default"
   fi
 done
+node - "$ROOT/mcp-memory-server/src/capability-registry.ts" "$ROOT/templates/env.example.template" <<'NODE'
+const fs = require("fs");
+const [registryPath, templatePath] = process.argv.slice(2);
+const registry = fs.readFileSync(registryPath, "utf8");
+const template = fs.readFileSync(templatePath, "utf8");
+const ids = [...registry.matchAll(/^\s*id: "([^"]+)",$/gm)].map((match) => match[1]);
+const derived = ids.map((id) => `CAIRN_CAPABILITY_${id.toUpperCase().replaceAll(".", "_")}`);
+const documented = [...template.matchAll(/^# (CAIRN_CAPABILITY_[A-Z_]+)=$/gm)]
+  .map((match) => match[1])
+  .filter((name) => name !== "CAIRN_CAPABILITY_CONTRACT" && name !== "CAIRN_CAPABILITY_LOGGING");
+if (JSON.stringify(documented) !== JSON.stringify(derived)) process.exit(1);
+NODE
 grep -qF 'Strict booleans: 1 | true | yes | on; 0 | false | no | off.' "$ROOT/templates/env.example.template" ||
   fail "environment template omitted strict capability boolean guidance"
 grep -qF 'CAIRN_NOTE_DISTILLATION remains a compatibility input' "$ROOT/templates/env.example.template" ||
