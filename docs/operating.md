@@ -226,6 +226,16 @@ vendor or host.
 | `CAIRN_NOTE_ENRICHMENT_MODEL` | Explicit OpenAI-compatible chat model for note enrichment (no default) |
 | `CAIRN_NOTE_ENRICHMENT_TIMEOUT_MS` | Enrichment timeout in milliseconds (default `15000`, allowed `100`–`120000`) |
 | `CAIRN_TYPED_MEMORY_NODES` | Add typed metadata, filters, logical note address spaces, and `memory_import` (unset/default off; restart after changing) |
+| `CAIRN_CAPABILITY_CONTRACT` | Enable the managed eight-capability contract (unset/default off) |
+| `CAIRN_CAPABILITY_LOGGING` | Strict per-process callback-logging override (`1`/`0`; compatibility default off) |
+| `CAIRN_CAPABILITY_MEMORY_WRITE` | Strict per-process override for `memory.write` |
+| `CAIRN_CAPABILITY_MEMORY_SEARCH` | Strict per-process override for `memory.search` |
+| `CAIRN_CAPABILITY_NOTES_DISTILL` | Strict per-process override for `notes.distill` |
+| `CAIRN_CAPABILITY_WIKI` | Strict per-process override for `wiki` |
+| `CAIRN_CAPABILITY_GRAPH` | Strict per-process override for `graph` |
+| `CAIRN_CAPABILITY_SECURITY_AUDIT` | Strict per-process override for `security.audit` |
+| `CAIRN_CAPABILITY_ROUTE_CHECK` | Strict per-process override for `route.check` |
+| `CAIRN_CAPABILITY_CONTEXT_EXPLORE` | Strict per-process override for `context.explore` |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none`. See [git-providers.md](git-providers.md) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → the `route_check` tool is inert) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws at call time) |
@@ -237,6 +247,108 @@ vendor or host.
 | `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` | Override path to the `domain_knowledge_sync` document-sync script (unset → in-repo default) |
 | `CAIRN_ANYTHINGLLM_PROJECTS_FILE` | Override path to the bundled sync script's project configuration |
 | `CAIRN_ANYTHINGLLM_STATE_FILE` | Override path to the bundled sync script's incremental state |
+
+### Managed capability contract (opt-in)
+
+The managed contract is a narrow state and measurement boundary around eight
+existing owners. It adds no runtime dependency and does not move business logic
+from the MCP server, note CLI/timer, installed workflows, or the external
+token-miser delegates.
+
+The canonical registry is exactly:
+
+| ID | Kind | Owner | Compatibility default | Environment override | Restart required |
+|---|---|---|---:|---|---:|
+| `memory.write` | `mcp-tool` | `mcp-memory-server:index#memory_write` | on | `CAIRN_CAPABILITY_MEMORY_WRITE` | yes |
+| `memory.search` | `mcp-tool` | `mcp-memory-server:index#memory_search` | on | `CAIRN_CAPABILITY_MEMORY_SEARCH` | yes |
+| `notes.distill` | `offline-job` | `mcp-memory-server:note-cli#distill` | `CAIRN_NOTE_DISTILLATION`, otherwise off | `CAIRN_CAPABILITY_NOTES_DISTILL` | no |
+| `wiki` | `operating-workflow` | `operating-layer:wiki` | on | `CAIRN_CAPABILITY_WIKI` | no |
+| `graph` | `operating-workflow` | `operating-layer:graph` | `.planning/config.json` `graphify.enabled`, otherwise off | `CAIRN_CAPABILITY_GRAPH` | no |
+| `security.audit` | `operating-workflow` | `operating-layer:security-audit` | on | `CAIRN_CAPABILITY_SECURITY_AUDIT` | no |
+| `route.check` | `mcp-tool` | `mcp-memory-server:index#route_check` | on | `CAIRN_CAPABILITY_ROUTE_CHECK` | yes |
+| `context.explore` | `mcp-tool` | `mcp-memory-server:index#context_explore` | on | `CAIRN_CAPABILITY_CONTEXT_EXPLORE` | yes |
+
+`CAIRN_CAPABILITY_CONTRACT` is the default-off rollout gate. When it is unset,
+the launchers and sync commands retain byte-identical legacy installed
+Markdown/workflow assets and add no capability command, process, configuration,
+digest, logging, or store work. With it enabled at launch, the Claude and
+OpenCode launchers render isolated guarded overlays under
+`.ai/capability-contract/` and select those harness roots. Every direct command
+and directly invokable workflow in those overlays checks effective state before
+directory, process, delegate, or owner-output work, so a workflow cannot bypass
+the guard by being invoked directly. Normal installed assets remain in place;
+toggling never deletes configuration, retained data, or installed files.
+
+Bootstrap creates a mode-`0600` `.ai/capabilities.json` only if it is absent:
+
+```json
+{
+  "schema_version": 1,
+  "capabilities": {},
+  "logging": { "callbacks": false }
+}
+```
+
+Use the managed CLI; do not hand-edit the file:
+
+```bash
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities list
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities status
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities status --json
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities enable wiki
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities disable memory.search
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities reset memory.search
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities reset --all
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities logging enable
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities logging disable
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities logging reset
+```
+
+Precedence is strict: the derived per-capability environment value (or
+`CAIRN_CAPABILITY_LOGGING`) wins over the project value, which wins over the
+compatibility resolver. Every derived key uses the `CAIRN_CAPABILITY_` prefix
+followed by the uppercased ID with dots replaced by underscores. Accepted
+values are `1|true|yes|on` and
+`0|false|no|off`, case-insensitively. An invalid top-level value is reported
+with a fixed value-free issue and falls directly back to compatibility; it does
+not reveal the raw value or consult a lower project override. Unknown IDs and
+invalid project rows are likewise reported without their values. Each bad row
+falls back independently, so it cannot disable another capability or the
+server.
+
+`reset` removes the explicit override; `reset --all` clears every capability
+and logging override. The returned schema-v1 status orders all eight rows and
+reports `enabled`, `source` (`environment`, `project`, or `compatibility`),
+`restart_required`, contract/logging state, fixed issue codes, and the SHA-256
+`configuration_digest` of the canonical effective snapshot. The digest is
+evidence, not a signature or secret. MCP state is resolved once before server
+registration, so changes to `memory.write`, `memory.search`, `route.check`, or
+`context.explore` require a new server start; a disabled tool is omitted from
+`tools/list`. Notes and operating workflows resolve current state for the next
+invocation. Disabled notes retain the existing structured `enabled: false`
+offline result.
+
+Wiki covers ingest, query, and lint; graph covers its command family; security
+audit covers its command and workflow family. There are no subcommand-level
+switches. The four enabled MCP tools retain their exact names, schemas,
+responses, timeout/error behavior, and owners. In particular, `route_check`
+and `context_explore` remain thin token-miser delegates; Cairnkeep does not gain
+endpoint, model, tier, sandbox, or inference-loop ownership.
+
+Callback logging is separately default-off. When all three consents are on
+(`CAIRN_CAPABILITY_CONTRACT`, managed callback logging, and
+`CAIRN_TRAJECTORY_CAPTURE`), the wrapper measures only the capability-owned
+invocation. State is resolved first; the timer starts immediately before the
+owned body and stops after its terminal outcome but before final presentation.
+Discovery, configuration resolution, guard work, and unrelated harness overhead
+are excluded. Logging is payload-free, local-only, final-only, and fail-open;
+HTTP callbacks are never persisted. See the privacy and storage guides for the
+exact record and retention contract.
+
+Phase 19 must explicitly enable all eight capabilities to establish its
+baseline before disabling one at a time. This contract records status/digest
+and callback evidence only: it does not implement tasks, a runner, turns/tokens,
+statistics, confidence intervals, or a quality/efficiency claim.
 
 ### Typed memory nodes and note address spaces (opt-in)
 

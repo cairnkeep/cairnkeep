@@ -245,6 +245,16 @@ search):
 | `CAIRN_NOTE_ENRICHMENT_MODEL` | Explicit chat model for optional note enrichment (no default) |
 | `CAIRN_NOTE_ENRICHMENT_TIMEOUT_MS` | Optional enrichment timeout (default `15000`) |
 | `CAIRN_TYPED_MEMORY_NODES` | Opt in to typed metadata, filters, logical note address spaces, and `memory_import` (default off; restart the server after changing) |
+| `CAIRN_CAPABILITY_CONTRACT` | Opt in to the managed eight-capability contract (default off) |
+| `CAIRN_CAPABILITY_LOGGING` | Override payload-free local callback logging (`1`/`0`; default off) |
+| `CAIRN_CAPABILITY_MEMORY_WRITE` | Override `memory.write` for this process |
+| `CAIRN_CAPABILITY_MEMORY_SEARCH` | Override `memory.search` for this process |
+| `CAIRN_CAPABILITY_NOTES_DISTILL` | Override `notes.distill` for this process |
+| `CAIRN_CAPABILITY_WIKI` | Override `wiki` for this process |
+| `CAIRN_CAPABILITY_GRAPH` | Override `graph` for this process |
+| `CAIRN_CAPABILITY_SECURITY_AUDIT` | Override `security.audit` for this process |
+| `CAIRN_CAPABILITY_ROUTE_CHECK` | Override `route.check` for this process |
+| `CAIRN_CAPABILITY_CONTEXT_EXPLORE` | Override `context.explore` for this process |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none` ([docs/git-providers.md](docs/git-providers.md)) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → `route_check` is inert) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws) |
@@ -259,6 +269,54 @@ There is no Cairnkeep telemetry. Optional extraction, embeddings, document RAG,
 remote memory, and delegated exploration can send content to endpoints you
 configure. Review [Privacy and data flow](docs/privacy-and-data-flow.md) before
 enabling them.
+
+### Managed capability contract (opt-in)
+
+`CAIRN_CAPABILITY_CONTRACT=1` enables one versioned, typed boundary around the
+existing capability owners. The master flag and callback logging are both off
+by default. With the master flag unset, MCP registration, installed
+Markdown/workflow bytes, commands, processes, configuration reads, logging,
+output, and performance remain on the legacy path.
+
+| Capability ID | Kind | Existing owner | Compatibility default | Process override |
+|---|---|---|---:|---|
+| `memory.write` | MCP tool | `memory_write` | on | `CAIRN_CAPABILITY_MEMORY_WRITE` |
+| `memory.search` | MCP tool | `memory_search` | on | `CAIRN_CAPABILITY_MEMORY_SEARCH` |
+| `notes.distill` | offline job | note distillation CLI/timer | off | `CAIRN_CAPABILITY_NOTES_DISTILL` |
+| `wiki` | operating workflow | installed wiki commands/workflows | on | `CAIRN_CAPABILITY_WIKI` |
+| `graph` | operating workflow | installed graph commands | inherited from `graphify.enabled`, otherwise off | `CAIRN_CAPABILITY_GRAPH` |
+| `security.audit` | operating workflow | installed security commands/workflows | on | `CAIRN_CAPABILITY_SECURITY_AUDIT` |
+| `route.check` | MCP tool | existing token-miser routing delegate | on | `CAIRN_CAPABILITY_ROUTE_CHECK` |
+| `context.explore` | MCP tool | existing token-miser exploration delegate | on | `CAIRN_CAPABILITY_CONTEXT_EXPLORE` |
+
+Manage project overrides in `.ai/capabilities.json` through the CLI rather than
+editing JSON:
+
+```bash
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities list
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities status --json
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities disable context.explore
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities reset context.explore
+CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities logging enable
+```
+
+Process overrides take precedence over project values, which take precedence
+over compatibility defaults. `reset` removes an explicit override and restores
+the inherited state; it does not mean enabled. Changes to the four MCP
+capabilities (`memory.write`, `memory.search`, `route.check`, and
+`context.explore`) require a fresh memory-server start and disabled tools are
+omitted from `tools/list`. Offline and operating workflows resolve state at
+each invocation. Enabling the master does not enable `notes.distill` or graph
+when their compatibility inputs remain off.
+
+Callback records are local, payload-free operating evidence, not evaluation
+results or telemetry. They require the contract, callback logging, and local
+trajectory capture to be enabled together. Cairnkeep makes no capability gain,
+memory-quality, or efficiency claim from this instrumentation; Phase 19 must
+first create an explicit all-enabled baseline and measure one-disabled states.
+See the [operating guide](docs/operating.md#managed-capability-contract-opt-in),
+[storage contract](docs/storage.md#capability-callback-storage), and
+[privacy flow](docs/privacy-and-data-flow.md#capability-callback-flow).
 
 ### Typed memory nodes and structured import (opt-in)
 

@@ -31,6 +31,10 @@ All notable user-facing changes are documented here. This project follows
   output, and generated-file metadata/snapshots; four gated MCP tools;
   `cairn artifact list|show|delete|prune`; doctor, completion, package, and
   backup-first uninstall coverage; and separately consented HTTP access.
+- Add a default-off managed contract for eight existing capabilities, including
+  project CLI overrides, compatibility-aware status/digests, exact MCP tool
+  omission, guarded installed workflows, and separately consented payload-free
+  local callback records.
 
 ### Fixed
 
