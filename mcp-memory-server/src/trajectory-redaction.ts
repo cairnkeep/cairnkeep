@@ -7,6 +7,7 @@ import type { RedactedTrajectory, TrajectorySession } from "./trajectory-schema.
 const MAX_CUSTOM_PATTERNS = 32;
 const MAX_PATTERN_LENGTH = 256;
 const MAX_REPLACEMENT_LENGTH = 128;
+const MAX_REDACTION_CANDIDATE_BYTES = 64 * 1024 * 1024;
 const REDACTED = "[REDACTED]";
 
 const redactionConfigSchema = z.object({
@@ -30,7 +31,7 @@ const builtinPatterns: CompiledPattern[] = [
         replacement: "$1=[REDACTED]",
     },
     {
-        regex: /([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi,
+        regex: /([a-z][a-z0-9+.-]{0,31}:\/\/)[^/\s:@]+:[^/\s@]+@/gi,
         replacement: "$1[REDACTED]@",
     },
     {
@@ -50,7 +51,8 @@ function assertContainedConfigPath(projectRoot: string, configuredPath: string):
 }
 
 function compileCustomPatterns(projectRoot: string): CompiledPattern[] {
-    const explicitPath = process.env.CAIRN_TRAJECTORY_REDACTION_FILE?.trim();
+    const explicitPath = process.env.CAIRN_REDACTION_FILE?.trim()
+        || process.env.CAIRN_TRAJECTORY_REDACTION_FILE?.trim();
     const defaultPath = ".ai/trajectory-redaction.json";
     const configuredPath = explicitPath || (existsSync(resolve(projectRoot, defaultPath)) ? defaultPath : "");
     if (!configuredPath) return [];
@@ -76,12 +78,23 @@ function secretEnvironmentValues(): string[] {
     return Array.from(new Set(values)).sort((a, b) => b.length - a.length);
 }
 
-function redactString(value: string, patterns: CompiledPattern[], environmentSecrets: string[]): string {
+function redactString(
+    value: string,
+    patterns: CompiledPattern[],
+    environmentSecrets: string[],
+    metadata: { replacementCount: number },
+): string {
     let result = value;
     for (const secret of environmentSecrets) {
-        if (result.includes(secret)) result = result.split(secret).join("[REDACTED:ENV]");
+        if (!result.includes(secret)) continue;
+        const segments = result.split(secret);
+        metadata.replacementCount += segments.length - 1;
+        result = segments.join("[REDACTED:ENV]");
     }
     for (const { regex, replacement, literalReplacement } of patterns) {
+        regex.lastIndex = 0;
+        const matches = result.match(regex);
+        metadata.replacementCount += matches?.length ?? 0;
         regex.lastIndex = 0;
         result = literalReplacement
             ? result.replace(regex, () => replacement)
@@ -94,22 +107,72 @@ function redactValue(
     value: unknown,
     patterns: CompiledPattern[],
     environmentSecrets: string[],
+    metadata: { replacementCount: number },
     key?: string,
 ): unknown {
-    if (key && secretKeyPattern.test(key)) return REDACTED;
-    if (typeof value === "string") return redactString(value, patterns, environmentSecrets);
-    if (Array.isArray(value)) return value.map((item) => redactValue(item, patterns, environmentSecrets));
+    if (key && secretKeyPattern.test(key)) {
+        metadata.replacementCount += 1;
+        return REDACTED;
+    }
+    if (typeof value === "string") return redactString(value, patterns, environmentSecrets, metadata);
+    if (Array.isArray(value)) {
+        return value.map((item) => redactValue(item, patterns, environmentSecrets, metadata));
+    }
     if (value && typeof value === "object") {
         return Object.fromEntries(Object.entries(value).map(([childKey, childValue]) => [
             childKey,
-            redactValue(childValue, patterns, environmentSecrets, childKey),
+            redactValue(childValue, patterns, environmentSecrets, metadata, childKey),
         ]));
     }
     return value;
 }
 
-export function redactTrajectory(session: TrajectorySession, projectRoot: string): RedactedTrajectory {
+function boundedCandidateBytes(value: unknown, remaining = MAX_REDACTION_CANDIDATE_BYTES): number {
+    if (remaining < 0) throw new Error("Redaction candidate exceeds the in-memory safety bound.");
+    if (value === null || typeof value === "boolean" || typeof value === "number") return 16;
+    if (typeof value === "string") {
+        const bytes = Buffer.byteLength(value, "utf8");
+        if (bytes > remaining) throw new Error("Redaction candidate exceeds the in-memory safety bound.");
+        return bytes;
+    }
+    if (Array.isArray(value)) {
+        let total = 2;
+        for (const item of value) {
+            total += boundedCandidateBytes(item, remaining - total) + 1;
+            if (total > remaining) throw new Error("Redaction candidate exceeds the in-memory safety bound.");
+        }
+        return total;
+    }
+    if (value && typeof value === "object") {
+        let total = 2;
+        for (const [key, childValue] of Object.entries(value)) {
+            total += Buffer.byteLength(key, "utf8") + 3;
+            total += boundedCandidateBytes(childValue, remaining - total) + 1;
+            if (total > remaining) throw new Error("Redaction candidate exceeds the in-memory safety bound.");
+        }
+        return total;
+    }
+    return 16;
+}
+
+export type RedactedLocalValue<T> = {
+    value: T;
+    applied: boolean;
+    replacement_count: number;
+};
+
+export function redactLocalValue<T>(value: T, projectRoot: string): RedactedLocalValue<T> {
+    boundedCandidateBytes(value);
     const patterns = [...builtinPatterns, ...compileCustomPatterns(projectRoot)];
-    const redacted = redactValue(session, patterns, secretEnvironmentValues());
-    return redacted as RedactedTrajectory;
+    const metadata = { replacementCount: 0 };
+    const redacted = redactValue(value, patterns, secretEnvironmentValues(), metadata) as T;
+    return {
+        value: redacted,
+        applied: metadata.replacementCount > 0,
+        replacement_count: metadata.replacementCount,
+    };
+}
+
+export function redactTrajectory(session: TrajectorySession, projectRoot: string): RedactedTrajectory {
+    return redactLocalValue(session, projectRoot).value as RedactedTrajectory;
 }
