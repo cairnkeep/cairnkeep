@@ -276,7 +276,8 @@ function captureEvidence(evidenceDirectory, sourceCommit) {
   const engine = findContainerEngine();
   for (const image of [...NODE_IMAGES.values(), BASH_IMAGE]) ensureImage(engine, image);
 
-  const staging = mkdtempSync(join(tmpdir(), "cairn-phase18-evidence-"));
+  mkdirSync(dirname(expectedDirectory), { recursive: true, mode: 0o700 });
+  const staging = mkdtempSync(join(dirname(expectedDirectory), ".runtime-evidence-staging-"));
   try {
     const logs = withDetachedWorktree(SCRIPT_ROOT, sourceCommit, (worktree) => {
       const rows = [];
