@@ -181,7 +181,7 @@ function runContainer(engine, image, runtime, worktree, npmCache) {
   if (runtime.startsWith("node-")) {
     args.push("--mount", `type=bind,src=${npmCache},dst=/npm-cache`);
   }
-  args.push("-w", "/work", image, "bash", "-c", script);
+  args.push(image, "bash", "-c", script);
   const command = renderCommand(engine, args);
   const result = run(engine, args, { timeout: 900_000 });
   if (result.status !== 0) {
