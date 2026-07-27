@@ -426,6 +426,7 @@ function testLimitContract(schemaModule) {
         CAIRN_ARTIFACT_STORE_MAX_BYTES: "8192",
         CAIRN_ARTIFACT_RETENTION_DAYS: "7",
         CAIRN_COMPACTION_MAX_REVISIONS: "3",
+        CAIRN_ARTIFACT_GENERATED_FILE_SNAPSHOT_MAX_BYTES: "1024",
     };
     return withEnvironment(envKeys, () => {
         assert.deepEqual(getArtifactLimits(), {
@@ -434,7 +435,7 @@ function testLimitContract(schemaModule) {
             storeMaxBytes: 8192,
             retentionDays: 7,
             compactionMaxRevisions: 3,
-            generatedFileSnapshotMaxBytes: 2048,
+            generatedFileSnapshotMaxBytes: 1024,
         });
         return withEnvironment({ CAIRN_ARTIFACT_SESSION_MAX_BYTES: "1024" }, () => {
             assert.throws(() => getArtifactLimits(), /session.*artifact|artifact.*session/i);

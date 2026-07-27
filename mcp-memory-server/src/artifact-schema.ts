@@ -193,6 +193,11 @@ export function getArtifactLimits(): ArtifactLimits {
     const storeMaxBytes = integerSetting("CAIRN_ARTIFACT_STORE_MAX_BYTES", ARTIFACT_DEFAULT_STORE_MAX_BYTES, 1024);
     const retentionDays = integerSetting("CAIRN_ARTIFACT_RETENTION_DAYS", ARTIFACT_DEFAULT_RETENTION_DAYS, 0);
     const compactionMaxRevisions = integerSetting("CAIRN_COMPACTION_MAX_REVISIONS", COMPACTION_DEFAULT_MAX_REVISIONS, 1);
+    const generatedFileSnapshotMaxBytes = integerSetting(
+        "CAIRN_ARTIFACT_GENERATED_FILE_SNAPSHOT_MAX_BYTES",
+        GENERATED_FILE_MAX_SNAPSHOT_BYTES,
+        0,
+    );
     if (sessionMaxBytes < artifactMaxBytes) {
         throw new Error("Artifact session maximum must be at least the per-artifact maximum.");
     }
@@ -205,7 +210,7 @@ export function getArtifactLimits(): ArtifactLimits {
         storeMaxBytes,
         retentionDays,
         compactionMaxRevisions,
-        generatedFileSnapshotMaxBytes: Math.min(GENERATED_FILE_MAX_SNAPSHOT_BYTES, artifactMaxBytes),
+        generatedFileSnapshotMaxBytes: Math.min(generatedFileSnapshotMaxBytes, artifactMaxBytes),
     };
 }
 
