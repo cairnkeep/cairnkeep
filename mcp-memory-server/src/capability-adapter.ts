@@ -3,10 +3,16 @@ import { performance } from "node:perf_hooks";
 
 import { z } from "zod";
 
+import {
+    isCapabilityContractEnabled,
+    resolveCapabilityStatus,
+} from "./capability-config.js";
 import { isTrajectoryCaptureEnabled } from "./trajectory-schema.js";
 import {
     CAPABILITY_CALLBACK_SCHEMA_VERSION,
     appendCapabilityRecord,
+    issueOperatingCapability,
+    settleOperatingCapability,
     type CapabilityCallbackErrorCode,
     type CapabilityCallbackOutcome,
     type CapabilityCallbackRecord,
@@ -101,7 +107,6 @@ export type CapabilityAdapterOptions = {
 
 let fallbackCorrelationId: string | undefined;
 const operatingStarts = new Map<string, number>();
-const finalizedOperatingInvocations = new Set<string>();
 
 function resolvedCapability(options: CapabilityAdapterOptions): CapabilitySnapshot["capabilities"][number] | undefined {
     return options.snapshot.capabilities.find(({ id }) => id === options.capabilityId);
@@ -135,15 +140,6 @@ function rememberOperatingStart(id: string, monotonicStart: number): void {
         const oldest = operatingStarts.keys().next().value as string | undefined;
         if (!oldest) break;
         operatingStarts.delete(oldest);
-    }
-}
-
-function rememberFinalized(id: string): void {
-    finalizedOperatingInvocations.add(id);
-    while (finalizedOperatingInvocations.size > MAX_TRACKED_OPERATING_INVOCATIONS) {
-        const oldest = finalizedOperatingInvocations.values().next().value as string | undefined;
-        if (!oldest) break;
-        finalizedOperatingInvocations.delete(oldest);
     }
 }
 
@@ -298,7 +294,6 @@ export async function startOperatingCapability(
             "disabled",
             "capability-disabled",
         ));
-        rememberFinalized(handle.invocation_id);
         return result;
     }
 
@@ -313,8 +308,30 @@ export async function startOperatingCapability(
 
     const monotonicStart = performance.now();
     const handle = createHandle(options, new Date().toISOString());
+    const issued = await issueOperatingCapability(options.projectRoot, handle, {
+        ...(options.testStoreFault === undefined ? {} : { testStoreFault: options.testStoreFault }),
+    });
+    if (!issued) {
+        return operatingCapabilityBypassResultSchema.parse({
+            schema_version: CAPABILITY_CALLBACK_SCHEMA_VERSION,
+            capability_id: options.capabilityId,
+            disabled: false,
+            measured: false,
+        });
+    }
     rememberOperatingStart(handle.invocation_id, monotonicStart);
     return handle;
+}
+
+function operatingFinishResult(
+    invocationIdValue: string,
+    finalized: boolean,
+): OperatingCapabilityFinishResult {
+    return operatingCapabilityFinishResultSchema.parse({
+        schema_version: CAPABILITY_CALLBACK_SCHEMA_VERSION,
+        invocation_id: invocationIdValue,
+        finalized,
+    });
 }
 
 export async function finishOperatingCapability(
@@ -324,61 +341,58 @@ export async function finishOperatingCapability(
 ): Promise<OperatingCapabilityFinishResult> {
     const handle = operatingCapabilityHandleSchema.parse(rawHandle);
     const finish = operatingCapabilityFinishInputSchema.parse(rawFinish);
-    if (finalizedOperatingInvocations.has(handle.invocation_id)) {
-        return operatingCapabilityFinishResultSchema.parse({
-            schema_version: CAPABILITY_CALLBACK_SCHEMA_VERSION,
-            invocation_id: handle.invocation_id,
-            finalized: false,
-        });
-    }
-    rememberFinalized(handle.invocation_id);
+    try {
+        if (!isCapabilityContractEnabled()
+            || !isTrajectoryCaptureEnabled()
+            || handle.transport === "http") {
+            await settleOperatingCapability(projectRoot, handle);
+            operatingStarts.delete(handle.invocation_id);
+            return operatingFinishResult(handle.invocation_id, false);
+        }
 
-    const finishedAt = new Date().toISOString();
-    const monotonicStart = operatingStarts.get(handle.invocation_id);
-    operatingStarts.delete(handle.invocation_id);
-    const durationMs = monotonicStart === undefined
-        ? Math.max(0, Date.parse(finishedAt) - Date.parse(handle.started_at))
-        : Math.max(0, performance.now() - monotonicStart);
-    const errorCode: CapabilityCallbackErrorCode | undefined = finish.outcome === "error"
-        ? "callback-error"
-        : finish.outcome === "timeout"
-            ? "callback-timeout"
-            : undefined;
-    const options: CapabilityAdapterOptions = {
-        projectRoot,
-        snapshot: {
-            contract_enabled: true,
-            logging: { enabled: true, source: handle.state_source },
-            configuration_digest: handle.configuration_digest,
-            capabilities: [{
-                id: handle.capability_id,
-                kind: "operating-workflow",
-                enabled: true,
-                source: handle.state_source,
-                restart_required: false,
-            }],
-        },
-        capabilityId: handle.capability_id,
-        classification: {
-            harness: handle.harness,
-            source: handle.source,
-            transport: handle.transport,
-        },
-        correlationId: handle.correlation_id,
-    };
-    if (handle.transport !== "http" && isTrajectoryCaptureEnabled()) {
-        await persistFinal(options, finalRecord(
-            options,
+        const current = await resolveCapabilityStatus({ projectRoot });
+        const capability = current.capabilities.find(({ id }) => id === handle.capability_id);
+        const eligible = current.contract_enabled
+            && current.logging.enabled
+            && capability?.enabled === true
+            && capability.source === handle.state_source
+            && current.configuration_digest === handle.configuration_digest;
+        if (!eligible) {
+            await settleOperatingCapability(projectRoot, handle);
+            operatingStarts.delete(handle.invocation_id);
+            return operatingFinishResult(handle.invocation_id, false);
+        }
+
+        const finishedAt = new Date().toISOString();
+        const monotonicStart = operatingStarts.get(handle.invocation_id);
+        operatingStarts.delete(handle.invocation_id);
+        const durationMs = monotonicStart === undefined
+            ? Math.max(0, Date.parse(finishedAt) - Date.parse(handle.started_at))
+            : Math.max(0, performance.now() - monotonicStart);
+        const errorCode: CapabilityCallbackErrorCode | undefined = finish.outcome === "error"
+            ? "callback-error"
+            : finish.outcome === "timeout"
+                ? "callback-timeout"
+                : undefined;
+        const options: CapabilityAdapterOptions = {
+            projectRoot,
+            snapshot: current,
+            capabilityId: handle.capability_id,
+            classification: {
+                harness: handle.harness,
+                source: handle.source,
+                transport: handle.transport,
+            },
+            correlationId: handle.correlation_id,
+        };
+        const finalized = await settleOperatingCapability(
+            projectRoot,
             handle,
-            finishedAt,
-            durationMs,
-            finish.outcome,
-            errorCode,
-        ));
+            finalRecord(options, handle, finishedAt, durationMs, finish.outcome, errorCode),
+        );
+        return operatingFinishResult(handle.invocation_id, finalized);
+    } catch {
+        operatingStarts.delete(handle.invocation_id);
+        return operatingFinishResult(handle.invocation_id, false);
     }
-    return operatingCapabilityFinishResultSchema.parse({
-        schema_version: CAPABILITY_CALLBACK_SCHEMA_VERSION,
-        invocation_id: handle.invocation_id,
-        finalized: true,
-    });
 }

@@ -12,6 +12,7 @@ import { getTrajectoryLimits } from "./trajectory-schema.js";
 
 export const CAPABILITY_CALLBACK_SCHEMA_VERSION = 1 as const;
 export const CAPABILITY_CALLBACK_RECORD_PREFIX = "capability-callback/v1/record/";
+export const CAPABILITY_CALLBACK_PENDING_PREFIX = "capability-callback/v1/pending/";
 export const CAPABILITY_CALLBACK_RECORD_MAX_COUNT = 10_000;
 
 const META_KEY = "capability-callback/meta/schema-version";
@@ -43,6 +44,19 @@ const correlationIdSchema = z.string()
     .max(256)
     .regex(/^(?:cairn:)?[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/)
     .refine((value) => value !== "unknown");
+
+const operatingCapabilityIssuanceSchema = z.strictObject({
+    schema_version: z.literal(CAPABILITY_CALLBACK_SCHEMA_VERSION),
+    capability_id: capabilityIdSchema,
+    invocation_id: invocationIdSchema,
+    correlation_id: correlationIdSchema,
+    harness: z.enum(["claude-code", "opencode", "pi", "other"]),
+    source: z.enum(["mcp", "notes-cli", "audit-timer", "operating-command", "operating-workflow"]),
+    transport: z.enum(["stdio", "http", "local-process", "harness-command"]),
+    started_at: z.iso.datetime(),
+    state_source: capabilitySourceSchema,
+    configuration_digest: z.string().regex(/^[a-f0-9]{64}$/),
+});
 
 export const capabilityCallbackRecordSchema = z.strictObject({
     schema_version: z.literal(CAPABILITY_CALLBACK_SCHEMA_VERSION),
@@ -76,6 +90,7 @@ export const capabilityCallbackRecordSchema = z.strictObject({
 export type CapabilityCallbackRecord = z.infer<typeof capabilityCallbackRecordSchema>;
 export type CapabilityCallbackOutcome = z.infer<typeof capabilityCallbackOutcomeSchema>;
 export type CapabilityCallbackErrorCode = z.infer<typeof capabilityCallbackErrorCodeSchema>;
+type OperatingCapabilityIssuance = z.infer<typeof operatingCapabilityIssuanceSchema>;
 
 export type CapabilityRecordList = {
     schema_version: typeof CAPABILITY_CALLBACK_SCHEMA_VERSION;
@@ -99,6 +114,8 @@ type AppendCapabilityRecordOptions = {
     testStoreFault?: StoreFault;
     nowMs?: number;
 };
+
+type OperatingCapabilityStoreOptions = Pick<AppendCapabilityRecordOptions, "testStoreFault" | "nowMs">;
 
 function capabilityDbPath(projectRoot = process.cwd()): string {
     return resolve(projectRoot, ".agentfs", "trajectory.db");
@@ -131,6 +148,10 @@ function recordKey(record: CapabilityCallbackRecord): string {
     return `${CAPABILITY_CALLBACK_RECORD_PREFIX}${String(epoch).padStart(16, "0")}/${record.invocation_id}`;
 }
 
+function pendingKey(issuance: OperatingCapabilityIssuance): string {
+    return `${CAPABILITY_CALLBACK_PENDING_PREFIX}${issuance.invocation_id}`;
+}
+
 async function inImmediateTransaction<T>(agent: AgentFS, operation: () => Promise<T>): Promise<T> {
     const transaction = agent.getDatabase().transaction(operation);
     const immediate = (transaction as typeof transaction & { immediate: typeof transaction }).immediate;
@@ -142,11 +163,83 @@ function sortedRecordRows(rows: Awaited<ReturnType<AgentFS["kv"]["list"]>>): Arr
         .sort((left, right) => left.key.localeCompare(right.key));
 }
 
+function sortedPendingRows(rows: Awaited<ReturnType<AgentFS["kv"]["list"]>>): Array<{ key: string; issuance: OperatingCapabilityIssuance }> {
+    return rows.map(({ key, value }) => ({ key, issuance: operatingCapabilityIssuanceSchema.parse(value) }))
+        .sort((left, right) => {
+            const byStart = left.issuance.started_at.localeCompare(right.issuance.started_at);
+            return byStart === 0 ? left.key.localeCompare(right.key) : byStart;
+        });
+}
+
+function sameIssuance(left: OperatingCapabilityIssuance, right: OperatingCapabilityIssuance): boolean {
+    return left.schema_version === right.schema_version
+        && left.capability_id === right.capability_id
+        && left.invocation_id === right.invocation_id
+        && left.correlation_id === right.correlation_id
+        && left.harness === right.harness
+        && left.source === right.source
+        && left.transport === right.transport
+        && left.started_at === right.started_at
+        && left.state_source === right.state_source
+        && left.configuration_digest === right.configuration_digest;
+}
+
+function recordMatchesIssuance(record: CapabilityCallbackRecord, issuance: OperatingCapabilityIssuance): boolean {
+    return record.schema_version === issuance.schema_version
+        && record.capability_id === issuance.capability_id
+        && record.invocation_id === issuance.invocation_id
+        && record.correlation_id === issuance.correlation_id
+        && record.harness === issuance.harness
+        && record.source === issuance.source
+        && record.transport === issuance.transport
+        && record.started_at === issuance.started_at
+        && record.state_source === issuance.state_source
+        && record.configuration_digest === issuance.configuration_digest;
+}
+
 async function assertCompatibleSchema(agent: AgentFS, allowMissing: boolean): Promise<void> {
     const version = await agent.kv.get<number>(META_KEY);
     if (version === undefined && allowMissing) return;
     if (version !== CAPABILITY_CALLBACK_SCHEMA_VERSION) {
         throw new Error("Capability callback store schema is incompatible; run `cairn doctor`.");
+    }
+}
+
+function recordLimit(value: number | undefined): number {
+    const maxRecords = value ?? CAPABILITY_CALLBACK_RECORD_MAX_COUNT;
+    if (!Number.isSafeInteger(maxRecords) || maxRecords < 1 || maxRecords > CAPABILITY_CALLBACK_RECORD_MAX_COUNT) {
+        throw new Error("Capability callback record limit is invalid.");
+    }
+    return maxRecords;
+}
+
+async function appendParsedRecord(
+    agent: AgentFS,
+    parsed: CapabilityCallbackRecord,
+    maxRecords: number,
+    cutoff: number,
+    fault?: StoreFault,
+): Promise<void> {
+    const rows = sortedRecordRows(await agent.kv.list(CAPABILITY_CALLBACK_RECORD_PREFIX));
+    if (rows.some(({ record: existing }) => existing.invocation_id === parsed.invocation_id)) return;
+
+    const retained: typeof rows = [];
+    for (const row of rows) {
+        if (Date.parse(row.record.finished_at) < cutoff) await agent.kv.delete(row.key);
+        else retained.push(row);
+    }
+
+    if (fault === "write") throw new Error("Injected capability store write fault.");
+    await agent.kv.set(META_KEY, CAPABILITY_CALLBACK_SCHEMA_VERSION);
+    if (Date.parse(parsed.finished_at) >= cutoff) {
+        const key = recordKey(parsed);
+        await agent.kv.set(key, parsed);
+        retained.push({ key, record: parsed });
+    }
+    retained.sort((left, right) => left.key.localeCompare(right.key));
+    while (retained.length > maxRecords) {
+        const oldest = retained.shift();
+        if (oldest) await agent.kv.delete(oldest.key);
     }
 }
 
@@ -156,10 +249,7 @@ export async function appendCapabilityRecord(
     options: AppendCapabilityRecordOptions = {},
 ): Promise<void> {
     const parsed = capabilityCallbackRecordSchema.parse(record);
-    const maxRecords = options.testMaxRecords ?? CAPABILITY_CALLBACK_RECORD_MAX_COUNT;
-    if (!Number.isSafeInteger(maxRecords) || maxRecords < 1 || maxRecords > CAPABILITY_CALLBACK_RECORD_MAX_COUNT) {
-        throw new Error("Capability callback record limit is invalid.");
-    }
+    const maxRecords = recordLimit(options.testMaxRecords);
     const agent = await openCapabilityStore(projectRoot, true, options.testStoreFault);
     if (!agent) throw new Error("Unable to open the local capability callback store.");
     try {
@@ -168,31 +258,98 @@ export async function appendCapabilityRecord(
             await assertCompatibleSchema(agent, true);
             if (options.testStoreFault === "schema") throw new Error("Injected capability store schema fault.");
 
-            const rows = sortedRecordRows(await agent.kv.list(CAPABILITY_CALLBACK_RECORD_PREFIX));
-            if (rows.some(({ record: existing }) => existing.invocation_id === parsed.invocation_id)) return;
-
             const cutoff = (options.nowMs ?? Date.now()) - getTrajectoryLimits().retentionDays * DAY_MS;
-            const retained: typeof rows = [];
-            for (const row of rows) {
-                if (Date.parse(row.record.finished_at) < cutoff) await agent.kv.delete(row.key);
-                else retained.push(row);
-            }
-
-            if (options.testStoreFault === "write") throw new Error("Injected capability store write fault.");
-            await agent.kv.set(META_KEY, CAPABILITY_CALLBACK_SCHEMA_VERSION);
-            if (Date.parse(parsed.finished_at) >= cutoff) {
-                const key = recordKey(parsed);
-                await agent.kv.set(key, parsed);
-                retained.push({ key, record: parsed });
-            }
-            retained.sort((left, right) => left.key.localeCompare(right.key));
-            while (retained.length > maxRecords) {
-                const oldest = retained.shift();
-                if (oldest) await agent.kv.delete(oldest.key);
-            }
+            await appendParsedRecord(agent, parsed, maxRecords, cutoff, options.testStoreFault);
         });
     } finally {
         await agent.close();
+    }
+}
+
+export async function issueOperatingCapability(
+    projectRoot: string,
+    rawIssuance: OperatingCapabilityIssuance,
+    options: OperatingCapabilityStoreOptions = {},
+): Promise<boolean> {
+    try {
+        const issuance = operatingCapabilityIssuanceSchema.parse(rawIssuance);
+        const agent = await openCapabilityStore(projectRoot, true, options.testStoreFault);
+        if (!agent) return false;
+        try {
+            if (options.testStoreFault === "lock") throw new Error("Injected capability store lock fault.");
+            return await inImmediateTransaction(agent, async () => {
+                await assertCompatibleSchema(agent, true);
+                if (options.testStoreFault === "schema") throw new Error("Injected capability store schema fault.");
+
+                const cutoff = (options.nowMs ?? Date.now()) - getTrajectoryLimits().retentionDays * DAY_MS;
+                const rows = sortedPendingRows(await agent.kv.list(CAPABILITY_CALLBACK_PENDING_PREFIX));
+                const retained: typeof rows = [];
+                for (const row of rows) {
+                    if (Date.parse(row.issuance.started_at) < cutoff) await agent.kv.delete(row.key);
+                    else retained.push(row);
+                }
+                if (retained.some(({ issuance: existing }) => existing.invocation_id === issuance.invocation_id)) {
+                    return false;
+                }
+                if (options.testStoreFault === "write") throw new Error("Injected capability store write fault.");
+                await agent.kv.set(META_KEY, CAPABILITY_CALLBACK_SCHEMA_VERSION);
+                if (Date.parse(issuance.started_at) < cutoff) return false;
+                const key = pendingKey(issuance);
+                await agent.kv.set(key, issuance);
+                retained.push({ key, issuance });
+                retained.sort((left, right) => {
+                    const byStart = left.issuance.started_at.localeCompare(right.issuance.started_at);
+                    return byStart === 0 ? left.key.localeCompare(right.key) : byStart;
+                });
+                while (retained.length > CAPABILITY_CALLBACK_RECORD_MAX_COUNT) {
+                    const oldest = retained.shift();
+                    if (oldest) await agent.kv.delete(oldest.key);
+                }
+                return retained.some(({ issuance: retainedIssuance }) => retainedIssuance.invocation_id === issuance.invocation_id);
+            });
+        } finally {
+            await agent.close();
+        }
+    } catch {
+        return false;
+    }
+}
+
+export async function settleOperatingCapability(
+    projectRoot: string,
+    rawIssuance: OperatingCapabilityIssuance,
+    rawRecord?: CapabilityCallbackRecord,
+    options: OperatingCapabilityStoreOptions = {},
+): Promise<boolean> {
+    try {
+        const issuance = operatingCapabilityIssuanceSchema.parse(rawIssuance);
+        const record = rawRecord === undefined ? undefined : capabilityCallbackRecordSchema.parse(rawRecord);
+        if (record !== undefined && !recordMatchesIssuance(record, issuance)) return false;
+        const agent = await openCapabilityStore(projectRoot, false, options.testStoreFault);
+        if (!agent) return false;
+        try {
+            if (options.testStoreFault === "lock") throw new Error("Injected capability store lock fault.");
+            return await inImmediateTransaction(agent, async () => {
+                await assertCompatibleSchema(agent, false);
+                if (options.testStoreFault === "schema") throw new Error("Injected capability store schema fault.");
+                const key = pendingKey(issuance);
+                const stored = operatingCapabilityIssuanceSchema.safeParse(await agent.kv.get<unknown>(key));
+                if (!stored.success || !sameIssuance(stored.data, issuance)) return false;
+
+                if (options.testStoreFault === "write") throw new Error("Injected capability store write fault.");
+                const cutoff = (options.nowMs ?? Date.now()) - getTrajectoryLimits().retentionDays * DAY_MS;
+                await agent.kv.delete(key);
+                if (Date.parse(stored.data.started_at) < cutoff) return false;
+                if (record !== undefined) {
+                    await appendParsedRecord(agent, record, CAPABILITY_CALLBACK_RECORD_MAX_COUNT, cutoff);
+                }
+                return true;
+            });
+        } finally {
+            await agent.close();
+        }
+    } catch {
+        return false;
     }
 }
 

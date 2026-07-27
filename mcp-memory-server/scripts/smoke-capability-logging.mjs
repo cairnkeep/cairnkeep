@@ -309,15 +309,25 @@ function safeFinishResult(handle) {
 
 async function finalRecords(root) {
     if (!existsSync(join(root, trajectoryDbRelative))) return [];
-    const store = await loadStore();
-    return (await store.listCapabilityRecords(root)).records;
+    const script = [
+        'import { AgentFS } from "agentfs-sdk";',
+        'const agent = await AgentFS.open({ id: "trajectory", path: process.env.CAIRN_TEST_DB });',
+        `const rows = await agent.kv.list(${JSON.stringify(RECORD_PREFIX)});`,
+        'await agent.close();',
+        'process.stdout.write(JSON.stringify(rows.map(({ value }) => value)));',
+    ].join("\n");
+    const result = run(process.execPath, ["--input-type=module", "-e", script], {
+        cwd: serverRoot,
+        env: { CAIRN_TEST_DB: join(root, trajectoryDbRelative) },
+    });
+    assertSuccessful(result, "fresh-process final-record inspection");
+    return JSON.parse(result.stdout);
 }
 
 async function assertNoFinalRecord(root, handle, label) {
     const records = await finalRecords(root);
     assert.equal(records.some(({ invocation_id }) => invocation_id === handle.invocation_id), false, `${label} wrote a final record`);
-    const rows = await rawRows(root);
-    assert.equal(rows.some(({ key }) => key.startsWith(RECORD_PREFIX)), false, `${label} wrote a final-record key`);
+    assert.equal((await finalRecords(root)).length, 0, `${label} wrote a final-record key`);
     const bytes = rawStoreBytes(root).toString("utf8");
     assert.equal(bytes.includes(RECORD_PREFIX), false, `${label} left a final-record namespace in raw SQLite bytes`);
     for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `${label} leaked ${sentinel}`);
@@ -414,7 +424,15 @@ async function operatingFinishChecks() {
 
 async function storeChecks() {
     const store = await loadStore();
-    for (const name of ["appendCapabilityRecord", "listCapabilityRecords", "doctorCapabilityRecords", "getCapabilityDbPath"]) {
+    assert.equal(store.CAPABILITY_CALLBACK_PENDING_PREFIX, "capability-callback/v1/pending/");
+    for (const name of [
+        "appendCapabilityRecord",
+        "issueOperatingCapability",
+        "settleOperatingCapability",
+        "listCapabilityRecords",
+        "doctorCapabilityRecords",
+        "getCapabilityDbPath",
+    ]) {
         assert.equal(typeof store[name], "function", `missing capability store export ${name}`);
     }
     const trajectorySchema = await import("../dist/trajectory-schema.js");
@@ -525,6 +543,7 @@ async function assertNoStore(root, label) {
 
 async function adapterChecks() {
     const adapter = await loadAdapter();
+    const capabilityConfig = await import("../dist/capability-config.js");
     const store = await loadStore();
     for (const name of ["withCapability", "startOperatingCapability", "finishOperatingCapability"]) {
         assert.equal(typeof adapter[name], "function", `missing capability adapter export ${name}`);
@@ -618,9 +637,11 @@ async function adapterChecks() {
             });
         }
 
-        const handle = await withEnvironment({ CAIRN_TRAJECTORY_CAPTURE: "1" }, () => adapter.startOperatingCapability({
+        const operatingEnv = operatingEnvironment();
+        const operatingSnapshot = await withEnvironment(operatingEnv, () => capabilityConfig.resolveCapabilityStatus({ projectRoot: root }));
+        const handle = await withEnvironment(operatingEnv, () => adapter.startOperatingCapability({
             projectRoot: root,
-            snapshot: capabilitySnapshot(),
+            snapshot: operatingSnapshot,
             capabilityId: "memory.write",
             classification: { harness: "claude-code", source: "operating-command", transport: "harness-command" },
         }));
@@ -634,13 +655,35 @@ async function adapterChecks() {
             classification: { harness: "claude-code", source: "operating-command", transport: "harness-command" },
         }));
         assert.equal(disabledHandle.disabled, true);
-        await withEnvironment({ CAIRN_TRAJECTORY_CAPTURE: "1" }, async () => {
+        await withEnvironment(operatingEnv, async () => {
             await adapter.finishOperatingCapability(root, handle, { outcome: "success" });
             await adapter.finishOperatingCapability(root, handle, { outcome: "success" });
         });
         const finalRows = (await store.listCapabilityRecords(root)).records;
         assert.equal(finalRows.filter(({ invocation_id }) => invocation_id === handle.invocation_id).length, 1, "duplicate finish created two rows");
         assert.equal(finalRows.some(({ outcome }) => outcome === "disabled"), true, "disabled operating invocation was not recorded");
+
+        for (const fault of ["open", "lock", "schema", "write"]) {
+            const faultRoot = mkdtempSync(join(tmpdir(), "cairn-capability-operating-fault-"));
+            try {
+                const faultSnapshot = await withEnvironment(operatingEnv, () => capabilityConfig.resolveCapabilityStatus({ projectRoot: faultRoot }));
+                const result = await withEnvironment(operatingEnv, () => adapter.startOperatingCapability({
+                    projectRoot: faultRoot,
+                    snapshot: faultSnapshot,
+                    capabilityId: "memory.write",
+                    classification: { harness: "claude-code", source: "operating-command", transport: "harness-command" },
+                    testStoreFault: fault,
+                }));
+                assert.deepEqual(result, {
+                    schema_version: 1,
+                    capability_id: "memory.write",
+                    disabled: false,
+                    measured: false,
+                }, `${fault} operating issuance fault did not fail open`);
+            } finally {
+                rmSync(faultRoot, { recursive: true, force: true });
+            }
+        }
 
         const bytes = rawStoreBytes(root).toString("utf8");
         for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `adapter leaked ${sentinel} to SQLite/WAL/SHM`);
@@ -753,6 +796,7 @@ async function main() {
     await schemaChecks();
     await storeChecks();
     await adapterChecks();
+    await operatingFinishChecks();
     console.log("PASS: capability callback privacy, consent and fail-open contract");
 }
 
