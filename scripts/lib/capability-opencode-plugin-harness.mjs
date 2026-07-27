@@ -149,6 +149,7 @@ const scenarios = new Set([
   "error",
   "abandonment",
   "duplicate-success",
+  "duplicate-error",
   "settled-then-delete",
   "cwd-drift-success",
   "malformed-admission",
@@ -165,6 +166,10 @@ if (scenario === "duplicate-success") {
   await deliver("session.idle");
   await deliver("session.status");
   await deliver("session.idle");
+}
+if (scenario === "duplicate-error") {
+  await deliver("session.error");
+  await deliver("session.error");
 }
 if (scenario === "settled-then-delete") {
   await deliver("session.idle");

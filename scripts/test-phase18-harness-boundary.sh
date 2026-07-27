@@ -291,16 +291,18 @@ NODE
     assert_value_free_rows "$rows" "$terminal" || fail "OpenCode $terminal terminal did not settle exactly once"
   done
 
-  case_root="$temp_root/duplicate"
-  project="$case_root/project"
-  decoy="$project-decoy"
-  state_root="$case_root/state"
-  mkdir -p "$project" "$decoy"
-  write_capability_config "$project" true true
-  result=$(run_opencode_scenario "$plugin" "$project" "$state_root" duplicate-success duplicate 1)
-  assert_opencode_result "$result" allowed || fail "duplicate OpenCode success changed owner execution"
-  rows=$(callback_rows "$project")
-  assert_value_free_rows "$rows" success || fail "duplicate OpenCode terminal delivery was not idempotent"
+  for terminal in success error; do
+    case_root="$temp_root/duplicate-$terminal"
+    project="$case_root/project"
+    decoy="$project-decoy"
+    state_root="$case_root/state"
+    mkdir -p "$project" "$decoy"
+    write_capability_config "$project" true true
+    result=$(run_opencode_scenario "$plugin" "$project" "$state_root" "duplicate-$terminal" "duplicate-$terminal" 1)
+    assert_opencode_result "$result" allowed || fail "duplicate OpenCode $terminal changed owner execution"
+    rows=$(callback_rows "$project")
+    assert_value_free_rows "$rows" "$terminal" || fail "duplicate OpenCode $terminal delivery was not idempotent"
+  done
 
   case_root="$temp_root/settled-delete"
   project="$case_root/project"
