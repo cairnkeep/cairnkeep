@@ -625,6 +625,10 @@ export async function recordUnsupportedCompactionAdapter(
         if (!agent) return;
         try {
             await inImmediateTransaction(agent, async () => {
+                await assertCompatibleSchema(agent, true);
+                if (await agent.kv.get<number>(META_KEY) === undefined) {
+                    await agent.kv.set(META_KEY, ARTIFACT_SCHEMA_VERSION);
+                }
                 const rows = await agent.kv.list(DIAGNOSTIC_PREFIX);
                 for (const row of rows.slice(0, Math.max(0, rows.length - MAX_DIAGNOSTICS + 1))) await agent.kv.delete(row.key);
                 await agent.kv.set(`${DIAGNOSTIC_PREFIX}${String(Date.now()).padStart(16, "0")}-${randomUUID()}`, {

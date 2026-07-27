@@ -268,17 +268,46 @@ async function testCoreService(schemaModule, storeModule) {
         getArtifactLimits,
     } = schemaModule;
     const {
+        doctorArtifactStore,
         getArtifactDbPath,
         listArtifacts,
         putArtifact,
         readArtifact,
+        recordUnsupportedCompactionAdapter,
     } = storeModule;
     assert.equal(ARTIFACT_DEFAULT_MAX_BYTES, 1024 * 1024);
     assert.equal(ARTIFACT_DEFAULT_SESSION_MAX_BYTES, 16 * 1024 * 1024);
     assert.equal(ARTIFACT_DEFAULT_STORE_MAX_BYTES, 256 * 1024 * 1024);
     assert.equal(ARTIFACT_DEFAULT_RETENTION_DAYS, 30);
-    for (const fn of [getArtifactLimits, getArtifactDbPath, listArtifacts, putArtifact, readArtifact]) {
+    for (const fn of [
+        getArtifactLimits,
+        getArtifactDbPath,
+        listArtifacts,
+        putArtifact,
+        readArtifact,
+        recordUnsupportedCompactionAdapter,
+    ]) {
         assert.equal(typeof fn, "function");
+    }
+
+    const diagnosticScratch = mkdtempSync(join(tmpdir(), "cairn-artifact-diagnostic-"));
+    try {
+        await recordUnsupportedCompactionAdapter(diagnosticScratch, {
+            harness: "claude-code",
+            harness_version: "unknown-live-version",
+            reason: "unsupported_version",
+        });
+        const diagnosticDoctor = await doctorArtifactStore(diagnosticScratch);
+        assert.equal(diagnosticDoctor.ok, true, "a bounded unknown-adapter diagnostic must create a valid store");
+        assert.equal(diagnosticDoctor.valid_artifacts, 0);
+        assert.deepEqual((await listArtifacts(diagnosticScratch)).artifacts, []);
+        assert.doesNotMatch(
+            bytesFromExisting(filesUnder(diagnosticScratch)).toString("utf8"),
+            /unknown-live-version/,
+            "unknown adapter diagnostics must not retain version values",
+        );
+    } finally {
+        rmSync(diagnosticScratch, { recursive: true, force: true });
     }
 
     const scratch = mkdtempSync(join(tmpdir(), "cairn-artifact-core-"));
