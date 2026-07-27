@@ -26,8 +26,10 @@ const projectRoot = resolve(serverRoot, "..");
 const publicSchemaPath = join(projectRoot, "schemas", "capability-callback.schema.json");
 const storeModulePath = join(serverRoot, "dist", "capability-store.js");
 const adapterModulePath = join(serverRoot, "dist", "capability-adapter.js");
+const capabilityCliPath = join(serverRoot, "dist", "capability-cli.js");
 const trajectoryDbRelative = join(".agentfs", "trajectory.db");
 const RECORD_PREFIX = "capability-callback/v1/record/";
+const OPERATING_RED_MARKER = "PHASE18_RED:OPERATING_FINISH_CONSENT_PROVENANCE";
 const META_KEY = "capability-callback/meta/schema-version";
 const ALLOWED_FIELDS = [
     "capability_id",
@@ -69,7 +71,17 @@ const DIGEST = "a".repeat(64);
 
 function assertMode() {
     const [mode, ...extra] = process.argv.slice(2);
-    const modes = [undefined, "--baseline", "--expect-red", "--schema-only", "--store-only", "--adapter-only", "--notes-only"];
+    const modes = [
+        undefined,
+        "--baseline",
+        "--expect-red",
+        "--schema-only",
+        "--store-only",
+        "--adapter-only",
+        "--notes-only",
+        "--operating-finish-only",
+        "--expect-red-operating-finish",
+    ];
     assert.equal(extra.length, 0, "smoke-capability-logging accepts at most one mode");
     assert.equal(modes.includes(mode), true, `Unknown smoke-capability-logging mode: ${String(mode)}`);
     return mode;
@@ -229,6 +241,175 @@ function rawStoreBytes(root) {
         .filter((name) => /^trajectory\.db(?:-(?:wal|shm))?$/.test(name))
         .sort()
         .map((name) => readFileSync(join(directory, name))));
+}
+
+function operatingEnvironment(overrides = {}) {
+    return {
+        CAIRN_CAPABILITY_CONTRACT: "1",
+        CAIRN_CAPABILITY_LOGGING: "1",
+        CAIRN_TRAJECTORY_CAPTURE: "1",
+        CAIRN_CAPABILITY_MEMORY_WRITE: "1",
+        CAIRN_CAPABILITY_MEMORY_SEARCH: "1",
+        CAIRN_CAPABILITY_NOTES_DISTILL: "1",
+        CAIRN_CAPABILITY_WIKI: "1",
+        CAIRN_CAPABILITY_GRAPH: "1",
+        CAIRN_CAPABILITY_SECURITY_AUDIT: "1",
+        CAIRN_CAPABILITY_ROUTE_CHECK: "1",
+        CAIRN_CAPABILITY_CONTEXT_EXPLORE: "1",
+        ...overrides,
+    };
+}
+
+function runOperatingCli(root, args, env = operatingEnvironment()) {
+    const result = run(process.execPath, [capabilityCliPath, ...args], { cwd: root, env });
+    assertSuccessful(result, `capability CLI ${args[0]}`);
+    assert.equal(result.stderr, "", `capability CLI ${args[0]} wrote stderr`);
+    return JSON.parse(result.stdout);
+}
+
+function startOperating(root, env = operatingEnvironment()) {
+    const handle = runOperatingCli(root, [
+        "start",
+        "wiki",
+        "--harness", "claude-code",
+        "--source", "operating-workflow",
+        "--transport", "harness-command",
+        "--session", "claude-code:operating-finish-18-15",
+    ], env);
+    assert.deepEqual(Object.keys(handle).sort(), [
+        "capability_id",
+        "configuration_digest",
+        "correlation_id",
+        "harness",
+        "invocation_id",
+        "schema_version",
+        "source",
+        "started_at",
+        "state_source",
+        "transport",
+    ]);
+    return handle;
+}
+
+function finishOperating(root, handle, env = operatingEnvironment()) {
+    return runOperatingCli(root, [
+        "finish",
+        "--handle", JSON.stringify(handle),
+        "--outcome", "success",
+    ], env);
+}
+
+function safeFinishResult(handle) {
+    return {
+        schema_version: 1,
+        invocation_id: handle.invocation_id,
+        finalized: false,
+    };
+}
+
+async function finalRecords(root) {
+    if (!existsSync(join(root, trajectoryDbRelative))) return [];
+    const store = await loadStore();
+    return (await store.listCapabilityRecords(root)).records;
+}
+
+async function assertNoFinalRecord(root, handle, label) {
+    const records = await finalRecords(root);
+    assert.equal(records.some(({ invocation_id }) => invocation_id === handle.invocation_id), false, `${label} wrote a final record`);
+    const rows = await rawRows(root);
+    assert.equal(rows.some(({ key }) => key.startsWith(RECORD_PREFIX)), false, `${label} wrote a final-record key`);
+    const bytes = rawStoreBytes(root).toString("utf8");
+    assert.equal(bytes.includes(RECORD_PREFIX), false, `${label} left a final-record namespace in raw SQLite bytes`);
+    for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `${label} leaked ${sentinel}`);
+}
+
+async function operatingFinishChecks() {
+    const consentCases = [
+        { label: "contract consent revoked", finishEnv: operatingEnvironment({ CAIRN_CAPABILITY_CONTRACT: "0" }) },
+        { label: "managed logging consent revoked", finishEnv: operatingEnvironment({ CAIRN_CAPABILITY_LOGGING: "0" }) },
+        { label: "trajectory capture consent revoked", finishEnv: operatingEnvironment({ CAIRN_TRAJECTORY_CAPTURE: "0" }) },
+    ];
+    for (const testCase of consentCases) {
+        const root = mkdtempSync(join(tmpdir(), "cairn-operating-consent-"));
+        try {
+            const handle = startOperating(root);
+            assert.deepEqual(
+                finishOperating(root, handle, testCase.finishEnv),
+                safeFinishResult(handle),
+                `${testCase.label} finish must not finalize`,
+            );
+            await assertNoFinalRecord(root, handle, testCase.label);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    }
+
+    const forgedRoot = mkdtempSync(join(tmpdir(), "cairn-operating-forged-"));
+    try {
+        const forged = {
+            schema_version: 1,
+            capability_id: "wiki",
+            invocation_id: `cap:${randomUUID()}`,
+            correlation_id: "claude-code:forged-18-15",
+            harness: "claude-code",
+            source: "operating-workflow",
+            transport: "harness-command",
+            started_at: new Date().toISOString(),
+            state_source: "environment",
+            configuration_digest: "f".repeat(64),
+        };
+        assert.deepEqual(finishOperating(forgedRoot, forged), safeFinishResult(forged), "unissued handle must not finalize");
+        await assertNoStore(forgedRoot, "unissued handle");
+    } finally {
+        rmSync(forgedRoot, { recursive: true, force: true });
+    }
+
+    const mutations = [
+        ["correlation_id", "claude-code:mismatched-18-15"],
+        ["capability_id", "security.audit"],
+        ["state_source", "project"],
+    ];
+    for (const [field, value] of mutations) {
+        const root = mkdtempSync(join(tmpdir(), "cairn-operating-mismatch-"));
+        try {
+            const handle = startOperating(root);
+            const mismatched = { ...handle, [field]: value };
+            assert.deepEqual(finishOperating(root, mismatched), safeFinishResult(handle), `${field} mismatch must not finalize`);
+            await assertNoFinalRecord(root, handle, `${field} mismatch`);
+            assert.deepEqual(finishOperating(root, handle), { ...safeFinishResult(handle), finalized: true }, `${field} mismatch consumed authentic issuance`);
+            assert.deepEqual(finishOperating(root, handle), safeFinishResult(handle), `${field} authentic replay finalized`);
+            const records = (await finalRecords(root)).filter(({ invocation_id }) => invocation_id === handle.invocation_id);
+            assert.equal(records.length, 1, `${field} authentic settlement did not retain exactly one final row`);
+            assert.equal(records[0][field], handle[field], `${field} mismatch contaminated the final row`);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    }
+
+    const staleRoot = mkdtempSync(join(tmpdir(), "cairn-operating-stale-"));
+    try {
+        const handle = startOperating(staleRoot);
+        const changed = operatingEnvironment({ CAIRN_CAPABILITY_MEMORY_WRITE: "0" });
+        assert.deepEqual(finishOperating(staleRoot, handle, changed), safeFinishResult(handle), "stale configuration must not finalize");
+        await assertNoFinalRecord(staleRoot, handle, "stale configuration");
+        assert.deepEqual(finishOperating(staleRoot, handle), safeFinishResult(handle), "stale issuance was resurrected after re-enable");
+    } finally {
+        rmSync(staleRoot, { recursive: true, force: true });
+    }
+
+    const replayRoot = mkdtempSync(join(tmpdir(), "cairn-operating-replay-"));
+    try {
+        const handle = startOperating(replayRoot);
+        assert.deepEqual(finishOperating(replayRoot, handle), { ...safeFinishResult(handle), finalized: true });
+        assert.deepEqual(finishOperating(replayRoot, handle), safeFinishResult(handle), "replayed handle must not finalize");
+        const records = (await finalRecords(replayRoot)).filter(({ invocation_id }) => invocation_id === handle.invocation_id);
+        assert.equal(records.length, 1, "replay changed the legitimate final-row count");
+        assertExactRecord(records[0]);
+        const bytes = rawStoreBytes(replayRoot).toString("utf8");
+        for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `replay store leaked ${sentinel}`);
+    } finally {
+        rmSync(replayRoot, { recursive: true, force: true });
+    }
 }
 
 async function storeChecks() {
@@ -531,6 +712,23 @@ async function main() {
         }
         throw new Error("Capability logging production modules unexpectedly exist; run the GREEN contract instead.");
     }
+    if (mode === "--expect-red-operating-finish") {
+        await schemaChecks();
+        await storeChecks();
+        await adapterChecks();
+        try {
+            await operatingFinishChecks();
+        } catch (error) {
+            if (error instanceof assert.AssertionError
+                && error.message.includes("contract consent revoked finish must not finalize")) {
+                console.log(OPERATING_RED_MARKER);
+                process.exitCode = EXPECTED_RED_EXIT;
+                return;
+            }
+            throw error;
+        }
+        throw new Error("Operating finish consent/provenance bypass is no longer present; run the GREEN contract instead.");
+    }
     if (mode === "--schema-only") {
         await schemaChecks();
         console.log("PASS: capability callback strict schema contract");
@@ -545,6 +743,11 @@ async function main() {
     if (mode === "--notes-only") {
         await notesChecks();
         console.log("PASS: capability note callback ownership contract");
+        return;
+    }
+    if (mode === "--operating-finish-only") {
+        await operatingFinishChecks();
+        console.log("PASS: operating finish consent and issued-start provenance contract");
         return;
     }
     await schemaChecks();
