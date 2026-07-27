@@ -11,6 +11,31 @@
 #                            set to the exit code.
 set -euo pipefail
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+
+capability_contract_enabled() {
+  local value="${CAIRN_CAPABILITY_CONTRACT:-}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  case "$value" in
+    1|[Tt][Rr][Uu][Ee]|[Yy][Ee][Ss]|[Oo][Nn]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+resolve_cairn_root() {
+  local source dir
+  if ! source=$(type -P cairn); then
+    echo "cairn: capability contract requires the cairn executable on PATH" >&2
+    return 127
+  fi
+  while [[ -L "$source" ]]; do
+    dir=$(cd -P "$(dirname "$source")" && pwd)
+    source=$(readlink "$source")
+    [[ "$source" == /* ]] || source="$dir/$source"
+  done
+  cd -P "$(dirname "$source")/.." && pwd
+}
+
 if [[ -f "$ROOT_DIR/.ai/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -21,6 +46,19 @@ if [[ -f "$ROOT_DIR/.ai/pre-launch.sh" ]]; then
   # shellcheck disable=SC1091
   . "$ROOT_DIR/.ai/pre-launch.sh"
 fi
+
+if capability_contract_enabled; then
+  CAIRN_RUNTIME_ROOT=$(resolve_cairn_root)
+  OPENCODE_CAPABILITY_ROOT="$ROOT_DIR/.ai/capability-contract/opencode"
+  "$CAIRN_RUNTIME_ROOT/scripts/sync-opencode-wiki-assets.sh" \
+    --apply --capability-overlay --live-root "$OPENCODE_CAPABILITY_ROOT" >/dev/null
+  "$CAIRN_RUNTIME_ROOT/scripts/sync-opencode-graphify-assets.sh" \
+    --apply --capability-overlay --live-root "$OPENCODE_CAPABILITY_ROOT" >/dev/null
+  "$CAIRN_RUNTIME_ROOT/scripts/sync-opencode-security-assets.sh" \
+    --apply --capability-overlay --live-root "$OPENCODE_CAPABILITY_ROOT" >/dev/null
+  export OPENCODE_CONFIG_DIR="$OPENCODE_CAPABILITY_ROOT"
+fi
+
 cd "$ROOT_DIR"
 
 launch_args=()
