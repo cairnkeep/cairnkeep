@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cross-harness compaction capture/recovery contract. The default invocation
-# exercises only already-shipped baselines; feature assertions are explicit.
+# is the complete green integration path and remains safe for root test globs.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -21,6 +21,7 @@ fail() { echo "FAIL: $1" >&2; return 1; }
 claude_fixture="$ROOT/mcp-memory-server/scripts/fixtures/compaction-claude-code-2.1.219.json"
 opencode_event_fixture="$ROOT/mcp-memory-server/scripts/fixtures/compaction-opencode-1.17.20-event.json"
 opencode_messages_fixture="$ROOT/mcp-memory-server/scripts/fixtures/compaction-opencode-1.17.20-messages.json"
+PARITY_RECOVERY=$'## Compaction recovery\nSource: project_fallback\nSession: canonical:prior\nRevision: 2\nCaptured: 2026-07-25T00:00:00.000Z\nAge: 172800 seconds\nHarness: canonical\nCompleteness: goals=missing, decisions=missing, todos=missing, errors=missing\nWarning: this state is stale; validate it against the current repository before relying on it.\n\n### Task Goals\n(none captured)\n\n### Decisions Made\n(none captured)\n\n### Open TODOs\n(none captured)\n\n### Critical Error Traces\n(none captured)\n'
 
 render() {
   local source="$1"
@@ -159,18 +160,24 @@ if (calls.length !== 1 || calls[0].args[0] !== "capture-claude") process.exit(1)
 if (JSON.stringify(JSON.parse(calls[0].input)) !== JSON.stringify(fixture)) process.exit(1)
 NODE
 
+  rm -f "$calls"
+  (cd "$repo" && CAIRN_COMPACTION_CAPTURE=1 CAIRN_ARTIFACT_STORE=1 \
+    CAIRN_ARTIFACT_HTTP=1 CAIRN_TEST_CALLS="$calls" timeout 3 "$hook" < "$claude_fixture") \
+    >"$tmp/claude-both-http.out" 2>"$tmp/claude-both-http.err"
+  [[ $(wc -l < "$calls") -eq 1 ]] || fail "Claude both-flags/HTTP capture changed local call count"
+
   local current_recovery fallback_recovery stale_recovery
   current_recovery=$'Source: current_session\nSession: claude-code:claude-compaction-session-001\nRevision: 2\nTask Goals\n- current goal\nDecisions Made\n- current decision\nOpen TODOs\n- current todo\nCritical Error Traces\n- current error\n'
   fallback_recovery=$'Source: project_fallback\nSession: claude-code:prior\nRevision: 1\nTask Goals\n- fallback goal\nDecisions Made\n- fallback decision\nOpen TODOs\n- fallback todo\nCritical Error Traces\n- fallback error\n'
-  stale_recovery=$'Source: project_fallback\nStale: validate against the current repository\nTask Goals\n- old goal\nDecisions Made\n(none captured)\nOpen TODOs\n(none captured)\nCritical Error Traces\n(none captured)\n'
+  stale_recovery="$PARITY_RECOVERY"
   for case_name in current fallback stale; do
     case "$case_name" in
       current) recovery="$current_recovery"; session_id="claude-compaction-session-001" ;;
       fallback) recovery="$fallback_recovery"; session_id="fresh-session" ;;
       stale) recovery="$stale_recovery"; session_id="fresh-stale-session" ;;
     esac
-    CAIRN_COMPACTION_CAPTURE=1 CAIRN_TEST_CALLS="$calls" CAIRN_TEST_RECOVERY="$recovery" \
-      "$wakeup" <<<"{\"session_id\":\"$session_id\",\"source\":\"startup\"}" \
+    (cd "$repo" && CAIRN_COMPACTION_CAPTURE=1 CAIRN_TEST_CALLS="$calls" CAIRN_TEST_RECOVERY="$recovery" \
+      "$wakeup" <<<"{\"session_id\":\"$session_id\",\"source\":\"startup\"}") \
       >"$tmp/claude-$case_name-recovery.out" 2>"$tmp/claude-$case_name-recovery.err"
     grep -qF "## Compaction recovery" "$tmp/claude-$case_name-recovery.out" \
       || fail "Claude $case_name recovery heading is missing"
@@ -180,7 +187,7 @@ NODE
       || fail "Claude $case_name recovery injected raw summary data"
   done
 
-  CAIRN_COMPACTION_CAPTURE=1 CAIRN_TEST_CALLS="$calls" "$wakeup" <<<'{not-json' \
+  (cd "$repo" && CAIRN_COMPACTION_CAPTURE=1 CAIRN_TEST_CALLS="$calls" "$wakeup" <<<'{not-json') \
     >"$tmp/claude-malformed.out" 2>"$tmp/claude-malformed.err"
   [[ ! -s "$tmp/claude-malformed.err" ]] || fail "malformed Claude recovery did not fail open"
 }
@@ -253,6 +260,9 @@ if (mode === "disabled") {
 } else {
   assert.equal(output.system.some((value) => String(value).includes("Task Goals")), true)
   assert.equal(output.system.some((value) => /raw_summary|compact_summary|Bearer|sk-/i.test(String(value))), false)
+  if (process.env.CAIRN_TEST_SYSTEM_OUTPUT) {
+    fs.writeFileSync(process.env.CAIRN_TEST_SYSTEM_OUTPUT, JSON.stringify(output.system))
+  }
 }
 NODE
 }
@@ -277,9 +287,10 @@ opencode_contract() {
     || fail "disabled OpenCode compaction path emitted output"
 
   local recovery
-  recovery=$'Source: current_session\nSession: opencode:opencode-compaction-session-001\nRevision: 2\nTask Goals\n- current goal\nDecisions Made\n- current decision\nOpen TODOs\n- current todo\nCritical Error Traces\n- current error\n'
+  recovery="$PARITY_RECOVERY"
   rm -f "$calls"
   CAIRN_COMPACTION_CAPTURE=1 CAIRN_TEST_CALLS="$calls" CAIRN_TEST_RECOVERY="$recovery" \
+    CAIRN_TEST_SYSTEM_OUTPUT="$tmp/opencode-system.json" \
     timeout 3 node --experimental-strip-types "$tmp/opencode-compaction-harness.mjs" \
     "$capture" "$wakeup" "$opencode_event_fixture" "$opencode_messages_fixture" "$repo" enabled \
     >"$tmp/opencode-enabled.out" 2>"$tmp/opencode-enabled.err"
@@ -294,6 +305,13 @@ opencode_contract() {
     >"$tmp/opencode-both.out" 2>"$tmp/opencode-both.err"
   [[ -s "$calls" ]] || fail "OpenCode capture did not remain active with both flags"
 
+  rm -f "$calls"
+  CAIRN_ARTIFACT_HTTP=1 CAIRN_TEST_CALLS="$calls" node --experimental-strip-types \
+    "$tmp/opencode-compaction-harness.mjs" "$capture" "$wakeup" \
+    "$opencode_event_fixture" "$opencode_messages_fixture" "$repo" disabled \
+    >"$tmp/opencode-http-only.out" 2>"$tmp/opencode-http-only.err"
+  [[ ! -e "$calls" ]] || fail "HTTP consent alone activated OpenCode compaction work"
+
   local live="$tmp/opencode-live"
   "$ROOT/scripts/sync-opencode-plugin-assets.sh" --apply --live-root "$live" >/dev/null
   "$ROOT/scripts/sync-opencode-plugin-assets.sh" --apply --live-root "$live" >/dev/null
@@ -301,6 +319,104 @@ opencode_contract() {
     || fail "OpenCode compaction capture plugin is duplicated"
   [[ $(find "$live" -type f -name 'memory-wakeup.ts' | wc -l) -eq 1 ]] \
     || fail "OpenCode compaction recovery plugin is duplicated"
+}
+
+assert_semantic_parity() {
+  node - "$tmp/claude-stale-recovery.out" "$tmp/opencode-system.json" <<'NODE'
+const fs = require("fs")
+const claude = fs.readFileSync(process.argv[2], "utf8")
+const opencode = JSON.parse(fs.readFileSync(process.argv[3], "utf8"))
+const heading = "## Compaction recovery"
+const claudeSection = claude.slice(claude.indexOf(heading)).trim()
+const opencodeSection = opencode.find((value) => String(value).includes(heading))?.trim()
+if (!claudeSection || claudeSection !== opencodeSection) process.exit(1)
+const ordered = [
+  "Source:", "Session:", "Revision:", "Captured:", "Age:", "Harness:", "Completeness:",
+  "Warning:", "### Task Goals", "### Decisions Made", "### Open TODOs", "### Critical Error Traces",
+]
+let position = -1
+for (const marker of ordered) {
+  const next = claudeSection.indexOf(marker)
+  if (next <= position) process.exit(2)
+  position = next
+}
+if ((claudeSection.match(/\(none captured\)/g) ?? []).length !== 4) process.exit(3)
+if (!/validate it against the current repository/i.test(claudeSection)) process.exit(4)
+NODE
+}
+
+artifact_revision_contract() {
+  local cli="$ROOT/mcp-memory-server/dist/artifact-cli.js"
+  local claude_repo="$tmp/claude-revisions"
+  local opencode_repo="$tmp/opencode-revisions"
+  local real_hook="$tmp/real-compaction-capture.sh"
+  mkdir -p "$claude_repo" "$opencode_repo"
+  render "$ROOT/claude/hooks/compaction-capture.sh" "$real_hook"
+  chmod +x "$real_hook"
+
+  node - "$claude_fixture" "$tmp/claude-second.json" <<'NODE'
+const fs = require("fs")
+const fixture = JSON.parse(fs.readFileSync(process.argv[2], "utf8"))
+fixture.compact_summary += "\n- TODO: Validate parity after the second revision."
+fs.writeFileSync(process.argv[3], JSON.stringify(fixture))
+NODE
+  (cd "$claude_repo" && CAIRN_COMPACTION_CAPTURE=1 "$real_hook" < "$claude_fixture")
+  (cd "$claude_repo" && CAIRN_COMPACTION_CAPTURE=1 "$real_hook" < "$tmp/claude-second.json")
+
+  node - "$opencode_event_fixture" "$opencode_messages_fixture" \
+    "$tmp/opencode-first.json" "$tmp/opencode-second.json" <<'NODE'
+const fs = require("fs")
+const event = JSON.parse(fs.readFileSync(process.argv[2], "utf8"))
+const envelope = JSON.parse(fs.readFileSync(process.argv[3], "utf8"))
+const first = { event, session: envelope.session, messages: envelope.messages, harness_version: "1.17.20" }
+const second = structuredClone(first)
+const summary = second.messages.find((message) => message.info?.id === "oc-summary-valid-new")
+const text = summary?.parts?.find((part) => part.type === "text" && part.ignored !== true)
+if (!text) process.exit(1)
+text.text += "\n- TODO: Validate parity after the second revision."
+fs.writeFileSync(process.argv[4], JSON.stringify(first))
+fs.writeFileSync(process.argv[5], JSON.stringify(second))
+NODE
+  node "$cli" capture-opencode "$opencode_repo" < "$tmp/opencode-first.json"
+  node "$cli" capture-opencode "$opencode_repo" < "$tmp/opencode-second.json"
+
+  node - "$cli" "$claude_repo" "$opencode_repo" <<'NODE'
+const fs = require("fs")
+const { spawnSync } = require("child_process")
+const [cli, claudeRepo, opencodeRepo] = process.argv.slice(2)
+const cases = [
+  { repo: claudeRepo, session: "claude-code:claude-compaction-session-001", secrets: ["claude-compaction-secret-001", "sk-claude-compaction-secret-002"] },
+  { repo: opencodeRepo, session: "opencode:opencode-compaction-session-001", secrets: ["opencode-compaction-secret-001", "sk-opencode-compaction-secret-002"] },
+]
+const run = (repo, args) => {
+  const result = spawnSync(process.execPath, [cli, ...args], { cwd: repo, encoding: "utf8" })
+  if (result.status !== 0 || result.stderr) process.exit(1)
+  return result.stdout
+}
+for (const value of cases) {
+  const listedOutput = run(value.repo, ["list", "--kind", "compaction_summary", "--json"])
+  const listed = JSON.parse(listedOutput)
+  if (listed.artifacts.length !== 2) process.exit(2)
+  const shown = listed.artifacts.map((artifact) => JSON.parse(run(value.repo, ["show", artifact.artifact_id, "--json"])))
+  if (shown.some((artifact) => artifact.session_ref !== value.session)) process.exit(3)
+  if (shown.map((artifact) => artifact.content.revision).sort().join(",") !== "1,2") process.exit(4)
+  if (shown.some((artifact) => typeof artifact.content.raw_summary !== "string")) process.exit(5)
+  const current = run(value.repo, ["recover", value.repo, "--session-ref", value.session])
+  const fallback = run(value.repo, ["recover", value.repo, "--session-ref", `${value.session}-fresh`])
+  if (!current.includes("Source: current_session") || !current.includes("Revision: 2")) process.exit(6)
+  if (!fallback.includes("Source: project_fallback") || !fallback.includes("Revision: 2")) process.exit(7)
+  const automatic = `${listedOutput}\n${current}\n${fallback}`
+  if (/raw_summary|compact_summary/i.test(automatic)) process.exit(8)
+  const storeBytes = ["artifacts.db", "artifacts.db-wal", "artifacts.db-shm"]
+    .flatMap((name) => {
+      const path = `${value.repo}/.agentfs/${name}`
+      return fs.existsSync(path) ? [fs.readFileSync(path).toString("latin1")] : []
+    }).join("\n")
+  for (const secret of value.secrets) {
+    if (storeBytes.includes(secret) || automatic.includes(secret) || JSON.stringify(shown).includes(secret)) process.exit(9)
+  }
+}
+NODE
 }
 
 run_claude_contract() {
@@ -316,11 +432,6 @@ run_opencode_contract() {
 
 run_existing_baseline
 validate_fixtures
-
-if [[ -z "$MODE" ]]; then
-  echo "PASS: compaction hook pre-feature baseline"
-  exit 0
-fi
 
 if [[ "$MODE" == "--expect-red" ]]; then
   set +e
@@ -339,7 +450,13 @@ fi
 case "$MODE" in
   --claude-only) run_claude_contract ;;
   --opencode-only) run_opencode_contract ;;
-  --full) run_claude_contract; run_opencode_contract ;;
+  ""|--full)
+    node "$ROOT/mcp-memory-server/scripts/smoke-compaction-capture.mjs" >/dev/null
+    run_claude_contract
+    run_opencode_contract
+    assert_semantic_parity
+    artifact_revision_contract
+    ;;
 esac
 
 echo "PASS: compaction hook capture, recovery, disabled paths and sync contract"
