@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Phase 17 package/operator/reversibility contract. The default invocation
-# exercises only shipped baselines; the future artifact surface is explicit.
+# exercises the complete shipped lifecycle; the historical RED gate is explicit.
 set -uo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -333,8 +333,6 @@ check_runtime_evidence() {
 }
 
 run_baseline
-[[ "$MODE" == "--expect-red" ]] || exit 0
-
 inspect_package
 check_cli_and_completion
 check_doctor_contract
@@ -342,8 +340,21 @@ check_env_contract
 check_uninstall_bytes
 check_docs_contract
 check_dependency_delta
-check_runtime_evidence
 
+if [[ "$missing" -gt 0 ]]; then
+  if [[ "$MODE" == "--expect-red" ]]; then
+    printf '%s\n' "$RED_MARKER" >&2
+    exit "$EXPECTED_RED_EXIT"
+  fi
+  fail "Phase 17 package/operator lifecycle contract is incomplete"
+fi
+
+if [[ "$MODE" != "--expect-red" ]]; then
+  echo "PASS: Phase 17 package/operator lifecycle contract"
+  exit 0
+fi
+
+check_runtime_evidence
 if [[ "$missing" -gt 0 ]]; then
   printf '%s\n' "$RED_MARKER" >&2
   exit "$EXPECTED_RED_EXIT"
