@@ -22,7 +22,6 @@ import {
 } from "./capability-config.js";
 import {
     operatingCapabilityHandleSchema,
-    startOperatingCapability,
     type OperatingCapabilityHandle,
 } from "./capability-adapter.js";
 import {
@@ -161,12 +160,24 @@ export function getHarnessCapabilityLeaseDirectory(
     return directory;
 }
 
-function leaseName(harness: string, sessionId: string): string {
+function leaseName(harness: string, sessionId: string, invocationId: string): string {
+    return `${createHash("sha256").update(`${harness}\0${sessionId}\0${invocationId}`, "utf8").digest("hex")}.json`;
+}
+
+function legacyLeaseName(harness: string, sessionId: string): string {
     return `${createHash("sha256").update(`${harness}\0${sessionId}`, "utf8").digest("hex")}.json`;
 }
 
-function leasePath(harness: string, sessionId: string, options: HarnessCapabilityStateOptions = {}): string {
-    return join(getHarnessCapabilityLeaseDirectory(options), leaseName(harness, sessionId));
+function leaseNameMatches(lease: HarnessCapabilityLease, name: string): boolean {
+    return name === leaseName(lease.harness, lease.session_id, lease.handle.invocation_id)
+        || name === legacyLeaseName(lease.harness, lease.session_id);
+}
+
+function leasePath(lease: HarnessCapabilityLease, options: HarnessCapabilityStateOptions = {}): string {
+    return join(
+        getHarnessCapabilityLeaseDirectory(options),
+        leaseName(lease.harness, lease.session_id, lease.handle.invocation_id),
+    );
 }
 
 async function ensureLeaseDirectory(options: HarnessCapabilityStateOptions = {}): Promise<string> {
@@ -210,8 +221,23 @@ async function writeLease(lease: HarnessCapabilityLease, options: HarnessCapabil
     const bytes = Buffer.from(`${JSON.stringify(parsed)}\n`, "utf8");
     if (bytes.byteLength > MAX_LEASE_BYTES) throw new Error("Harness capability lease is too large.");
     const directory = await ensureLeaseDirectory(options);
-    const path = leasePath(parsed.harness, parsed.session_id, options);
-    const temporary = join(directory, `.${leaseName(parsed.harness, parsed.session_id)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
+    const name = leaseName(parsed.harness, parsed.session_id, parsed.handle.invocation_id);
+    const path = join(directory, name);
+    let replacing = false;
+    try {
+        const existing = await lstat(path);
+        if (!existing.isFile() || existing.isSymbolicLink()) throw new Error("Harness capability lease path is unsafe.");
+        replacing = true;
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    if (!replacing) {
+        const entries = await readdir(directory, { withFileTypes: true });
+        if (entries.filter((entry) => entry.isFile() && /^[a-f0-9]{64}\.json$/.test(entry.name)).length >= MAX_LEASES) {
+            throw new Error("Harness capability lease limit reached.");
+        }
+    }
+    const temporary = join(directory, `.${name}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
     let handle;
     try {
         handle = await open(temporary, "wx", 0o600);
@@ -325,18 +351,40 @@ async function settleLease(lease: HarnessCapabilityLease): Promise<boolean> {
     return settled || isOperatingCapabilitySettled(lease.project_root, lease.handle);
 }
 
-async function existingLease(
+async function matchingLeases(
     input: Pick<HarnessCapabilityBeforeInput, "harness" | "session_id">,
     options: HarnessCapabilityStateOptions = {},
-): Promise<{ path: string; lease: HarnessCapabilityLease } | undefined> {
-    const path = leasePath(input.harness, input.session_id, options);
-    const lease = await readLease(path);
-    if (!lease) return undefined;
-    if (lease.harness !== input.harness || lease.session_id !== input.session_id || !await bindingMatches(lease)) {
-        await removeLease(path);
-        return undefined;
+): Promise<Array<{ path: string; lease: HarnessCapabilityLease }>> {
+    const directory = getHarnessCapabilityLeaseDirectory(options);
+    let entries;
+    try {
+        const info = await lstat(directory);
+        if (!info.isDirectory() || info.isSymbolicLink() || (info.mode & 0o077) !== 0) return [];
+        entries = (await readdir(directory, { withFileTypes: true }))
+            .sort((left, right) => left.name.localeCompare(right.name))
+            .slice(0, MAX_LEASES);
+    } catch {
+        return [];
     }
-    return { path, lease };
+    const matches: Array<{ path: string; lease: HarnessCapabilityLease }> = [];
+    for (const entry of entries) {
+        const path = join(directory, entry.name);
+        if (!entry.isFile() || !/^[a-f0-9]{64}\.json$/.test(entry.name)) {
+            await removeLease(path);
+            continue;
+        }
+        const lease = await readLease(path);
+        if (!lease
+            || !leaseNameMatches(lease, entry.name)
+            || !await bindingMatches(lease)) {
+            await removeLease(path);
+            continue;
+        }
+        if (lease.harness === input.harness && lease.session_id === input.session_id) {
+            matches.push({ path, lease });
+        }
+    }
+    return matches;
 }
 
 export async function beginHarnessCapability(
@@ -346,13 +394,6 @@ export async function beginHarnessCapability(
     if (!isCapabilityContractEnabled()) return ALLOW;
     const capabilityId = commandCapability(input.command);
     if (!capabilityId) return ALLOW;
-
-    const prior = await existingLease(input);
-    if (prior?.lease.phase === "active") return ALLOW;
-    if (prior) {
-        if (await settleLease(prior.lease)) await removeLease(prior.path);
-        else return ALLOW;
-    }
 
     let binding;
     try {
@@ -368,42 +409,27 @@ export async function beginHarnessCapability(
         if (!measured) return BLOCK;
         const handle = makeHandle(input, snapshot, capabilityId, new Date().toISOString());
         const lease = leaseFor(input, binding, handle, "disabled");
+        const path = leasePath(lease);
         try {
             await writeLease(lease);
             const issued = await issueOperatingCapability(binding.project_root, handle);
-            if (issued && await settleLease(lease)) await removeLease(leasePath(input.harness, input.session_id));
-            else if (!issued) {
-                if (await isOperatingCapabilitySettled(binding.project_root, handle)) {
-                    await removeLease(leasePath(input.harness, input.session_id));
-                } else {
-                    await removeLease(leasePath(input.harness, input.session_id));
-                }
-            }
+            if (!issued || await settleLease(lease)) await removeLease(path);
         } catch {
-            await removeLease(leasePath(input.harness, input.session_id)).catch(() => undefined);
+            await removeLease(path).catch(() => undefined);
         }
         return BLOCK;
     }
 
     if (!measured) return ALLOW;
-    const result = await startOperatingCapability({
-        projectRoot: binding.project_root,
-        snapshot,
-        capabilityId,
-        classification: {
-            harness: input.harness,
-            source: "operating-command",
-            transport: "harness-command",
-        },
-        correlationId: input.session_id,
-    });
-    const parsedHandle = operatingCapabilityHandleSchema.safeParse(result);
-    if (!parsedHandle.success) return ALLOW;
+    const handle = makeHandle(input, snapshot, capabilityId, new Date().toISOString());
+    const lease = leaseFor(input, binding, handle);
     try {
-        await writeLease(leaseFor(input, binding, parsedHandle.data));
+        await writeLease(lease);
     } catch {
-        await settleOperatingCapability(binding.project_root, parsedHandle.data);
+        return ALLOW;
     }
+    const issued = await issueOperatingCapability(binding.project_root, handle);
+    if (!issued) await removeLease(leasePath(lease)).catch(() => undefined);
     return ALLOW;
 }
 
@@ -419,20 +445,29 @@ export async function finishHarnessCapability(
             session_id: input.session_id,
         });
     }
-    const prior = await existingLease(input);
-    if (!prior) return { schema_version: 1, finalized: false };
-    const terminal = harnessCapabilityLeaseSchema.parse({
-        ...prior.lease,
-        phase: "terminal",
-        outcome: input.outcome,
-    });
-    await writeLease(terminal);
+    const priors = await matchingLeases(input);
+    if (priors.length === 0) return { schema_version: 1, finalized: false };
+    const terminals = priors.map(({ path, lease }) => ({
+        path,
+        lease: lease.phase === "terminal" ? lease : harnessCapabilityLeaseSchema.parse({
+            ...lease,
+            phase: "terminal",
+            outcome: input.outcome,
+        }),
+    }));
+    for (const terminal of terminals) await writeLease(terminal.lease);
     if (options.testCrashAt === "before-claim") throw crashInjection();
-    await writeLease(terminal);
+    for (const terminal of terminals) await writeLease(terminal.lease);
     if (options.testCrashAt === "after-claim") throw crashInjection();
-    const finalized = await settleLease(terminal);
+    let finalized = false;
+    for (const terminal of terminals) {
+        const settled = await settleLease(terminal.lease);
+        if (settled) {
+            await removeLease(terminal.path);
+            finalized = true;
+        }
+    }
     if (options.testCrashAt === "after-settlement") throw crashInjection();
-    if (finalized) await removeLease(prior.path);
     return { schema_version: 1, finalized };
 }
 
@@ -446,11 +481,16 @@ export async function abandonHarnessCapability(
     rawInput: z.infer<typeof harnessCapabilityAbandonInputSchema>,
 ): Promise<{ schema_version: 1; finalized: boolean }> {
     const input = harnessCapabilityAbandonInputSchema.parse(rawInput);
-    const prior = await existingLease(input);
-    if (!prior) return { schema_version: 1, finalized: false };
-    await settleOperatingCapability(prior.lease.project_root, prior.lease.handle);
-    const finalized = await isOperatingCapabilitySettled(prior.lease.project_root, prior.lease.handle);
-    await removeLease(prior.path);
+    const priors = await matchingLeases(input);
+    let finalized = false;
+    for (const prior of priors) {
+        if (prior.lease.phase === "terminal") {
+            finalized = await settleLease(prior.lease) || finalized;
+        } else {
+            await settleOperatingCapability(prior.lease.project_root, prior.lease.handle);
+        }
+        await removeLease(prior.path);
+    }
     return { schema_version: 1, finalized };
 }
 
@@ -458,8 +498,8 @@ export async function observeHarnessCwdChanged(
     rawInput: z.infer<typeof harnessCapabilityCwdChangedInputSchema>,
 ): Promise<{ schema_version: 1; observed: boolean }> {
     const input = harnessCapabilityCwdChangedInputSchema.parse(rawInput);
-    const prior = await existingLease(input);
-    return { schema_version: 1, observed: prior !== undefined };
+    const priors = await matchingLeases(input);
+    return { schema_version: 1, observed: priors.length > 0 };
 }
 
 export async function recoverHarnessCapabilities(
@@ -471,22 +511,30 @@ export async function recoverHarnessCapabilities(
     } catch {
         return { schema_version: 1, recovered: 0, pruned: 0, pending: 0 };
     }
-    const entries = await readdir(directory, { withFileTypes: true });
+    const entries = (await readdir(directory, { withFileTypes: true }))
+        .sort((left, right) => left.name.localeCompare(right.name));
     let recovered = 0;
     let pruned = 0;
     let pending = 0;
     for (const entry of entries.slice(0, MAX_LEASES)) {
-        const path = join(directory, entry.name);
+        let path = join(directory, entry.name);
         if (!entry.isFile() || !/^[a-f0-9]{64}\.json$/.test(entry.name)) {
             await removeLease(path);
             pruned += 1;
             continue;
         }
         const lease = await readLease(path);
-        if (!lease || leaseName(lease.harness, lease.session_id) !== entry.name || !await bindingMatches(lease)) {
+        if (!lease
+            || !leaseNameMatches(lease, entry.name)
+            || !await bindingMatches(lease)) {
             await removeLease(path);
             pruned += 1;
             continue;
+        }
+        if (entry.name === legacyLeaseName(lease.harness, lease.session_id)) {
+            await writeLease(lease, options);
+            await removeLease(path);
+            path = leasePath(lease, options);
         }
         let terminal = lease;
         if (lease.phase === "active" && Date.parse(lease.expires_at) <= Date.now()) {
