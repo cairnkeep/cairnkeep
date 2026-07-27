@@ -32,6 +32,18 @@ PROJECTS=()
 # The hooks cairnkeep registers (basename is the settings.json match token).
 HOOK_NAMES=(memory-wakeup.sh memory-capture.sh compaction-capture.sh memory-recall.sh context-explore-pretask.sh)
 
+# Exact project-local files installed by bootstrap. Remove these individually so
+# operator-owned files under .ai (notably .env and local state) are never swept
+# up with Cairnkeep's managed scaffold.
+PROJECT_AI_FILES=(
+  start-claude.sh
+  start-opencode.sh
+  start-pi.sh
+  env.example
+  trajectory-redaction.json
+  capabilities.json
+)
+
 usage() {
   cat <<'EOF'
 Usage: uninstall.sh [--dry-run] [--yes] [--purge-memory] [--live-root PATH]
@@ -217,7 +229,12 @@ for proj in "${PROJECTS[@]:-}"; do
   [[ -n "$proj" && -d "$proj" ]] || continue
   proj=$(cd "$proj" && pwd)
   echo "Project scaffold: $proj"
-  remove_path "$proj/.ai"
+  for rel in "${PROJECT_AI_FILES[@]}"; do
+    remove_path "$proj/.ai/$rel"
+  done
+  if [[ $DRY_RUN -eq 0 && -d "$proj/.ai" ]]; then
+    rmdir "$proj/.ai" 2>/dev/null || true
+  fi
   remove_path "$proj/.planning"
   if [[ $PURGE_MEMORY -eq 1 ]]; then
     remove_path "$proj/.agentfs"

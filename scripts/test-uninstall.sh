@@ -76,9 +76,19 @@ printf 'backup bytes\n' >"$SB/home/.cairnkeep/notes/.cairnkeep/transactions/prep
 note_before=$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)
 store_before=$(tree_hash "$SB/home/.cairnkeep")
 PROJECT_DATA="$SB/project-data"
-mkdir -p "$PROJECT_DATA/.agentfs"
+mkdir -p "$PROJECT_DATA/.ai" "$PROJECT_DATA/.agentfs"
+printf '%s\n' '{"schema_version":1,"capabilities":{"wiki":false},"logging":{"callbacks":true}}' >"$PROJECT_DATA/.ai/capabilities.json"
+chmod 600 "$PROJECT_DATA/.ai/capabilities.json"
+printf 'operator-owned ai bytes\000must-survive\377\n' >"$PROJECT_DATA/.ai/operator-state.bin"
 printf 'artifact-v1\000durable\377bytes\n' >"$PROJECT_DATA/.agentfs/artifacts.db"
+printf 'session-and-callback-v1\000durable\377bytes\n' >"$PROJECT_DATA/.agentfs/trajectory.db"
+printf 'callback-wal-v1\000durable\377bytes\n' >"$PROJECT_DATA/.agentfs/trajectory.db-wal"
+cp "$PROJECT_DATA/.ai/capabilities.json" "$SB/capabilities.before.json"
+cp "$PROJECT_DATA/.ai/operator-state.bin" "$SB/operator-state.before.bin"
 cp "$PROJECT_DATA/.agentfs/artifacts.db" "$SB/artifacts.before.db"
+cp "$PROJECT_DATA/.agentfs/trajectory.db" "$SB/trajectory.before.db"
+cp "$PROJECT_DATA/.agentfs/trajectory.db-wal" "$SB/trajectory.before.db-wal"
+project_before=$(tree_hash "$PROJECT_DATA")
 
 # --- dry-run must change nothing -------------------------------------------
 "$ROOT_DIR/scripts/uninstall.sh" --dry-run --live-root "$LIVE" --pi-live-root "$PI_LIVE" "$PROJECT_DATA" >/dev/null 2>&1
@@ -87,6 +97,7 @@ check "dry-run makes no bundle" "$(ls -d "$SB/home/.cairnkeep-uninstall-"* 2>/de
 check "dry-run leaves Pi extension" "$([[ -f "$PI_LIVE/extensions/cairnkeep-trajectory.ts" ]] && echo yes || echo no)" "yes"
 check "dry-run leaves settings identical" "$(cmp -s "$SB/settings.before.json" "$LIVE/settings.json" && echo yes || echo no)" "yes"
 check "dry-run leaves artifact bytes exact" "$(cmp -s "$SB/artifacts.before.db" "$PROJECT_DATA/.agentfs/artifacts.db" && echo yes || echo no)" "yes"
+check "dry-run leaves project state byte-identical" "$(tree_hash "$PROJECT_DATA")" "$project_before"
 
 # --- real uninstall ---------------------------------------------------------
 "$ROOT_DIR/scripts/uninstall.sh" --yes --live-root "$LIVE" --pi-live-root "$PI_LIVE" "$PROJECT_DATA" >/dev/null 2>&1
@@ -97,14 +108,22 @@ check "Pi extension removed" "$([[ -e "$PI_LIVE/extensions/cairnkeep-trajectory.
 check "default uninstall keeps notes" "$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)" "$note_before"
 check "default uninstall keeps all typed and journal bytes" "$(tree_hash "$SB/home/.cairnkeep")" "$store_before"
 check "default uninstall keeps artifact bytes exact" "$(cmp -s "$SB/artifacts.before.db" "$PROJECT_DATA/.agentfs/artifacts.db" && echo yes || echo no)" "yes"
+check "default uninstall removes managed capability config" "$([[ -e "$PROJECT_DATA/.ai/capabilities.json" ]] && echo no || echo yes)" "yes"
+check "default uninstall keeps unrelated .ai bytes exact" "$(cmp -s "$SB/operator-state.before.bin" "$PROJECT_DATA/.ai/operator-state.bin" && echo yes || echo no)" "yes"
+check "default uninstall keeps callback DB exact" "$(cmp -s "$SB/trajectory.before.db" "$PROJECT_DATA/.agentfs/trajectory.db" && echo yes || echo no)" "yes"
+check "default uninstall keeps callback WAL exact" "$(cmp -s "$SB/trajectory.before.db-wal" "$PROJECT_DATA/.agentfs/trajectory.db-wal" && echo yes || echo no)" "yes"
 BK=$(ls -d "$SB/home/.cairnkeep-uninstall-"* 2>/dev/null | head -1)
 check "revert.sh generated" "$([[ -n "$BK" && -f "$BK/revert.sh" ]] && echo yes || echo no)" "yes"
+check "capability config backup is exact" "$(cmp -s "$SB/capabilities.before.json" "$BK/files/${PROJECT_DATA#/}/.ai/capabilities.json" && echo yes || echo no)" "yes"
 
 # --- revert restores everything --------------------------------------------
 bash "$BK/revert.sh" >/dev/null 2>&1
 check "assets restored" "$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')" "$md_installed"
 check "settings.json identical" "$(cmp -s "$SB/settings.before.json" "$LIVE/settings.json" && echo yes || echo no)" "yes"
 check "Pi extension restored" "$(cmp -s "$SB/pi.before.ts" "$PI_LIVE/extensions/cairnkeep-trajectory.ts" && echo yes || echo no)" "yes"
+check "capability config bytes restored" "$(cmp -s "$SB/capabilities.before.json" "$PROJECT_DATA/.ai/capabilities.json" && echo yes || echo no)" "yes"
+check "capability config mode restored" "$(stat -c '%a' "$PROJECT_DATA/.ai/capabilities.json" 2>/dev/null || stat -f '%Lp' "$PROJECT_DATA/.ai/capabilities.json")" "600"
+check "unrelated .ai bytes remain exact after revert" "$(cmp -s "$SB/operator-state.before.bin" "$PROJECT_DATA/.ai/operator-state.bin" && echo yes || echo no)" "yes"
 
 # --- project artifact purge is backup-first and exactly reversible ---------
 ARTIFACT_HOME="$SB/artifact-home"
@@ -114,8 +133,12 @@ HOME="$ARTIFACT_HOME" XDG_CONFIG_HOME="$ARTIFACT_HOME/.config" \
 check "artifact purge removes project store" "$([[ -e "$PROJECT_DATA/.agentfs" ]] && echo no || echo yes)" "yes"
 ARTIFACT_BK=$(ls -dt "$ARTIFACT_HOME/.cairnkeep-uninstall-"* 2>/dev/null | head -1)
 check "artifact purge backup is exact" "$(cmp -s "$SB/artifacts.before.db" "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs/artifacts.db" && echo yes || echo no)" "yes"
+check "callback purge backup is exact" "$(cmp -s "$SB/trajectory.before.db" "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs/trajectory.db" && echo yes || echo no)" "yes"
+check "callback WAL purge backup is exact" "$(cmp -s "$SB/trajectory.before.db-wal" "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs/trajectory.db-wal" && echo yes || echo no)" "yes"
 HOME="$ARTIFACT_HOME" XDG_CONFIG_HOME="$ARTIFACT_HOME/.config" bash "$ARTIFACT_BK/revert.sh" >/dev/null 2>&1
 check "artifact revert restores exact bytes" "$(cmp -s "$SB/artifacts.before.db" "$PROJECT_DATA/.agentfs/artifacts.db" && echo yes || echo no)" "yes"
+check "callback revert restores exact bytes" "$(cmp -s "$SB/trajectory.before.db" "$PROJECT_DATA/.agentfs/trajectory.db" && echo yes || echo no)" "yes"
+check "callback WAL revert restores exact bytes" "$(cmp -s "$SB/trajectory.before.db-wal" "$PROJECT_DATA/.agentfs/trajectory.db-wal" && echo yes || echo no)" "yes"
 
 # --- project scaffold + memory purge round-trip ----------------------------
 PROJ="$SB/proj"; mkdir -p "$PROJ"; git -C "$PROJ" init -q

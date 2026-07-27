@@ -261,6 +261,8 @@ run_uninstall() {
   local live="$tmp/uninstall-live"
   local config_before="$tmp/capabilities.before"
   local db_before="$tmp/callbacks.before"
+  local unrelated_before="$tmp/unrelated-ai.before"
+  local project_before="$tmp/uninstall-project.before"
   local bundle
   new_project "$project"
   mkdir -p "$fixture_home" "$fixture_bin" "$project/.agentfs"
@@ -269,25 +271,39 @@ run_uninstall() {
   chmod 755 "$fixture_bin/claude" "$fixture_bin/systemctl"
   printf '%s\n' '{"schema_version":1,"capabilities":{"wiki":false},"logging":{"callbacks":true}}' >"$project/.ai/capabilities.json"
   chmod 600 "$project/.ai/capabilities.json"
+  printf 'operator-owned ai bytes\000must-survive\377\n' >"$project/.ai/operator-state.bin"
   printf 'capability-callback-v1\000durable\377bytes\n' >"$project/.agentfs/trajectory.db"
+  printf 'capability-wal-v1\000durable\377bytes\n' >"$project/.agentfs/trajectory.db-wal"
   cp "$project/.ai/capabilities.json" "$config_before"
+  cp "$project/.ai/operator-state.bin" "$unrelated_before"
   cp "$project/.agentfs/trajectory.db" "$db_before"
+  cp -a "$project" "$project_before"
+
+  HOME="$fixture_home" XDG_CONFIG_HOME="$fixture_home/.config" PATH="$fixture_bin:$PATH" \
+    "$ROOT/scripts/uninstall.sh" --dry-run --live-root "$live" "$project" >/dev/null 2>&1 || fail "capability uninstall dry-run failed"
+  diff -qr "$project_before" "$project" >/dev/null || fail "capability uninstall dry-run changed project bytes"
 
   HOME="$fixture_home" XDG_CONFIG_HOME="$fixture_home/.config" PATH="$fixture_bin:$PATH" \
     "$ROOT/scripts/uninstall.sh" --yes --live-root "$live" "$project" >/dev/null 2>&1 || fail "default capability uninstall failed"
   [[ ! -e "$project/.ai/capabilities.json" ]] || fail "default uninstall retained project capability config"
+  cmp -s "$unrelated_before" "$project/.ai/operator-state.bin" || fail "default uninstall changed unrelated .ai bytes"
   cmp -s "$db_before" "$project/.agentfs/trajectory.db" || fail "default uninstall changed callback store bytes"
   bundle=$(find "$fixture_home" -maxdepth 1 -type d -name '.cairnkeep-uninstall-*' | sort | tail -1)
   [[ -n "$bundle" && -x "$bundle/revert.sh" ]] || fail "default uninstall created no reversible backup"
   cmp -s "$config_before" "$bundle/files/${project#/}/.ai/capabilities.json" || fail "capability config backup is not exact"
   HOME="$fixture_home" XDG_CONFIG_HOME="$fixture_home/.config" bash "$bundle/revert.sh" >/dev/null 2>&1 || fail "capability revert failed"
   cmp -s "$config_before" "$project/.ai/capabilities.json" || fail "capability revert did not restore config bytes"
+  [[ $(stat -c '%a' "$project/.ai/capabilities.json" 2>/dev/null || stat -f '%Lp' "$project/.ai/capabilities.json") == 600 ]] || fail "capability revert did not restore config mode"
+  cmp -s "$unrelated_before" "$project/.ai/operator-state.bin" || fail "capability revert changed unrelated .ai bytes"
 
   HOME="$fixture_home" XDG_CONFIG_HOME="$fixture_home/.config" PATH="$fixture_bin:$PATH" \
     "$ROOT/scripts/uninstall.sh" --yes --purge-memory --live-root "$live" "$project" >/dev/null 2>&1 || fail "capability purge failed"
   [[ ! -e "$project/.agentfs" ]] || fail "purge retained callback store"
   bundle=$(find "$fixture_home" -maxdepth 1 -type d -name '.cairnkeep-uninstall-*' | sort | tail -1)
   cmp -s "$db_before" "$bundle/files/${project#/}/.agentfs/trajectory.db" || fail "callback store purge backup is not exact"
+  HOME="$fixture_home" XDG_CONFIG_HOME="$fixture_home/.config" bash "$bundle/revert.sh" >/dev/null 2>&1 || fail "capability purge revert failed"
+  cmp -s "$db_before" "$project/.agentfs/trajectory.db" || fail "capability purge revert did not restore callback bytes"
+  cmp -s "$unrelated_before" "$project/.ai/operator-state.bin" || fail "capability purge revert changed unrelated .ai bytes"
   echo "PASS: Phase 18 capability uninstall keep/purge/revert contract"
 }
 
