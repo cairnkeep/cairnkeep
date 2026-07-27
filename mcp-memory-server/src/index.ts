@@ -14,6 +14,20 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { z } from "zod";
 
 import {
+    artifactIdSchema,
+    artifactKindSchema,
+    artifactMediaTypeSchema,
+    artifactNodeRefSchema,
+    artifactProvenanceSchema,
+    artifactSessionRefSchema,
+    compactionSummaryInputContentSchema,
+    diffContentSchema,
+    generatedFileInputContentSchema,
+    isArtifactHttpEnabled,
+    isArtifactStoreEnabled,
+    testOutputContentSchema,
+} from "./artifact-schema.js";
+import {
     EmbeddingCache,
     cosineSimilarity,
     embedTexts,
@@ -1093,6 +1107,19 @@ function createMemoryServer(context: ServerContext = {}): McpServer {
     const memoryConfig = (): MemoryConfig => context.memoryConfig ?? getMemoryConfig();
     const scopeOptions = { projectId: context.projectId };
     const typedNodesEnabled = isTypedMemoryNodesEnabled();
+    const artifactToolsEnabled = isArtifactStoreEnabled() && (!context.remote || isArtifactHttpEnabled());
+    let fallbackArtifactSessionRef: string | undefined;
+    const resolveArtifactSessionRef = (sessionRef?: string): string => {
+        if (sessionRef) return sessionRef;
+        fallbackArtifactSessionRef ??= `cairn:${randomUUID()}`;
+        return fallbackArtifactSessionRef;
+    };
+    const artifactProjectRoot = (): string => {
+        if (context.remote) {
+            throw new ClientContextError("Remote artifact storage requires server-side project routing.");
+        }
+        return process.cwd();
+    };
     const noteTargetOptions = (scope: string, address_space: NoteAddressSpace) => {
         if (scope !== "project") throw new Error("INVALID_SCOPE: note address spaces require scope project.");
         if (context.remote && address_space === "project-notes" && !context.projectId) {
@@ -1103,6 +1130,162 @@ function createMemoryServer(context: ServerContext = {}): McpServer {
             ...(context.projectId ? { projectId: context.projectId } : { projectRoot: process.cwd() }),
         };
     };
+
+if (artifactToolsEnabled) {
+    const artifactIdentifierSchema = z.string().min(4).max(40).regex(/^art_[0-9a-f-]*$/i);
+    const artifactWriteToolSchema = z.object({
+        kind: artifactKindSchema,
+        session_ref: artifactSessionRefSchema.optional(),
+        node_ref: artifactNodeRefSchema.optional(),
+        media_type: artifactMediaTypeSchema,
+        provenance: artifactProvenanceSchema,
+        supersedes: artifactIdSchema.optional(),
+        content: z.union([
+            compactionSummaryInputContentSchema,
+            diffContentSchema,
+            testOutputContentSchema,
+            generatedFileInputContentSchema,
+        ]),
+    }).strict();
+
+    server.registerTool(
+        "artifact_write",
+        {
+            description: "Write one bounded inline artifact to the immutable project artifact store.",
+            inputSchema: artifactWriteToolSchema,
+            annotations: {
+                readOnlyHint: false,
+                idempotentHint: true,
+            },
+        },
+        async (input) => {
+            const projectRoot = artifactProjectRoot();
+            const sessionRef = resolveArtifactSessionRef(input.session_ref);
+            const { putArtifact } = await import("./artifact-store.js");
+            const result = await putArtifact(projectRoot, { ...input, session_ref: sessionRef });
+            const artifact = result.artifact;
+            const payload = {
+                schema_version: artifact.schema_version,
+                artifact_id: artifact.artifact_id,
+                kind: artifact.kind,
+                session_ref: artifact.session_ref,
+                content_digest: artifact.content_digest,
+                logical_bytes: artifact.logical_bytes,
+                stored_bytes: artifact.stored_bytes,
+                status: result.idempotent ? "existing" : "created",
+            };
+            return {
+                content: [{ type: "text", text: JSON.stringify(payload) }],
+                structuredContent: payload,
+            };
+        },
+    );
+
+    server.registerTool(
+        "artifact_read",
+        {
+            description: "Read one artifact by exact ID or an unambiguous ID prefix.",
+            inputSchema: z.object({ artifact_id: artifactIdentifierSchema }).strict(),
+            annotations: {
+                readOnlyHint: true,
+                idempotentHint: true,
+            },
+        },
+        async ({ artifact_id }) => {
+            const projectRoot = artifactProjectRoot();
+            const { readArtifact } = await import("./artifact-store.js");
+            const payload = await readArtifact(artifact_id, projectRoot);
+            return {
+                content: [{ type: "text", text: asToolText(payload) }],
+                structuredContent: payload,
+            };
+        },
+    );
+
+    server.registerTool(
+        "artifact_list",
+        {
+            description: "List artifact metadata newest first with exact filters and opaque pagination.",
+            inputSchema: z.object({
+                session_ref: artifactSessionRefSchema.optional(),
+                kind: artifactKindSchema.optional(),
+                node_ref: artifactNodeRefSchema.optional(),
+                limit: z.number().int().min(1).max(100).optional(),
+                cursor: z.string().min(1).max(256).optional(),
+            }).strict(),
+            annotations: {
+                readOnlyHint: true,
+                idempotentHint: true,
+            },
+        },
+        async (filters) => {
+            const projectRoot = artifactProjectRoot();
+            const { listArtifacts } = await import("./artifact-store.js");
+            const listed = await listArtifacts(projectRoot, filters);
+            const payload = {
+                schema_version: listed.schema_version,
+                artifacts: listed.artifacts.map((artifact) => ({
+                    schema_version: artifact.schema_version,
+                    artifact_id: artifact.artifact_id,
+                    kind: artifact.kind,
+                    created_at: artifact.created_at,
+                    session_ref: artifact.session_ref,
+                    ...(artifact.node_ref ? { node_ref: artifact.node_ref } : {}),
+                    media_type: artifact.media_type,
+                    logical_bytes: artifact.logical_bytes,
+                    stored_bytes: artifact.stored_bytes,
+                    content_digest: artifact.content_digest,
+                    ...(artifact.supersedes ? { supersedes: artifact.supersedes } : {}),
+                })),
+                logical_bytes: listed.logical_bytes,
+                ...(listed.next_cursor ? { next_cursor: listed.next_cursor } : {}),
+            };
+            return {
+                content: [{ type: "text", text: JSON.stringify(payload) }],
+                structuredContent: payload,
+            };
+        },
+    );
+
+    server.registerTool(
+        "artifact_delete",
+        {
+            description: "Hard-delete one artifact by exact ID or an unambiguous ID prefix.",
+            inputSchema: z.object({ artifact_id: artifactIdentifierSchema }).strict(),
+            annotations: {
+                readOnlyHint: false,
+                destructiveHint: true,
+                idempotentHint: true,
+            },
+        },
+        async ({ artifact_id }) => {
+            const projectRoot = artifactProjectRoot();
+            const { deleteArtifact } = await import("./artifact-store.js");
+            let payload;
+            try {
+                const deleted = await deleteArtifact(artifact_id, projectRoot);
+                payload = {
+                    schema_version: deleted.schema_version,
+                    artifact_id: deleted.artifact_id,
+                    deleted: deleted.deleted,
+                    missing: false,
+                };
+            } catch (error) {
+                if (!(error instanceof Error) || error.message !== "Artifact not found.") throw error;
+                payload = {
+                    schema_version: 1 as const,
+                    artifact_id,
+                    deleted: false,
+                    missing: true,
+                };
+            }
+            return {
+                content: [{ type: "text", text: JSON.stringify(payload) }],
+                structuredContent: payload,
+            };
+        },
+    );
+}
 
 server.registerTool(
     "memory_read",
