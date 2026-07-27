@@ -480,7 +480,11 @@ NODE
 
   write_capability_config "$project" true true
   for terminal in Stop StopFailure; do
-    local session="claude-${terminal,,}"
+    local session
+    case "$terminal" in
+      Stop) session="claude-stop" ;;
+      StopFailure) session="claude-stopfailure" ;;
+    esac
     payload=$(node - "$FIXTURE" "$project" "$session" <<'NODE'
 const fixture = require(process.argv[2]);
 const value = structuredClone(fixture.claude.events.UserPromptExpansion.sample);
