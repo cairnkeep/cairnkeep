@@ -9,6 +9,288 @@ trap 'rm -rf "$tmp"' EXIT
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
+write_recovery_runtime_fixture() {
+  local runtime_root="$1"
+  local name
+  mkdir -p "$runtime_root/bin" "$runtime_root/mcp-memory-server/dist"
+  for name in scripts claude opencode templates; do
+    ln -s "$ROOT/$name" "$runtime_root/$name"
+  done
+  for asset in "$ROOT"/mcp-memory-server/dist/*; do
+    name=${asset##*/}
+    [[ "$name" == capability-cli.js ]] || ln -s "$asset" "$runtime_root/mcp-memory-server/dist/$name"
+  done
+  cat > "$runtime_root/bin/cairn" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+  chmod +x "$runtime_root/bin/cairn"
+  cat > "$runtime_root/mcp-memory-server/dist/capability-cli.js" <<NODE
+#!/usr/bin/env node
+const fs = require("node:fs");
+const { spawnSync } = require("node:child_process");
+const operation = process.argv[2] ?? "";
+fs.appendFileSync(process.env.CAIRN_RECOVERY_TRACE, \`coordinator:\${operation}\\n\`);
+if (operation === "harness-recover" && process.env.CAIRN_TEST_RECOVERY_FAIL === "1") process.exit(23);
+const input = fs.readFileSync(0);
+const result = spawnSync(process.execPath, ["$ROOT/mcp-memory-server/dist/capability-cli.js", ...process.argv.slice(2)], {
+  cwd: process.cwd(),
+  env: process.env,
+  input,
+  encoding: "utf8",
+});
+process.stdout.write(result.stdout ?? "");
+process.stderr.write(result.stderr ?? "");
+process.exit(result.status ?? 1);
+NODE
+  chmod +x "$runtime_root/mcp-memory-server/dist/capability-cli.js"
+}
+
+write_recovery_harness_fixtures() {
+  local bin_root="$1"
+  local name
+  mkdir -p "$bin_root"
+  for name in claude opencode; do
+    cat > "$bin_root/$name" <<'SH'
+#!/usr/bin/env bash
+name=${0##*/}
+if [[ "$name" == claude ]]; then config=${CLAUDE_CONFIG_DIR:-}; else config=${OPENCODE_CONFIG_DIR:-}; fi
+printf 'harness:%s|args:%s|config:%s\n' "$name" "$*" "$config" >> "$CAIRN_RECOVERY_TRACE"
+exit "${FAKE_EXIT:-0}"
+SH
+    chmod +x "$bin_root/$name"
+  done
+}
+
+write_recovery_config() {
+  local project="$1"
+  mkdir -p "$project/.ai"
+  printf '%s\n' '{"schema_version":1,"capabilities":{"wiki":true},"logging":{"callbacks":true}}' \
+    > "$project/.ai/capabilities.json"
+  chmod 600 "$project/.ai/capabilities.json"
+}
+
+create_recovery_lease() {
+  local project="$1"
+  local state_root="$2"
+  local harness="$3"
+  local session="$4"
+  local output
+  output=$(
+    cd "$project"
+    printf '%s' "{\"schema_version\":1,\"harness\":\"$harness\",\"command\":\"wiki-query\",\"session_id\":\"$session\",\"project_root\":\"$project\"}" | \
+      env CAIRN_CAPABILITY_CONTRACT=1 CAIRN_CAPABILITY_LOGGING=1 CAIRN_TRAJECTORY_CAPTURE=1 \
+        CAIRN_HARNESS_STATE_DIR="$state_root" \
+        node "$ROOT/mcp-memory-server/dist/capability-cli.js" harness-before
+  )
+  [[ "$output" == '{"schema_version":1,"decision":"allow"}' ]] || fail "could not create genuine recovery lease"
+}
+
+inject_terminal_crash() {
+  local project="$1"
+  local state_root="$2"
+  local harness="$3"
+  local session="$4"
+  (
+    cd "$project"
+    env CAIRN_CAPABILITY_CONTRACT=1 CAIRN_CAPABILITY_LOGGING=1 CAIRN_TRAJECTORY_CAPTURE=1 \
+      CAIRN_HARNESS_STATE_DIR="$state_root" \
+      node --input-type=module - "$ROOT/mcp-memory-server/dist/capability-harness.js" "$harness" "$session" <<'NODE'
+import assert from "node:assert/strict";
+import { pathToFileURL } from "node:url";
+const [modulePath, harness, sessionID] = process.argv.slice(2);
+const coordinator = await import(pathToFileURL(modulePath).href);
+await assert.rejects(
+  coordinator.finishHarnessCapability({
+    schema_version: 1,
+    harness,
+    session_id: sessionID,
+    outcome: "success",
+  }, { testCrashAt: "after-claim" }),
+  (error) => error?.name === "HarnessCrashInjection",
+);
+NODE
+  )
+}
+
+expire_recovery_lease() {
+  local state_root="$1"
+  local lease
+  lease=$(find "$state_root/capability-leases-v1" -type f -name '*.json' -print -quit)
+  [[ -n "$lease" ]] || fail "active recovery lease is absent"
+  node - "$lease" <<'NODE'
+const fs = require("node:fs");
+const path = process.argv[2];
+const before = JSON.parse(fs.readFileSync(path, "utf8"));
+const after = { ...before, expires_at: "2020-01-01T00:00:00.000Z" };
+if (Object.keys(before).sort().join(",") !== Object.keys(after).sort().join(",")) process.exit(1);
+fs.writeFileSync(path, `${JSON.stringify(after)}\n`, { mode: 0o600 });
+fs.chmodSync(path, 0o600);
+NODE
+}
+
+recovery_state() {
+  local project="$1"
+  local state_root="$2"
+  (
+    cd "$ROOT/mcp-memory-server"
+    NODE_NO_WARNINGS=1 node --input-type=module - "$project" "$state_root" <<'NODE'
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { AgentFS } from "agentfs-sdk";
+const [project, stateRoot] = process.argv.slice(2);
+const database = join(project, ".agentfs", "trajectory.db");
+let pending = [];
+let finals = [];
+if (existsSync(database)) {
+  const agent = await AgentFS.open({ id: "trajectory", path: database });
+  pending = await agent.kv.list("capability-callback/v1/pending/");
+  finals = await agent.kv.list("capability-callback/v1/record/");
+  await agent.close();
+}
+function files(root) {
+  if (!existsSync(root)) return [];
+  return readdirSync(root).flatMap((name) => {
+    const path = join(root, name);
+    return statSync(path).isDirectory() ? files(path) : [path];
+  });
+}
+const stateFiles = files(stateRoot);
+const raw = Buffer.concat([
+  ...stateFiles.map((path) => readFileSync(path)),
+  ...(existsSync(join(project, ".agentfs")) ? readdirSync(join(project, ".agentfs"))
+    .filter((name) => /^trajectory\.db(?:-(?:wal|shm))?$/.test(name))
+    .map((name) => readFileSync(join(project, ".agentfs", name))) : []),
+]).toString("utf8");
+process.stdout.write(JSON.stringify({
+  pending: pending.length,
+  finals: finals.map(({ value }) => value),
+  leases: stateFiles.filter((path) => path.endsWith(".json")).length,
+  leaked: ["launcher-argument-sentinel-18-28", "launcher-result-sentinel-18-28"].some((value) => raw.includes(value)),
+}));
+NODE
+  )
+}
+
+assert_recovered_state() {
+  local state="$1"
+  local outcome="$2"
+  node - "$state" "$outcome" <<'NODE'
+const state = JSON.parse(process.argv[2]);
+const outcome = process.argv[3];
+if (state.pending !== 0 || state.leases !== 0 || state.leaked) process.exit(1);
+if (state.finals.length !== 1 || state.finals[0].outcome !== outcome) process.exit(1);
+if (JSON.stringify(state.finals[0]).includes("launcher-")) process.exit(1);
+NODE
+}
+
+capability_recovery() {
+  local recovery_root="$tmp/capability-recovery"
+  local runtime_root="$recovery_root/runtime"
+  local harness_bin="$recovery_root/harness-bin"
+  local trace="$recovery_root/trace"
+  local claude_repo="$recovery_root/claude-project"
+  local opencode_repo="$recovery_root/opencode-project"
+  local claude_state="$recovery_root/claude-state"
+  local opencode_state="$recovery_root/opencode-state"
+  local state before status launcher harness project state_root master_value
+
+  npm --prefix "$ROOT/mcp-memory-server" run build >/dev/null
+  mkdir -p "$claude_repo" "$opencode_repo"
+  git -C "$claude_repo" init -q
+  git -C "$opencode_repo" init -q
+  "$ROOT/scripts/bootstrap.sh" "$claude_repo" >/dev/null
+  "$ROOT/scripts/bootstrap.sh" "$opencode_repo" >/dev/null
+  write_recovery_config "$claude_repo"
+  write_recovery_config "$opencode_repo"
+  write_recovery_runtime_fixture "$runtime_root"
+  write_recovery_harness_fixtures "$harness_bin"
+  : > "$trace"
+
+  create_recovery_lease "$claude_repo" "$claude_state" claude-code launcher-crash-claude-18-28
+  inject_terminal_crash "$claude_repo" "$claude_state" claude-code launcher-crash-claude-18-28
+  create_recovery_lease "$opencode_repo" "$opencode_state" opencode launcher-expired-opencode-18-28
+  expire_recovery_lease "$opencode_state"
+
+  CAIRN_RECOVERY_TRACE="$trace" CAIRN_CAPABILITY_CONTRACT=1 CAIRN_CAPABILITY_LOGGING=1 \
+    CAIRN_TRAJECTORY_CAPTURE=1 CAIRN_HARNESS_STATE_DIR="$claude_state" \
+    PATH="$runtime_root/bin:$harness_bin:$PATH" \
+    "$claude_repo/.ai/start-claude.sh" --launcher-argument-sentinel-18-28 >/dev/null 2>&1 || \
+    fail "Claude recovery fixture did not reach the harness"
+  CAIRN_RECOVERY_TRACE="$trace" CAIRN_CAPABILITY_CONTRACT=1 CAIRN_CAPABILITY_LOGGING=1 \
+    CAIRN_TRAJECTORY_CAPTURE=1 CAIRN_HARNESS_STATE_DIR="$opencode_state" \
+    PATH="$runtime_root/bin:$harness_bin:$PATH" \
+    "$opencode_repo/.ai/start-opencode.sh" --launcher-argument-sentinel-18-28 >/dev/null 2>&1 || \
+    fail "OpenCode recovery fixture did not reach the harness"
+
+  if [[ $(grep -c '^coordinator:harness-recover$' "$trace" || true) -eq 0 ]]; then
+    [[ $(grep -c '^harness:' "$trace" || true) -eq 2 ]] || fail "known launcher recovery gap changed harness execution"
+    [[ $(node -e 'const s=JSON.parse(process.argv[1]);process.stdout.write(String(s.leases))' "$(recovery_state "$claude_repo" "$claude_state")") -eq 1 ]] || \
+      fail "known launcher recovery gap consumed the Claude crash lease"
+    [[ $(node -e 'const s=JSON.parse(process.argv[1]);process.stdout.write(String(s.leases))' "$(recovery_state "$opencode_repo" "$opencode_state")") -eq 1 ]] || \
+      fail "known launcher recovery gap consumed the OpenCode expiry lease"
+    echo "PHASE18_RED:PRODUCTION_STARTUP_RECOVERY"
+    return 86
+  fi
+
+  node - "$trace" <<'NODE' || fail "recovery did not run once before each harness"
+const fs = require("node:fs");
+const rows = fs.readFileSync(process.argv[2], "utf8").trim().split(/\n/);
+if (rows.length !== 4) process.exit(1);
+if (rows[0] !== "coordinator:harness-recover" || !rows[1].startsWith("harness:claude|")) process.exit(1);
+if (rows[2] !== "coordinator:harness-recover" || !rows[3].startsWith("harness:opencode|")) process.exit(1);
+NODE
+  assert_recovered_state "$(recovery_state "$claude_repo" "$claude_state")" success || fail "Claude crash recovery state is incorrect"
+  assert_recovered_state "$(recovery_state "$opencode_repo" "$opencode_state")" timeout || fail "OpenCode expiry recovery state is incorrect"
+
+  before="$(recovery_state "$claude_repo" "$claude_state")|$(recovery_state "$opencode_repo" "$opencode_state")"
+  : > "$trace"
+  CAIRN_RECOVERY_TRACE="$trace" CAIRN_CAPABILITY_CONTRACT=1 CAIRN_HARNESS_STATE_DIR="$claude_state" \
+    PATH="$runtime_root/bin:$harness_bin:$PATH" "$claude_repo/.ai/start-claude.sh" --replay >/dev/null 2>&1
+  CAIRN_RECOVERY_TRACE="$trace" CAIRN_CAPABILITY_CONTRACT=1 CAIRN_HARNESS_STATE_DIR="$opencode_state" \
+    PATH="$runtime_root/bin:$harness_bin:$PATH" "$opencode_repo/.ai/start-opencode.sh" --replay >/dev/null 2>&1
+  [[ "$before" == "$(recovery_state "$claude_repo" "$claude_state")|$(recovery_state "$opencode_repo" "$opencode_state")" ]] || \
+    fail "replayed startup changed recovered finals"
+
+  for harness in claude opencode; do
+    if [[ "$harness" == claude ]]; then
+      project="$claude_repo"; state_root="$claude_state"; launcher="$project/.ai/start-claude.sh"
+    else
+      project="$opencode_repo"; state_root="$opencode_state"; launcher="$project/.ai/start-opencode.sh"
+    fi
+    : > "$trace"
+    status=0
+    CAIRN_RECOVERY_TRACE="$trace" CAIRN_TEST_RECOVERY_FAIL=1 FAKE_EXIT=7 \
+      CAIRN_CAPABILITY_CONTRACT=1 CAIRN_HARNESS_STATE_DIR="$state_root" \
+      PATH="$runtime_root/bin:$harness_bin:$PATH" "$launcher" --failure-argv >/dev/null 2>&1 || status=$?
+    [[ "$status" -eq 7 ]] || fail "$harness recovery failure changed the harness exit status"
+    node - "$trace" "$harness" "$project" <<'NODE' || fail "recovery failure changed harness ordering, argv, or config"
+const fs = require("node:fs");
+const [trace, harness, project] = process.argv.slice(2);
+const rows = fs.readFileSync(trace, "utf8").trim().split(/\n/);
+if (rows.length !== 2 || rows[0] !== "coordinator:harness-recover") process.exit(1);
+if (!rows[1].startsWith(`harness:${harness}|args:--failure-argv|`)) process.exit(1);
+if (!rows[1].includes(`config:${project}/.ai/capability-contract/${harness}`)) process.exit(1);
+NODE
+  done
+
+  for master_value in 0 false FALSE no off invalid; do
+    for harness in claude opencode; do
+      if [[ "$harness" == claude ]]; then project="$claude_repo"; launcher="$project/.ai/start-claude.sh"
+      else project="$opencode_repo"; launcher="$project/.ai/start-opencode.sh"; fi
+      : > "$trace"
+      CAIRN_RECOVERY_TRACE="$trace" CAIRN_CAPABILITY_CONTRACT="$master_value" \
+        PATH="$runtime_root/bin:$harness_bin:$PATH" "$launcher" --legacy-argv >/dev/null 2>&1 || \
+        fail "$harness master-off spelling failed: $master_value"
+      [[ $(grep -c '^coordinator:' "$trace" || true) -eq 0 ]] || fail "$harness master-off invoked recovery: $master_value"
+      grep -q "^harness:$harness|args:--legacy-argv|config:$" "$trace" || \
+        fail "$harness master-off changed argv or config: $master_value"
+    done
+  done
+
+  echo "PASS: production launcher crash and expiry recovery contract"
+}
+
 opencode_sync_tree_digest() {
   local live_root="$1"
   (
@@ -126,6 +408,11 @@ EOF
 if [[ "${1:-}" == "opencode-all-sync-modes" ]]; then
   opencode_all_sync_modes
   exit 0
+fi
+
+if [[ "${1:-}" == "capability-recovery" ]]; then
+  capability_recovery
+  exit $?
 fi
 
 # A git repo scaffolded with the real templates.
