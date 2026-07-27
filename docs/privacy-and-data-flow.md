@@ -18,6 +18,7 @@ request unless the corresponding endpoint and credential are configured.
 | `context_explore` | Repository path and query are passed to the configured local executable | `CAIRN_EXPLORE_BINARY`; any further data flow is controlled by that tool |
 | Remote HTTP memory | MCP requests and responses, including memory content | The explicitly registered Cairnkeep HTTP server |
 | Opt-in trajectory capture | None | Local `<project>/.agentfs/trajectory.db` only; no model or HTTP path exists |
+| Opt-in capability callback records | None | Payload-free final metadata in local `<project>/.agentfs/trajectory.db`; HTTP transport is always skipped |
 | Opt-in deterministic note distillation | None | Reads redacted closed trajectories; writes local Markdown + manifest under `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/notes/` |
 | Separately opted-in note enrichment | `CAIRN_LLM_API_KEY` | Sends bounded redacted note evidence to the explicit `CAIRN_LLM_API_URL` chat endpoint |
 | Typed lifecycle and inline `memory_import` over local stdio | None | Values, metadata, digests, replay bindings, and history remain in the selected local store |
@@ -199,6 +200,63 @@ trajectory database. `cairn doctor --repair` may rebuild missing metadata and
 indexes from valid full records but does not discard an invalid full record;
 only capture retention, explicit prune, or explicit uninstall purge removes
 trajectory sessions.
+
+## Capability callback flow
+
+Callback measurement has three consents, all separately default-off where
+applicable:
+
+```text
+CAIRN_CAPABILITY_CONTRACT enabled
+  + managed logging.callbacks enabled (or CAIRN_CAPABILITY_LOGGING)
+  + CAIRN_TRAJECTORY_CAPTURE enabled
+  + local non-HTTP invocation
+      -> resolve effective state and digest
+      -> run the unchanged capability owner
+      -> append one payload-free final record locally
+```
+
+If any consent is absent, or transport is `http`, the wrapper returns to the
+existing owner without opening the callback store. There is no remote/HTTP callback persistence.
+HTTP callbacks are never persisted. There is no telemetry, analytics, log export, or callback network request.
+Existing authenticated HTTP MCP behavior is unchanged.
+
+The strict schema permits only these final fields:
+
+- `schema_version`
+- `capability_id`
+- `invocation_id` (`cap:<uuid>`, unique per invocation)
+- `correlation_id` (the explicit harness session when exposed, otherwise one
+  stable per-process/run `cairn:<uuid>`; never `unknown`)
+- `harness` (`claude-code`, `opencode`, `pi`, or `other`)
+- `source` (`mcp`, `notes-cli`, `audit-timer`, `operating-command`, or
+  `operating-workflow`)
+- `transport` (`stdio`, `local-process`, or `harness-command` for persisted
+  records; HTTP is skipped)
+- `started_at`, `finished_at`, and non-negative `duration_ms`
+- `outcome` (`success`, `error`, `timeout`, or `disabled`) and, for a
+  non-success outcome, one stable value-free `error_code`
+- `state_source` (`environment`, `project`, or `compatibility`)
+- `configuration_digest` (the SHA-256 digest of the effective state snapshot)
+
+There is no start record. One atomic final record is attempted after a terminal
+outcome; an operating disabled result may record `disabled`. A store open,
+lock, schema, validation, or write failure is fail-open: it cannot change the
+owner result, thrown error, timeout behavior, stdout/stderr, or exit status.
+
+The record constructor never receives or persists arguments, results, prompts,
+query text, memory values, file paths, stack traces, raw errors, secrets,
+credentials, arbitrary metadata, or user-supplied messages/details. The timer
+starts only immediately before the capability-owned body after state
+resolution, and ends after its outcome before final presentation; discovery,
+configuration, guard, and unrelated harness overhead are excluded.
+
+When one of `memory.write`, `memory.search`, `route.check`, or
+`context.explore` is disabled, it is omitted from MCP registration and cannot
+produce a callback record. The schema-v1 `cairn capabilities status --json`
+snapshot and its `configuration_digest` are the evidence for that omitted tool.
+This is operating evidence only, not a task result, telemetry event, or
+evaluation/quality claim.
 
 ## Hindsight note distillation
 

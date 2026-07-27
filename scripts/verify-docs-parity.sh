@@ -319,7 +319,7 @@ EOF
   done
 
   for term in 'wiki covers ingest, query, and lint' 'graph covers its command family' \
-    'security audit covers its command and workflow family' 'directly invokable workflow' \
+    'audit covers its command and workflow family' 'directly invokable workflow' \
     'byte-identical legacy installed'; do
     grep -qiF "$term" docs/operating.md || {
       echo "FATAL: capability operating-guard family is undocumented: $term" >&2

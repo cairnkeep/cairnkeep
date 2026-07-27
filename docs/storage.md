@@ -41,6 +41,39 @@ indexes. Defaults are 5 MiB per serialized session, 256 MiB logical total and
 and then the oldest records needed to meet the logical budget. `prune
 --dry-run` reports the same decision without changing the database.
 
+## Capability callback storage
+
+Managed capability callback records use the separate versioned
+`capability-callback/v1/record/` KV namespace inside the existing project-local
+`.agentfs/trajectory.db`. They are measurement records, not trajectory
+sessions: the existing `trajectory/v1` session envelopes, keys, indexes, CLI,
+and path are unchanged. There is no database migration, mirror, or second
+callback database. The file is created with mode `0600`; its SQLite `-wal` and
+`-shm` files remain in the same sensitive backup boundary.
+
+Each completed invocation is appended once and retention is applied in the
+same immediate transaction. Callback age retention reuses
+`CAIRN_TRAJECTORY_RETENTION_DAYS` (default 30 days), then an independent
+10,000-record cap prunes the oldest callback keys. A record older than the
+current retention cutoff is not appended. Existing trajectory session byte
+limits and total-store accounting remain session contracts; callback rows do
+not change their schema or path.
+
+The namespace is strictly local. Stdio MCP callbacks, offline notes, and
+guarded local harness commands may persist only after all three consents pass.
+Authenticated HTTP callbacks are skipped: there is no remote/HTTP callback
+persistence, server-base-directory mapping, telemetry, export, or network
+delivery. Disabling logging stops future records but does not delete retained
+rows.
+
+Default uninstall retains `.agentfs/trajectory.db` and its sidecars exactly.
+It removes the managed `.ai/capabilities.json` only after backing it up, and
+the generated `revert.sh` restores the exact bytes and mode. An explicit
+`cairn uninstall --purge-memory PROJECT` backs up and removes the entire
+project `.agentfs/` boundary, including trajectory sessions and callback rows;
+its `revert.sh` restores that boundary byte-for-byte. Back up the database and
+sidecars together while moving or inspecting a project.
+
 Hindsight notes are also separate derived data. They are human-readable
 Markdown below `notes/projects/` and `notes/shared/`, with a local schema-v1
 manifest and lock directories below `notes/.cairnkeep/`. Project paths are
