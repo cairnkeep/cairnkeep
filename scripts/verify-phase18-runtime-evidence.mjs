@@ -240,6 +240,9 @@ cp -a /source/. /work/source/
 cd /work/source
 export NPM_CONFIG_CACHE=/npm-cache
 export NPM_CONFIG_LOGS_DIR=/tmp/npm-logs
+export NPM_CONFIG_OFFLINE=true
+export NPM_CONFIG_AUDIT=false
+export NPM_CONFIG_FUND=false
 ${suiteHeader(runtime, "node --version")}${shellEvidenceRunner()}${shellCommandRows(NODE_COMMANDS)}
 printf 'PASS: Phase 18 runtime ${runtime}\\n'`;
 }
