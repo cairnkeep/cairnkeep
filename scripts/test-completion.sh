@@ -11,6 +11,35 @@ for shell in bash zsh fish; do
   grep -q 'completion' "$tmp/$shell"
 done
 
+capability_ids='memory.write memory.search notes.distill wiki graph security.audit route.check context.explore'
+for shell in bash zsh fish; do
+  grep -q 'capabilities' "$tmp/$shell"
+  grep -q 'list.*status.*enable.*disable.*reset.*logging\|list status enable disable reset logging' "$tmp/$shell"
+  grep -q -- '--json\|-l json' "$tmp/$shell"
+  for capability_id in $capability_ids; do
+    grep -qF "$capability_id" "$tmp/$shell"
+  done
+  if grep -Eq '(^|[[:space:]"'"'"'])(guard|start|finish)([[:space:]"'"'"']|$)' "$tmp/$shell"; then
+    echo "completion exposed a private capability operation for $shell" >&2
+    exit 1
+  fi
+done
+
+node - "$ROOT/mcp-memory-server/src/capability-registry.ts" "$tmp/bash" "$tmp/zsh" "$tmp/fish" <<'NODE'
+const fs = require("fs");
+const [registryPath, ...completionPaths] = process.argv.slice(2);
+const registry = fs.readFileSync(registryPath, "utf8");
+const ids = [...registry.matchAll(/^\s*id: "([^"]+)",$/gm)].map((match) => match[1]);
+const expected = ["memory.write", "memory.search", "notes.distill", "wiki", "graph", "security.audit", "route.check", "context.explore"];
+if (JSON.stringify(ids) !== JSON.stringify(expected)) process.exit(1);
+for (const path of completionPaths) {
+  const output = fs.readFileSync(path, "utf8");
+  const positions = ids.map((id) => output.indexOf(id));
+  if (positions.some((position) => position < 0)) process.exit(1);
+  if (positions.some((position, index) => index > 0 && position <= positions[index - 1])) process.exit(1);
+}
+NODE
+
 grep -q 'complete -F _cairn_complete cairn' "$tmp/bash"
 grep -q '#compdef cairn' "$tmp/zsh"
 grep -q 'complete -c cairn' "$tmp/fish"
