@@ -41,17 +41,20 @@ ARTIFACT_REMOTE_PATH_RED_MARKER='PHASE17_RED:ARTIFACT_REMOTE_PATH_DOC_DRIFT'
 ENV_KEY_PATTERN='(CAIRN_[A-Z_]+|MCP_HTTP_[A-Z_]+)'
 
 run_native_capability_docs_self_test() {
-  local fixture_root
+  local fixture_root pristine_root
   fixture_root=$(mktemp -d)
-  trap 'rm -rf "$fixture_root"' RETURN
+  trap "rm -rf '$fixture_root'" EXIT HUP INT TERM
+  pristine_root="$fixture_root/pristine"
 
   mkdir -p \
     "$fixture_root/docs" \
     "$fixture_root/mcp-memory-server/src" \
     "$fixture_root/claude/capability-contract/hooks" \
     "$fixture_root/opencode/capability-contract/plugins" \
-    "$fixture_root/scripts"
+    "$fixture_root/scripts" \
+    "$pristine_root"
   cp docs/operating.md docs/privacy-and-data-flow.md docs/storage.md "$fixture_root/docs/"
+  cp docs/operating.md docs/privacy-and-data-flow.md docs/storage.md "$pristine_root/"
   cp mcp-memory-server/src/capability-harness.ts "$fixture_root/mcp-memory-server/src/"
   cp mcp-memory-server/src/capability-store.ts "$fixture_root/mcp-memory-server/src/"
   cp claude/capability-contract/hooks/capability-command-start.sh "$fixture_root/claude/capability-contract/hooks/"
@@ -60,7 +63,199 @@ run_native_capability_docs_self_test() {
   cp scripts/sync-claude-assets.sh scripts/sync-opencode-plugin-assets.sh "$fixture_root/scripts/"
 
   check_native_capability_docs "$fixture_root"
+
+  expect_native_docs_drift() {
+    local label="$1" file="$2" before="$3" after="$4"
+    cp "$pristine_root/operating.md" "$fixture_root/docs/operating.md"
+    cp "$pristine_root/privacy-and-data-flow.md" "$fixture_root/docs/privacy-and-data-flow.md"
+    cp "$pristine_root/storage.md" "$fixture_root/docs/storage.md"
+    python3 - "$fixture_root/$file" "$before" "$after" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+before, after = sys.argv[2], sys.argv[3]
+text = path.read_text(encoding="utf-8")
+if before not in text:
+    raise SystemExit(f"self-test fixture text not found: {before}")
+path.write_text(text.replace(before, after, 1), encoding="utf-8")
+PY
+    if check_native_capability_docs "$fixture_root" >/dev/null 2>&1; then
+      echo "FATAL: native capability docs mutation was not rejected: $label" >&2
+      return 1
+    fi
+  }
+
+  expect_native_docs_drift "master-off state" docs/operating.md \
+    "create no capability measurement state" "create one capability measurement record"
+  expect_native_docs_drift "all-three-consents requirement" docs/privacy-and-data-flow.md \
+    "When all three consents are enabled" "When logging alone is enabled"
+  expect_native_docs_drift "disabled unmeasured block" docs/privacy-and-data-flow.md \
+    "the same fixed block remains in force and" "owner execution continues and"
+  expect_native_docs_drift "enabled unmeasured pass-through" docs/privacy-and-data-flow.md \
+    "measurement consent off leaves owner execution unchanged and writes no" \
+    "measurement consent off changes owner execution and writes one"
+  expect_native_docs_drift "StopFailure immediacy" docs/operating.md \
+    "error settlement is not deferred to" "error settlement is deferred to"
+  expect_native_docs_drift "immutable start binding" docs/operating.md \
+    "project identity and lease are immutable" "project identity and lease may be rebound"
+  expect_native_docs_drift "master-off installation" docs/operating.md \
+    "install and invoke no capability hook or plugin" "install and invoke a capability hook or plugin"
+  expect_native_docs_drift "evidence scope" docs/operating.md \
+    "They are not" "They are"
+
   echo "[native-capability-docs-self-test] OK: focused drift cases are rejected"
+}
+
+native_file_text() {
+  awk '{$1=$1; printf "%s ", $0}' "$1"
+}
+
+native_section_text() {
+  local file="$1" start="$2" end="$3"
+  awk -v start="$start" -v end="$end" '
+    index($0, start) { active = 1 }
+    active && index($0, end) && !index($0, start) { exit }
+    active { $1=$1; printf "%s ", $0 }
+  ' "$file"
+}
+
+require_native_term() {
+  local text="$1" term="$2" label="$3"
+  case "$text" in
+    *"$term"*) return 0 ;;
+    *) echo "FATAL: native capability parity term is missing: $label" >&2; return 1 ;;
+  esac
+}
+
+reject_native_term() {
+  local text="$1" term="$2" label="$3"
+  case "$text" in
+    *"$term"*) echo "FATAL: retired native capability wording remains: $label" >&2; return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+check_native_capability_docs() {
+  local root="${1:-.}" failed=0
+  local operating privacy storage harness store claude_start claude_finish opencode_plugin claude_sync opencode_sync
+  local operating_contract privacy_contract storage_contract file
+
+  operating="$root/docs/operating.md"
+  privacy="$root/docs/privacy-and-data-flow.md"
+  storage="$root/docs/storage.md"
+  harness="$root/mcp-memory-server/src/capability-harness.ts"
+  store="$root/mcp-memory-server/src/capability-store.ts"
+  claude_start="$root/claude/capability-contract/hooks/capability-command-start.sh"
+  claude_finish="$root/claude/capability-contract/hooks/capability-command-finish.sh"
+  opencode_plugin="$root/opencode/capability-contract/plugins/capability-command.ts"
+  claude_sync="$root/scripts/sync-claude-assets.sh"
+  opencode_sync="$root/scripts/sync-opencode-plugin-assets.sh"
+
+  for file in "$operating" "$privacy" "$storage" "$harness" "$store" \
+    "$claude_start" "$claude_finish" "$opencode_plugin" "$claude_sync" "$opencode_sync"; do
+    if [[ ! -f "$file" ]]; then
+      echo "FATAL: native capability parity input is missing: ${file#"$root"/}" >&2
+      failed=1
+    fi
+  done
+  [[ "$failed" -eq 0 ]] || return "$failed"
+
+  operating_contract=$(native_section_text "$operating" "### Managed capability contract" "### Typed memory nodes")
+  privacy_contract=$(native_section_text "$privacy" "## Capability callback flow" "## Hindsight note distillation")
+  storage_contract=$(native_section_text "$storage" "## Capability callback storage" "## Artifact storage")
+
+  while IFS='|' read -r term label; do
+    [[ -n "$term" ]] || continue
+    require_native_term "$operating_contract" "$term" "$label" || failed=1
+  done <<'EOF'
+Master off is exact legacy behavior|master-off exact legacy behavior
+install and invoke no capability hook or plugin|master-off native owner absence
+no capability block|master-off block absence
+create no capability measurement state|master-off measurement-state absence
+`capability-overlay` mode|overlay-only installation
+UserPromptExpansion|Claude pre-expansion admission
+project identity and lease are immutable|immutable start-time project binding
+StopFailure|Claude error terminal
+error settlement is not deferred to|immediate StopFailure settlement
+abandonment cleanup only for unfinished|unfinished-only cleanup
+OpenCode 1.17.20|pinned OpenCode lifecycle
+`session.error` settles error|OpenCode error settlement
+all three consents are on|three-consent disabled final
+either measurement consent is off, it blocks with no state|disabled unmeasured block
+target enabled, either measurement consent being off preserves owner execution unchanged|enabled unmeasured pass-through
+Deterministic native-boundary tests|deterministic evidence label
+not exhaustive live real-owner evidence|non-exhaustive evidence label
+complete live eight-by-seven matrix|mandatory live matrix
+56 genuine owner executions|live matrix cell count
+Any missing, failed, or unavailable cell keeps Phase 18 incomplete|blocking live acceptance
+`wiki-ingest`, `wiki-query`, `wiki-lint`, `graphify`, and `security-audit`|five operating command surfaces
+D-10, D-12, and D-16|preserved owner decisions
+EOF
+
+  while IFS='|' read -r term label; do
+    [[ -n "$term" ]] || continue
+    require_native_term "$privacy_contract" "$term" "$label" || failed=1
+  done <<'EOF'
+three-state privacy contract|three-state privacy declaration
+installs or invokes no capability hook/plugin|master-off owner absence
+creates no pending lease, callback final, or other capability measurement state|master-off state absence
+target disabled, the fixed block always occurs before owner I/O|disabled pre-owner block
+When all three consents are enabled|all-three-consents requirement
+exactly one D-25/D-26 value-free `disabled` final|value-free disabled final
+same fixed block remains in force and no pending or final state is written|disabled unmeasured no-state branch
+target enabled, turning either measurement consent off leaves owner execution unchanged and writes no pending or final state|enabled unmeasured pass-through
+EOF
+
+  while IFS='|' read -r term label; do
+    [[ -n "$term" ]] || continue
+    require_native_term "$storage_contract" "$term" "$label" || failed=1
+  done <<'EOF'
+No capability state exists in exact legacy master-off operation|master-off storage absence
+target-enabled invocation creates no lease or final when either measurement consent is off|enabled unmeasured storage absence
+target-disabled invocation still blocks before owner I/O|disabled policy storage branch
+Only all three consents may create the recoverable lease|all-three-consents lease issuance
+exactly one value-free `disabled` final|disabled final storage shape
+settlement is atomic and idempotent|atomic idempotent settlement
+cleanup consume only unfinished leases as abandonment|unfinished-only abandonment
+never replace a settled terminal|terminal immutability
+EOF
+
+  for term in "prompt wrapper" "prompt owner" "command wrapper" "workflow wrapper"; do
+    reject_native_term "$operating_contract" "$term" "$term" || failed=1
+    reject_native_term "$privacy_contract" "$term" "$term" || failed=1
+    reject_native_term "$storage_contract" "$term" "$term" || failed=1
+  done
+  reject_native_term "$operating_contract" "They are exhaustive live real-owner evidence" \
+    "deterministic evidence presented as exhaustive" || failed=1
+
+  while IFS='|' read -r file term label; do
+    [[ -n "$file" ]] || continue
+    require_native_term "$(native_file_text "$file")" "$term" "$label" || failed=1
+  done <<EOF
+$harness|if (!isCapabilityContractEnabled()) return ALLOW;|runtime master-off bypass
+$harness|const measured = snapshot.logging.enabled && isTrajectoryCaptureEnabled();|runtime measurement consent
+$harness|if (!measured) return BLOCK;|runtime disabled unmeasured block
+$harness|if (!measured) return ALLOW;|runtime enabled unmeasured pass-through
+$harness|canonicalProjectBinding|runtime project binding
+$harness|settleLease|runtime recoverable settlement
+$store|CAPABILITY_CALLBACK_PENDING_PREFIX|pending issuance namespace
+$store|inImmediateTransaction|atomic callback transaction
+$store|sameIssuance|issued handle matching
+$claude_start|UserPromptExpansion|Claude start event
+$claude_start|FIXED_BLOCK|Claude fixed disabled block
+$claude_finish|StopFailure|Claude immediate error event
+$claude_finish|SessionEnd|Claude abandonment event
+$opencode_plugin|version: "1.17.20"|OpenCode version pin
+$opencode_plugin|admissionHook: "command.execute.before"|OpenCode admission hook
+$opencode_plugin|error_terminal: "session.error"|OpenCode error terminal
+$opencode_plugin|abandonment_only: "session.deleted"|OpenCode abandonment event
+$claude_sync|CAPABILITY_OVERLAY_ACTIVE|Claude overlay installation gate
+$opencode_sync|CAPABILITY_OVERLAY|OpenCode overlay installation gate
+EOF
+
+  [[ "$failed" -eq 0 ]] && echo "[native-capability-docs] OK: lifecycle, consent, storage, overlays, owners, and evidence scope match native runtime"
+  return "$failed"
 }
 
 # check_env_keys(): comm -23 of sorted code-keys vs sorted doc-keys --
@@ -375,8 +570,8 @@ EOF
   done
 
   for term in 'wiki covers ingest, query, and lint' 'graph covers its command family' \
-    'audit covers its command and workflow family' 'directly invokable workflow' \
-    'byte-identical legacy installed'; do
+    'audit covers its command and workflow family' 'five operating command surfaces' \
+    'Master off is exact'; do
     grep -qiF "$term" docs/operating.md || {
       echo "FATAL: capability operating-guard family is undocumented: $term" >&2
       failed=1
@@ -430,6 +625,7 @@ main() {
   check_artifact_contract || failed=1
   check_artifact_remote_path_contract || failed=1
   check_capability_contract || failed=1
+  check_native_capability_docs || failed=1
 
   if [[ "$failed" -ne 0 ]]; then
     echo "FATAL: docs-parity check found drift (see above) -- SC-02 not yet satisfied" >&2

@@ -236,6 +236,7 @@ vendor or host.
 | `CAIRN_CAPABILITY_SECURITY_AUDIT` | Strict per-process override for `security.audit` |
 | `CAIRN_CAPABILITY_ROUTE_CHECK` | Strict per-process override for `route.check` |
 | `CAIRN_CAPABILITY_CONTEXT_EXPLORE` | Strict per-process override for `context.explore` |
+| `CAIRN_HARNESS_STATE_DIR` | Optional absolute local root for recoverable native capability leases (default `${XDG_STATE_HOME:-~/.local/state}/cairn/harness`) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none`. See [git-providers.md](git-providers.md) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → the `route_check` tool is inert) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws at call time) |
