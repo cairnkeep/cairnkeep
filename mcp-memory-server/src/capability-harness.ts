@@ -369,7 +369,11 @@ async function matchingLeases(
     const matches: Array<{ path: string; lease: HarnessCapabilityLease }> = [];
     for (const entry of entries) {
         const path = join(directory, entry.name);
-        if (!entry.isFile() || !/^[a-f0-9]{64}\.json$/.test(entry.name)) {
+        if (!entry.isFile()) {
+            if (entry.isSymbolicLink()) await removeLease(path);
+            continue;
+        }
+        if (!/^[a-f0-9]{64}\.json$/.test(entry.name)) {
             await removeLease(path);
             continue;
         }
@@ -518,7 +522,14 @@ export async function recoverHarnessCapabilities(
     let pending = 0;
     for (const entry of entries.slice(0, MAX_LEASES)) {
         let path = join(directory, entry.name);
-        if (!entry.isFile() || !/^[a-f0-9]{64}\.json$/.test(entry.name)) {
+        if (!entry.isFile()) {
+            if (entry.isSymbolicLink()) {
+                await removeLease(path);
+                pruned += 1;
+            }
+            continue;
+        }
+        if (!/^[a-f0-9]{64}\.json$/.test(entry.name)) {
             await removeLease(path);
             pruned += 1;
             continue;
@@ -552,8 +563,10 @@ export async function recoverHarnessCapabilities(
         } else pending += 1;
     }
     for (const entry of entries.slice(MAX_LEASES)) {
-        await removeLease(join(directory, entry.name));
-        pruned += 1;
+        if (entry.isFile() || entry.isSymbolicLink()) {
+            await removeLease(join(directory, entry.name));
+            pruned += 1;
+        }
     }
     return { schema_version: 1, recovered, pruned, pending };
 }
