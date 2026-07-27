@@ -315,36 +315,15 @@ run_uninstall() {
   echo "PASS: Phase 18 capability uninstall keep/purge/revert contract"
 }
 
-operating_paths() {
-  case "$HARNESS:$CAPABILITY" in
-    claude:wiki) printf '%s\n' claude/capability-contract/commands/wiki-ingest.md claude/capability-contract/commands/wiki-query.md claude/capability-contract/commands/wiki-lint.md ;;
-    claude:graph) printf '%s\n' claude/capability-contract/commands/graphify.md ;;
-    claude:security.audit) printf '%s\n' claude/capability-contract/commands/security-audit.md ;;
-    opencode-command:wiki) printf '%s\n' opencode/capability-contract/command/wiki-ingest.md opencode/capability-contract/command/wiki-query.md opencode/capability-contract/command/wiki-lint.md ;;
-    opencode-command:graph) printf '%s\n' opencode/capability-contract/command/graphify.md ;;
-    opencode-command:security.audit) printf '%s\n' opencode/capability-contract/command/security-audit.md ;;
-    opencode-workflow:wiki) printf '%s\n' opencode/capability-contract/workflows/wiki-ingest-workflow.md opencode/capability-contract/workflows/wiki-query-workflow.md opencode/capability-contract/workflows/wiki-lint-workflow.md ;;
-    opencode-workflow:security.audit) printf '%s\n' opencode/capability-contract/workflows/security-audit-workflow.md ;;
-  esac
-}
-
 run_operating() {
-  local path guard_line first_owner_line
   if [[ "$HARNESS" == "claude" ]]; then
-    run_claude_native
-    return
+    "$ROOT/scripts/test-phase18-harness-boundary.sh" claude-delegate-calls >/dev/null || \
+      fail "Claude native delegate-call boundary failed"
+  else
+    "$ROOT/scripts/test-phase18-harness-boundary.sh" opencode-delegate-calls >/dev/null || \
+      fail "OpenCode native delegate-call boundary failed"
   fi
-  while IFS= read -r path; do
-    [[ -f "$ROOT/$path" ]] || fail "missing guarded overlay $path"
-    guard_line=$(grep -n -m1 'cairn capabilities guard' "$ROOT/$path" | cut -d: -f1)
-    first_owner_line=$(grep -n -m1 -E '^(## )?(Step 0|Process|Execution|Workflow)|<process>' "$ROOT/$path" | cut -d: -f1)
-    [[ -n "$guard_line" ]] || fail "overlay lacks capability guard: $path"
-    [[ -z "$first_owner_line" || "$guard_line" -lt "$first_owner_line" ]] || fail "guard is not pre-I/O: $path"
-    grep -qF 'cairn capabilities start' "$ROOT/$path" || fail "overlay lacks owned-boundary start: $path"
-    grep -qF 'cairn capabilities finish' "$ROOT/$path" || fail "overlay lacks finalization: $path"
-    grep -qF "$CAPABILITY" "$ROOT/$path" || fail "overlay uses the wrong family capability: $path"
-  done < <(operating_paths)
-  echo "PASS: Phase 18 $HARNESS $CAPABILITY operating guard contract"
+  echo "PASS: Phase 18 $HARNESS $CAPABILITY deterministic policy/boundary coverage (not live owner execution)"
 }
 
 run_claude_native() {
@@ -359,7 +338,7 @@ run_claude_native() {
 }
 
 run_owner_retirement() {
-  if grep -R -q -E 'cairn capabilities (guard|start|finish)' "$ROOT/claude/capability-contract/commands"; then
+  if find "$ROOT/claude/capability-contract/commands" -type f -print -quit 2>/dev/null | grep -q .; then
     fail "obsolete Claude Markdown capability owner remains"
   fi
   echo "PASS: Phase 18 Claude Markdown owner retirement"
@@ -385,14 +364,12 @@ const digest = (snapshot) => createHash("sha256").update(JSON.stringify({
 if (value.schema_version !== 1 || !value.all_enabled || JSON.stringify(Object.keys(value.one_disabled)) !== JSON.stringify(ids)) process.exit(1);
 if (value.all_enabled.configuration_digest !== digest(value.all_enabled)) process.exit(1);
 if (JSON.stringify(value.all_enabled.capabilities.map((row) => row.id)) !== JSON.stringify(ids)) process.exit(1);
-if (Object.values(value.all_enabled.owner_callbacks).some((ran) => ran !== true)) process.exit(1);
 if (JSON.stringify(value.all_enabled.registered_mcp_tools) !== JSON.stringify(Object.values(tools))) process.exit(1);
 for (const id of ids) {
   const snapshot = value.one_disabled[id];
   if (snapshot.configuration_digest !== digest(snapshot) || snapshot.configuration_digest === value.all_enabled.configuration_digest) process.exit(1);
   if (snapshot.logging.enabled !== value.all_enabled.logging.enabled || snapshot.logging.source !== value.all_enabled.logging.source) process.exit(1);
   if (snapshot.capabilities.filter((row) => !row.enabled).map((row) => row.id).join() !== id) process.exit(1);
-  if (Object.entries(snapshot.owner_callbacks).filter(([, ran]) => !ran).map(([owner]) => owner).join() !== id) process.exit(1);
   for (const row of snapshot.capabilities) {
     const baseline = value.all_enabled.capabilities.find((candidate) => candidate.id === row.id);
     if (!baseline || row.source !== baseline.source || row.restart_required !== baseline.restart_required || row.kind !== baseline.kind) process.exit(1);
@@ -440,7 +417,7 @@ NODE
     matrix_states=$((matrix_states + 1))
   done
   [[ "$matrix_states" -eq 9 ]] || fail "matrix did not execute exactly one all-enabled and eight one-disabled states"
-  echo "PASS: Phase 18 all-enabled and eight one-disabled matrix"
+  echo "PASS: Phase 18 all-enabled and eight one-disabled policy/status matrix (not live owner execution)"
 }
 
 run_runtime() {

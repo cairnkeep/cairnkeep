@@ -9,7 +9,6 @@ CLAUDE_START="$ROOT/claude/capability-contract/hooks/capability-command-start.sh
 CLAUDE_FINISH="$ROOT/claude/capability-contract/hooks/capability-command-finish.sh"
 OPENCODE_PLUGIN="$ROOT/opencode/capability-contract/plugins/capability-command.ts"
 OPENCODE_HARNESS="$ROOT/scripts/lib/capability-opencode-plugin-harness.mjs"
-RED_EXIT=86
 
 fail() {
   echo "FAIL: $1" >&2
@@ -20,14 +19,10 @@ usage() {
   printf '%s\n' \
     "Usage: test-phase18-harness-boundary.sh MODE" \
     "" \
-    "RED modes:" \
-    "  --expect-red-claude     prove native Claude hook ownership is absent" \
-    "  --expect-red-opencode   prove native OpenCode plugin ownership is absent" \
-    "" \
-    "Production modes (enabled by later Phase 18 plans):" \
+    "Deterministic boundary modes:" \
     "  claude-hooks | opencode-plugin | opencode-sync-modes" \
     "  claude-owner-only | opencode-command-owner-only | opencode-owner-only" \
-    "  evidence-scope" \
+    "  claude-delegate-calls | opencode-delegate-calls | evidence-scope" \
     "" \
     "Live negative controls:" \
     "  --live-claude | --live-opencode"
@@ -657,40 +652,162 @@ opencode_owner_only() {
   echo "PASS: OpenCode native plugin is the sole lifecycle owner"
 }
 
-expect_red_claude() {
-  local temp_root
-  temp_root=$(mktemp -d)
-  trap 'rm -rf "$temp_root"' EXIT
-  validate_fixture
-  normal_sync_trace "$temp_root"
-
-  [[ -d "$ROOT/claude/capability-contract/commands" ]] || fail "obsolete Claude Markdown authority was not found"
-  grep -R -q 'cairn capabilities guard' "$ROOT/claude/capability-contract/commands" || \
-    fail "obsolete Claude Markdown authority was not attributable"
-  if [[ ! -f "$CLAUDE_START" && ! -f "$CLAUDE_FINISH" ]]; then
-    echo "PHASE18_RED:CLAUDE_CAPABILITY_HOOKS"
-    exit "$RED_EXIT"
-  fi
-  fail "Claude expected-RED mode was run after native hooks became available"
+write_boundary_coordinator_fixture() {
+  local fixture_root="$1"
+  mkdir -p "$fixture_root/mcp-memory-server/dist"
+  cat > "$fixture_root/mcp-memory-server/dist/capability-cli.js" <<'NODE'
+#!/usr/bin/env node
+const fs = require("node:fs");
+const operation = process.argv[2];
+const chunks = [];
+process.stdin.on("data", (chunk) => chunks.push(chunk));
+process.stdin.on("end", () => {
+  const payload = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  fs.appendFileSync(process.env.CAIRN_BOUNDARY_TRACE, `${JSON.stringify({ operation, payload })}\n`);
+  if (operation === "harness-before") {
+    process.stdout.write('{"schema_version":1,"decision":"allow"}');
+  } else {
+    process.stdout.write('{"schema_version":1,"finalized":true}');
+  }
+});
+NODE
+  chmod 700 "$fixture_root/mcp-memory-server/dist/capability-cli.js"
 }
 
-expect_red_opencode() {
-  local temp_root
-  temp_root=$(mktemp -d)
-  trap 'rm -rf "$temp_root"' EXIT
-  validate_fixture
-  normal_sync_trace "$temp_root"
+append_owner_expansion() {
+  local trace="$1"
+  local harness="$2"
+  local outcome="$3"
+  printf '{"operation":"owner-expanded","payload":{"harness":"%s","outcome":"%s"}}\n' \
+    "$harness" "$outcome" >> "$trace"
+}
 
-  [[ -d "$ROOT/opencode/capability-contract/workflows" ]] || fail "obsolete OpenCode workflow authority was not found"
-  grep -R -q 'cairn capabilities finish' "$ROOT/opencode/capability-contract/workflows" || \
-    fail "obsolete OpenCode Markdown authority was not attributable"
-  grep -q 'sync-opencode-plugin-assets.sh' "$ROOT/templates/start-opencode.sh.template" && \
-    fail "OpenCode launcher plugin wiring exists while its native plugin is absent"
-  if [[ ! -f "$OPENCODE_PLUGIN" ]]; then
-    echo "PHASE18_RED:OPENCODE_CAPABILITY_PLUGIN"
-    exit "$RED_EXIT"
-  fi
-  fail "OpenCode expected-RED mode was run after the native plugin became available"
+assert_boundary_trace() {
+  local trace="$1"
+  local harness="$2"
+  local outcome="$3"
+  node - "$trace" "$harness" "$outcome" <<'NODE' || fail "$harness $outcome delegate order is not observable"
+const fs = require("node:fs");
+const [tracePath, harness, outcome] = process.argv.slice(2);
+const rows = fs.readFileSync(tracePath, "utf8").trim().split(/\n/).map(JSON.parse);
+if (rows.length !== 3) process.exit(1);
+if (rows[0].operation !== "harness-before" || rows[0].payload?.harness !== harness) process.exit(1);
+if (rows[1].operation !== "owner-expanded" || rows[1].payload?.harness !== harness) process.exit(1);
+if (rows[2].operation !== "harness-terminal" || rows[2].payload?.harness !== harness) process.exit(1);
+if (rows[1].payload?.outcome !== outcome || rows[2].payload?.outcome !== outcome) process.exit(1);
+if (rows[0].payload?.session_id !== rows[2].payload?.session_id) process.exit(1);
+if (typeof rows[0].payload?.command !== "string" || "command" in rows[2].payload) process.exit(1);
+NODE
+}
+
+claude_delegate_calls() {
+  local temp_root fixture_root start_hook finish_hook project trace payload stdout_file stderr_file outcome event status
+  temp_root=$(mktemp -d)
+  fixture_root="$temp_root/fixture-infra"
+  start_hook="$temp_root/capability-command-start.sh"
+  finish_hook="$temp_root/capability-command-finish.sh"
+  stdout_file="$temp_root/stdout"
+  stderr_file="$temp_root/stderr"
+  write_boundary_coordinator_fixture "$fixture_root"
+  sed "s|@@INFRA_ROOT@@|$fixture_root|g" "$CLAUDE_START" > "$start_hook"
+  sed "s|@@INFRA_ROOT@@|$fixture_root|g" "$CLAUDE_FINISH" > "$finish_hook"
+  chmod 700 "$start_hook" "$finish_hook"
+
+  for outcome in success error; do
+    project="$temp_root/project-$outcome"
+    trace="$temp_root/claude-$outcome.jsonl"
+    mkdir -p "$project"
+    : > "$trace"
+    payload=$(node - "$FIXTURE" "$project" "$outcome" <<'NODE'
+const fixture = require(process.argv[2]);
+const value = structuredClone(fixture.claude.events.UserPromptExpansion.sample);
+value.cwd = process.argv[3];
+value.transcript_path = `${process.argv[3]}/transcript.jsonl`;
+value.command_name = "wiki-query";
+value.session_id = `claude-boundary-${process.argv[4]}`;
+process.stdout.write(JSON.stringify(value));
+NODE
+)
+    status=0
+    CAIRN_BOUNDARY_TRACE="$trace" run_claude_hook \
+      "$start_hook" "$project" "$temp_root/state-$outcome" "$payload" "$stdout_file" "$stderr_file" 1 || status=$?
+    [[ "$status" -eq 0 && "$(cat "$stdout_file")" == '{}' && ! -s "$stderr_file" ]] || \
+      fail "Claude $outcome admission did not reach the coordinator"
+    append_owner_expansion "$trace" claude-code "$outcome"
+    [[ "$outcome" == success ]] && event=Stop || event=StopFailure
+    payload=$(node - "$FIXTURE" "$project" "$outcome" "$event" <<'NODE'
+const fixture = require(process.argv[2]);
+const value = structuredClone(fixture.claude.events[process.argv[5]].sample);
+value.cwd = process.argv[3];
+value.transcript_path = `${process.argv[3]}/transcript.jsonl`;
+value.session_id = `claude-boundary-${process.argv[4]}`;
+process.stdout.write(JSON.stringify(value));
+NODE
+)
+    CAIRN_BOUNDARY_TRACE="$trace" run_claude_hook \
+      "$finish_hook" "$project" "$temp_root/state-$outcome" "$payload" "$stdout_file" "$stderr_file" 1 || \
+      fail "Claude $event changed the terminal path"
+    assert_boundary_trace "$trace" claude-code "$outcome"
+  done
+  rm -rf "$temp_root"
+  echo "PASS: Claude hooks delegate admission before owner expansion and terminal settlement after it"
+}
+
+opencode_delegate_calls() {
+  local temp_root fixture_root plugin project trace outcome
+  temp_root=$(mktemp -d)
+  fixture_root="$temp_root/fixture-infra"
+  plugin="$temp_root/capability-command.ts"
+  write_boundary_coordinator_fixture "$fixture_root"
+  sed "s|@@INFRA_ROOT@@|$fixture_root|g" "$OPENCODE_PLUGIN" > "$plugin"
+
+  for outcome in success error; do
+    project="$temp_root/project-$outcome"
+    trace="$temp_root/opencode-$outcome.jsonl"
+    mkdir -p "$project"
+    : > "$trace"
+    CAIRN_CAPABILITY_CONTRACT=1 CAIRN_BOUNDARY_TRACE="$trace" \
+      node --experimental-strip-types --input-type=module - \
+        "$plugin" "$project" "$FIXTURE" "$outcome" "$trace" <<'NODE' || \
+      fail "OpenCode $outcome fixture did not execute the native plugin"
+import { appendFileSync, readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+const [pluginPath, project, fixturePath, outcome, trace] = process.argv.slice(2);
+const fixture = JSON.parse(readFileSync(fixturePath, "utf8")).opencode;
+if (fixture.version !== "1.17.20" || fixture.source.commit !== "4473fc3c9055046183990a965d68df3db7ea6f62") process.exit(1);
+const module = await import(`${pathToFileURL(pluginPath).href}?boundary=${outcome}`);
+const plugin = await module.CapabilityCommandPlugin({
+  client: {},
+  project: { id: "project-fixture", worktree: project },
+  directory: project,
+  worktree: project,
+  serverUrl: new URL("http://127.0.0.1:4096"),
+  $: undefined,
+  experimental_workspace: undefined,
+});
+const input = structuredClone(fixture.hook.input.sample);
+const output = structuredClone(fixture.hook.output.sample);
+input.command = "wiki-query";
+input.sessionID = `opencode-boundary-${outcome}`;
+await plugin[fixture.hook.name](input, output);
+appendFileSync(trace, `${JSON.stringify({ operation: "owner-expanded", payload: { harness: "opencode", outcome } })}\n`);
+const eventName = outcome === "success" ? "session.idle" : "session.error";
+const event = structuredClone(fixture.events[eventName].sample);
+event.properties.sessionID = input.sessionID;
+await plugin.event({ event });
+NODE
+    assert_boundary_trace "$trace" opencode "$outcome"
+  done
+  rm -rf "$temp_root"
+  echo "PASS: OpenCode 1.17.20 plugin delegates admission before owner expansion and terminal settlement after it"
+}
+
+evidence_scope() {
+  validate_fixture
+  claude_delegate_calls
+  opencode_delegate_calls
+  printf '%s\n' 'DETERMINISTIC_BOUNDARY_EVIDENCE:{"schema_version":1,"harnesses":["claude-code","opencode"],"outcomes":["success","error"],"owner_execution":"simulated-after-admission","scope":"native-delegate-order","status":"pass"}'
+  printf '%s\n' 'PHASE18_REQUIRED_LIVE_MATRIX:{"schema_version":1,"required_cells":56,"passing_cells":0,"status":"blocking","acceptance":false,"owner_execution":"not-claimed","replacement_plan":"18-27"}'
 }
 
 live_claude() {
@@ -721,12 +838,6 @@ case "$mode" in
   -h|--help)
     usage
     ;;
-  --expect-red-claude)
-    expect_red_claude
-    ;;
-  --expect-red-opencode)
-    expect_red_opencode
-    ;;
   --live-claude)
     live_claude
     ;;
@@ -739,13 +850,15 @@ case "$mode" in
   claude-owner-only)
     claude_owner_only
     ;;
-  opencode-plugin|opencode-sync-modes|opencode-command-owner-only|opencode-owner-only|evidence-scope)
+  opencode-plugin|opencode-sync-modes|opencode-command-owner-only|opencode-owner-only|claude-delegate-calls|opencode-delegate-calls|evidence-scope)
     case "$mode" in
       opencode-plugin) opencode_plugin ;;
       opencode-sync-modes) opencode_sync_modes ;;
       opencode-command-owner-only) opencode_command_owner_only ;;
       opencode-owner-only) opencode_owner_only ;;
-      *) fail "production mode '$mode' is intentionally RED until its owning Phase 18 plan extends this driver" ;;
+      claude-delegate-calls) claude_delegate_calls ;;
+      opencode-delegate-calls) opencode_delegate_calls ;;
+      evidence-scope) evidence_scope ;;
     esac
     ;;
   *)
