@@ -76,12 +76,25 @@ const BASH_COMMANDS = [
   ],
   ["portable-shell", "bash scripts/test-portable-sh.sh", "runtime-portability"],
 ];
+const SUPPORTED_EVIDENCE_SCOPES = new Set([
+  "runtime-identity",
+  "runtime-setup",
+  "runtime-portability",
+  "core-lifecycle",
+  "native-boundary",
+  "claude-native",
+  "opencode-native",
+  "install-lifecycle",
+  "documentation-parity",
+]);
 
 function usage() {
   return `Usage:
+  node scripts/verify-phase18-runtime-evidence.mjs
   node scripts/verify-phase18-runtime-evidence.mjs --self-test
   node scripts/verify-phase18-runtime-evidence.mjs --capture <evidence-dir> <source-commit>
-  node scripts/verify-phase18-runtime-evidence.mjs --verify-only <evidence-dir> <source-commit>\n`;
+  node scripts/verify-phase18-runtime-evidence.mjs --verify-only <evidence-dir> <source-commit>
+  node scripts/verify-phase18-runtime-evidence.mjs --live-matrix <matrix-path>\n`;
 }
 
 function run(command, args, options = {}) {
@@ -181,64 +194,80 @@ function renderCommand(command, args) {
   return [command, ...args].map((value) => JSON.stringify(String(value))).join(" ");
 }
 
+function shellEvidenceRunner() {
+  return `run_evidence() {
+  evidence_id="$1"
+  evidence_scope="$2"
+  evidence_command="$3"
+  printf 'EVIDENCE_COMMAND_BEGIN|%s|%s|%s\\n' "$evidence_id" "$evidence_scope" "$evidence_command"
+  set +e
+  bash -c "$evidence_command"
+  evidence_status=$?
+  set -e
+  if [ "$evidence_status" -eq 0 ]; then evidence_result=pass; else evidence_result=fail; fi
+  printf 'EVIDENCE_COMMAND_END|%s|%s|%s|%s\\n' "$evidence_id" "$evidence_scope" "$evidence_status" "$evidence_result"
+  return "$evidence_status"
+}
+`;
+}
+
+function shellCommandRows(commands) {
+  return commands.map(([id, command, scope]) => (
+    `run_evidence ${JSON.stringify(id)} ${JSON.stringify(scope)} ${JSON.stringify(command)}`
+  )).join("\n");
+}
+
+function suiteHeader(runtime, versionCommand) {
+  return `printf 'generated_at=%s\\n' "$CAIRN_EVIDENCE_TIMESTAMP"
+printf 'runtime_version=%s\\n' "$(${versionCommand})"
+printf 'fixture_claude_version=%s\\n' "$CAIRN_CLAUDE_FIXTURE_VERSION"
+printf 'fixture_opencode_version=%s\\n' "$CAIRN_OPENCODE_FIXTURE_VERSION"
+printf 'acceptance=blocked-pending-live-matrix\\n'
+printf 'evidence_scope=deterministic-native-lifecycle\\n'
+`;
+}
+
 function nodeSuite(runtime) {
   return `set -eu
+exec 2>&1
 mkdir -p /work/source /tmp/npm-logs
 cp -a /source/. /work/source/
 cd /work/source
-printf 'command=node --version\\n'
-printf 'node_version=%s\\n' "$(node --version)"
-printf 'command=npm ci --offline\\n'
-npm ci --offline --cache /npm-cache --logs-dir /tmp/npm-logs --no-audit --no-fund
-printf 'command=npm --prefix mcp-memory-server ci --offline\\n'
-npm --prefix mcp-memory-server ci --offline --cache /npm-cache --logs-dir /tmp/npm-logs --no-audit --no-fund
-printf 'command=npm --prefix mcp-memory-server run build\\n'
-npm --prefix mcp-memory-server run build
-printf 'command=npm --prefix mcp-memory-server test\\n'
-npm --prefix mcp-memory-server test
+export NPM_CONFIG_CACHE=/npm-cache
+export NPM_CONFIG_LOGS_DIR=/tmp/npm-logs
+${suiteHeader(runtime, "node --version")}${shellEvidenceRunner()}${shellCommandRows(NODE_COMMANDS)}
 printf 'PASS: Phase 18 runtime ${runtime}\\n'`;
 }
 
 function bashSuite() {
   return `set -eu
-mkdir -p /work/source /tmp/live
+exec 2>&1
+mkdir -p /work/source
 cp -a /source/. /work/source/
 cd /work/source
-printf 'command=bash --version\\n'
-printf 'bash_version=%s\\n' "$(bash --version | head -n 1)"
-printf 'command=bash -n scripts/test-phase18-capability-lifecycle.sh templates/start-claude.sh.template templates/start-opencode.sh.template\\n'
-bash -n scripts/test-phase18-capability-lifecycle.sh templates/start-claude.sh.template templates/start-opencode.sh.template
-for script in scripts/sync-claude-assets.sh scripts/sync-opencode-explore-assets.sh scripts/sync-opencode-wiki-assets.sh scripts/sync-pi-assets.sh; do
-  printf 'command=bash %s --check --live-root /tmp/live\\n' "$script"
-  output=$(bash "$script" --check --live-root /tmp/live 2>&1) || true
-  if printf '%s\\n' "$output" | grep -qiE 'unbound variable|command not found|mapfile:|readarray:|syntax error'; then
-    printf '%s\\n' "$output"
-    exit 1
-  fi
-done
-printf 'command=bash scripts/test-portable-sh.sh\\n'
-bash scripts/test-portable-sh.sh
+${suiteHeader("bash-3.2", "bash --version | head -n 1")}${shellEvidenceRunner()}${shellCommandRows(BASH_COMMANDS)}
 printf 'PASS: Phase 18 runtime bash-3.2\\n'`;
 }
 
-function runContainer(engine, image, runtime, worktree, npmCache) {
+function runContainer(engine, image, runtime, worktree, npmCache, generatedAt, fixtureVersions) {
   const script = runtime.startsWith("node-") ? nodeSuite(runtime) : bashSuite();
   const args = ["run", "--rm", "--network", "none", "--mount",
-    `type=bind,src=${worktree},dst=/source,readonly`];
+    `type=bind,src=${worktree},dst=/source,readonly`,
+    "--env", `CAIRN_EVIDENCE_TIMESTAMP=${generatedAt}`,
+    "--env", `CAIRN_CLAUDE_FIXTURE_VERSION=${fixtureVersions.claude}`,
+    "--env", `CAIRN_OPENCODE_FIXTURE_VERSION=${fixtureVersions.opencode}`];
   if (runtime.startsWith("node-")) {
     args.push("--mount", `type=bind,src=${npmCache},dst=/npm-cache`);
   }
   args.push(image, "bash", "-c", script);
   const command = renderCommand(engine, args);
   const result = run(engine, args, { timeout: 900_000 });
-  if (result.status !== 0) {
-    throw new Error(`${runtime} container failed (exit ${String(result.status)}):\n${combined(result)}`);
-  }
-  return { command, output: combined(result) };
+  return { command, output: combined(result), status: result.status };
 }
 
 function logHeader(sourceCommit, runtime, image, command) {
   return [
+    "evidence_schema_version=2",
     `source_commit=${sourceCommit}`,
     `runtime=${runtime}`,
     `container_image=${image}`,
@@ -249,37 +278,74 @@ function logHeader(sourceCommit, runtime, image, command) {
 
 function requireLog(text, expected) {
   const lines = text.split(/\r?\n/);
-  if (lines[0] !== `source_commit=${expected.commit}`) throw new Error(`${expected.file}: wrong source commit header.`);
-  if (lines[1] !== `runtime=${expected.runtime}`) throw new Error(`${expected.file}: wrong runtime label.`);
-  if (lines[2] !== `container_image=${expected.image}`) throw new Error(`${expected.file}: wrong container image.`);
-  if (!lines[3]?.startsWith("container_command=") || !lines[3].includes(expected.image)) {
+  if (lines[0] !== "evidence_schema_version=2") throw new Error(`${expected.file}: wrong log schema version.`);
+  if (lines[1] !== `source_commit=${expected.commit}`) throw new Error(`${expected.file}: wrong source commit header.`);
+  if (lines[2] !== `runtime=${expected.runtime}`) throw new Error(`${expected.file}: wrong runtime label.`);
+  if (lines[3] !== `container_image=${expected.image}`) throw new Error(`${expected.file}: wrong container image.`);
+  if (lines[4] !== `container_command=${expected.command}` || !lines[4].includes(expected.image)) {
     throw new Error(`${expected.file}: missing exact container command.`);
   }
-  if (lines[4] !== "source_tree_clean=true") throw new Error(`${expected.file}: detached source was not recorded clean.`);
-  if (expected.runtime.startsWith("node-")) {
-    const major = expected.runtime.slice("node-".length);
-    for (const marker of [
-      `node_version=v${major}.`,
-      "command=npm ci --offline",
-      "command=npm --prefix mcp-memory-server ci --offline",
-      "command=npm --prefix mcp-memory-server run build",
-      "command=npm --prefix mcp-memory-server test",
-      `PASS: Phase 18 runtime ${expected.runtime}`,
-    ]) {
-      if (!text.includes(marker)) throw new Error(`${expected.file}: missing ${marker}.`);
-    }
-  } else {
-    for (const marker of [
-      "bash_version=GNU bash, version 3.2",
-      "command=bash -n scripts/test-phase18-capability-lifecycle.sh",
-      "command=bash scripts/sync-claude-assets.sh --check --live-root /tmp/live",
-      "command=bash scripts/sync-opencode-wiki-assets.sh --check --live-root /tmp/live",
-      "command=bash scripts/test-portable-sh.sh",
-      "PASS: Phase 18 runtime bash-3.2",
-    ]) {
-      if (!text.includes(marker)) throw new Error(`${expected.file}: missing ${marker}.`);
+  if (lines[5] !== "source_tree_clean=true") throw new Error(`${expected.file}: detached source was not recorded clean.`);
+  const expectedMajor = expected.runtime.startsWith("node-") ? `v${expected.runtime.slice(5)}.` : "GNU bash, version 3.2";
+  for (const marker of [
+    `generated_at=${expected.generatedAt}`,
+    `runtime_version=${expectedMajor}`,
+    "fixture_claude_version=2.1.220",
+    "fixture_opencode_version=1.17.20",
+    "acceptance=blocked-pending-live-matrix",
+    "evidence_scope=deterministic-native-lifecycle",
+    "evidence_scope=deterministic-native-lifecycle",
+    `PASS: Phase 18 runtime ${expected.runtime}`,
+  ]) {
+    if (!text.includes(marker)) throw new Error(`${expected.file}: missing ${marker}.`);
+  }
+}
+
+function sha256(text) {
+  return createHash("sha256").update(text).digest("hex");
+}
+
+function parseCommandRecords(text, file) {
+  const records = [];
+  let pending = null;
+  for (const line of text.split(/\r?\n/)) {
+    if (line.startsWith("EVIDENCE_COMMAND_BEGIN|")) {
+      if (pending !== null) throw new Error(`${file}: nested command evidence.`);
+      const [marker, id, evidenceScope, ...commandParts] = line.split("|");
+      const command = commandParts.join("|");
+      if (marker !== "EVIDENCE_COMMAND_BEGIN" || !id || !evidenceScope || !command) {
+        throw new Error(`${file}: malformed command start record.`);
+      }
+      pending = { id, command, evidence_scope: evidenceScope };
+    } else if (line.startsWith("EVIDENCE_COMMAND_END|")) {
+      const [marker, id, evidenceScope, statusText, result] = line.split("|");
+      if (marker !== "EVIDENCE_COMMAND_END" || pending === null) {
+        throw new Error(`${file}: command end has no matching start.`);
+      }
+      if (id !== pending.id || evidenceScope !== pending.evidence_scope) {
+        throw new Error(`${file}: command evidence identity changed during execution.`);
+      }
+      const exitStatus = Number(statusText);
+      if (!Number.isSafeInteger(exitStatus) || exitStatus < 0 || !["pass", "fail"].includes(result)) {
+        throw new Error(`${file}: malformed command result record.`);
+      }
+      records.push({ ...pending, exit_status: exitStatus, result });
+      pending = null;
     }
   }
+  if (pending !== null) throw new Error(`${file}: command evidence is missing its exit record.`);
+  return records;
+}
+
+function expectedCommands(runtime) {
+  return (runtime.startsWith("node-") ? NODE_COMMANDS : BASH_COMMANDS).map(
+    ([id, command, evidence_scope]) => ({ id, command, evidence_scope, exit_status: 0, result: "pass" }),
+  );
+}
+
+function requireIsoTimestamp(value, label) {
+  assert.equal(typeof value, "string", `${label}: timestamp missing`);
+  assert.equal(new Date(value).toISOString(), value, `${label}: timestamp is not canonical ISO-8601`);
 }
 
 function verifyEvidence(evidenceDirectory, sourceCommit) {
@@ -287,28 +353,117 @@ function verifyEvidence(evidenceDirectory, sourceCommit) {
   const manifestPath = join(evidenceDirectory, "manifest.json");
   if (!existsSync(manifestPath)) throw new Error("Evidence manifest is missing.");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  assert.equal(manifest.schema_version, 1, "manifest schema version mismatch");
+  assert.equal(manifest.schema_version, 2, "manifest schema version mismatch");
   assert.equal(manifest.source_commit, sourceCommit, "manifest source commit mismatch");
   assert.equal(manifest.source_tree_clean, true, "manifest detached source is not clean");
   assert.equal(manifest.detached_source, true, "manifest did not record detached source");
+  requireIsoTimestamp(manifest.generated_at, "manifest");
+  assert.equal(manifest.evidence_scope, "deterministic-native-lifecycle", "manifest evidence scope mismatch");
+  assert.deepEqual(manifest.acceptance, {
+    status: "blocked-pending-live-matrix",
+    accepted: false,
+    required_cells: 56,
+  }, "deterministic evidence cannot claim Phase 18 acceptance");
   assert.deepEqual(manifest.logs?.map(({ file }) => file), EXPECTED_LOGS, "manifest log names mismatch");
   assert.equal(manifest.logs.length, EXPECTED_LOGS.length, "manifest log count mismatch");
 
   for (const row of manifest.logs) {
+    const expectedRuntime = row.file === "bash-3.2.log" ? "bash-3.2" : row.file.replace(/\.log$/, "");
+    assert.equal(row.runtime, expectedRuntime, `${row.file}: manifest runtime mismatch`);
     assert.equal(row.source_commit, sourceCommit, `${row.file}: manifest mixed source commit`);
     assert.equal(row.source_tree_clean, true, `${row.file}: manifest source not clean`);
     assert.equal(typeof row.container_command, "string", `${row.file}: manifest command missing`);
     const expectedImage = row.runtime === "bash-3.2" ? BASH_IMAGE : NODE_IMAGES.get(row.runtime);
     assert.equal(row.image, expectedImage, `${row.file}: manifest image mismatch`);
-    const text = readFileSync(join(evidenceDirectory, row.file), "utf8");
+    assert.equal(row.result, "pass", `${row.file}: runtime result is not passing`);
+    requireIsoTimestamp(row.generated_at, row.file);
+    assert.equal(row.generated_at, manifest.generated_at, `${row.file}: timestamp differs from manifest`);
+    const logPath = join(evidenceDirectory, row.file);
+    if (!existsSync(logPath)) throw new Error(`${row.file}: runtime log is missing.`);
+    const text = readFileSync(logPath, "utf8");
+    assert.match(row.sha256, /^[0-9a-f]{64}$/, `${row.file}: SHA-256 is missing`);
+    assert.equal(sha256(text), row.sha256, `${row.file}: stale log hash`);
     requireLog(text, {
       file: row.file,
       runtime: row.runtime,
       image: expectedImage,
       commit: sourceCommit,
+      generatedAt: row.generated_at,
+      command: row.container_command,
     });
+    const records = parseCommandRecords(text, row.file);
+    assert.deepEqual(records, expectedCommands(row.runtime), `${row.file}: required command inventory mismatch`);
+    assert.deepEqual(row.commands, records, `${row.file}: manifest command records differ from log`);
+    for (const command of row.commands) {
+      assert.equal(SUPPORTED_EVIDENCE_SCOPES.has(command.evidence_scope), true,
+        `${row.file}: unsupported evidence scope ${command.evidence_scope}`);
+      assert.equal(command.exit_status, 0, `${row.file}: ${command.id} failed`);
+      assert.equal(command.result, "pass", `${row.file}: ${command.id} did not pass`);
+    }
   }
   return manifest;
+}
+
+function requireObservation(value, label) {
+  assert.equal(value !== null && typeof value === "object" && !Array.isArray(value), true,
+    `${label}: observation must be an object`);
+  assert.equal(typeof value.result, "string", `${label}: result is missing`);
+  assert.equal(value.result.length > 0, true, `${label}: result is empty`);
+  assert.equal(value.error === null || typeof value.error === "string", true, `${label}: error is invalid`);
+  assert.equal(typeof value.timeout, "boolean", `${label}: timeout is missing`);
+  assert.equal(typeof value.trace, "string", `${label}: trace is missing`);
+  assert.equal(value.trace.length > 0, true, `${label}: trace is empty`);
+  assert.equal(typeof value.delegate_identity, "string", `${label}: delegate identity is missing`);
+  assert.equal(value.delegate_identity.length > 0, true, `${label}: delegate identity is empty`);
+}
+
+function validateLiveMatrix(matrixPath) {
+  if (!existsSync(matrixPath)) throw new Error("Live matrix file is missing.");
+  const matrix = JSON.parse(readFileSync(matrixPath, "utf8"));
+  assert.equal(matrix.schema_version, 1, "live matrix schema version mismatch");
+  assert.equal(matrix.status, "pass", "live matrix status must be pass");
+  assert.equal(Array.isArray(matrix.cells), true, "live matrix cells are missing");
+  assert.equal(matrix.cells.length, 56, "live matrix must contain exactly 56 cells");
+  const expectedPairs = new Set();
+  for (const disabledCapability of CANONICAL_CAPABILITIES) {
+    for (const survivingOwner of CANONICAL_CAPABILITIES) {
+      if (disabledCapability !== survivingOwner) expectedPairs.add(`${disabledCapability}\0${survivingOwner}`);
+    }
+  }
+  const seen = new Set();
+  for (const [index, cell] of matrix.cells.entries()) {
+    const label = `live matrix cell ${index + 1}`;
+    assert.equal(cell !== null && typeof cell === "object" && !Array.isArray(cell), true, `${label}: invalid cell`);
+    assert.equal(CANONICAL_CAPABILITIES.includes(cell.disabled_capability), true,
+      `${label}: disabled capability is not canonical`);
+    assert.equal(CANONICAL_CAPABILITIES.includes(cell.surviving_owner), true,
+      `${label}: surviving owner is not canonical`);
+    assert.notEqual(cell.disabled_capability, cell.surviving_owner, `${label}: owner cannot survive its own ablation`);
+    const pair = `${cell.disabled_capability}\0${cell.surviving_owner}`;
+    assert.equal(expectedPairs.has(pair), true, `${label}: unexpected matrix pair`);
+    assert.equal(seen.has(pair), false, `${label}: duplicate matrix pair`);
+    seen.add(pair);
+    assert.equal(cell.operation, PUBLIC_OPERATIONS.get(cell.surviving_owner), `${label}: wrong public owner operation`);
+    assert.equal(cell.real_operation, true, `${label}: spies or simulations cannot satisfy a cell`);
+    assert.equal(cell.supported_seam, "public-installed-owner", `${label}: supported public seam is missing`);
+    assert.equal(cell.availability, "available", `${label}: unavailable providers, credentials, runtimes, or seams fail`);
+    requireObservation(cell.baseline, `${label} baseline`);
+    requireObservation(cell.observed, `${label} observed`);
+    assert.deepEqual(cell.observed, cell.baseline, `${label}: observed owner behavior differs from baseline`);
+    assert.equal(cell.equality, "pass", `${label}: baseline comparison did not pass`);
+    assert.equal(typeof cell.evidence_ref, "string", `${label}: evidence reference is missing`);
+    assert.equal(cell.evidence_ref.length > 0, true, `${label}: evidence reference is empty`);
+    if (DUAL_HARNESS_OWNERS.has(cell.surviving_owner)) {
+      for (const harness of ["claude", "opencode"]) {
+        const proof = cell.installed_harnesses?.[harness];
+        assert.equal(proof?.result, "success", `${label}: ${harness} installed-owner observation did not succeed`);
+        assert.equal(typeof proof?.evidence_ref, "string", `${label}: ${harness} evidence reference is missing`);
+        assert.equal(proof.evidence_ref.length > 0, true, `${label}: ${harness} evidence reference is empty`);
+      }
+    }
+  }
+  assert.deepEqual(seen, expectedPairs, "live matrix does not cover the exact eight-by-seven cross product");
+  return matrix;
 }
 
 function captureEvidence(evidenceDirectory, sourceCommit) {
@@ -325,16 +480,25 @@ function captureEvidence(evidenceDirectory, sourceCommit) {
 
   mkdirSync(dirname(expectedDirectory), { recursive: true, mode: 0o700 });
   const staging = mkdtempSync(join(dirname(expectedDirectory), ".runtime-evidence-staging-"));
+  const generatedAt = new Date().toISOString();
   try {
     const logs = withDetachedWorktree(SCRIPT_ROOT, sourceCommit, (worktree) => {
+      const fixture = JSON.parse(readFileSync(join(worktree, "scripts", "fixtures", "capability-harness-contracts.json"), "utf8"));
+      const fixtureVersions = {
+        claude: fixture?.claude?.version,
+        opencode: fixture?.opencode?.version,
+      };
+      assert.equal(fixtureVersions.claude, "2.1.220", "Claude fixture version changed");
+      assert.equal(fixtureVersions.opencode, "1.17.20", "OpenCode fixture version changed");
       const rows = [];
       for (const [runtime, image] of [...NODE_IMAGES, ["bash-3.2", BASH_IMAGE]]) {
         assertDetachedSourceClean(worktree, sourceCommit);
-        const result = runContainer(engine, image, runtime, worktree, npmCache);
+        const result = runContainer(engine, image, runtime, worktree, npmCache, generatedAt, fixtureVersions);
         assertDetachedSourceClean(worktree, sourceCommit);
         const file = `${runtime}.log`;
         const text = `${logHeader(sourceCommit, runtime, image, result.command)}\n${result.output.trimEnd()}\n`;
         writeFileSync(join(staging, file), text, { encoding: "utf8", mode: 0o600 });
+        const commands = parseCommandRecords(text, file);
         rows.push({
           file,
           runtime,
@@ -342,16 +506,29 @@ function captureEvidence(evidenceDirectory, sourceCommit) {
           container_command: result.command,
           source_commit: sourceCommit,
           source_tree_clean: true,
+          generated_at: generatedAt,
+          sha256: sha256(text),
+          result: result.status === 0 ? "pass" : "fail",
+          commands,
         });
+        if (result.status !== 0) {
+          throw new Error(`${runtime} container failed (exit ${String(result.status)}):\n${result.output}`);
+        }
       }
       return rows;
     });
     const manifest = {
-      schema_version: 1,
+      schema_version: 2,
       source_commit: sourceCommit,
       source_tree_clean: true,
       detached_source: true,
-      generated_at: new Date().toISOString(),
+      generated_at: generatedAt,
+      evidence_scope: "deterministic-native-lifecycle",
+      acceptance: {
+        status: "blocked-pending-live-matrix",
+        accepted: false,
+        required_cells: 56,
+      },
       logs,
     };
     writeFileSync(join(staging, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
@@ -372,20 +549,20 @@ function fixtureLog(commit, runtime, image) {
   const command = `docker run --rm ${image}`;
   const commands = runtime.startsWith("node-") ? NODE_COMMANDS : BASH_COMMANDS;
   const version = runtime.startsWith("node-")
-    ? `node_version=v${runtime.slice(5)}.0.0`
-    : "bash_version=GNU bash, version 3.2.57(1)-release";
+    ? `runtime_version=v${runtime.slice(5)}.0.0`
+    : "runtime_version=GNU bash, version 3.2.57(1)-release";
   const records = commands.flatMap(([id, exact, scope]) => [
     `EVIDENCE_COMMAND_BEGIN|${id}|${scope}|${exact}`,
     id === "node-version" || id === "bash-version" ? version : `PASS: ${id}`,
     `EVIDENCE_COMMAND_END|${id}|${scope}|0|pass`,
   ]);
   return [
-    "evidence_schema_version=2",
     logHeader(commit, runtime, image, command),
     "generated_at=2026-07-27T00:00:00.000Z",
     "fixture_claude_version=2.1.220",
     "fixture_opencode_version=1.17.20",
     "acceptance=blocked-pending-live-matrix",
+    "evidence_scope=deterministic-native-lifecycle",
     ...records,
     `PASS: Phase 18 runtime ${runtime}`,
     "",
@@ -499,7 +676,7 @@ function selfTest() {
     writeFixture(wrongVersion, commit);
     writeFileSync(
       join(wrongVersion, "node-22.log"),
-      readFileSync(join(wrongVersion, "node-22.log"), "utf8").replace("node_version=v22.", "node_version=v24."),
+      readFileSync(join(wrongVersion, "node-22.log"), "utf8").replace("runtime_version=v22.", "runtime_version=v24."),
     );
     expectFailure("wrong runtime version", () => verifyEvidence(wrongVersion, commit));
 
@@ -507,7 +684,10 @@ function selfTest() {
     writeFixture(missingCommand, commit);
     writeFileSync(
       join(missingCommand, "node-24.log"),
-      readFileSync(join(missingCommand, "node-24.log"), "utf8").replace("command=npm --prefix mcp-memory-server test", "command=omitted"),
+      readFileSync(join(missingCommand, "node-24.log"), "utf8").replace(
+        "npm --prefix mcp-memory-server test",
+        "omitted-server-test-command",
+      ),
     );
     expectFailure("missing command", () => verifyEvidence(missingCommand, commit));
 
@@ -525,6 +705,18 @@ function selfTest() {
     manifest.logs[0].file = "unexpected.log";
     writeFileSync(join(manifestMismatch, "manifest.json"), JSON.stringify(manifest));
     expectFailure("manifest names", () => verifyEvidence(manifestMismatch, commit));
+
+    const missingLog = join(root, "missing-log");
+    writeFixture(missingLog, commit);
+    rmSync(join(missingLog, "node-26.log"));
+    expectFailure("missing runtime log", () => verifyEvidence(missingLog, commit));
+
+    const overstatedAcceptance = join(root, "overstated-acceptance");
+    writeFixture(overstatedAcceptance, commit);
+    const acceptanceManifest = JSON.parse(readFileSync(join(overstatedAcceptance, "manifest.json"), "utf8"));
+    acceptanceManifest.acceptance = { status: "pass", accepted: true, required_cells: 56 };
+    writeFileSync(join(overstatedAcceptance, "manifest.json"), JSON.stringify(acceptanceManifest));
+    expectFailure("deterministic evidence acceptance overstatement", () => verifyEvidence(overstatedAcceptance, commit));
 
     const staleHash = join(root, "stale-hash");
     writeFixture(staleHash, commit);
@@ -569,6 +761,13 @@ function selfTest() {
     writeFileSync(liveMatrix, JSON.stringify(missingHarnessMatrix));
     expectFailure("missing installed harness proof", () => validateLiveMatrix(liveMatrix));
 
+    const failureProbe = run(process.execPath, ["-e", "process.stdout.write('saved failure evidence\\n'); process.exit(19)"]);
+    const failureEvidence = join(root, "intentional-failure.log");
+    writeFileSync(failureEvidence, combined(failureProbe));
+    assert.equal(failureProbe.status, 19, "intentional command exit status was not propagated");
+    assert.equal(readFileSync(failureEvidence, "utf8"), "saved failure evidence\n",
+      "intentional command evidence was not saved");
+
     const repo = join(root, "repo");
     mkdirSync(repo);
     requireSuccess(git(repo, ["init", "-q"]), "initialize self-test repository");
@@ -597,8 +796,23 @@ function selfTest() {
 
 function main() {
   const [mode, evidenceDirectory, sourceCommit, ...extra] = process.argv.slice(2);
+  if (mode === undefined && evidenceDirectory === undefined && sourceCommit === undefined && extra.length === 0) {
+    const evidencePath = resolve(SCRIPT_ROOT, EVIDENCE_RELATIVE);
+    const manifestPath = join(evidencePath, "manifest.json");
+    if (!existsSync(manifestPath)) throw new Error("Evidence manifest is missing.");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    verifyEvidence(evidencePath, manifest.source_commit);
+    process.stdout.write(`PASS: Phase 18 deterministic runtime evidence verified for ${manifest.source_commit}\n`);
+    process.stdout.write("BLOCKED: Phase 18 acceptance still requires --live-matrix with 56 genuine real-owner cells\n");
+    return;
+  }
   if (mode === "--self-test" && evidenceDirectory === undefined && sourceCommit === undefined && extra.length === 0) {
     selfTest();
+    return;
+  }
+  if (mode === "--live-matrix" && evidenceDirectory !== undefined && sourceCommit === undefined && extra.length === 0) {
+    validateLiveMatrix(resolve(evidenceDirectory));
+    process.stdout.write("PASS: Phase 18 live matrix contains 56 genuine passing real-owner cells\n");
     return;
   }
   if ((mode === "--capture" || mode === "--verify-only")
