@@ -49,6 +49,8 @@ fi
 
 if capability_contract_enabled; then
   CAIRN_RUNTIME_ROOT=$(resolve_cairn_root)
+  node "$CAIRN_RUNTIME_ROOT/mcp-memory-server/dist/capability-cli.js" \
+    harness-recover </dev/null >/dev/null 2>&1 || true
   OPENCODE_CAPABILITY_ROOT="$ROOT_DIR/.ai/capability-contract/opencode"
   "$CAIRN_RUNTIME_ROOT/scripts/sync-opencode-wiki-assets.sh" \
     --apply --capability-overlay --live-root "$OPENCODE_CAPABILITY_ROOT" >/dev/null

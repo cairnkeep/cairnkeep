@@ -53,6 +53,8 @@ fi
 
 if capability_contract_enabled; then
   CAIRN_RUNTIME_ROOT=$(resolve_cairn_root)
+  node "$CAIRN_RUNTIME_ROOT/mcp-memory-server/dist/capability-cli.js" \
+    harness-recover </dev/null >/dev/null 2>&1 || true
   CLAUDE_CAPABILITY_ROOT="$ROOT_DIR/.ai/capability-contract/claude"
   "$CAIRN_RUNTIME_ROOT/scripts/sync-claude-assets.sh" \
     --apply --capability-overlay --live-root "$CLAUDE_CAPABILITY_ROOT" >/dev/null
