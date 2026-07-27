@@ -240,7 +240,6 @@ cp -a /source/. /work/source/
 cd /work/source
 export NPM_CONFIG_CACHE=/npm-cache
 export NPM_CONFIG_LOGS_DIR=/tmp/npm-logs
-export NPM_CONFIG_OFFLINE=true
 export NPM_CONFIG_AUDIT=false
 export NPM_CONFIG_FUND=false
 ${suiteHeader(runtime, "node --version")}${shellEvidenceRunner()}${shellCommandRows(NODE_COMMANDS)}
@@ -259,11 +258,13 @@ printf 'PASS: Phase 18 runtime bash-3.2\\n'`;
 
 function runContainer(engine, image, runtime, worktree, npmCache, generatedAt, fixtureVersions) {
   const script = runtime.startsWith("node-") ? nodeSuite(runtime) : bashSuite();
-  const args = ["run", "--rm", "--network", "none", "--mount",
+  const args = ["run", "--rm"];
+  if (!runtime.startsWith("node-")) args.push("--network", "none");
+  args.push("--mount",
     `type=bind,src=${worktree},dst=/source,readonly`,
     "--env", `CAIRN_EVIDENCE_TIMESTAMP=${generatedAt}`,
     "--env", `CAIRN_CLAUDE_FIXTURE_VERSION=${fixtureVersions.claude}`,
-    "--env", `CAIRN_OPENCODE_FIXTURE_VERSION=${fixtureVersions.opencode}`];
+    "--env", `CAIRN_OPENCODE_FIXTURE_VERSION=${fixtureVersions.opencode}`);
   if (runtime.startsWith("node-")) {
     args.push("--mount", `type=bind,src=${npmCache},dst=/npm-cache`);
   }
