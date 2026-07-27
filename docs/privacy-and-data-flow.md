@@ -212,13 +212,32 @@ CAIRN_CAPABILITY_CONTRACT enabled
   + CAIRN_TRAJECTORY_CAPTURE enabled
   + local non-HTTP invocation
       -> resolve effective state and digest
+      -> durably issue one payload-free local operating marker
       -> run the unchanged capability owner
-      -> append one payload-free final record locally
+      -> check current three-consent authorization and effective state again
+      -> consume the exact issued marker once with one payload-free final record
 ```
 
-If any consent is absent, or transport is `http`, the wrapper returns to the
-existing owner without opening the callback store. There is no remote/HTTP callback persistence.
-HTTP callbacks are never persisted. There is no telemetry, analytics, log export, or callback network request.
+An operating start with absent consent, HTTP transport, or a local-store fault
+returns the existing unmeasured bypass without issuing a handle. At finish,
+the contract flag and local trajectory capture are checked before managed
+status resolution; current three-consent authorization is checked again at finish,
+and managed logging, capability enablement, state source, and the effective
+configuration digest must still match. Revoked consent or stale
+configuration defensively consumes a matching existing marker without a final
+record. This invalidation never creates a database, remains value-free and
+fail-open, and cannot resurrect the invocation after re-enable.
+
+A schema-valid handle alone proves nothing. Unissued, strict-field-mismatched,
+expired, stale, and replayed handles return a non-finalizing result and cannot
+produce final callback evidence. A mismatch does not consume the authentic
+marker; the untouched issued handle can still settle exactly once.
+
+There is no remote/HTTP callback persistence. HTTP callbacks are never persisted.
+Pending markers and final records never use remote project routing.
+There is no payload, no telemetry, no analytics, no log export, and no callback
+network request. This is a no-payload, no-telemetry, no-network boundary.
+Existing authenticated HTTP MCP behavior is unchanged.
 Existing authenticated HTTP MCP behavior is unchanged.
 
 The strict schema permits only these final fields:
@@ -239,17 +258,23 @@ The strict schema permits only these final fields:
 - `state_source` (`environment`, `project`, or `compatibility`)
 - `configuration_digest` (the SHA-256 digest of the effective state snapshot)
 
-There is no start record. One atomic final record is attempted after a terminal
-outcome; an operating disabled result may record `disabled`. A store open,
-lock, schema, validation, or write failure is fail-open: it cannot change the
-owner result, thrown error, timeout behavior, stdout/stderr, or exit status.
+There is no start record in callback evidence. A transient marker under
+`capability-callback/v1/pending/` contains only the same strict handle scalars;
+it is not a trajectory session or callback record, is bounded by the callback
+retention/cap policy, and is consumed once. Final records remain under the
+unchanged `capability-callback/v1/record/` schema and allow-list. One atomic
+final record is attempted after a terminal outcome; an operating disabled
+result may record `disabled`. A store open, lock, schema, validation, or write
+failure is fail-open: it cannot change the owner result, thrown error, timeout
+behavior, stdout/stderr, or exit status.
 
-The record constructor never receives or persists arguments, results, prompts,
-query text, memory values, file paths, stack traces, raw errors, secrets,
-credentials, arbitrary metadata, or user-supplied messages/details. The timer
-starts only immediately before the capability-owned body after state
-resolution, and ends after its outcome before final presentation; discovery,
-configuration, guard, and unrelated harness overhead are excluded.
+Neither issuance nor the final-record constructor receives or persists
+arguments, results, prompts, query text, memory values, file paths, stack
+traces, raw errors, secrets, credentials, arbitrary metadata, or user-supplied
+messages/details. The timer starts only immediately before the capability-owned
+body after state resolution, and ends after its outcome before final
+presentation; discovery, configuration, guard, and unrelated harness overhead
+are excluded.
 
 When one of `memory.write`, `memory.search`, `route.check`, or
 `context.explore` is disabled, it is omitted from MCP registration and cannot

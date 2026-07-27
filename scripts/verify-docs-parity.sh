@@ -223,6 +223,7 @@ check_capability_contract() {
     mcp-memory-server/src/capability-cli.ts \
     mcp-memory-server/src/capability-store.ts \
     mcp-memory-server/src/capability-adapter.ts \
+    schemas/capability-callback.schema.json \
     docs/operating.md docs/storage.md docs/privacy-and-data-flow.md README.md; do
     if [[ ! -f "$file" ]]; then
       echo "FATAL: capability parity input is missing: $file" >&2
@@ -287,6 +288,7 @@ EOF
     }
   done <<'EOF'
 capability-callback/v1/record/|mcp-memory-server/src/capability-store.ts|capability-callback/v1|docs/storage.md docs/privacy-and-data-flow.md
+capability-callback/v1/pending/|mcp-memory-server/src/capability-store.ts|capability-callback/v1/pending/|docs/storage.md docs/privacy-and-data-flow.md
 .agentfs/trajectory.db|mcp-memory-server/src/capability-cli.ts|.agentfs/trajectory.db|docs/storage.md docs/privacy-and-data-flow.md
 CAPABILITY_CALLBACK_RECORD_MAX_COUNT = 10_000|mcp-memory-server/src/capability-store.ts|10,000-record cap|docs/storage.md
 getTrajectoryLimits|mcp-memory-server/src/capability-store.ts|CAIRN_TRAJECTORY_RETENTION_DAYS|docs/storage.md
@@ -296,7 +298,36 @@ configuration_digest|mcp-memory-server/src/capability-store.ts|configuration_dig
 correlation_id|mcp-memory-server/src/capability-store.ts|correlation_id|docs/privacy-and-data-flow.md
 invocation_id|mcp-memory-server/src/capability-store.ts|invocation_id|docs/privacy-and-data-flow.md
 duration_ms|mcp-memory-server/src/capability-store.ts|duration_ms|docs/privacy-and-data-flow.md
+issueOperatingCapability|mcp-memory-server/src/capability-adapter.ts|durably issue|docs/privacy-and-data-flow.md
+settleOperatingCapability|mcp-memory-server/src/capability-adapter.ts|consumed once|docs/storage.md docs/privacy-and-data-flow.md
+isCapabilityContractEnabled()|mcp-memory-server/src/capability-adapter.ts|checked again at finish|docs/privacy-and-data-flow.md
+const current = await resolveCapabilityStatus({ projectRoot });|mcp-memory-server/src/capability-adapter.ts|current three-consent authorization|docs/privacy-and-data-flow.md
+current.logging.enabled|mcp-memory-server/src/capability-adapter.ts|managed logging|docs/privacy-and-data-flow.md
+current.configuration_digest === handle.configuration_digest|mcp-memory-server/src/capability-adapter.ts|stale|docs/privacy-and-data-flow.md
 EOF
+
+  local expected_final_fields source_final_fields public_final_fields
+  expected_final_fields=$(printf '%s\n' \
+    capability_id configuration_digest correlation_id duration_ms error_code \
+    finished_at harness invocation_id outcome schema_version source started_at \
+    state_source transport | sort)
+  source_final_fields=$(sed -n \
+    '/export const capabilityCallbackRecordSchema/,/}).superRefine/p' \
+    mcp-memory-server/src/capability-store.ts \
+    | sed -n 's/^    \([a-z_]*\):.*/\1/p' \
+    | sort)
+  public_final_fields=$(node -e '
+    const schema = require("./schemas/capability-callback.schema.json");
+    process.stdout.write(Object.keys(schema.properties).sort().join("\n"));
+  ')
+  if [[ "$source_final_fields" != "$expected_final_fields" ]]; then
+    echo "FATAL: runtime final-record fields changed from the strict allow-list" >&2
+    failed=1
+  fi
+  if [[ "$public_final_fields" != "$expected_final_fields" ]]; then
+    echo "FATAL: public final-record fields changed from the strict allow-list" >&2
+    failed=1
+  fi
 
   for term in \
     'capabilities list' 'capabilities status' 'capabilities enable' \
@@ -309,6 +340,7 @@ EOF
 
   for term in \
     'three consents' 'payload-free' 'no start record' 'fail-open' \
+    'no-payload, no-telemetry, no-network' \
     'no telemetry' 'HTTP callbacks are never persisted' \
     'Default uninstall retains' '--purge-memory PROJECT' 'revert.sh' \
     'no database migration'; do

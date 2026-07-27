@@ -18,7 +18,7 @@ registration, memory remains on that computer.
 | Scope | Database path |
 |---|---|
 | `project` | `<server working directory>/.agentfs/project.db` |
-| Opt-in session trajectories | `<harness project root>/.agentfs/trajectory.db` |
+| Opt-in session trajectories and capability callback state | `<harness project root>/.agentfs/trajectory.db` |
 | Opt-in local artifacts and compaction revisions | `<project root>/.agentfs/artifacts.db` |
 | Opt-in derived hindsight notes | `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/notes/` |
 | Any named/global scope, such as `identity` or `work` | `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/<scope>.db` |
@@ -43,28 +43,46 @@ and then the oldest records needed to meet the logical budget. `prune
 
 ## Capability callback storage
 
-Managed capability callback records use the separate versioned
-`capability-callback/v1/record/` KV namespace inside the existing project-local
-`.agentfs/trajectory.db`. They are measurement records, not trajectory
-sessions: the existing `trajectory/v1` session envelopes, keys, indexes, CLI,
-and path are unchanged. There is no database migration, mirror, or second
-callback database. The file is created with mode `0600`; its SQLite `-wal` and
-`-shm` files remain in the same sensitive backup boundary.
+Managed operating callbacks use two separate versioned KV namespaces inside
+the existing project-local `.agentfs/trajectory.db`:
 
-Each completed invocation is appended once and retention is applied in the
-same immediate transaction. Callback age retention reuses
-`CAIRN_TRAJECTORY_RETENTION_DAYS` (default 30 days), then an independent
-10,000-record cap prunes the oldest callback keys. A record older than the
-current retention cutoff is not appended. Existing trajectory session byte
-limits and total-store accounting remain session contracts; callback rows do
-not change their schema or path.
+- `capability-callback/v1/pending/` contains bounded transient issuance
+  markers for operating starts.
+- `capability-callback/v1/record/` contains immutable retained final callback
+  records.
 
-The namespace is strictly local. Stdio MCP callbacks, offline notes, and
-guarded local harness commands may persist only after all three consents pass.
-Authenticated HTTP callbacks are skipped: there is no remote/HTTP callback
-persistence, server-base-directory mapping, telemetry, export, or network
-delivery. Disabling logging stops future records but does not delete retained
-rows.
+An issuance marker contains only the strict operating-handle allow-list:
+schema version, capability/invocation/correlation identifiers,
+harness/source/transport classifications, start time, effective state source,
+and configuration digest. It contains no arguments, results, errors, paths,
+prompts, queries, secrets, or arbitrary metadata. A marker is not a trajectory
+session, trajectory start, or callback start record. It is consumed once by a
+matching finish or defensive invalidation and is never exposed as final
+callback evidence.
+
+Both namespaces are project-local state, not trajectory sessions: the existing
+`trajectory/v1` session envelopes, keys, indexes, CLI, and path are unchanged.
+There is no database migration, mirror, or second callback database. The file
+is created with mode `0600`; its SQLite `-wal` and `-shm` files remain in the
+same sensitive backup boundary.
+
+Each eligible completed invocation consumes its exact marker and appends one
+final record in the same immediate transaction. Callback age retention reuses
+`CAIRN_TRAJECTORY_RETENTION_DAYS` (default 30 days). Each namespace has an
+independent 10,000-record cap that prunes its oldest keys.
+Expired issuance is consumed without a final record, and a final record older
+than the current retention cutoff is not appended. Existing trajectory session
+byte limits and total-store accounting remain session contracts; callback
+state does not change their schema or path.
+
+The namespaces are strictly local. Stdio MCP callbacks, offline notes, and
+guarded local harness commands may persist final evidence only after all three
+consents pass. Pending issuance and final records are never redirected through
+HTTP or remote project storage. Authenticated HTTP callbacks are skipped:
+there is no remote/HTTP callback persistence, server-base-directory mapping,
+payload delivery, telemetry, export, or network delivery. Disabling logging
+stops future records, invalidates an already-issued operating marker at finish,
+and does not delete retained final rows.
 
 Default uninstall retains `.agentfs/trajectory.db` and its sidecars exactly.
 It removes the managed `.ai/capabilities.json` only after backing it up, and
