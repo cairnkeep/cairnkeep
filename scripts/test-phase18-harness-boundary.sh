@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Native Claude/OpenCode capability-boundary contract tests. The no-argument
-# path is intentionally inert until the production owners land in Plans 19-20.
+# path stays inert so callers must select an explicit, honestly scoped mode.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -837,7 +837,7 @@ live_opencode() {
 mode="${1:-}"
 case "$mode" in
   "")
-    echo "SKIP: native capability harness boundary is opt-in until production owners are green"
+    echo "SKIP: select an explicit native-boundary evidence mode"
     ;;
   -h|--help)
     usage
