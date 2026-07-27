@@ -1108,17 +1108,22 @@ function createMemoryServer(context: ServerContext = {}): McpServer {
     const scopeOptions = { projectId: context.projectId };
     const typedNodesEnabled = isTypedMemoryNodesEnabled();
     const artifactToolsEnabled = isArtifactStoreEnabled() && (!context.remote || isArtifactHttpEnabled());
+    if (artifactToolsEnabled && context.remote && !context.projectId) {
+        throw new ClientContextError("Remote artifact access requires X-Cairn-Project.");
+    }
     let fallbackArtifactSessionRef: string | undefined;
     const resolveArtifactSessionRef = (sessionRef?: string): string => {
         if (sessionRef) return sessionRef;
         fallbackArtifactSessionRef ??= `cairn:${randomUUID()}`;
         return fallbackArtifactSessionRef;
     };
-    const artifactProjectRoot = (): string => {
-        if (context.remote) {
-            throw new ClientContextError("Remote artifact storage requires server-side project routing.");
+    const artifactProjectRoot = async (): Promise<string> => {
+        if (!context.remote) return process.cwd();
+        if (!context.projectId) {
+            throw new ClientContextError("Remote artifact access requires X-Cairn-Project.");
         }
-        return process.cwd();
+        const { resolveRemoteArtifactDbPath } = await import("./artifact-store.js");
+        return dirname(resolveRemoteArtifactDbPath(getBaseDir(), context.projectId));
     };
     const noteTargetOptions = (scope: string, address_space: NoteAddressSpace) => {
         if (scope !== "project") throw new Error("INVALID_SCOPE: note address spaces require scope project.");
@@ -1159,7 +1164,7 @@ if (artifactToolsEnabled) {
             },
         },
         async (input) => {
-            const projectRoot = artifactProjectRoot();
+            const projectRoot = await artifactProjectRoot();
             const sessionRef = resolveArtifactSessionRef(input.session_ref);
             const { putArtifact } = await import("./artifact-store.js");
             const result = await putArtifact(projectRoot, { ...input, session_ref: sessionRef });
@@ -1192,7 +1197,7 @@ if (artifactToolsEnabled) {
             },
         },
         async ({ artifact_id }) => {
-            const projectRoot = artifactProjectRoot();
+            const projectRoot = await artifactProjectRoot();
             const { readArtifact } = await import("./artifact-store.js");
             const payload = await readArtifact(artifact_id, projectRoot);
             return {
@@ -1219,7 +1224,7 @@ if (artifactToolsEnabled) {
             },
         },
         async (filters) => {
-            const projectRoot = artifactProjectRoot();
+            const projectRoot = await artifactProjectRoot();
             const { listArtifacts } = await import("./artifact-store.js");
             const listed = await listArtifacts(projectRoot, filters);
             const payload = {
@@ -1259,7 +1264,7 @@ if (artifactToolsEnabled) {
             },
         },
         async ({ artifact_id }) => {
-            const projectRoot = artifactProjectRoot();
+            const projectRoot = await artifactProjectRoot();
             const { deleteArtifact } = await import("./artifact-store.js");
             let payload;
             try {
