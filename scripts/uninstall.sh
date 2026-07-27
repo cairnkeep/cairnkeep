@@ -229,6 +229,11 @@ for proj in "${PROJECTS[@]:-}"; do
   [[ -n "$proj" && -d "$proj" ]] || continue
   proj=$(cd "$proj" && pwd)
   echo "Project scaffold: $proj"
+  # Truthy launchers create this project-local root only for the explicit
+  # capability overlay. Back up the complete managed unit so its native Claude
+  # hook registrations and OpenCode plugin bytes restore together exactly.
+  # Normal and master-off installations never create it, so absence is inert.
+  remove_path "$proj/.ai/capability-contract"
   for rel in "${PROJECT_AI_FILES[@]}"; do
     remove_path "$proj/.ai/$rel"
   done
