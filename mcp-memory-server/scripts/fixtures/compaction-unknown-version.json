@@ -1,0 +1,17 @@
+{
+  "harness": "opencode",
+  "harness_version": "99.0.0",
+  "event": {
+    "type": "session.compacted",
+    "properties": {
+      "sessionID": "unknown-version-session"
+    }
+  },
+  "payload": {
+    "authorization": "Bearer unknown-version-secret-001",
+    "nested": {
+      "api_key": "sk-unknown-version-secret-002",
+      "summary": "UNKNOWN_VERSION_PAYLOAD_MUST_NOT_SURVIVE"
+    }
+  }
+}

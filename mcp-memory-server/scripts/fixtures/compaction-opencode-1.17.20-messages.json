@@ -1,0 +1,119 @@
+{
+  "session": {
+    "id": "opencode-compaction-session-001",
+    "title": "Pinned compaction fixture",
+    "version": "1.17.20",
+    "projectID": "synthetic-project",
+    "directory": "/synthetic/project",
+    "time": {
+      "created": 1785052800000,
+      "updated": 1785052810000
+    }
+  },
+  "messages": [
+    {
+      "info": {
+        "id": "oc-ordinary-user",
+        "sessionID": "opencode-compaction-session-001",
+        "role": "user",
+        "time": { "created": 1785052801000 }
+      },
+      "parts": [
+        { "id": "oc-ordinary-text", "sessionID": "opencode-compaction-session-001", "messageID": "oc-ordinary-user", "type": "text", "text": "Continue normal work." }
+      ]
+    },
+    {
+      "info": {
+        "id": "oc-compact-user-old",
+        "sessionID": "opencode-compaction-session-001",
+        "role": "user",
+        "time": { "created": 1785052802000 }
+      },
+      "parts": [
+        { "id": "oc-compaction-part-old", "sessionID": "opencode-compaction-session-001", "messageID": "oc-compact-user-old", "type": "compaction", "auto": true }
+      ]
+    },
+    {
+      "info": {
+        "id": "oc-summary-incomplete",
+        "sessionID": "opencode-compaction-session-001",
+        "role": "assistant",
+        "parentID": "oc-compact-user-old",
+        "summary": true,
+        "time": { "created": 1785052803000 }
+      },
+      "parts": [
+        { "id": "oc-incomplete-text", "sessionID": "opencode-compaction-session-001", "messageID": "oc-summary-incomplete", "type": "text", "text": "# Objective\nThis incomplete decoy must not win." }
+      ]
+    },
+    {
+      "info": {
+        "id": "oc-summary-error",
+        "sessionID": "opencode-compaction-session-001",
+        "role": "assistant",
+        "parentID": "oc-compact-user-old",
+        "summary": true,
+        "finish": "stop",
+        "error": { "name": "SyntheticError", "message": "failed summary decoy" },
+        "time": { "created": 1785052803500, "completed": 1785052803600 }
+      },
+      "parts": [
+        { "id": "oc-error-text", "sessionID": "opencode-compaction-session-001", "messageID": "oc-summary-error", "type": "text", "text": "# Objective\nThis errored decoy must not win." }
+      ]
+    },
+    {
+      "info": {
+        "id": "oc-summary-valid-old",
+        "sessionID": "opencode-compaction-session-001",
+        "role": "assistant",
+        "parentID": "oc-compact-user-old",
+        "summary": true,
+        "finish": "stop",
+        "time": { "created": 1785052804000, "completed": 1785052805000 }
+      },
+      "parts": [
+        { "id": "oc-old-summary-text", "sessionID": "opencode-compaction-session-001", "messageID": "oc-summary-valid-old", "type": "text", "text": "# Objective\nPreserve the old goal.\n\n# Important Details\n- Decision: Keep this valid summary as a selection fallback.\n\n# Work State\n## Completed\n- Fixture parsing is pinned.\n## Active\n- Older work remains.\n## Blocked\n- Error: OldError at old.ts:1.\n\n# Next Move\n- Replace this summary with a newer valid revision.\n\n# Relevant Files\n- src/old.ts" }
+      ]
+    },
+    {
+      "info": {
+        "id": "oc-compact-user-new",
+        "sessionID": "opencode-compaction-session-001",
+        "role": "user",
+        "time": { "created": 1785052806000 }
+      },
+      "parts": [
+        { "id": "oc-compaction-part-new", "sessionID": "opencode-compaction-session-001", "messageID": "oc-compact-user-new", "type": "compaction", "auto": false }
+      ]
+    },
+    {
+      "info": {
+        "id": "oc-summary-wrong-parent",
+        "sessionID": "opencode-compaction-session-001",
+        "role": "assistant",
+        "parentID": "oc-ordinary-user",
+        "summary": true,
+        "finish": "stop",
+        "time": { "created": 1785052808000, "completed": 1785052809000 }
+      },
+      "parts": [
+        { "id": "oc-wrong-parent-text", "sessionID": "opencode-compaction-session-001", "messageID": "oc-summary-wrong-parent", "type": "text", "text": "# Objective\nThis newest wrong-parent decoy must not win." }
+      ]
+    },
+    {
+      "info": {
+        "id": "oc-summary-valid-new",
+        "sessionID": "opencode-compaction-session-001",
+        "role": "assistant",
+        "parentID": "oc-compact-user-new",
+        "summary": true,
+        "finish": "stop",
+        "time": { "created": 1785052807000, "completed": 1785052808000 }
+      },
+      "parts": [
+        { "id": "oc-new-summary-text", "sessionID": "opencode-compaction-session-001", "messageID": "oc-summary-valid-new", "type": "text", "text": "# Objective\nPreserve supported compaction state across sessions.\n\n# Important Details\n- Decision: Pin adapter behavior to the documented session.compacted family.\n- Nested credentials: {\"authorization\":\"Bearer opencode-compaction-secret-001\",\"nested\":{\"api_key\":\"sk-opencode-compaction-secret-002\"}}\n\n# Work State\n## Completed\n- The exact fixture family is recorded.\n## Active\n- Adapter implementation remains.\n## Blocked\n- Error: TypeError: recovery pointer invalid at selectRecovery (compaction.ts:42).\n\n# Next Move\n- Implement the local immutable compaction adapter.\n\n# Relevant Files\n- mcp-memory-server/src/compaction-normalize.ts" },
+        { "id": "oc-new-summary-ignored", "sessionID": "opencode-compaction-session-001", "messageID": "oc-summary-valid-new", "type": "text", "text": "IGNORED_SUMMARY_SECRET", "ignored": true }
+      ]
+    }
+  ]
+}

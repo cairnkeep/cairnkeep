@@ -1,0 +1,6 @@
+{
+  "type": "session.compacted",
+  "properties": {
+    "sessionID": "opencode-compaction-session-001"
+  }
+}
