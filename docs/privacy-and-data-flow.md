@@ -105,7 +105,8 @@ session.compacted session ID
   → local .agentfs/artifacts.db
 ```
 
-Unknown versions/shapes fail open. Their payload is not logged, serialized,
+Only Claude Code `PostCompact` 2.1.219 and 2.1.220 and OpenCode
+`session.compacted` 1.17.20 are pinned. Unknown versions/shapes fail open. Their payload is not logged, serialized,
 temporarily copied, digested, indexed, or retained; doctor receives only a
 bounded value-free reason. Artifact candidates are redacted before digest, index, temporary storage, or any Cairnkeep write.
 Truncation also happens only after redaction. The same recursive

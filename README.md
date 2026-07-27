@@ -289,8 +289,8 @@ paths. See the [operating guide](docs/operating.md#typed-memory-nodes-and-note-a
 ### Compaction continuity and artifacts (opt-in)
 
 `CAIRN_COMPACTION_CAPTURE=1` captures only harness-produced compaction summaries
-from the supported Claude Code `PostCompact` and OpenCode `session.compacted`
-seams. It stores redacted immutable revisions locally and injects the latest
+from the pinned Claude Code `PostCompact` 2.1.219 and 2.1.220 payloads and
+OpenCode `session.compacted` 1.17.20 seam. It stores redacted immutable revisions locally and injects the latest
 valid structured goals, decisions, TODOs, and critical errors when a session
 starts. A resumed session is preferred; a fresh session falls back to the
 newest valid project summary and marks stale context for validation. The raw

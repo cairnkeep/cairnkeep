@@ -2,6 +2,7 @@ import { redactLocalValue } from "./trajectory-redaction.js";
 
 export const SUPPORTED_COMPACTION_ADAPTERS = [
     { harness: "claude-code", version: "2.1.219", event: "PostCompact" },
+    { harness: "claude-code", version: "2.1.220", event: "PostCompact" },
     { harness: "opencode", version: "1.17.20", event: "session.compacted" },
 ] as const;
 
@@ -40,7 +41,7 @@ function stripLabel(value: string, label: "Decision" | "TODO" | "Error"): string
 
 export function projectCompactionSummary(
     summary: string,
-    options: { template: "claude-code-2.1.219" | "opencode-1.17.20" },
+    options: { template: "claude-code-2.1.219" | "claude-code-2.1.220" | "opencode-1.17.20" },
 ): CompactionProjection {
     const result: CompactionProjection = {
         task_goals: [],
@@ -54,7 +55,8 @@ export function projectCompactionSummary(
             critical_error_traces: "missing",
         },
     };
-    const headings: Map<string, keyof Omit<CompactionProjection, "completeness">> = options.template === "claude-code-2.1.219"
+    const claudeTemplate = options.template.startsWith("claude-code-");
+    const headings: Map<string, keyof Omit<CompactionProjection, "completeness">> = claudeTemplate
         ? new Map([
             ["task goals", "task_goals"],
             ["decisions made", "decisions_made"],
@@ -95,7 +97,7 @@ export function projectCompactionSummary(
             continue;
         }
         if (section === "task_goals" || section === "open_todos") result[section].push(cleaned);
-        else if (options.template === "claude-code-2.1.219" && section) result[section].push(cleaned);
+        else if (claudeTemplate && section) result[section].push(cleaned);
     }
     for (const key of ["task_goals", "decisions_made", "open_todos", "critical_error_traces"] as const) {
         result.completeness[key] = seen.has(key) ? "complete" : "missing";
@@ -120,26 +122,30 @@ export function normalizeClaudePostCompact(raw: unknown, options: {
     raw_summary: string;
     projection: CompactionProjection;
 } | null {
-    if (options.harnessVersion !== "2.1.219") return diagnostic(options);
+    if (options.harnessVersion !== "2.1.219" && options.harnessVersion !== "2.1.220") return diagnostic(options);
     const candidate = object(raw);
-    if (!candidate || Object.keys(candidate).sort().join("|") !== [
-        "compact_summary", "cwd", "hook_event_name", "permission_mode", "session_id", "transcript_path", "trigger",
-    ].sort().join("|")) return diagnostic(options);
+    const expectedKeys = options.harnessVersion === "2.1.219"
+        ? ["compact_summary", "cwd", "hook_event_name", "permission_mode", "session_id", "transcript_path", "trigger"]
+        : ["compact_summary", "cwd", "hook_event_name", "prompt_id", "session_id", "transcript_path", "trigger"];
+    if (!candidate || Object.keys(candidate).sort().join("|") !== expectedKeys.sort().join("|")) return diagnostic(options);
     const sessionId = string(candidate.session_id);
     const projectRoot = string(candidate.cwd);
     const rawSummary = string(candidate.compact_summary);
     const trigger = string(candidate.trigger);
-    if (!sessionId || !projectRoot || !rawSummary || !trigger || candidate.hook_event_name !== "PostCompact") return diagnostic(options);
+    const versionField = options.harnessVersion === "2.1.219"
+        ? string(candidate.permission_mode) : string(candidate.prompt_id);
+    if (!sessionId || !projectRoot || !rawSummary || !trigger || !versionField
+        || candidate.hook_event_name !== "PostCompact") return diagnostic(options);
     const redacted = redactLocalValue(candidate, projectRoot).value as UnknownRecord;
     const summary = String(redacted.compact_summary);
     return {
         session_ref: `claude-code:${String(redacted.session_id)}`,
         harness: "claude-code",
-        harness_version: "2.1.219",
+        harness_version: options.harnessVersion,
         source_event: "PostCompact",
         trigger: String(redacted.trigger),
         raw_summary: summary,
-        projection: projectCompactionSummary(summary, { template: "claude-code-2.1.219" }),
+        projection: projectCompactionSummary(summary, { template: `claude-code-${options.harnessVersion}` }),
     };
 }
 

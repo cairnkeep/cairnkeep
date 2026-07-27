@@ -34,6 +34,8 @@ All notable user-facing changes are documented here. This project follows
 
 ### Fixed
 
+- Pin the Claude Code 2.1.220 `PostCompact` `prompt_id` payload shape alongside
+  the retained 2.1.219 adapter while continuing to refuse unknown versions.
 - Preserve redacted Pi provider failures as trajectory system events and treat
   a closed trajectory CLI output pipe as a normal consumer exit.
 - Make the audit script executable so its rendered systemd service target can

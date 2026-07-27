@@ -164,7 +164,14 @@ EOF
   grep -qF -- '--purge-memory PROJECT' docs/storage.md || failed=1
   grep -qF 'revert.sh' docs/storage.md docs/privacy-and-data-flow.md || failed=1
 
-  [[ "$failed" -eq 0 ]] && echo "[artifact-contract] OK: artifact flags/defaults/tools/paths/privacy/uninstall match source"
+  for version in 2.1.219 2.1.220; do
+    grep -qF "version: \"$version\"" mcp-memory-server/src/compaction-normalize.ts || failed=1
+    grep -qF "$version" README.md docs/operating.md docs/privacy-and-data-flow.md || failed=1
+  done
+  grep -qF 'version: "1.17.20"' mcp-memory-server/src/compaction-normalize.ts || failed=1
+  grep -qF '1.17.20' README.md docs/operating.md docs/privacy-and-data-flow.md || failed=1
+
+  [[ "$failed" -eq 0 ]] && echo "[artifact-contract] OK: artifact flags/defaults/tools/paths/privacy/uninstall/version pins match source"
   return "$failed"
 }
 

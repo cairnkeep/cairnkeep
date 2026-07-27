@@ -552,9 +552,11 @@ cairn sync --apply                 # Claude Code PostCompact + SessionStart
 # Disable: remove/comment both lines, sync again, and restart.
 ```
 
-Compaction continuity accepts only the pinned supported Claude Code
-`PostCompact` and OpenCode `session.compacted` families. Unknown or malformed
-versions fail open, retain none of the unknown payload, and leave only a
+Compaction continuity accepts only the pinned Claude Code `PostCompact`
+2.1.219 and 2.1.220 payloads and OpenCode `session.compacted` 1.17.20 payload.
+The Claude hook resolves the local CLI version and passes that exact version to
+the normalizer. Unknown or malformed versions fail open, retain none of the
+unknown payload, and leave only a
 bounded value-free doctor diagnostic. The flag is checked before parsing,
 SDK, subprocess, filesystem, database, network, stdout, stderr, or injection
 work. Capture forwards the harness-produced summary unchanged to the local

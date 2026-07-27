@@ -25,8 +25,8 @@ function loadFixture(name) {
 }
 
 function validateFixtureSelfConsistency() {
-    const claude = loadFixture("compaction-claude-code-2.1.219.json");
-    strictObject(claude, [
+    const claude219 = loadFixture("compaction-claude-code-2.1.219.json");
+    strictObject(claude219, [
         "session_id",
         "transcript_path",
         "cwd",
@@ -34,16 +34,32 @@ function validateFixtureSelfConsistency() {
         "hook_event_name",
         "trigger",
         "compact_summary",
-    ], "Claude PostCompact fixture");
-    assert.equal(claude.hook_event_name, "PostCompact");
-    assert.equal(claude.trigger, "manual");
-    assert.equal(typeof claude.compact_summary, "string");
+    ], "Claude 2.1.219 PostCompact fixture");
+    assert.equal(claude219.hook_event_name, "PostCompact");
+    assert.equal(claude219.trigger, "manual");
+    assert.equal(typeof claude219.compact_summary, "string");
     for (const heading of ["Task Goals", "Decisions Made", "Open TODOs", "Critical Error Traces"]) {
-        assert.match(claude.compact_summary, new RegExp(`^# ${heading}$`, "m"));
+        assert.match(claude219.compact_summary, new RegExp(`^# ${heading}$`, "m"));
     }
-    assert.match(claude.compact_summary, /Decision:/);
-    assert.match(claude.compact_summary, /TODO:/);
-    assert.match(claude.compact_summary, /Error:/);
+    assert.match(claude219.compact_summary, /Decision:/);
+    assert.match(claude219.compact_summary, /TODO:/);
+    assert.match(claude219.compact_summary, /Error:/);
+
+    const claude220 = loadFixture("compaction-claude-code-2.1.220.json");
+    strictObject(claude220, [
+        "session_id",
+        "transcript_path",
+        "cwd",
+        "prompt_id",
+        "hook_event_name",
+        "trigger",
+        "compact_summary",
+    ], "Claude 2.1.220 PostCompact fixture");
+    assert.equal(claude220.hook_event_name, "PostCompact");
+    assert.equal(claude220.trigger, "manual");
+    assert.equal(typeof claude220.prompt_id, "string");
+    assert.equal(typeof claude220.compact_summary, "string");
+    assert.doesNotMatch(JSON.stringify(claude220), /\/tmp\/|\/home\/|@(?:gmail|outlook)|Bearer|sk-/i);
 
     const event = loadFixture("compaction-opencode-1.17.20-event.json");
     strictObject(event, ["type", "properties"], "OpenCode compacted event");
@@ -84,7 +100,7 @@ function validateFixtureSelfConsistency() {
     const unknown = loadFixture("compaction-unknown-version.json");
     assert.equal(unknown.harness_version, "99.0.0");
     for (const sentinel of UNKNOWN_SENTINELS) assert.match(JSON.stringify(unknown), new RegExp(sentinel));
-    return { claude, event, envelope, unknown };
+    return { claude219, claude220, event, envelope, unknown };
 }
 
 function assertExactProjection(projection) {
@@ -115,6 +131,7 @@ async function loadAdapterModule() {
 function assertExports(adapter) {
     assert.deepEqual(adapter.SUPPORTED_COMPACTION_ADAPTERS, [
         { harness: "claude-code", version: "2.1.219", event: "PostCompact" },
+        { harness: "claude-code", version: "2.1.220", event: "PostCompact" },
         { harness: "opencode", version: "1.17.20", event: "session.compacted" },
     ]);
     for (const name of [
@@ -127,20 +144,27 @@ function assertExports(adapter) {
     ]) assert.equal(typeof adapter[name], "function", `${name} export is missing`);
 }
 
-function claudeContract(adapter, fixtures) {
-    const normalized = adapter.normalizeClaudePostCompact(fixtures.claude, { harnessVersion: "2.1.219" });
-    assert.equal(normalized.session_ref, "claude-code:claude-compaction-session-001");
+function claudeContract(adapter, fixture, version) {
+    const normalized = adapter.normalizeClaudePostCompact(fixture, { harnessVersion: version });
+    assert.equal(normalized.session_ref, `claude-code:${fixture.session_id}`);
     assert.equal(normalized.harness, "claude-code");
-    assert.equal(normalized.harness_version, "2.1.219");
+    assert.equal(normalized.harness_version, version);
     assert.equal(normalized.source_event, "PostCompact");
     assert.equal(normalized.trigger, "manual");
     assert.equal(typeof normalized.raw_summary, "string");
-    assert.doesNotMatch(normalized.raw_summary, /claude-compaction-secret|sk-claude-compaction-secret/);
+    assert.doesNotMatch(normalized.raw_summary, /claude-compaction-secret|sk-claude-compaction-secret|\/tmp\/|\/home\//);
     assertExactProjection(normalized.projection);
-    assert.deepEqual(normalized.projection.task_goals, ["Preserve supported compaction state across sessions."]);
-    assert.deepEqual(normalized.projection.decisions_made, ["Pin adapter behavior to the documented PostCompact family."]);
-    assert.deepEqual(normalized.projection.open_todos, ["Implement the local immutable compaction adapter."]);
-    assert.match(normalized.projection.critical_error_traces[0], /^TypeError: recovery pointer invalid/);
+    if (version === "2.1.219") {
+        assert.deepEqual(normalized.projection.task_goals, ["Preserve supported compaction state across sessions."]);
+        assert.deepEqual(normalized.projection.decisions_made, ["Pin adapter behavior to the documented PostCompact family."]);
+        assert.deepEqual(normalized.projection.open_todos, ["Implement the local immutable compaction adapter."]);
+        assert.match(normalized.projection.critical_error_traces[0], /^TypeError: recovery pointer invalid/);
+    } else {
+        assert.deepEqual(normalized.projection.task_goals, []);
+        assert.deepEqual(normalized.projection.decisions_made, []);
+        assert.deepEqual(normalized.projection.open_todos, []);
+        assert.deepEqual(normalized.projection.critical_error_traces, []);
+    }
     return normalized;
 }
 
@@ -278,6 +302,15 @@ function unknownVersionContract(adapter, fixtures) {
     assert.deepEqual(diagnostics, [{ code: "unsupported_compaction_adapter", count: 1 }]);
     assertNoUnknownPayload(result, "unknown adapter result");
     assertNoUnknownPayload(diagnostics, "unknown adapter diagnostic");
+
+    const claudeDiagnostics = [];
+    const claudeResult = adapter.normalizeClaudePostCompact(fixtures.claude220, {
+        harnessVersion: "2.1.221",
+        recordDiagnostic: (diagnostic) => claudeDiagnostics.push(diagnostic),
+    });
+    assert.equal(claudeResult, null);
+    assert.deepEqual(claudeDiagnostics, [{ code: "unsupported_compaction_adapter", count: 1 }]);
+    assert.doesNotMatch(JSON.stringify(claudeDiagnostics), /prompt|summary|session|synthetic/i);
 }
 
 async function runContract(mode, fixtures) {
@@ -286,7 +319,10 @@ async function runContract(mode, fixtures) {
     projectionContract(adapter);
     unknownVersionContract(adapter, fixtures);
     let normalized;
-    if (mode !== "--opencode-only") normalized = claudeContract(adapter, fixtures);
+    if (mode !== "--opencode-only") {
+        normalized = claudeContract(adapter, fixtures.claude219, "2.1.219");
+        claudeContract(adapter, fixtures.claude220, "2.1.220");
+    }
     if (mode !== "--claude-only") normalized = opencodeContract(adapter, fixtures);
     recoveryContract(adapter, normalized.projection);
 }

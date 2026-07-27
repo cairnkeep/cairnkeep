@@ -19,6 +19,7 @@ trap 'rm -rf "$tmp"' EXIT
 fail() { echo "FAIL: $1" >&2; return 1; }
 
 claude_fixture="$ROOT/mcp-memory-server/scripts/fixtures/compaction-claude-code-2.1.219.json"
+claude_fixture_220="$ROOT/mcp-memory-server/scripts/fixtures/compaction-claude-code-2.1.220.json"
 opencode_event_fixture="$ROOT/mcp-memory-server/scripts/fixtures/compaction-opencode-1.17.20-event.json"
 opencode_messages_fixture="$ROOT/mcp-memory-server/scripts/fixtures/compaction-opencode-1.17.20-messages.json"
 PARITY_RECOVERY=$'## Compaction recovery\nSource: project_fallback\nSession: canonical:prior\nRevision: 2\nCaptured: 2026-07-25T00:00:00.000Z\nAge: 172800 seconds\nHarness: canonical\nCompleteness: goals=missing, decisions=missing, todos=missing, errors=missing\nWarning: this state is stale; validate it against the current repository before relying on it.\n\n### Task Goals\n(none captured)\n\n### Decisions Made\n(none captured)\n\n### Open TODOs\n(none captured)\n\n### Critical Error Traces\n(none captured)\n'
@@ -44,13 +45,16 @@ run_existing_baseline() {
 }
 
 validate_fixtures() {
-  node - "$claude_fixture" "$opencode_event_fixture" "$opencode_messages_fixture" <<'NODE'
+  node - "$claude_fixture" "$claude_fixture_220" "$opencode_event_fixture" "$opencode_messages_fixture" <<'NODE'
 const fs = require("fs")
-const [claudePath, eventPath, messagesPath] = process.argv.slice(2)
+const [claudePath, claude220Path, eventPath, messagesPath] = process.argv.slice(2)
 const claude = JSON.parse(fs.readFileSync(claudePath, "utf8"))
+const claude220 = JSON.parse(fs.readFileSync(claude220Path, "utf8"))
 const event = JSON.parse(fs.readFileSync(eventPath, "utf8"))
 const envelope = JSON.parse(fs.readFileSync(messagesPath, "utf8"))
 if (claude.hook_event_name !== "PostCompact" || typeof claude.compact_summary !== "string") process.exit(1)
+if (claude220.hook_event_name !== "PostCompact" || typeof claude220.prompt_id !== "string") process.exit(1)
+if (Object.keys(claude220).sort().join(",") !== ["compact_summary", "cwd", "hook_event_name", "prompt_id", "session_id", "transcript_path", "trigger"].sort().join(",")) process.exit(1)
 if (event.type !== "session.compacted" || Object.keys(event.properties ?? {}).join(",") !== "sessionID") process.exit(1)
 if (envelope.session?.id !== event.properties.sessionID || !Array.isArray(envelope.messages)) process.exit(1)
 NODE
@@ -85,6 +89,17 @@ if (command === "recover" && process.env.CAIRN_TEST_RECOVERY) {
   process.stdout.write(process.env.CAIRN_TEST_RECOVERY)
 }
 NODE
+}
+
+write_fake_claude() {
+  local fake_bin="$1"
+  local version="$2"
+  mkdir -p "$fake_bin"
+  cat > "$fake_bin/claude" <<EOF
+#!/usr/bin/env bash
+printf '%s (Claude Code)\n' '$version'
+EOF
+  chmod +x "$fake_bin/claude"
 }
 
 assert_no_spy_calls() {
@@ -141,7 +156,9 @@ claude_enabled_contract() {
   local hook="$tmp/compaction-capture.sh"
   local wakeup="$tmp/memory-wakeup.sh"
   local repo="$tmp/claude-enabled"
+  local fake_bin="$tmp/claude-enabled-bin"
   make_fake_infra "$fake_root"
+  write_fake_claude "$fake_bin" "2.1.219"
   render "$ROOT/claude/hooks/compaction-capture.sh" "$hook" "$fake_root"
   render "$ROOT/claude/hooks/memory-wakeup.sh" "$wakeup" "$fake_root"
   chmod +x "$hook" "$wakeup"
@@ -149,7 +166,7 @@ claude_enabled_contract() {
   mkdir -p "$repo/.agentfs"
   touch "$repo/.agentfs/artifacts.db"
 
-  (cd "$repo" && CAIRN_COMPACTION_CAPTURE=1 CAIRN_TEST_CALLS="$calls" \
+  (cd "$repo" && PATH="$fake_bin:$PATH" CAIRN_COMPACTION_CAPTURE=1 CAIRN_TEST_CALLS="$calls" \
     timeout 3 "$hook" < "$claude_fixture") >"$tmp/claude-enabled.out" 2>"$tmp/claude-enabled.err"
   [[ ! -s "$tmp/claude-enabled.out" ]] || fail "enabled Claude capture emitted stdout"
   node - "$calls" "$claude_fixture" <<'NODE'
@@ -157,11 +174,25 @@ const fs = require("fs")
 const calls = fs.readFileSync(process.argv[2], "utf8").trim().split("\n").map(JSON.parse)
 const fixture = JSON.parse(fs.readFileSync(process.argv[3], "utf8"))
 if (calls.length !== 1 || calls[0].args[0] !== "capture-claude") process.exit(1)
+if (calls[0].args.slice(-2).join("=") !== "--harness-version=2.1.219") process.exit(1)
 if (JSON.stringify(JSON.parse(calls[0].input)) !== JSON.stringify(fixture)) process.exit(1)
 NODE
 
   rm -f "$calls"
-  (cd "$repo" && CAIRN_COMPACTION_CAPTURE=1 CAIRN_ARTIFACT_STORE=1 \
+  write_fake_claude "$fake_bin" "2.1.220"
+  (cd "$repo" && PATH="$fake_bin:$PATH" CAIRN_COMPACTION_CAPTURE=1 CAIRN_TEST_CALLS="$calls" \
+    timeout 3 "$hook" < "$claude_fixture_220") >"$tmp/claude-220.out" 2>"$tmp/claude-220.err"
+  node - "$calls" "$claude_fixture_220" <<'NODE'
+const fs = require("fs")
+const calls = fs.readFileSync(process.argv[2], "utf8").trim().split("\n").map(JSON.parse)
+const fixture = JSON.parse(fs.readFileSync(process.argv[3], "utf8"))
+if (calls.length !== 1 || calls[0].args.slice(-2).join("=") !== "--harness-version=2.1.220") process.exit(1)
+if (JSON.stringify(JSON.parse(calls[0].input)) !== JSON.stringify(fixture)) process.exit(1)
+NODE
+
+  rm -f "$calls"
+  write_fake_claude "$fake_bin" "2.1.219"
+  (cd "$repo" && PATH="$fake_bin:$PATH" CAIRN_COMPACTION_CAPTURE=1 CAIRN_ARTIFACT_STORE=1 \
     CAIRN_ARTIFACT_HTTP=1 CAIRN_TEST_CALLS="$calls" timeout 3 "$hook" < "$claude_fixture") \
     >"$tmp/claude-both-http.out" 2>"$tmp/claude-both-http.err"
   [[ $(wc -l < "$calls") -eq 1 ]] || fail "Claude both-flags/HTTP capture changed local call count"
@@ -350,7 +381,9 @@ artifact_revision_contract() {
   local claude_repo="$tmp/claude-revisions"
   local opencode_repo="$tmp/opencode-revisions"
   local real_hook="$tmp/real-compaction-capture.sh"
+  local fake_bin="$tmp/claude-revisions-bin"
   mkdir -p "$claude_repo" "$opencode_repo"
+  write_fake_claude "$fake_bin" "2.1.219"
   render "$ROOT/claude/hooks/compaction-capture.sh" "$real_hook"
   chmod +x "$real_hook"
 
@@ -360,8 +393,8 @@ const fixture = JSON.parse(fs.readFileSync(process.argv[2], "utf8"))
 fixture.compact_summary += "\n- TODO: Validate parity after the second revision."
 fs.writeFileSync(process.argv[3], JSON.stringify(fixture))
 NODE
-  (cd "$claude_repo" && CAIRN_COMPACTION_CAPTURE=1 "$real_hook" < "$claude_fixture")
-  (cd "$claude_repo" && CAIRN_COMPACTION_CAPTURE=1 "$real_hook" < "$tmp/claude-second.json")
+  (cd "$claude_repo" && PATH="$fake_bin:$PATH" CAIRN_COMPACTION_CAPTURE=1 "$real_hook" < "$claude_fixture")
+  (cd "$claude_repo" && PATH="$fake_bin:$PATH" CAIRN_COMPACTION_CAPTURE=1 "$real_hook" < "$tmp/claude-second.json")
 
   node - "$opencode_event_fixture" "$opencode_messages_fixture" \
     "$tmp/opencode-first.json" "$tmp/opencode-second.json" <<'NODE'

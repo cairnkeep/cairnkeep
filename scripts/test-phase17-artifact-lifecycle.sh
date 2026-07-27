@@ -114,6 +114,7 @@ NODE
     opencode/plugins/memory-capture.ts \
     opencode/plugins/memory-wakeup.ts \
     mcp-memory-server/scripts/fixtures/compaction-claude-code-2.1.219.json \
+    mcp-memory-server/scripts/fixtures/compaction-claude-code-2.1.220.json \
     mcp-memory-server/scripts/fixtures/compaction-opencode-1.17.20-event.json \
     mcp-memory-server/scripts/fixtures/compaction-opencode-1.17.20-messages.json
   do

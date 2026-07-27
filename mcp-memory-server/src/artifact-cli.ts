@@ -91,10 +91,15 @@ function artifactInput(normalized: NonNullable<ReturnType<typeof normalizeClaude
     };
 }
 
-async function captureClaude(projectRoot: string): Promise<void> {
-    const normalized = normalizeClaudePostCompact(JSON.parse(await readStdin()), { harnessVersion: "2.1.219" });
+async function captureClaude(projectRoot: string, args: string[]): Promise<void> {
+    const harnessVersion = option(args, "--harness-version") ?? "unknown";
+    const normalized = normalizeClaudePostCompact(JSON.parse(await readStdin()), { harnessVersion });
     if (!normalized) {
-        await recordUnsupportedCompactionAdapter(projectRoot, { harness: "claude-code", reason: "invalid_shape" });
+        await recordUnsupportedCompactionAdapter(projectRoot, {
+            harness: "claude-code",
+            harness_version: harnessVersion === "unknown" ? undefined : harnessVersion,
+            reason: ["2.1.219", "2.1.220"].includes(harnessVersion) ? "invalid_shape" : "unsupported_version",
+        });
         return;
     }
     await putArtifact(projectRoot, artifactInput(normalized));
@@ -131,7 +136,7 @@ async function main(): Promise<void> {
         const projectRoot = args.find((arg) => !arg.startsWith("-"));
         if (!projectRoot) return;
         try {
-            if (command === "capture-claude") await captureClaude(projectRoot);
+            if (command === "capture-claude") await captureClaude(projectRoot, args);
             else await captureOpenCode(projectRoot);
         } catch {
             process.stderr.write("artifact capture skipped: local validation or persistence failed\n");

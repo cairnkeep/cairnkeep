@@ -69,6 +69,7 @@ done
   fail "npm tarball omitted the OpenCode recovery plugin"
 for fixture in \
   compaction-claude-code-2.1.219.json \
+  compaction-claude-code-2.1.220.json \
   compaction-opencode-1.17.20-event.json \
   compaction-opencode-1.17.20-messages.json
 do
