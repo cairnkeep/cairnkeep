@@ -19,8 +19,9 @@ Options:
 Notes:
   - The repo-managed source of truth lives under ./opencode/
   - This script manages only the security-audit OpenCode assets
-  - --capability-overlay substitutes only matching files from
-    opencode/capability-contract/; normal mode never reads or installs that tree
+  - Plugin installation is delegated to sync-opencode-plugin-assets.sh;
+    --capability-overlay selects its native plugin only when the master switch is on
+  - Command and workflow assets always retain their legacy owners and bytes
   - --apply also removes the legacy gsd-overrides security-audit workflow/template files
 EOF
 }
@@ -83,11 +84,7 @@ done
 
 source_for() {
   local rel="$1"
-  local source="$SOURCE_ROOT/$rel"
-  if [[ "$CAPABILITY_OVERLAY" -eq 1 && -f "$SOURCE_ROOT/capability-contract/$rel" ]]; then
-    source="$SOURCE_ROOT/capability-contract/$rel"
-  fi
-  printf '%s\n' "$source"
+  printf '%s\n' "$SOURCE_ROOT/$rel"
 }
 
 ensure_source_assets_exist() {
@@ -211,3 +208,9 @@ case "$MODE" in
     run_apply
     ;;
 esac
+
+plugin_args=("--$MODE" "--live-root" "$LIVE_ROOT")
+if [[ "$CAPABILITY_OVERLAY" -eq 1 ]]; then
+  plugin_args+=("--capability-overlay")
+fi
+"$ROOT_DIR/scripts/sync-opencode-plugin-assets.sh" "${plugin_args[@]}"
