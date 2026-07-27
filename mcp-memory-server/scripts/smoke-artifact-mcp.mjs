@@ -339,7 +339,7 @@ async function stdioCrudContract(root, client) {
     for (const entry of created) {
         const read = await call(client, "artifact_read", { artifact_id: entry.artifact_id });
         const artifact = assertSuccessful(read, `read ${entry.input.kind}`);
-        assert.equal(JSON.stringify(artifact).includes(entry.secret), true, "explicit artifact_read must return stored content");
+        assert.equal(Object.values(artifact.content).includes(entry.secret), true, "explicit artifact_read must return stored content");
         assert.equal(artifact.artifact_id, entry.artifact_id);
         assert.equal(artifact.kind, entry.input.kind);
     }
