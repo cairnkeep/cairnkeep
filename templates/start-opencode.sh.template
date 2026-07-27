@@ -56,6 +56,8 @@ if capability_contract_enabled; then
     --apply --capability-overlay --live-root "$OPENCODE_CAPABILITY_ROOT" >/dev/null
   "$CAIRN_RUNTIME_ROOT/scripts/sync-opencode-security-assets.sh" \
     --apply --capability-overlay --live-root "$OPENCODE_CAPABILITY_ROOT" >/dev/null
+  "$CAIRN_RUNTIME_ROOT/scripts/sync-opencode-plugin-assets.sh" \
+    --apply --capability-overlay --live-root "$OPENCODE_CAPABILITY_ROOT" >/dev/null
   export OPENCODE_CONFIG_DIR="$OPENCODE_CAPABILITY_ROOT"
 fi
 
