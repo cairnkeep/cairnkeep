@@ -8,9 +8,11 @@ import { fileURLToPath } from "node:url";
 import { stdin as input, stdout as output } from "node:process";
 
 import { AgentFS } from "agentfs-sdk";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, type ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 import {
@@ -68,6 +70,18 @@ import {
     supersedeTypedNode,
 } from "./node-store.js";
 import type { NoteAddressSpace } from "./note-store.js";
+
+type CapabilityWrapper = typeof import("./capability-adapter.js").withCapability;
+type AsyncToolCallback<Args extends AnySchema> = (
+    ...args: Parameters<ToolCallback<Args>>
+) => Promise<Awaited<ReturnType<ToolCallback<Args>>>>;
+type CapabilityToolConfig<Args extends AnySchema> = {
+    title?: string;
+    description?: string;
+    inputSchema: Args;
+    annotations?: ToolAnnotations;
+    _meta?: Record<string, unknown>;
+};
 
 const MINIMUM_NODE_MAJOR = 22;
 const nodeMajor = Number.parseInt(process.versions.node, 10);
@@ -1107,10 +1121,35 @@ function gitToplevel(cwd: string): string {
 // only allows one connected transport per server). All instances share the
 // module-level helpers + AgentFS below. Enables a single long-lived process to
 // serve many concurrent clients within one trusted server-side storage domain.
-function buildMemoryServer(context: ServerContext, capabilitySnapshot?: CapabilityStatus): McpServer {
+function buildMemoryServer(
+    context: ServerContext,
+    capabilitySnapshot?: CapabilityStatus,
+    withCapability?: CapabilityWrapper,
+): McpServer {
     const server = new McpServer({ name: "cairn-memory", version: "0.1.0" });
     const capabilityEnabled = (id: CapabilityId): boolean =>
         capabilitySnapshot?.capabilities.find((state) => state.id === id)?.enabled ?? true;
+    const registerCapabilityTool = <Args extends AnySchema>(
+        id: CapabilityId,
+        name: string,
+        config: CapabilityToolConfig<Args>,
+        callback: AsyncToolCallback<Args>,
+    ): void => {
+        if (!capabilityEnabled(id)) return;
+        const handler = capabilitySnapshot && withCapability
+            ? withCapability({
+                projectRoot: process.cwd(),
+                snapshot: capabilitySnapshot,
+                capabilityId: id,
+                classification: {
+                    harness: "other",
+                    source: "mcp",
+                    transport: context.remote ? "http" : "stdio",
+                },
+            }, callback)
+            : callback;
+        server.registerTool(name, config, handler as unknown as ToolCallback<Args>);
+    };
     const memoryConfig = (): MemoryConfig => context.memoryConfig ?? getMemoryConfig();
     const scopeOptions = { projectId: context.projectId };
     const typedNodesEnabled = isTypedMemoryNodesEnabled();
@@ -1354,7 +1393,8 @@ server.registerTool(
     },
 );
 
-if (capabilityEnabled("memory.write")) server.registerTool(
+registerCapabilityTool(
+    "memory.write",
     "memory_write",
     {
         description: "Write a memory entry to a scoped AgentFS database and optionally promote it.",
@@ -1545,7 +1585,8 @@ server.registerTool(
     },
 );
 
-if (capabilityEnabled("memory.search")) server.registerTool(
+registerCapabilityTool(
+    "memory.search",
     "memory_search",
     {
         description: "Semantic search across AgentFS memory scopes using the configured embedding endpoint, ranked by cosine similarity. Falls back to substring matching when embeddings are unavailable. Use this to find memory by meaning rather than by exact key.",
@@ -2177,7 +2218,8 @@ server.registerTool(
     },
 );
 
-if (capabilityEnabled("context.explore")) server.registerTool(
+registerCapabilityTool(
+    "context.explore",
     "context_explore",
     {
         description: "Delegate a natural-language repo-exploration query to the external token_miser explore binary (FastContext-backed). Returns compact path:line-range citations. Requires CAIRN_EXPLORE_BINARY (absolute path to the token_miser binary) and a repo_root (per-call param or CAIRN_EXPLORE_REPO_ROOT env). Thin adapter — token_miser owns all exploration logic.",
@@ -2216,7 +2258,8 @@ if (capabilityEnabled("context.explore")) server.registerTool(
     },
 );
 
-if (capabilityEnabled("route.check")) server.registerTool(
+registerCapabilityTool(
+    "route.check",
     "route_check",
     {
         description: "Check reachability of the external token_miser routing/tiering proxy via its /health endpoint. Requires CAIRN_ROUTE_ENDPOINT (base URL of an already-running token_miser instance). Thin adapter — token_miser owns all routing/tiering logic; this tool neither hosts a proxy nor learns which tier serves a request.",
@@ -2279,8 +2322,10 @@ if (capabilityEnabled("route.check")) server.registerTool(
 function createMemoryServer(context: ServerContext = {}): McpServer | Promise<McpServer> {
     const contractEnabled = isCapabilityContractEnabled();
     if (!contractEnabled) return buildMemoryServer(context);
-    return resolveCapabilityStatus({ projectRoot: process.cwd() })
-        .then((snapshot) => buildMemoryServer(context, snapshot));
+    return Promise.all([
+        resolveCapabilityStatus({ projectRoot: process.cwd() }),
+        import("./capability-adapter.js"),
+    ]).then(([snapshot, adapter]) => buildMemoryServer(context, snapshot, adapter.withCapability));
 }
 
 // One-shot CLI: `node dist/index.js wakeup` prints project-scope memory for the
