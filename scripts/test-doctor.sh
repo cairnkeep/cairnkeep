@@ -25,6 +25,10 @@ proj="$tmp/clean"; mkdir -p "$proj"
 grep -q "\[SKIP\]" "$tmp/out1" || fail "expected SKIP lines when nothing is configured"
 grep -q "typed metadata and note transaction state" "$tmp/out1" || fail "expected typed/note diagnostics in the public doctor output"
 grep -q "artifact store (not present" "$tmp/out1" || fail "expected absent opt-in artifact diagnostics"
+grep -q "capability configuration (not present — managed overrides are unused)" "$tmp/out1" ||
+  fail "expected absent capability configuration diagnostics"
+grep -q "capability callback namespace (not present — callback logging is unused)" "$tmp/out1" ||
+  fail "expected absent capability callback diagnostics"
 
 # 2. An unsupported runtime is diagnosed before the server probe.
 mkdir -p "$tmp/old-node"
@@ -241,4 +245,100 @@ if grep -qF 'compact_summary' "$tmp/artifact-authoritative.out"; then
   fail "artifact doctor leaked a stored value"
 fi
 
-echo "PASS: cairn doctor (skip unconfigured, fail unreachable, probe embeddings, artifact repair boundaries)"
+# 6. Capability diagnostics consume only the private fixed doctor envelope and
+# map config/store states without exposing malformed values or callback rows.
+capability_valid="$tmp/capability-valid"
+mkdir -p "$capability_valid/.ai"
+printf '%s\n' '{"schema_version":1,"capabilities":{},"logging":{}}' >"$capability_valid/.ai/capabilities.json"
+chmod 600 "$capability_valid/.ai/capabilities.json"
+( cd "$capability_valid" && "$doctor" ) >"$tmp/capability-valid.out" 2>&1 ||
+  fail "doctor rejected valid capability state:\n$(cat "$tmp/capability-valid.out")"
+grep -q "\[PASS\] capability configuration schema and permissions are valid" "$tmp/capability-valid.out" ||
+  fail "expected valid capability configuration PASS"
+
+capability_warn="$tmp/capability-warn"
+mkdir -p "$capability_warn/.ai"
+printf '%s\n' '{"schema_version":1,"capabilities":{"memory.write":"PHASE18_CONFIG_VALUE_SENTINEL","PHASE18_UNKNOWN_ID_SENTINEL":true},"logging":{"callbacks":"PHASE18_LOGGING_VALUE_SENTINEL"}}' >"$capability_warn/.ai/capabilities.json"
+chmod 600 "$capability_warn/.ai/capabilities.json"
+( cd "$capability_warn" && "$doctor" ) >"$tmp/capability-warn.out" 2>&1 ||
+  fail "doctor treated row-local capability warnings as fatal:\n$(cat "$tmp/capability-warn.out")"
+grep -q "\[WARN\] capability configuration has an invalid value for memory.write" "$tmp/capability-warn.out" ||
+  fail "expected canonical capability warning"
+grep -q "\[WARN\] capability configuration has an invalid value for logging.callbacks" "$tmp/capability-warn.out" ||
+  fail "expected fixed callback setting warning"
+grep -q "\[WARN\] capability configuration contains an unknown override ID" "$tmp/capability-warn.out" ||
+  fail "expected value-free unknown-ID warning"
+if grep -Eq 'PHASE18_(CONFIG_VALUE|UNKNOWN_ID|LOGGING_VALUE)_SENTINEL' "$tmp/capability-warn.out"; then
+  fail "capability doctor exposed malformed configuration contents"
+fi
+
+capability_unsafe="$tmp/capability-unsafe"
+mkdir -p "$capability_unsafe/.ai"
+printf '%s\n' '{"schema_version":2,"capabilities":{"wiki":false},"logging":{}}' >"$capability_unsafe/.ai/capabilities.json"
+chmod 644 "$capability_unsafe/.ai/capabilities.json"
+if ( cd "$capability_unsafe" && "$doctor" ) >"$tmp/capability-unsafe.out" 2>&1; then
+  fail "doctor accepted unsafe or unsupported capability configuration"
+fi
+grep -q "\[FAIL\] capability configuration is invalid or uses an unsupported schema; preserve .ai/capabilities.json before reset" "$tmp/capability-unsafe.out" ||
+  fail "expected unsupported-schema backup guidance"
+grep -q "\[FAIL\] capability configuration type or permissions are unsafe; preserve .ai/capabilities.json before recovery" "$tmp/capability-unsafe.out" ||
+  fail "expected unsafe-permissions backup guidance"
+
+callback_project="$tmp/capability-callbacks"
+mkdir -p "$callback_project"
+node --input-type=module - "$ROOT" "$callback_project" <<'NODE'
+const { appendCapabilityRecord } = await import(process.argv[2] + "/mcp-memory-server/dist/capability-store.js");
+const now = new Date().toISOString();
+await appendCapabilityRecord(process.argv[3], {
+  schema_version: 1,
+  capability_id: "wiki",
+  invocation_id: "cap:11111111-1111-4111-8111-111111111111",
+  correlation_id: "cairn:doctor-fixture",
+  harness: "other",
+  source: "operating-command",
+  transport: "local-process",
+  started_at: now,
+  finished_at: now,
+  duration_ms: 0,
+  outcome: "success",
+  state_source: "project",
+  configuration_digest: "1".repeat(64),
+});
+NODE
+( cd "$callback_project" && "$doctor" ) >"$tmp/callback-valid.out" 2>&1 ||
+  fail "doctor rejected a valid capability callback namespace:\n$(cat "$tmp/callback-valid.out")"
+grep -q "\[PASS\] capability callback namespace schema and SQLite integrity are valid" "$tmp/callback-valid.out" ||
+  fail "expected valid capability callback PASS"
+if grep -qF 'doctor-fixture' "$tmp/callback-valid.out"; then
+  fail "capability doctor exposed a callback record"
+fi
+
+node --input-type=module - "$ROOT" "$callback_project" <<'NODE'
+import { join } from "node:path";
+const { AgentFS } = await import(process.argv[2] + "/mcp-memory-server/node_modules/agentfs-sdk/dist/index_node.js");
+const agent = await AgentFS.open({ id: "trajectory", path: join(process.argv[3], ".agentfs", "trajectory.db") });
+await agent.kv.set("capability-callback/meta/schema-version", 2);
+await agent.close();
+NODE
+if ( cd "$callback_project" && "$doctor" ) >"$tmp/callback-unsupported.out" 2>&1; then
+  fail "doctor accepted an unsupported callback namespace"
+fi
+grep -q "\[FAIL\] capability callback namespace schema is unsupported; preserve .agentfs/trajectory.db before recovery" "$tmp/callback-unsupported.out" ||
+  fail "expected unsupported callback schema guidance"
+if grep -qF 'doctor-fixture' "$tmp/callback-unsupported.out"; then
+  fail "unsupported callback diagnostics exposed a stored record"
+fi
+
+callback_corrupt="$tmp/capability-callback-corrupt"
+mkdir -p "$callback_corrupt/.agentfs"
+printf '%s\n' 'PHASE18_CALLBACK_ROW_SENTINEL' >"$callback_corrupt/.agentfs/trajectory.db"
+if ( cd "$callback_corrupt" && "$doctor" ) >"$tmp/callback-corrupt.out" 2>&1; then
+  fail "doctor accepted SQLite callback-store corruption"
+fi
+grep -q "\[FAIL\] capability callback namespace could not be diagnosed safely; preserve .agentfs/trajectory.db before recovery" "$tmp/callback-corrupt.out" ||
+  fail "expected value-free callback corruption guidance"
+if grep -qF 'PHASE18_CALLBACK_ROW_SENTINEL' "$tmp/callback-corrupt.out"; then
+  fail "callback corruption diagnostics exposed stored bytes"
+fi
+
+echo "PASS: cairn doctor (existing probes plus value-free capability config/callback diagnostics)"
