@@ -342,6 +342,68 @@ NODE
   echo "PASS: OpenCode native capability plugin"
 }
 
+plugin_tree_digest() {
+  local live_root="$1"
+  (
+    cd "$live_root"
+    find plugins -type f -print | LC_ALL=C sort | while IFS= read -r asset; do
+      sha256sum "$asset"
+    done
+  )
+}
+
+assert_legacy_opencode_plugins() {
+  local live_root="$1"
+  local asset
+  for asset in memory-wakeup.ts memory-capture.ts memory-recall.ts; do
+    [[ -f "$live_root/plugins/$asset" ]] || fail "legacy OpenCode plugin is missing: $asset"
+    cmp -s <(sed "s|@@INFRA_ROOT@@|$ROOT|g" "$ROOT/opencode/plugins/$asset") \
+      "$live_root/plugins/$asset" || fail "legacy OpenCode plugin changed: $asset"
+  done
+}
+
+opencode_sync_modes() {
+  local temp_root normal_root enabled_root before after plugin_count
+  temp_root=$(mktemp -d)
+  trap "rm -rf '$temp_root'" EXIT
+  normal_root="$temp_root/normal"
+  enabled_root="$temp_root/enabled"
+
+  env -u CAIRN_CAPABILITY_CONTRACT \
+    CAIRN_HARNESS_STATE_DIR="$temp_root/normal-state" \
+    "$ROOT/scripts/sync-opencode-plugin-assets.sh" --apply --live-root "$normal_root" >/dev/null
+  assert_legacy_opencode_plugins "$normal_root"
+  assert_no_native_opencode_assets "$normal_root"
+  before=$(plugin_tree_digest "$normal_root")
+  [[ ! -e "$temp_root/normal-state" ]] || fail "normal OpenCode sync invoked capability state"
+
+  env -u CAIRN_CAPABILITY_CONTRACT \
+    CAIRN_HARNESS_STATE_DIR="$temp_root/master-off-state" \
+    "$ROOT/scripts/sync-opencode-plugin-assets.sh" --apply --capability-overlay --live-root "$normal_root" >/dev/null
+  after=$(plugin_tree_digest "$normal_root")
+  [[ "$after" == "$before" ]] || fail "master-off OpenCode overlay changed legacy plugin bytes"
+  assert_no_native_opencode_assets "$normal_root"
+  [[ ! -e "$temp_root/master-off-state" ]] || fail "master-off OpenCode overlay invoked capability state"
+
+  CAIRN_CAPABILITY_CONTRACT=1 \
+    CAIRN_HARNESS_STATE_DIR="$temp_root/enabled-state" \
+    "$ROOT/scripts/sync-opencode-plugin-assets.sh" --apply --capability-overlay --live-root "$enabled_root" >/dev/null
+  assert_legacy_opencode_plugins "$enabled_root"
+  plugin_count=$(find "$enabled_root/plugins" -maxdepth 1 -type f -name '*.ts' | wc -l | tr -d ' ')
+  [[ "$plugin_count" -eq 4 ]] || fail "enabled OpenCode overlay did not install exactly one additional plugin"
+  [[ -f "$enabled_root/plugins/capability-command.ts" ]] || fail "enabled OpenCode overlay did not register the capability plugin"
+  cmp -s <(sed "s|@@INFRA_ROOT@@|$ROOT|g" "$OPENCODE_PLUGIN") \
+    "$enabled_root/plugins/capability-command.ts" || fail "enabled OpenCode capability plugin bytes do not match source"
+  grep -qF 'export const CapabilityCommandPlugin' "$enabled_root/plugins/capability-command.ts" || \
+    fail "enabled OpenCode capability plugin registration is absent"
+  [[ ! -e "$temp_root/enabled-state" ]] || fail "enabled OpenCode sync invoked the capability coordinator"
+
+  CAIRN_CAPABILITY_CONTRACT=1 \
+    "$ROOT/scripts/sync-opencode-plugin-assets.sh" --check --capability-overlay --live-root "$enabled_root" >/dev/null
+
+  echo "PASS: OpenCode capability plugin sync modes"
+}
+
 claude_hooks() {
   local temp_root project decoy state_root start_hook finish_hook stdout_file stderr_file status payload rows
   temp_root=$(mktemp -d)
@@ -599,11 +661,11 @@ case "$mode" in
     claude_owner_only
     ;;
   opencode-plugin|opencode-sync-modes|opencode-command-owner-only|opencode-owner-only|evidence-scope)
-    if [[ "$mode" == "opencode-plugin" ]]; then
-      opencode_plugin
-    else
-      fail "production mode '$mode' is intentionally RED until its owning Phase 18 plan extends this driver"
-    fi
+    case "$mode" in
+      opencode-plugin) opencode_plugin ;;
+      opencode-sync-modes) opencode_sync_modes ;;
+      *) fail "production mode '$mode' is intentionally RED until its owning Phase 18 plan extends this driver" ;;
+    esac
     ;;
   *)
     usage >&2
