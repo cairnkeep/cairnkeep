@@ -771,6 +771,97 @@ if (report.status!=="partial" || report.observations.length!==1) process.exit(1)
 const row=report.observations[0];
 if (row.terminal_state!=="cancelled" || row.process.cleanup==="pending") process.exit(1);
 NODE
+
+  node --input-type=module - "$runner" "$report" "$ROOT/mcp-memory-server/dist/eval-plan.js" "$tmp" <<'NODE'
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+import { pathToFileURL } from "node:url";
+
+const [runnerPath, reportPath, planPath, fixtureRoot] = process.argv.slice(2);
+const runner = await import(pathToFileURL(runnerPath).href);
+const reports = await import(pathToFileURL(reportPath).href);
+const { buildEvalSchedule } = await import(pathToFileURL(planPath).href);
+const repo = join(fixtureRoot, "active-stage-cancel-repo");
+mkdirSync(repo);
+const git = (...args) => execFileSync("git", ["-C", repo, ...args], { encoding: "utf8" }).trim();
+git("init", "-q");
+git("config", "user.name", "Evaluation Fixture");
+git("config", "user.email", "evaluation-fixture@example.invalid");
+writeFileSync(join(repo, "source.txt"), "fixture\n");
+git("add", "source.txt");
+git("commit", "-qm", "fixture");
+const revision = git("rev-parse", "HEAD");
+const adapterScript = join(fixtureRoot, "active-stage-adapter.mjs");
+const hangingScript = join(fixtureRoot, "active-stage-hang.mjs");
+writeFileSync(adapterScript, `
+const chunks=[]; for await (const chunk of process.stdin) chunks.push(chunk);
+const request=JSON.parse(Buffer.concat(chunks).toString("utf8"));
+process.stdout.write(JSON.stringify({schema_version:1,status:"completed",turns:{value:1,semantics:"fixture-turn"},usage:{total_tokens:1},observed_capability_digest:request.expected_capability_digest,trajectory_ref:request.arm+"-r"+request.repetition+"-"+request.pass+"-"+request.task_id}));
+`);
+writeFileSync(hangingScript, `
+import { writeFileSync } from "node:fs";
+writeFileSync(process.argv[2], String(process.pid));
+await new Promise((resolve)=>setTimeout(resolve,60_000));
+`);
+const states = ["verifier", "distiller"];
+const waitFor = async (path) => {
+  for (let attempt=0; attempt<200; attempt+=1) { if (existsSync(path)) return; await delay(10); }
+  throw new Error("active stage did not start");
+};
+for (const stage of states) {
+  const marker = join(fixtureRoot, `${stage}.pid`);
+  const tasks = ["first", "later"].map((id, index) => ({
+    id:`${stage}-${id}`, input:id, workspace:{path:"."},
+    prepare:{program:process.execPath,args:["-e","process.exit(0)"]},
+    verify:index===0 && stage==="verifier"
+      ? {program:process.execPath,args:[hangingScript,marker]}
+      : {program:process.execPath,args:["-e","process.exit(0)"]},
+    limits:{elapsed_ms:30_000,stdout_bytes:16_384},
+  }));
+  const taskSet={schema_version:1,id:`${stage}-cancel-fixture`,source:{kind:"git",repository:".",revision},tasks};
+  const schedule=buildEvalSchedule({taskSet,arms:[{id:"baseline",disabled_capability:null}],repetitions:1,passes:["run1","run2"],seed:"cancel-seed"});
+  const plan={schema_version:1,task_set:taskSet,
+    adapter_config:{schema_version:1,id:"fixture-adapter",command:{program:process.execPath,args:[adapterScript]},turn_semantics:{id:"fixture-turn",description:"One fixture turn."}},
+    task_set_path:join(repo,"task-set.json"),adapter_path:adapterScript,output_root:join(fixtureRoot,`${stage}-output`),
+    source:{kind:"git",repository_root:repo,revision},repetitions:1,seed:"cancel-seed",
+    arms:[{id:"baseline",disabled_capability:null}],passes:["run1","run2"],concurrency:1,
+    invocation_count:schedule.invocation_count,task_set_commit:revision,task_set_digest:"1".repeat(64),
+    adapter_config_digest:"2".repeat(64),schedule_digest:schedule.digest,plan_digest:(stage==="verifier"?"3":"4").repeat(64),schedule:schedule.rows,
+    resolved_programs:{adapter:process.execPath,prepare:tasks.map(()=>process.execPath),verify:tasks.map((task)=>task.verify.program)},
+  };
+  const store=await reports.createEvalReportStore({root:join(fixtureRoot,"active-stage-reports"),experiment_id:`${stage}-cancel-fixture`});
+  const controller=new AbortController();
+  const running=runner.runTwoPassExperiment({
+    plan,report_store:store,temporary_root:fixtureRoot,signal:controller.signal,
+    distill_command:stage==="distiller"?{program:process.execPath,args:[hangingScript,marker]}:{program:process.execPath,args:["-e","process.stdout.write(JSON.stringify({schema_version:1,enabled:true,created:[],updated:[],already_processed:[],enrichment_skipped:[],enrichment_failed:[],failed:[]}))"]},
+  });
+  await waitFor(marker);
+  const childPid=Number(readFileSync(marker,"utf8"));
+  controller.abort();
+  const result=await running;
+  assert.equal(result.report.status,"partial");
+  assert.equal(result.report.observations.length,1,"a later observation was admitted after cancellation");
+  const observation=result.report.observations[0];
+  assert.equal(observation.terminal_state,"cancelled");
+  assert.equal(observation.pass_state,"unknown");
+  assert.notEqual(observation.process.cleanup,"pending");
+  assert.equal(observation.process.error_code,"cancelled");
+  if (stage==="verifier") {
+    assert.equal(observation.verifier.state,"error");
+    assert.equal(observation.verifier.reason,"verifier_cancelled");
+  } else {
+    assert.equal(observation.notes.distillation_outcome,"skipped");
+    assert.equal(observation.notes.eligibility_reason,"distillation_cancelled");
+    assert.equal(observation.notes.eligibility_reason==="distillation_failed",false);
+  }
+  assert.throws(()=>process.kill(childPid,0),/ESRCH/,`${stage} child survived cancellation`);
+  assert.equal(existsSync(store.report_path),true);
+  assert.deepEqual((await reports.readEvalReport(store)).observations,result.report.observations);
+}
+NODE
   echo "PASS: Phase 19 cancellation and partial-report contract"
 }
 
