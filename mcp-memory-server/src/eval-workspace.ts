@@ -44,7 +44,7 @@ export type EvalWorkspace = {
 
 export type EvalVerifierResult = {
     pass_state: "passed" | "failed" | "unknown";
-    terminal_state: "completed" | "verifier_failed";
+    terminal_state: "completed" | "verifier_failed" | "cancelled";
     verifier_state: "completed" | "error" | "not_run";
     reason: string | null;
     process: BoundedCommandResult | null;
@@ -311,6 +311,20 @@ export async function runTaskVerifier(
         };
     } catch (error) {
         if (!(error instanceof EvalProcessError)) throw error;
+        if (error.code === "cancelled") {
+            return {
+                pass_state: "unknown",
+                terminal_state: "cancelled",
+                verifier_state: "error",
+                reason: "verifier_cancelled",
+                process: {
+                    exit_code: error.exit_code,
+                    signal: error.signal,
+                    cleanup: error.cleanup,
+                    termination_scope: error.termination_scope,
+                },
+            };
+        }
         return {
             pass_state: "unknown",
             terminal_state: "completed",

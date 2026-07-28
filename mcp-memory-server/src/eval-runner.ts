@@ -69,6 +69,7 @@ export type DistillRunOneResult = {
     distiller_config_digest: string | null;
     trajectory_ref: string | null;
     snapshot: NoteSnapshot | null;
+    process: BoundedCommandResult | null;
 };
 
 export type TwoPassRunOptions = {
@@ -502,6 +503,7 @@ export async function distillRunOneNotes(options: {
             distiller_config_digest: null,
             trajectory_ref: trajectoryRef,
             snapshot: null,
+            process: null,
         };
     }
     const distillerId = DEFAULT_DISTILLER_ID;
@@ -514,6 +516,7 @@ export async function distillRunOneNotes(options: {
             distiller_config_digest: distillerConfigDigest,
             trajectory_ref: trajectoryRef,
             snapshot: null,
+            process: null,
         };
     }
     const command = options.command ?? { program: process.execPath, args: [join(moduleDirectory, "note-cli.js")] };
@@ -556,6 +559,7 @@ export async function distillRunOneNotes(options: {
                 distiller_config_digest: distillerConfigDigest,
                 trajectory_ref: trajectoryRef,
                 snapshot: null,
+                process: null,
             };
         }
         const snapshot = await snapshotTaskNotes({
@@ -574,8 +578,25 @@ export async function distillRunOneNotes(options: {
             distiller_config_digest: distillerConfigDigest,
             trajectory_ref: trajectoryRef,
             snapshot,
+            process: null,
         };
-    } catch {
+    } catch (error) {
+        if (error instanceof EvalProcessError && error.code === "cancelled") {
+            return {
+                outcome: "skipped",
+                eligibility_reason: "distillation_cancelled",
+                distiller_id: distillerId,
+                distiller_config_digest: distillerConfigDigest,
+                trajectory_ref: trajectoryRef,
+                snapshot: null,
+                process: {
+                    exit_code: error.exit_code,
+                    signal: error.signal,
+                    cleanup: error.cleanup,
+                    termination_scope: error.termination_scope,
+                },
+            };
+        }
         return {
             outcome: "failed",
             eligibility_reason: "distillation_failed",
@@ -583,6 +604,7 @@ export async function distillRunOneNotes(options: {
             distiller_config_digest: distillerConfigDigest,
             trajectory_ref: trajectoryRef,
             snapshot: null,
+            process: null,
         };
     }
 }
@@ -598,7 +620,11 @@ function applyDistillation(observation: EvalObservation, result: DistillRunOneRe
         note_snapshot_manifest: result.snapshot?.manifest ?? [],
         notes_exposed: false,
     };
-    if (result.outcome !== "success") observation.missing_reasons.push(`notes_${result.outcome}`);
+    if (result.eligibility_reason === "distillation_cancelled") {
+        observation.missing_reasons.push("distillation_cancelled");
+    } else if (result.outcome !== "success") {
+        observation.missing_reasons.push(`notes_${result.outcome}`);
+    }
 }
 
 function replaceObservation(report: EvalReport, observation: EvalObservation): void {
@@ -704,6 +730,10 @@ export async function runEvalObservation(options: ObservationOptions): Promise<O
                 observation.terminal_state = verifier.terminal_state;
                 observation.verifier = { state: verifier.verifier_state, reason: verifier.reason };
                 observation.pass_state = verifier.pass_state;
+                if (verifier.terminal_state === "cancelled" && verifier.process) {
+                    observation.process = commandProcess(verifier.process);
+                    observation.process.error_code = "cancelled";
+                }
                 if (verifier.pass_state === "unknown") observation.missing_reasons.push(verifier.reason ?? "verifier_unknown");
             }
         }
@@ -727,7 +757,7 @@ export async function runEvalObservation(options: ObservationOptions): Promise<O
         }
     }
 
-    if (workspace && options.row.pass === "run1") {
+    if (workspace && options.row.pass === "run1" && observation.terminal_state !== "cancelled") {
         const distilled = await distillRunOneNotes({
             workspace,
             row: options.row,
@@ -739,6 +769,12 @@ export async function runEvalObservation(options: ObservationOptions): Promise<O
             capability_environment: options.capability_runtime?.arm.environment,
         });
         applyDistillation(observation, distilled);
+        if (distilled.eligibility_reason === "distillation_cancelled" && distilled.process) {
+            observation.terminal_state = "cancelled";
+            observation.pass_state = "unknown";
+            observation.process = commandProcess(distilled.process);
+            observation.process.error_code = "cancelled";
+        }
         distilledSnapshot = distilled.snapshot;
     }
     replaceObservation(options.report, observation);
