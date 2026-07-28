@@ -117,6 +117,15 @@ only the immutable note snapshot distilled from that same task's Run 1
 trajectory. No other task's notes, checkout, HOME, temporary directory, XDG
 state, or output directory is reused.
 
+The supplied `workspace_path` is the task's Cairnkeep project root for
+trajectory-producing harness work. Offline Run 1 distillation performs an
+exact session lookup only in that task workspace's local
+`.agentfs/trajectory.db`; `trajectory_ref` is a bounded session identifier and
+not a path. If the exact session is absent or stored under a different root,
+the report retains failed note missingness and Run 2 receives no snapshot.
+Cairnkeep does not retry the source or parent root, recursively discover
+stores, inspect siblings, or accept an adapter-selected absolute locator.
+
 The strict stdout observation can contain only terminal status and a value-free
 error code; turns with an exact semantics ID; independently optional input,
 output, reasoning, cache-read, cache-write, and total token counts; optional

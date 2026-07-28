@@ -688,6 +688,13 @@ trajectory/artifact references. The independent task verifier—not the
 adapter—assigns pass, fail, or unknown. Arbitrary adapter stderr remains live
 operator diagnostics and is not copied into the report.
 
+The request's `workspace_path` is the task's Cairnkeep project root for all
+trajectory-producing harness work. An adapter that returns `trajectory_ref`
+must run that work against the supplied root so the closed trajectory is in
+that task's local store. The reference is a bounded session identifier, not a
+filesystem locator. A task manifest with `workspace.path: "."` remains the
+compatible repository-root case; there is no second trajectory-root field.
+
 Validate before spending or mutating:
 
 ```bash
