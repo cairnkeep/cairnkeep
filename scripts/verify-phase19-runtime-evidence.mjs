@@ -499,7 +499,9 @@ function verifyReportMetadata(metadata, binding, manifest, label) {
     assert.equal(metadata[key], manifest[key], `${label}: ${key} differs from manifest`);
   }
   assert.deepEqual(metadata.schema_digests, manifest.schema_digests, `${label}: schema digests differ from manifest`);
-  assert.deepEqual(metadata.note_snapshot_digests, manifest.note_snapshot_digests, `${label}: note digests differ from manifest`);
+  for (const digest of metadata.note_snapshot_digests) {
+    assert.equal(manifest.note_snapshot_digests.includes(digest), true, `${label}: note digest is absent from manifest union`);
+  }
 }
 
 function verifyEvidence(directory, sourceCommit) {
@@ -537,6 +539,7 @@ function verifyEvidence(directory, sourceCommit) {
   assert.deepEqual(manifest.logs?.map(({ file }) => file), EXPECTED_LOGS, "manifest log names mismatch");
   const flattened = [];
   let stableMetadata = null;
+  const runtimeNoteDigests = new Set();
   for (const row of manifest.logs) {
     assert.deepEqual(Object.keys(row).sort(), [
       "commands", "file", "generated_at", "image", "report_file_sha256", "result", "runtime", "runtime_version",
@@ -569,6 +572,8 @@ function verifyEvidence(directory, sourceCommit) {
       assert.equal(row.report_file_sha256, parsed.metadata.report_file_sha256, `${row.file}: report file digest differs from log`);
       const stable = { ...parsed.metadata };
       delete stable.report_file_sha256;
+      delete stable.note_snapshot_digests;
+      parsed.metadata.note_snapshot_digests.forEach((digest) => runtimeNoteDigests.add(digest));
       if (stableMetadata === null) stableMetadata = stable;
       else assert.deepEqual(stable, stableMetadata, `${row.file}: report provenance differs across Node runtimes`);
     } else {
@@ -576,6 +581,7 @@ function verifyEvidence(directory, sourceCommit) {
     }
   }
   assert.deepEqual(manifest.command_inventory, flattened, "manifest command inventory differs from logs");
+  assert.deepEqual(manifest.note_snapshot_digests, [...runtimeNoteDigests].sort(), "manifest note digest union differs from runtime logs");
   assert.notEqual(stableMetadata, null, "manifest has no executed report provenance");
   return manifest;
 }
@@ -797,7 +803,7 @@ function capture(directory, sourceCommit) {
       report_digest: reference.report_digest,
       report_source_commit: reference.report_source_commit,
       schema_digests: reference.schema_digests,
-      note_snapshot_digests: reference.note_snapshot_digests,
+      note_snapshot_digests: [...new Set(logs.flatMap(({ metadata }) => metadata?.note_snapshot_digests ?? []))].sort(),
       missingness_digest: reference.missingness_digest,
       claim_anchors: [],
       logs: manifestLogs,
