@@ -354,6 +354,74 @@ const mismatchPlan=makePlan("memory.write",join(fixtureRoot,"mismatch-output"));
 const mismatch=await runner.runCapabilityAblation({plan:mismatchPlan,disabled_capability:"memory.write",temporary_root:fixtureRoot,distill_command:{program:process.execPath,args:[distillerScript]}});
 assert.equal(mismatch.report.observations.every(({capability_status,capability_digest_match,missing_reasons})=>capability_status==="mismatch"&&capability_digest_match===false&&missing_reasons.includes("capability_mismatch")),true);
 NODE
+  local task_set="$ROOT/examples/eval/task-set.json"
+  local adapter="$ROOT/examples/eval/adapter.json"
+  local preview_root="$tmp/ablation-preview-output"
+  local capability
+  for capability in memory.write memory.search notes.distill wiki graph security.audit route.check context.explore; do
+    set +e
+    CAIRN_EVAL=1 node "$eval_cli" ablate --disable "$capability" --task-set "$task_set" --adapter "$adapter" --output "$preview_root" --json >"$tmp/preview-$capability.json" 2>"$tmp/preview-$capability.err"
+    local preview_status=$?
+    set -e
+    [[ "$preview_status" -eq 2 ]] || fail "ablation preview for $capability did not require confirmation"
+    node - "$tmp/preview-$capability.json" "$capability" <<'NODE'
+const { readFileSync } = require("node:fs");
+const value=JSON.parse(readFileSync(process.argv[2],"utf8"));
+const capability=process.argv[3];
+if (value.operation!=="ablate-preview"||value.disabled_capability!==capability||value.invocation_count!==40||value.arms.length!==2) process.exit(1);
+if (value.arms[0].expected_capabilities.some(({enabled})=>!enabled)) process.exit(1);
+if (value.arms[1].expected_capabilities.filter(({enabled})=>!enabled).map(({id})=>id).join("")!==capability) process.exit(1);
+if (value.arms.some(({expected_configuration_digest})=>!/^[a-f0-9]{64}$/.test(expected_configuration_digest))) process.exit(1);
+NODE
+  done
+  [[ ! -e "$preview_root" ]] || fail "unconfirmed ablation preview mutated output"
+
+  set +e
+  CAIRN_EVAL=1 node "$eval_cli" ablate --disable memory.write --disable wiki --task-set "$task_set" --adapter "$adapter" --output "$preview_root" --json >/dev/null 2>&1
+  local repeated_status=$?
+  CAIRN_EVAL=1 node "$eval_cli" ablate --disable memory.write,wiki --task-set "$task_set" --adapter "$adapter" --output "$preview_root" --json >/dev/null 2>&1
+  local combined_status=$?
+  CAIRN_EVAL=1 node "$eval_cli" ablate --disable unknown --task-set "$task_set" --adapter "$adapter" --output "$preview_root" --json >/dev/null 2>&1
+  local unknown_status=$?
+  set -e
+  [[ "$repeated_status" -eq 2 && "$combined_status" -eq 2 && "$unknown_status" -eq 2 ]] || fail "multifactor or unknown ablation was accepted"
+  [[ ! -e "$preview_root" ]] || fail "rejected ablation mutated output"
+
+  CAIRN_EVAL=1 node "$eval_cli" ablate --disable notes.distill --task-set "$task_set" --adapter "$adapter" --output "$preview_root" >"$tmp/preview-human.txt" 2>/dev/null || true
+  grep -q 'Capability ablation will perform 40 serial adapter invocation' "$tmp/preview-human.txt" || fail "human ablation preview omits estimate"
+  grep -q 'baseline: [a-f0-9]\{64\}' "$tmp/preview-human.txt" || fail "human ablation preview omits baseline digest"
+  grep -q 'treatment: [a-f0-9]\{64\}' "$tmp/preview-human.txt" || fail "human ablation preview omits treatment digest"
+  grep -q 'notes.distill: disabled' "$tmp/preview-human.txt" || fail "human ablation preview omits treatment state"
+
+  local cancel_root="$tmp/ablation-cancel-output"
+  local child_pid_file="$tmp/ablation-adapter.pid"
+  CAIRN_EVAL=1 CAIRN_FAKE_CANCEL_ALL=1 CAIRN_FAKE_PID_FILE="$child_pid_file" \
+    node "$eval_cli" ablate --disable memory.write --task-set "$task_set" --adapter "$adapter" --output "$cancel_root" --yes --json \
+    >"$tmp/ablation-cancel.json" 2>"$tmp/ablation-cancel.err" &
+  local cli_pid=$!
+  local attempt=0
+  while [[ ! -s "$child_pid_file" && "$attempt" -lt 100 ]]; do
+    sleep 0.05
+    attempt=$((attempt + 1))
+  done
+  [[ -s "$child_pid_file" ]] || { kill -TERM "$cli_pid" 2>/dev/null || true; fail "ablation cancellation child did not start"; }
+  local child_pid
+  child_pid=$(cat "$child_pid_file")
+  kill -INT "$cli_pid"
+  set +e
+  wait "$cli_pid"
+  local cancel_status=$?
+  set -e
+  [[ "$cancel_status" -eq 130 ]] || fail "cancelled ablation exited with $cancel_status instead of 130"
+  if kill -0 "$child_pid" 2>/dev/null; then fail "cancelled ablation child survived CLI exit"; fi
+  node - "$tmp/ablation-cancel.json" <<'NODE'
+const { existsSync, readFileSync } = require("node:fs");
+const value=JSON.parse(readFileSync(process.argv[2],"utf8"));
+if (value.operation!=="ablate"||value.disabled_capability!=="memory.write"||value.invocation_count!==40||value.status!=="partial"||!existsSync(value.report_path)) process.exit(1);
+const report=JSON.parse(readFileSync(value.report_path,"utf8"));
+if (report.experiment_kind!=="ablation"||report.schedule.length!==40||report.observations.length!==1) process.exit(1);
+if (report.observations[0].terminal_state!=="cancelled"||report.observations[0].process.cleanup==="pending") process.exit(1);
+NODE
   echo "PASS: Phase 19 explicit eight-on versus one-off four-cell ablation contract"
 }
 
