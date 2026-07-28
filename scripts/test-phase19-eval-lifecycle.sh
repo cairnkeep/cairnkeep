@@ -54,6 +54,75 @@ NODE
 
 run_workspace() {
   require_exports "$workspace" createEvalWorkspace runTaskPreparation runTaskVerifier cleanupEvalWorkspace
+  node --input-type=module - "$workspace" "$tmp" <<'NODE'
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const [modulePath, fixtureRoot] = process.argv.slice(2);
+const api = await import(pathToFileURL(modulePath).href);
+const repo = join(fixtureRoot, "workspace-repo");
+mkdirSync(repo);
+const git = (...args) => execFileSync("git", ["-C", repo, ...args], { encoding: "utf8" }).trim();
+git("init", "-q");
+git("config", "user.name", "Evaluation Fixture");
+git("config", "user.email", "evaluation-fixture@example.invalid");
+writeFileSync(join(repo, "source.txt"), "clean-source\n");
+git("add", "source.txt");
+git("commit", "-qm", "fixture");
+const revision = git("rev-parse", "HEAD");
+const task = {
+  id: "task-alpha",
+  input: "fixture",
+  workspace: { path: "." },
+  prepare: { program: process.execPath, args: ["-e", "require('node:fs').writeFileSync('prepared.txt','prepared')"] },
+  verify: { program: process.execPath, args: ["-e", "process.exit(require('node:fs').readFileSync('source.txt','utf8')==='clean-source\\n'?0:9)"] },
+  limits: { elapsed_ms: 2_000, stdout_bytes: 1_024 },
+};
+const plan = {
+  schema_version: 1,
+  task_set: { schema_version: 1, id: "fixture", source: { kind: "git", repository: ".", revision }, tasks: [task] },
+  source: { kind: "git", repository_root: repo, revision },
+  resolved_programs: { prepare: [process.execPath], verify: [process.execPath], adapter: process.execPath },
+};
+const row = (id) => ({ observation_id: id, task_id: task.id });
+const first = await api.createEvalWorkspace({ plan, row: row("row-one"), temporary_root: fixtureRoot });
+assert.equal(readFileSync(join(first.source_path, "source.txt"), "utf8"), "clean-source\n");
+for (const directory of [first.parent_path, first.notes_path, first.output_path, first.home_path, first.temp_path]) {
+  assert.equal(statSync(directory).mode & 0o777, 0o700, `${directory} is not private`);
+}
+writeFileSync(join(first.source_path, "source-leak"), "sentinel");
+writeFileSync(join(first.notes_path, "note-leak"), "sentinel");
+writeFileSync(join(first.output_path, "output-leak"), "sentinel");
+writeFileSync(join(first.home_path, "state-leak"), "sentinel");
+const firstCleanup = await api.cleanupEvalWorkspace(first);
+assert.equal(firstCleanup.status, "closed");
+assert.equal(existsSync(first.parent_path), false);
+
+const second = await api.createEvalWorkspace({ plan, row: row("row-two"), temporary_root: fixtureRoot });
+assert.notEqual(second.parent_path, first.parent_path);
+for (const candidate of [
+  join(second.source_path, "source-leak"), join(second.notes_path, "note-leak"),
+  join(second.output_path, "output-leak"), join(second.home_path, "state-leak"),
+]) assert.equal(existsSync(candidate), false, `row leakage reached ${candidate}`);
+assert.equal(readFileSync(join(second.source_path, "source.txt"), "utf8"), "clean-source\n");
+const preparation = await api.runTaskPreparation(second);
+assert.equal(preparation.exit_code, 0);
+assert.equal(existsSync(join(second.workspace_path, "prepared.txt")), true);
+assert.equal((await api.runTaskVerifier(second, { adapter_completed: false })).pass_state, "unknown");
+assert.equal((await api.runTaskVerifier(second, { adapter_completed: true })).pass_state, "passed");
+second.task.verify.args = ["-e", "process.exit(3)"];
+const failed = await api.runTaskVerifier(second, { adapter_completed: true });
+assert.deepEqual([failed.pass_state, failed.terminal_state], ["failed", "verifier_failed"]);
+second.verify_program = join(fixtureRoot, "missing-verifier");
+const unknown = await api.runTaskVerifier(second, { adapter_completed: true });
+assert.deepEqual([unknown.pass_state, unknown.verifier_state, unknown.reason], ["unknown", "error", "verifier_spawn_error"]);
+assert.equal((await api.cleanupEvalWorkspace(second)).status, "closed");
+assert.equal(git("worktree", "list", "--porcelain").includes(first.source_path), false);
+assert.equal(git("worktree", "list", "--porcelain").includes(second.source_path), false);
+NODE
   echo "PASS: Phase 19 fresh workspace and independent verifier contract"
 }
 
