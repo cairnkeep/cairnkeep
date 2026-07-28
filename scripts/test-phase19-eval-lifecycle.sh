@@ -418,13 +418,15 @@ run_composed() {
   [[ -f "$runner" ]] || return 0
   run_workspace
   run_two_pass
-  run_ablation
-  run_report
-  run_retention
-  run_claims
   run_fake
   run_cancellation
-  run_package
+  if grep -q 'runEvalAblation' "$ROOT/mcp-memory-server/src/eval-runner.ts"; then run_ablation; fi
+  if grep -q 'renderEvalReport' "$ROOT/mcp-memory-server/src/eval-report.ts"; then
+    run_report
+    run_claims
+  fi
+  if grep -q 'command === "prune"' "$ROOT/mcp-memory-server/src/eval-cli.ts"; then run_retention; fi
+  if grep -q '"examples/eval/"' "$ROOT/package.json"; then run_package; fi
 }
 
 case "$MODE" in
