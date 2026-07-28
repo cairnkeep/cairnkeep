@@ -375,6 +375,7 @@ export NPM_CONFIG_CACHE=/npm-cache
 export NPM_CONFIG_LOGS_DIR=/tmp/npm-logs
 export NPM_CONFIG_AUDIT=false
 export NPM_CONFIG_FUND=false
+export NPM_CONFIG_OFFLINE=true
 ${suiteHeader(sourceCommit, runtime, image, "node --version")}${shellEvidenceRunner()}${shellCommandRows(NODE_COMMANDS)}
 printf 'REPORT_METADATA|'
 cat /tmp/cairn-phase19-report-metadata.json
