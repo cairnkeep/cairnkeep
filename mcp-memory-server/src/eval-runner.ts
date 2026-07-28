@@ -556,9 +556,9 @@ export async function distillRunOneNotes(options: {
         const result = await runBoundedCommand({
             command: {
                 program: command.program,
-                args: [...command.args, "distill", "--project", options.workspace.source_path, "--session", trajectoryRef, "--json"],
+                args: [...command.args, "distill", "--project", options.workspace.workspace_path, "--session", trajectoryRef, "--json"],
             },
-            cwd: options.workspace.source_path,
+            cwd: options.workspace.workspace_path,
             env: {
                 ...process.env,
                 HOME: options.workspace.home_path,
