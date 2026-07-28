@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -194,6 +194,34 @@ async function checkpointChecks() {
         }
         const diagnosis = await reportApi.diagnoseEvalReport(store);
         assert.equal(["ok", "partial"].includes(diagnosis.state ?? diagnosis.status), true);
+        assert.equal(statSync(store.experiment_path).mode & 0o777, 0o700);
+
+        for (const fault of ["after_open", "after_write", "after_sync", "after_close", "after_rename"]) {
+            const faultStore = await reportApi.createEvalReportStore({ root, experiment_id: `fault-${fault}` });
+            const previous = { ...report, experiment_id: faultStore.experiment_id };
+            const next = { ...previous, updated_at: "2026-01-01T00:00:02.000Z", warnings: ["next_checkpoint"] };
+            await reportApi.checkpointEvalReport(faultStore, previous);
+            await assert.rejects(
+                reportApi.checkpointEvalReport(faultStore, next, { fault }),
+                new RegExp(`injected_${fault}`),
+            );
+            const retained = await reportApi.readEvalReport(faultStore);
+            assert.equal(
+                JSON.stringify(retained) === JSON.stringify(previous) || JSON.stringify(retained) === JSON.stringify(next),
+                true,
+                `${fault} left neither complete checkpoint`,
+            );
+            assert.deepEqual(
+                readdirSync(faultStore.experiment_path).filter((name) => name.endsWith(".tmp")),
+                [],
+                `${fault} left a report temp file`,
+            );
+        }
+
+        await assert.rejects(
+            reportApi.checkpointEvalReport(store, { ...report, prompt: "prompt-sentinel" }),
+            /sensitive_report_field/,
+        );
     } finally {
         rmSync(root, { recursive: true, force: true });
     }
