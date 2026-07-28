@@ -512,6 +512,7 @@ const base = {
 };
 const aggregates = reports.buildEvalAggregates(base);
 const byMetric = (metric) => aggregates.find(({ comparison_id, metric_id }) => comparison_id === "memory-baseline" && metric_id === metric);
+const levels = (metric) => byMetric(metric).condition_levels;
 assert.equal(byMetric("turns").valid_pair_count, 3);
 assert.equal(byMetric("turns").population.full, 3);
 assert.equal(byMetric("turns").population.note_eligible, 1);
@@ -519,10 +520,36 @@ assert.equal(byMetric("total_tokens").valid_pair_count, 2, "missing totals were 
 assert.equal(byMetric("total_tokens").missing.reasons.includes("total_tokens_missing"), true);
 assert.equal(byMetric("pass_rate").valid_pair_count, 2, "unknown verifier outcome entered pass-rate pairs");
 assert.equal(byMetric("pass_rate").missing.reasons.includes("verifier_unknown"), true);
+assert.deepEqual(levels("turns"), [
+  { arm:"baseline", pass:"run1", value:35/3, valid_task_ids:["task-a","task-b","task-c"], valid_task_count:3,
+    population:{full:3,executed:3,eligible:3}, missing:{count:0,reasons:[]} },
+  { arm:"baseline", pass:"run2", value:12, valid_task_ids:["task-a","task-b","task-c"], valid_task_count:3,
+    population:{full:3,executed:3,eligible:3}, missing:{count:0,reasons:[]} },
+]);
+assert.deepEqual(levels("total_tokens"), [
+  { arm:"baseline", pass:"run1", value:75, valid_task_ids:["task-a","task-c"], valid_task_count:2,
+    population:{full:3,executed:3,eligible:3}, missing:{count:1,reasons:["total_tokens_missing"]} },
+  { arm:"baseline", pass:"run2", value:60, valid_task_ids:["task-a","task-c"], valid_task_count:2,
+    population:{full:3,executed:3,eligible:3}, missing:{count:1,reasons:["total_tokens_missing"]} },
+]);
+assert.deepEqual(levels("pass_rate"), [
+  { arm:"baseline", pass:"run1", value:1, valid_task_ids:["task-a","task-b"], valid_task_count:2,
+    population:{full:3,executed:3,eligible:3}, missing:{count:1,reasons:["verifier_unknown"]} },
+  { arm:"baseline", pass:"run2", value:2/3, valid_task_ids:["task-a","task-b","task-c"], valid_task_count:3,
+    population:{full:3,executed:3,eligible:3}, missing:{count:0,reasons:[]} },
+]);
+const deltaOnly = { ...byMetric("turns") };
+delete deltaOnly.condition_levels;
+assert.throws(() => reports.renderEvalReport({ ...base, aggregates:[deltaOnly] }), /invalid_eval_report/,
+  "renderer accepted a delta-only aggregate");
 const human = reports.renderEvalReport({ ...base, aggregates });
 for (const aggregate of aggregates) {
   assert.equal(human.includes(`${aggregate.comparison_id} / ${aggregate.metric_id}`), true);
   assert.equal(human.includes(`paired=${aggregate.valid_pair_count}`), true);
+  for (const level of aggregate.condition_levels) {
+    assert.equal(human.includes(`condition=${level.arm}/${level.pass}`), true);
+    assert.equal(human.includes(`valid=${level.valid_task_count}`), true);
+  }
 }
 assert.match(human, /framework-only/);
 assert.match(human, /inconclusive/);

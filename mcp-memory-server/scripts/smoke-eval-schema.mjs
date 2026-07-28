@@ -158,6 +158,26 @@ const aggregate = {
     warnings: ["small_sample"],
     valid_task_ids: ["task-alpha", "task-beta"],
     valid_pair_count: 2,
+    condition_levels: [
+        {
+            arm: "baseline",
+            pass: "run1",
+            value: 13,
+            valid_task_ids: ["task-alpha"],
+            valid_task_count: 1,
+            population: { full: 2, executed: 1, eligible: 1 },
+            missing: { count: 1, reasons: ["total_tokens_missing"] },
+        },
+        {
+            arm: "baseline",
+            pass: "run2",
+            value: 11,
+            valid_task_ids: ["task-alpha"],
+            valid_task_count: 1,
+            population: { full: 2, executed: 1, eligible: 1 },
+            missing: { count: 1, reasons: ["total_tokens_missing"] },
+        },
+    ],
     population: { full: 2, executed: 2, eligible: 2, paired: 2, note_eligible: 1 },
     missing: { count: 0, reasons: [] },
 };
@@ -265,6 +285,25 @@ async function schemaChecks() {
     assertPublishedStrict(publishedProtocol.schema, adapterRequest);
     assertPublishedStrict(publishedProtocol.schema, adapterResult);
     assertPublishedStrict(publishedReport.schema, report);
+
+    const aggregateWithoutLevels = { ...aggregate };
+    delete aggregateWithoutLevels.condition_levels;
+    assert.equal(schema.evalAggregateSchema.safeParse(aggregateWithoutLevels).success, false,
+        "runtime aggregate accepted a delta without absolute condition levels");
+    assert.equal(publishedReport.schema.safeParse({ ...report, aggregates: [aggregateWithoutLevels] }).success, false,
+        "published aggregate accepted a delta without absolute condition levels");
+    const duplicateLevels = { ...aggregate, condition_levels: [aggregate.condition_levels[0], aggregate.condition_levels[0]] };
+    const reorderedLevels = { ...aggregate, condition_levels: [...aggregate.condition_levels].reverse() };
+    const unknownLevelField = {
+        ...aggregate,
+        condition_levels: [{ ...aggregate.condition_levels[0], unexpected_phase19_field: true }, aggregate.condition_levels[1]],
+    };
+    for (const [name, candidate] of [["duplicate", duplicateLevels], ["reordered", reorderedLevels], ["unknown-field", unknownLevelField]]) {
+        assert.equal(schema.evalAggregateSchema.safeParse(candidate).success, false,
+            `runtime aggregate accepted ${name} condition levels`);
+        assert.equal(publishedReport.schema.safeParse({ ...report, aggregates: [candidate] }).success, false,
+            `published aggregate accepted ${name} condition levels`);
+    }
 
     for (const key of ["pass", "passed", "failed", "pass_state", "verifier_failed", "verifier", "verifier_status", "verifier_reason", "verifier_output"]) {
         assert.equal(schema.evalAdapterResultSchema.safeParse({ ...adapterResult, [key]: key === "pass" ? true : "sentinel" }).success, false,
