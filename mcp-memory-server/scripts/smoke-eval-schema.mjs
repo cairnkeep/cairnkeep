@@ -13,6 +13,7 @@ const serverRoot = resolve(here, "..");
 const projectRoot = resolve(serverRoot, "..");
 const schemaModulePath = join(serverRoot, "dist", "eval-schema.js");
 const planModulePath = join(serverRoot, "dist", "eval-plan.js");
+const evalCliPath = join(serverRoot, "dist", "eval-cli.js");
 const packagePath = join(serverRoot, "package.json");
 const MODES = new Set([undefined, "--baseline", "--expected-red", "--schema-only", "--plan-only"]);
 const [mode, ...extra] = process.argv.slice(2);
@@ -394,8 +395,16 @@ async function planChecks() {
         };
         const taskSetPath = join(repository, "task-set.json");
         const adapterPath = join(repository, "adapter.json");
+        const adapterCalledPath = join(repository, "adapter-called");
+        const validationAdapter = {
+            ...adapterConfig,
+            command: {
+                program: process.execPath,
+                args: ["-e", `require("node:fs").writeFileSync(${JSON.stringify(adapterCalledPath)}, "called")`],
+            },
+        };
         writeFileSync(taskSetPath, `${JSON.stringify(committedTaskSet, null, 2)}\n`);
-        writeFileSync(adapterPath, `${JSON.stringify(adapterConfig, null, 2)}\n`);
+        writeFileSync(adapterPath, `${JSON.stringify(validationAdapter, null, 2)}\n`);
         git("add", "task-set.json", "adapter.json");
         git("commit", "-qm", "evaluation inputs");
         const sentinelPath = join(repository, "validation-sentinel");
@@ -417,6 +426,49 @@ async function planChecks() {
         assert.equal(existsSync(outputRoot), false, "validation created the experiment output root");
         assert.equal(readFileSync(sentinelPath, "utf8"), "unchanged\n", "validation changed a filesystem sentinel");
         assert.equal(Object.isFrozen(resolved), true, "resolved plan is mutable");
+
+        const cliArgs = [
+            evalCliPath,
+            "validate",
+            "--task-set", taskSetPath,
+            "--adapter", adapterPath,
+            "--output", outputRoot,
+            "--repetitions", "2",
+            "--seed", "fixture-seed",
+        ];
+        const cliEnvironment = { ...process.env, CAIRN_EVAL: "1" };
+        const jsonResult = spawnSync(process.execPath, [...cliArgs, "--json"], {
+            cwd: repository,
+            env: cliEnvironment,
+            encoding: "utf8",
+            shell: false,
+        });
+        assert.equal(jsonResult.status, 0, jsonResult.stderr);
+        const cliValue = JSON.parse(jsonResult.stdout);
+        assert.equal(cliValue.operation, "validate");
+        assert.equal(cliValue.invocation_count, resolved.invocation_count);
+        assert.equal(cliValue.plan.plan_digest, resolved.plan_digest);
+        const humanResult = spawnSync(process.execPath, cliArgs, {
+            cwd: repository,
+            env: cliEnvironment,
+            encoding: "utf8",
+            shell: false,
+        });
+        assert.equal(humanResult.status, 0, humanResult.stderr);
+        assert.equal(humanResult.stdout.includes(resolved.plan_digest), true, "human validate output changed plan meaning");
+        assert.equal(humanResult.stdout.includes(`${resolved.invocation_count} serial invocation(s)`), true,
+            "human validate output changed invocation meaning");
+        assert.equal(existsSync(adapterCalledPath), false, "validate invoked the adapter command");
+        assert.equal(existsSync(outputRoot), false, "CLI validate created the experiment output root");
+
+        const unknownFlag = spawnSync(process.execPath, [...cliArgs, "--unknown"], {
+            cwd: repository,
+            env: cliEnvironment,
+            encoding: "utf8",
+            shell: false,
+        });
+        assert.equal(unknownFlag.status, 2, "unknown validate flag did not produce a usage error");
+        assert.equal(existsSync(outputRoot), false, "invalid CLI input created the experiment output root");
 
         writeFileSync(taskSetPath, `${JSON.stringify({ ...committedTaskSet, id: "dirty-task-set" }, null, 2)}\n`);
         assert.throws(() => plan.validateEvalInputs({ taskSetPath, adapterPath, outputRoot, cwd: repository }),
