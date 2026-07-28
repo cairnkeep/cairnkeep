@@ -688,6 +688,26 @@ function mutateManifest(directory, mutation) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function forgeSchemaBinding(directory, schemaDigests) {
+  const manifestPath = join(directory, "manifest.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.schema_digests = schemaDigests;
+  for (const row of manifest.logs) {
+    if (!row.runtime.startsWith("node-")) continue;
+    const logPath = join(directory, row.file);
+    const lines = readFileSync(logPath, "utf8").split(/\r?\n/).map((line) => {
+      if (!line.startsWith("REPORT_METADATA|")) return line;
+      const metadata = JSON.parse(line.slice("REPORT_METADATA|".length));
+      metadata.schema_digests = schemaDigests;
+      return `REPORT_METADATA|${JSON.stringify(metadata)}`;
+    });
+    const text = lines.join("\n");
+    writeFileSync(logPath, text);
+    row.sha256 = sha256(text);
+  }
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
 function expectFailure(label, operation) {
   assert.throws(operation, undefined, label);
 }
@@ -732,6 +752,11 @@ function selfTest() {
     writeFixture(staleLog, sourceCommit);
     writeFileSync(join(staleLog, "node-24.log"), `${readFileSync(join(staleLog, "node-24.log"), "utf8")}tampered\n`);
     expectFailure("stale log", () => verifyEvidence(staleLog, sourceCommit));
+
+    const coherentSchemaForgery = join(root, "coherent-schema-forgery");
+    writeFixture(coherentSchemaForgery, sourceCommit);
+    forgeSchemaBinding(coherentSchemaForgery, ["8".repeat(64), "9".repeat(64)]);
+    expectFailure("coherent schema forgery", () => verifyEvidence(coherentSchemaForgery, sourceCommit));
 
     process.stdout.write("PASS: Phase 19 runtime-evidence capture and integrity self-test\n");
   } finally {
