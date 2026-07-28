@@ -426,8 +426,79 @@ NODE
 }
 
 run_report() {
-  require_exports "$report" readEvalReport renderEvalReport
+  require_exports "$report" readEvalReport buildEvalAggregates renderEvalReport
   node "$eval_cli" --help | grep -q 'report' || fail "eval help omits report"
+  node --input-type=module - "$report" <<'NODE'
+import assert from "node:assert/strict";
+import { pathToFileURL } from "node:url";
+
+const reports = await import(pathToFileURL(process.argv[2]).href);
+const ids = ["memory.write", "memory.search", "notes.distill", "wiki", "graph", "security.audit", "route.check", "context.explore"];
+const digest = "a".repeat(64);
+const states = ids.map((id) => ({ id, enabled: true }));
+const note = (outcome, exposed) => ({
+  distiller_id: outcome === "success" ? "fixture-distiller" : null,
+  distiller_config_digest: outcome === "success" ? digest : null,
+  trajectory_ref: outcome === "success" ? "fixture-trajectory" : null,
+  distillation_outcome: outcome,
+  eligibility_reason: outcome === "success" ? "same_task_snapshot" : `notes_${outcome}`,
+  note_snapshot_digest: outcome === "success" ? digest : null,
+  note_snapshot_manifest: [], notes_exposed: exposed,
+});
+const result = (turns, totalTokens) => ({
+  schema_version: 1, status: "completed", turns: { value: turns, semantics: "fixture-turn" },
+  ...(totalTokens === null ? {} : { usage: { total_tokens: totalTokens } }), observed_capability_digest: digest,
+});
+const rows = [
+  ["task-a", "run1", 10, 100, "passed", note("success", false), []],
+  ["task-a", "run2", 8, 80, "passed", note("success", true), []],
+  ["task-b", "run1", 20, null, "passed", note("no_notes", false), ["notes_no_notes"]],
+  ["task-b", "run2", 24, null, "failed", note("no_notes", false), ["notes_no_notes"]],
+  ["task-c", "run1", 5, 50, "unknown", note("failed", false), ["verifier_unknown", "notes_failed"]],
+  ["task-c", "run2", 4, 40, "passed", note("failed", false), ["notes_failed"]],
+];
+const observations = rows.map(([taskId, pass, turns, tokens, passState, notes, missing], index) => ({
+  schema_version: 1, observation_id: `o-${index}`, task_id: taskId, schedule_index: index,
+  arm: "baseline", disabled_capability: null, arm_order: 0, repetition: 0, pass,
+  seed: `seed-${taskId}`, state: "terminal", terminal_state: passState === "failed" ? "verifier_failed" : "completed",
+  process: { exit_code: 0, signal: null, error_code: null, cleanup: "closed" },
+  verifier: { state: passState === "unknown" ? "error" : "completed", reason: passState === "unknown" ? "verifier_unknown" : null },
+  pass_state: passState, expected_capabilities: states, observed_capabilities: states,
+  expected_capability_digest: digest, observed_capability_digest: digest,
+  capability_status: "valid", capability_digest_match: true, four_cell_id: `pair-${taskId}`,
+  notes, result: result(turns, tokens), missing_reasons: missing,
+}));
+const schedule = observations.map(({ observation_id, task_id, arm, repetition, pass, seed }) => ({ observation_id, task_id, arm, repetition, pass, seed }));
+const base = {
+  schema_version: 1, experiment_id: "report-fixture", status: "final", experiment_kind: "two_pass",
+  task_set_digest: digest, adapter_config_digest: digest, source_revision: digest, schedule_digest: digest,
+  created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:01.000Z",
+  runtime: { platform: "linux", arch: "x64", node: "v24", cairnkeep: "fixture" }, schedule, observations,
+  aggregates: [], missingness: { digest, count: 0, reasons: [] }, warnings: [],
+  evidence: { schema_version: 1, evidence_scope: "offline-framework", source_commit: digest,
+    package_version: "fixture", runtime_id: "node-local", task_set_digest: digest, report_digest: digest,
+    schema_digests: [digest], note_snapshot_digests: [digest], missingness_digest: digest, claim_anchors: [] },
+};
+const aggregates = reports.buildEvalAggregates(base);
+const byMetric = (metric) => aggregates.find(({ comparison_id, metric_id }) => comparison_id === "memory-baseline" && metric_id === metric);
+assert.equal(byMetric("turns").valid_pair_count, 3);
+assert.equal(byMetric("turns").population.full, 3);
+assert.equal(byMetric("turns").population.note_eligible, 1);
+assert.equal(byMetric("total_tokens").valid_pair_count, 2, "missing totals were inferred");
+assert.equal(byMetric("total_tokens").missing.reasons.includes("total_tokens_missing"), true);
+assert.equal(byMetric("pass_rate").valid_pair_count, 2, "unknown verifier outcome entered pass-rate pairs");
+assert.equal(byMetric("pass_rate").missing.reasons.includes("verifier_unknown"), true);
+const human = reports.renderEvalReport({ ...base, aggregates });
+for (const aggregate of aggregates) {
+  assert.equal(human.includes(`${aggregate.comparison_id} / ${aggregate.metric_id}`), true);
+  assert.equal(human.includes(`paired=${aggregate.valid_pair_count}`), true);
+}
+assert.match(human, /framework-only/);
+assert.match(human, /inconclusive/);
+assert.match(human, /expected capability digest: a{64}/);
+assert.match(human, /observed capability digest: a{64}/);
+assert.equal(human.includes("104000"), false, "paper calibration leaked into output");
+NODE
   echo "PASS: Phase 19 canonical JSON and derived report contract"
 }
 
@@ -439,7 +510,7 @@ run_retention() {
 
 run_claims() {
   require_exports "$report" renderEvalReport
-  for forbidden in 'statistically significant' 'causes improvement' 'quality gain'; do
+  for forbidden in 'statistically significant' 'causes improvement' 'quality gain' 'proves quality' 'improved efficiency'; do
     if grep -R -F "$forbidden" "$ROOT/examples/eval" "$ROOT/mcp-memory-server/src/eval-report.ts" 2>/dev/null; then
       fail "generated evaluation surface contains unsupported claim wording"
     fi
