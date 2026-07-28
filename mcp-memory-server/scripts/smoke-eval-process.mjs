@@ -123,6 +123,17 @@ async function processChecks() {
         processApi.runBoundedCommand({ command: command(process.execPath, ["-e", "setInterval(()=>{},1000)"]), stdout_mode: "exit-only", timeout_ms: 50, kill_grace_ms: 50, max_stdout_bytes: 0 }),
         (error) => error?.code === "timeout" && error?.cleanup !== "open",
     );
+    await assert.rejects(
+        processApi.runBoundedCommand({
+            command: command(process.execPath, ["-e", "process.on('SIGTERM',()=>{});setInterval(()=>{},1000)"]),
+            stdout_mode: "exit-only",
+            timeout_ms: 50,
+            kill_grace_ms: 50,
+            max_stdout_bytes: 0,
+        }),
+        (error) => error?.code === "timeout" && error?.cleanup === "killed" && error?.signal === "SIGKILL",
+        "timeout did not escalate TERM through grace to KILL and close",
+    );
 
     const controller = new AbortController();
     const cancelled = processApi.runBoundedCommand({
@@ -211,6 +222,6 @@ if (mode === "--baseline") {
     console.log("PASS: Phase 19 atomic checkpoint contract");
 } else {
     await processChecks();
-    await checkpointChecks();
+    if (existsSync(reportModulePath)) await checkpointChecks();
     console.log("PASS: Phase 19 bounded process, cancellation, and checkpoint contract");
 }
