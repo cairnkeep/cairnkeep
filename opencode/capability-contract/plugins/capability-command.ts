@@ -1,5 +1,5 @@
 import type { Plugin } from "@opencode-ai/plugin"
-import { spawn } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 
@@ -18,7 +18,7 @@ const COMMANDS = new Set([
   "security-audit",
 ])
 
-export const OPENCODE_CAPABILITY_CONTRACT = {
+const OPENCODE_CAPABILITY_CONTRACT = {
   version: "1.17.20",
   sourceCommit: "4473fc3c9055046183990a965d68df3db7ea6f62",
   admissionHook: "command.execute.before",
@@ -80,7 +80,7 @@ function coordinator(operation: string, payload: JsonObject): Promise<JsonObject
       if (timer) clearTimeout(timer)
       resolvePromise(value)
     }
-    const child = spawn(process.execPath, [COORDINATOR, operation], {
+    const child = spawn("node", [COORDINATOR, operation], {
       stdio: ["pipe", "pipe", "ignore"],
     })
     timer = setTimeout(() => {
@@ -120,6 +120,28 @@ function coordinator(operation: string, payload: JsonObject): Promise<JsonObject
   })
 }
 
+function coordinatorSync(operation: string, payload: JsonObject): JsonObject | undefined {
+  const child = spawnSync("node", [COORDINATOR, operation], {
+    input: JSON.stringify(payload),
+    encoding: "utf8",
+    timeout: COORDINATOR_TIMEOUT_MS,
+    maxBuffer: MAX_COORDINATOR_OUTPUT,
+    stdio: ["pipe", "pipe", "ignore"],
+  })
+  if (child.error || child.status !== 0 || !child.stdout) return undefined
+  try {
+    const value = JSON.parse(child.stdout) as unknown
+    return isObject(value) ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function terminalRequiresSync(): boolean {
+  return (process.versions as NodeJS.ProcessVersions & { bun?: string }).bun !== undefined
+    || process.env.CAIRN_TEST_OPENCODE_NON_AWAITED === "1"
+}
+
 function admission(input: unknown, output: unknown): {
   command: string
   sessionID: string
@@ -133,9 +155,11 @@ function admission(input: unknown, output: unknown): {
 }
 
 function eventTerminal(event: unknown): { sessionID: string; outcome: "success" | "error" | "abandoned" } | undefined {
-  if (!isObject(event) || !hasExactKeys(event, ["type", "properties"]) || !isObject(event.properties)) {
+  if (!isObject(event) || !hasExactKeys(event, ["type", "properties"], ["id"]) || !isObject(event.properties)) {
     return undefined
   }
+  if (Object.hasOwn(event, "id")
+    && (typeof event.id !== "string" || event.id.length === 0 || event.id.length > 256)) return undefined
   const properties = event.properties
   if (event.type === "session.idle") {
     if (!hasExactKeys(properties, ["sessionID"]) || !validSessionID(properties.sessionID)) return undefined
@@ -169,7 +193,7 @@ function eventTerminal(event: unknown): { sessionID: string; outcome: "success" 
   return undefined
 }
 
-export const CapabilityCommandPlugin: Plugin = async ({ directory, worktree, project }) => {
+const capabilityCommandPlugin: Plugin = async ({ directory, worktree, project }) => {
   const projectRoot = validatedProjectRoot([directory, worktree, project.worktree])
   const sessions = new Map<string, SessionState>()
 
@@ -194,8 +218,10 @@ export const CapabilityCommandPlugin: Plugin = async ({ directory, worktree, pro
   }
 
   const serialize = async <T>(sessionID: string, state: SessionState, operation: () => Promise<T>): Promise<T> => {
+    const result = state.operations === 0
+      ? Promise.resolve(operation())
+      : state.tail.then(operation, operation)
     state.operations += 1
-    const result = state.tail.then(operation, operation)
     state.tail = result.then(() => undefined, () => undefined)
     try {
       return await result
@@ -251,12 +277,15 @@ export const CapabilityCommandPlugin: Plugin = async ({ directory, worktree, pro
         state.unfinished = false
         state.terminalEpoch += 1
       }
-      const invoke = () => callCoordinator("harness-terminal", {
+      const payload = {
         schema_version: 1,
         harness: "opencode",
         session_id: terminal.sessionID,
         outcome: terminal.outcome,
-      })
+      } as const
+      const invoke = () => terminalRequiresSync()
+        ? Promise.resolve(coordinatorSync("harness-terminal", payload))
+        : callCoordinator("harness-terminal", payload)
       if (state) {
         await serialize(terminal.sessionID, state, invoke)
         forgetFinishedSession(terminal.sessionID, state)
@@ -284,3 +313,7 @@ export const CapabilityCommandPlugin: Plugin = async ({ directory, worktree, pro
     },
   }
 }
+
+export const CapabilityCommandPlugin = Object.assign(capabilityCommandPlugin, {
+  contract: OPENCODE_CAPABILITY_CONTRACT,
+})

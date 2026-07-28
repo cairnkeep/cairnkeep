@@ -38,6 +38,10 @@ All notable user-facing changes are documented here. This project follows
 
 ### Fixed
 
+- Load the native OpenCode capability plugin through its supported single-export
+  shape, run its coordinator with Node under OpenCode's Bun host, accept the
+  pinned runtime event envelope, and settle terminal callbacks before the host
+  can exit.
 - Layer `CAIRN_EXTRA_SETTINGS` through OpenCode's supported
   `OPENCODE_CONFIG` environment seam and keep headless graph commands in the
   tool-calling path until their real owner operation completes.

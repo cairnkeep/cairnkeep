@@ -201,12 +201,14 @@ run_opencode_scenario() {
   local scenario="$4"
   local session="$5"
   local trajectory="${6:-1}"
+  local non_awaited="${7:-0}"
   (
     cd "$project"
     env \
       CAIRN_CAPABILITY_CONTRACT=1 \
       CAIRN_HARNESS_STATE_DIR="$state_root" \
       CAIRN_TRAJECTORY_CAPTURE="$trajectory" \
+      CAIRN_TEST_OPENCODE_NON_AWAITED="$non_awaited" \
       CAIRN_TEST_SESSION="$session" \
       node --experimental-strip-types "$OPENCODE_HARNESS" \
         "$plugin" "$project" "$FIXTURE" "$scenario"
@@ -307,6 +309,17 @@ NODE
     rows=$(callback_rows "$project")
     assert_value_free_rows "$rows" "$terminal" || fail "OpenCode $terminal terminal did not settle exactly once"
   done
+
+  case_root="$temp_root/non-awaited-success"
+  project="$case_root/project"
+  decoy="$project-decoy"
+  state_root="$case_root/state"
+  mkdir -p "$project" "$decoy"
+  write_capability_config "$project" true true
+  result=$(run_opencode_scenario "$plugin" "$project" "$state_root" success non-awaited-success 1 1)
+  assert_opencode_result "$result" allowed || fail "non-awaited OpenCode terminal changed owner execution"
+  rows=$(callback_rows "$project")
+  assert_value_free_rows "$rows" success || fail "non-awaited OpenCode terminal did not settle before return"
 
   for terminal in success error; do
     case_root="$temp_root/duplicate-$terminal"

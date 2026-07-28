@@ -15,6 +15,17 @@ assert.ok(
 
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8"));
 const contract = fixture?.opencode;
+const pluginSource = readFileSync(pluginPath, "utf8");
+assert.match(pluginSource, /spawn\("node", \[COORDINATOR, operation\]/,
+  "OpenCode's Bun host must delegate the coordinator to Node");
+assert.doesNotMatch(pluginSource, /spawn\(process\.execPath/,
+  "OpenCode's process.execPath is the harness binary, not Node");
+assert.match(pluginSource, /state\.operations === 0\s*\? Promise\.resolve\(operation\(\)\)/,
+  "non-awaited OpenCode terminal callbacks must start coordinator I/O synchronously");
+assert.match(pluginSource, /spawnSync\("node", \[COORDINATOR, operation\]/,
+  "OpenCode terminal settlement needs a bounded synchronous Bun-host bridge");
+assert.match(pluginSource, /process\.versions as NodeJS\.ProcessVersions & \{ bun\?: string \}/,
+  "the synchronous terminal bridge must stay scoped to OpenCode's Bun host");
 assert.equal(contract?.version, "1.17.20", "fixture must pin OpenCode 1.17.20");
 assert.equal(
   contract?.source?.commit,
@@ -86,8 +97,11 @@ for (const [name, eventContract] of Object.entries(contract.events)) {
 }
 
 const module = await import(`${pathToFileURL(pluginPath).href}?test=${Date.now()}`);
+for (const [name, value] of Object.entries(module)) {
+  assert.equal(typeof value, "function", `OpenCode treats exported ${name} as a plugin entrypoint`);
+}
 assert.equal(typeof module.CapabilityCommandPlugin, "function");
-assert.deepEqual(module.OPENCODE_CAPABILITY_CONTRACT, {
+assert.deepEqual(module.CapabilityCommandPlugin.contract, {
   version: contract.version,
   sourceCommit: contract.source.commit,
   admissionHook: contract.hook.name,

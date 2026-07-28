@@ -308,9 +308,11 @@
       "session.idle": {
         "phase": "success-terminal",
         "required_fields": ["type", "properties"],
+        "optional_fields": ["id"],
         "properties_required_fields": ["sessionID"],
         "properties_optional_fields": [],
         "sample": {
+          "id": "event-fixture-idle",
           "type": "session.idle",
           "properties": {
             "sessionID": "session-fixture"
@@ -320,6 +322,7 @@
       "session.error": {
         "phase": "error-terminal",
         "required_fields": ["type", "properties"],
+        "optional_fields": ["id"],
         "properties_required_fields": [],
         "properties_optional_fields": ["sessionID", "error"],
         "error_variants": [
@@ -330,6 +333,7 @@
           "APIError"
         ],
         "sample": {
+          "id": "event-fixture-error",
           "type": "session.error",
           "properties": {
             "sessionID": "session-fixture"
@@ -339,6 +343,7 @@
       "session.status": {
         "phase": "status-terminal-when-idle",
         "required_fields": ["type", "properties"],
+        "optional_fields": ["id"],
         "properties_required_fields": ["sessionID", "status"],
         "properties_optional_fields": [],
         "status_variants": [
@@ -347,6 +352,7 @@
           { "type": "busy" }
         ],
         "sample": {
+          "id": "event-fixture-status",
           "type": "session.status",
           "properties": {
             "sessionID": "session-fixture",
@@ -359,6 +365,7 @@
       "session.deleted": {
         "phase": "abandonment-cleanup-only",
         "required_fields": ["type", "properties"],
+        "optional_fields": ["id"],
         "properties_required_fields": ["info"],
         "properties_optional_fields": [],
         "info_required_fields": [
@@ -373,6 +380,7 @@
         "time_required_fields": ["created", "updated"],
         "time_optional_fields": ["compacting"],
         "sample": {
+          "id": "event-fixture-deleted",
           "type": "session.deleted",
           "properties": {
             "info": {
