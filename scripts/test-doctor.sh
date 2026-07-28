@@ -435,6 +435,9 @@ for malformed_output in \
     fail "doctor treated malformed private diagnosis output as a configured dependency failure"
   grep -q "\[WARN\] evaluation report storage is unsafe" "$tmp/eval-malformed.out" ||
     fail "malformed private diagnosis output did not fail closed"
+  if grep -Eq 'prompt-sentinel|model-output-sentinel' "$tmp/eval-malformed.out" "$tmp/eval-malformed.err"; then
+    fail "malformed private diagnosis output reflected fixture bytes"
+  fi
 done
 
 ( cd "$proj" && PATH="$tmp/eval-node-shim:$PATH" CAIRN_TEST_REAL_NODE="$real_node" \

@@ -365,6 +365,41 @@ NODE
   fi
 fi
 
+# 11. Evaluation reports. The private compiled operation resolves the owned
+# project-local report root and returns one bounded, value-free state. The
+# shell never reads report bytes and treats malformed output as unsafe.
+eval_cli="$CAIRN_ROOT/mcp-memory-server/dist/eval-cli.js"
+eval_state="unsafe"
+if [[ -f "$eval_cli" ]]; then
+  eval_json=$(node "$eval_cli" doctor-diagnosis --root "$PWD" --json 2>/dev/null | head -c 257)
+  if parsed_eval_state=$(node - "$eval_json" <<'NODE'
+const raw = process.argv[2];
+try {
+  if (Buffer.byteLength(raw, "utf8") > 64) throw new Error("invalid");
+  const value = JSON.parse(raw);
+  const keys = Object.keys(value).sort();
+  if (JSON.stringify(keys) !== JSON.stringify(["diagnosis", "schema_version"])
+      || value.schema_version !== 1
+      || !["absent", "ok", "partial", "tampered", "unsafe"].includes(value.diagnosis)) {
+    throw new Error("invalid");
+  }
+  process.stdout.write(value.diagnosis);
+} catch {
+  process.exit(1);
+}
+NODE
+  ); then
+    eval_state="$parsed_eval_state"
+  fi
+fi
+case "$eval_state" in
+  absent) skip "evaluation reports (not present — evaluation is opt-in)" ;;
+  ok) pass "evaluation reports are complete and valid" ;;
+  partial) warn "evaluation reports are partial" ;;
+  tampered) warn "evaluation report integrity check failed" ;;
+  unsafe) warn "evaluation report storage is unsafe" ;;
+esac
+
 echo
 if [[ "$fails" -gt 0 ]]; then
   echo "cairn doctor: $fails configured dependency check(s) failed."

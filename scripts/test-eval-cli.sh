@@ -121,6 +121,13 @@ NODE
     [[ $(wc -c <"$tmp/$state.json") -le 64 ]] || fail "diagnosis output exceeded its fixed bound"
   done
 
+  mkdir -p "$tmp/symlink-target"
+  mkdir -p "$tmp/symlink-root"
+  ln -s "$tmp/symlink-target" "$tmp/symlink-root/.agentfs"
+  env -u CAIRN_EVAL node "$cli" doctor-diagnosis --root "$tmp/symlink-root" --json >"$tmp/symlink-root.json"
+  node -e 'const v=require(process.argv[1]);if(v.schema_version!==1||v.diagnosis!=="unsafe"||Object.keys(v).length!==2)process.exit(1)' \
+    "$tmp/symlink-root.json" || fail "symlinked evaluation ancestor did not fail closed"
+
   for malformed in \
     "doctor-diagnosis --json" \
     "doctor-diagnosis --root prompt-sentinel" \

@@ -7,6 +7,7 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { capabilityIdSchema, type CapabilityId } from "./capability-schema.js";
 import { isEvalEnabled, loadEvalPlan } from "./eval-plan.js";
 import {
+    diagnoseEvalReport,
     readEvalReport,
     renderEvalReport,
     type EvalReportStore,
@@ -34,6 +35,9 @@ const valueFlags = new Set(["--task-set", "--adapter", "--output", "--repetition
 const EXPERIMENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const DEFAULT_REPORT_BYTES = 16 * 1024 * 1024;
 const DEFAULT_RETENTION_DAYS = 30;
+const MAX_EXPERIMENTS = 10_000;
+const DOCTOR_DIAGNOSES = ["absent", "ok", "partial", "tampered", "unsafe"] as const;
+type DoctorDiagnosis = typeof DOCTOR_DIAGNOSES[number];
 
 function usage(): string {
     return `cairn eval — deterministic local evaluation coordinator
@@ -135,6 +139,95 @@ async function evalRoot(): Promise<string | null> {
     const resolvedRoot = await realpath(root);
     if (resolvedRoot !== root) throw new Error("unsafe_eval_root");
     return root;
+}
+
+function isStrictReportDiagnosis(value: unknown): value is Awaited<ReturnType<typeof diagnoseEvalReport>> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const record = value as Record<string, unknown>;
+    if (Object.keys(record).length !== 2 || !Object.hasOwn(record, "state") || !Object.hasOwn(record, "code")) {
+        return false;
+    }
+    const expectedCodes: Record<DoctorDiagnosis, string> = {
+        absent: "report_absent",
+        ok: "report_ok",
+        partial: "report_partial",
+        tampered: "report_invalid",
+        unsafe: "report_unsafe",
+    };
+    return typeof record.state === "string"
+        && DOCTOR_DIAGNOSES.includes(record.state as DoctorDiagnosis)
+        && record.code === expectedCodes[record.state as DoctorDiagnosis];
+}
+
+function diagnosisEnvelope(diagnosis: DoctorDiagnosis): { schema_version: 1; diagnosis: DoctorDiagnosis } {
+    return { schema_version: EVAL_SCHEMA_VERSION, diagnosis };
+}
+
+function privateDoctorRoot(args: string[]): string {
+    if (args.length !== 3 || args[0] !== "--root" || args[2] !== "--json") throw new Error("unsafe");
+    const root = args[1];
+    if (!root || !isAbsolute(root) || resolve(root) !== root) throw new Error("unsafe");
+    return root;
+}
+
+async function diagnoseProjectReports(projectRoot: string): Promise<DoctorDiagnosis> {
+    const projectInfo = await lstat(projectRoot);
+    if (projectInfo.isSymbolicLink() || !projectInfo.isDirectory() || await realpath(projectRoot) !== projectRoot) {
+        return "unsafe";
+    }
+    const agentfsRoot = resolve(projectRoot, ".agentfs");
+    const evalDirectory = resolve(agentfsRoot, "eval");
+    const root = resolve(evalDirectory, "experiments");
+    if (!isContained(projectRoot, root) || root === projectRoot) return "unsafe";
+
+    for (const directory of [agentfsRoot, evalDirectory, root]) {
+        let info;
+        try {
+            info = await lstat(directory);
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") return "absent";
+            return "unsafe";
+        }
+        if (info.isSymbolicLink() || !info.isDirectory() || await realpath(directory) !== directory) return "unsafe";
+        if (directory === root && (info.mode & 0o077) !== 0) return "unsafe";
+    }
+
+    const entries = await readdir(root, { withFileTypes: true });
+    if (entries.length === 0) return "absent";
+    if (entries.length > MAX_EXPERIMENTS) return "unsafe";
+
+    let aggregate: DoctorDiagnosis = "ok";
+    for (const entry of entries) {
+        if (!EXPERIMENT_PATTERN.test(entry.name) || entry.isSymbolicLink() || !entry.isDirectory()) return "unsafe";
+        const experimentPath = resolve(root, entry.name);
+        if (!isContained(root, experimentPath) || experimentPath === root) return "unsafe";
+        const experimentInfo = await lstat(experimentPath);
+        if (experimentInfo.isSymbolicLink() || !experimentInfo.isDirectory() || (experimentInfo.mode & 0o077) !== 0
+            || await realpath(experimentPath) !== experimentPath) {
+            return "unsafe";
+        }
+        const diagnosis = await diagnoseEvalReport({
+            root_path: root,
+            experiment_path: experimentPath,
+            report_path: join(experimentPath, "report.json"),
+            experiment_id: entry.name,
+            max_report_bytes: DEFAULT_REPORT_BYTES,
+        });
+        if (!isStrictReportDiagnosis(diagnosis) || diagnosis.state === "unsafe") return "unsafe";
+        if (diagnosis.state === "tampered") aggregate = "tampered";
+        else if (aggregate !== "tampered" && diagnosis.state !== "ok") aggregate = "partial";
+    }
+    return aggregate;
+}
+
+async function privateDoctorDiagnosis(args: string[]): Promise<void> {
+    let diagnosis: DoctorDiagnosis = "unsafe";
+    try {
+        diagnosis = await diagnoseProjectReports(privateDoctorRoot(args));
+    } catch {
+        diagnosis = "unsafe";
+    }
+    process.stdout.write(`${JSON.stringify(diagnosisEnvelope(diagnosis))}\n`);
 }
 
 async function safeReportStore(experimentId: string): Promise<EvalReportStore> {
@@ -357,6 +450,10 @@ async function executePlan(options: {
 
 async function main(): Promise<void> {
     const [command = "help", ...args] = process.argv.slice(2);
+    if (command === "doctor-diagnosis") {
+        await privateDoctorDiagnosis(args);
+        return;
+    }
     if (["help", "--help", "-h"].includes(command)) {
         process.stdout.write(usage());
         return;
