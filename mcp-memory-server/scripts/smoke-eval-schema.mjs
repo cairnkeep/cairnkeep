@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -316,6 +317,7 @@ async function schemaChecks() {
 
 async function planChecks() {
     const plan = await load(planModulePath);
+    const schema = await load(schemaModulePath);
     for (const name of ["isEvalEnabled", "loadEvalPlan", "validateEvalInputs", "buildEvalSchedule"]) {
         assert.equal(typeof plan[name], "function", `missing eval-plan export ${name}`);
     }
@@ -331,13 +333,120 @@ async function planChecks() {
         seed: "seed",
     });
     const rows = schedule.rows ?? schedule;
-    assert.deepEqual(rows.map(({ arm, repetition, pass, task_id }) => `${arm}:${repetition}:${pass}:${task_id}`), [
+    const orderedIds = rows.map(({ arm, repetition, pass, task_id }) => `${arm}:${repetition}:${pass}:${task_id}`);
+    assert.deepEqual(orderedIds, [
         "baseline:0:run1:task-alpha", "baseline:0:run1:task-beta",
         "baseline:0:run2:task-alpha", "baseline:0:run2:task-beta",
         "baseline:1:run1:task-alpha", "baseline:1:run1:task-beta",
         "baseline:1:run2:task-alpha", "baseline:1:run2:task-beta",
     ]);
     assert.equal(rows.every((row) => typeof row.seed === "string" && row.seed.length > 0), true);
+    assert.deepEqual(rows.map(({ observation_id }) => observation_id), [
+        "baseline-r0-run1-task-alpha", "baseline-r0-run1-task-beta",
+        "baseline-r0-run2-task-alpha", "baseline-r0-run2-task-beta",
+        "baseline-r1-run1-task-alpha", "baseline-r1-run1-task-beta",
+        "baseline-r1-run2-task-alpha", "baseline-r1-run2-task-beta",
+    ]);
+    for (const repetition of [0, 1]) {
+        for (const id of ["task-alpha", "task-beta"]) {
+            const pair = rows.filter((row) => row.repetition === repetition && row.task_id === id);
+            assert.equal(pair.length, 2);
+            assert.equal(pair[0].seed, pair[1].seed, "paired pass seeds differ");
+            assert.equal(pair[0].note_snapshot_task_id, null);
+            assert.equal(pair[1].note_snapshot_task_id, id, "Run 2 consumes a non-matching task snapshot");
+        }
+    }
+    const reorderedTaskSet = { ...taskSet, tasks: [...taskSet.tasks].reverse() };
+    const reordered = plan.buildEvalSchedule({
+        taskSet: reorderedTaskSet,
+        arms: [{ id: "baseline", disabled_capability: null }],
+        repetitions: 2,
+        passes: ["run1", "run2"],
+        seed: "seed",
+    });
+    assert.notEqual(reordered.digest, schedule.digest, "manifest task reordering did not change schedule identity");
+    assert.notEqual(schema.canonicalDigest(reorderedTaskSet), schema.canonicalDigest(taskSet), "manifest order was not digest-significant");
+    assert.equal(
+        schema.canonicalDigest({ tasks: taskSet.tasks, id: taskSet.id, source: taskSet.source, schema_version: 1 }),
+        schema.canonicalDigest(taskSet),
+        "object-key order changed the canonical digest",
+    );
+
+    const fixtureRoot = mkdtempSync(join(tmpdir(), "cairn-eval-plan-"));
+    try {
+        const repository = join(fixtureRoot, "repository");
+        mkdirSync(repository);
+        const git = (...args) => {
+            const result = spawnSync("git", ["-C", repository, ...args], { encoding: "utf8", shell: false });
+            assert.equal(result.status, 0, `${args.join(" ")} failed: ${result.stderr}`);
+            return result.stdout.trim();
+        };
+        git("init", "-q");
+        git("config", "user.name", "Evaluation Fixture");
+        git("config", "user.email", "eval-fixture@example.invalid");
+        writeFileSync(join(repository, "source.txt"), "immutable source\n");
+        git("add", "source.txt");
+        git("commit", "-qm", "source fixture");
+        const sourceCommit = git("rev-parse", "HEAD");
+        const committedTaskSet = {
+            ...taskSet,
+            source: { kind: "git", repository: ".", revision: sourceCommit },
+        };
+        const taskSetPath = join(repository, "task-set.json");
+        const adapterPath = join(repository, "adapter.json");
+        writeFileSync(taskSetPath, `${JSON.stringify(committedTaskSet, null, 2)}\n`);
+        writeFileSync(adapterPath, `${JSON.stringify(adapterConfig, null, 2)}\n`);
+        git("add", "task-set.json", "adapter.json");
+        git("commit", "-qm", "evaluation inputs");
+        const sentinelPath = join(repository, "validation-sentinel");
+        writeFileSync(sentinelPath, "unchanged\n");
+        const outputRoot = join(repository, "not-created", "experiment");
+        const resolved = plan.validateEvalInputs({
+            taskSetPath,
+            adapterPath,
+            outputRoot,
+            repetitions: 2,
+            seed: "fixture-seed",
+            cwd: repository,
+        });
+        assert.equal(resolved.invocation_count, 8);
+        assert.equal(resolved.concurrency, 1);
+        assert.equal(resolved.source.revision, sourceCommit);
+        assert.equal(resolved.task_set_digest, schema.canonicalDigest(committedTaskSet));
+        assert.equal(resolved.schedule_digest, schema.canonicalDigest(resolved.schedule));
+        assert.equal(existsSync(outputRoot), false, "validation created the experiment output root");
+        assert.equal(readFileSync(sentinelPath, "utf8"), "unchanged\n", "validation changed a filesystem sentinel");
+        assert.equal(Object.isFrozen(resolved), true, "resolved plan is mutable");
+
+        writeFileSync(taskSetPath, `${JSON.stringify({ ...committedTaskSet, id: "dirty-task-set" }, null, 2)}\n`);
+        assert.throws(() => plan.validateEvalInputs({ taskSetPath, adapterPath, outputRoot, cwd: repository }),
+            /committed and unchanged/, "dirty task-set bytes were accepted");
+        writeFileSync(taskSetPath, `${JSON.stringify(committedTaskSet, null, 2)}\n`);
+        assert.throws(() => plan.validateEvalInputs({
+            taskSetPath,
+            adapterPath,
+            outputRoot,
+            repetitions: 0,
+            cwd: repository,
+        }), /repetitions/, "invalid repetition count was accepted");
+        const callerBundlePath = join(repository, "caller-bundle.json");
+        writeFileSync(callerBundlePath, `${JSON.stringify({
+            ...committedTaskSet,
+            source: {
+                kind: "bundled_fake",
+                identifier: "cairn-offline-fake-v1",
+                files: [{ path: "source.txt", content: "caller-defined\n" }],
+            },
+        }, null, 2)}\n`);
+        assert.throws(() => plan.validateEvalInputs({
+            taskSetPath: callerBundlePath,
+            adapterPath,
+            outputRoot,
+            cwd: repository,
+        }), /package-owned task set/, "caller-defined bundled source was accepted");
+    } finally {
+        rmSync(fixtureRoot, { recursive: true, force: true });
+    }
 }
 
 function onlyMissing(error, expected) {
