@@ -282,7 +282,64 @@ run_claims() {
 run_fake() {
   [[ -f "$ROOT/scripts/fake-eval-adapter.mjs" ]] || fail "offline fake adapter is absent"
   [[ -f "$ROOT/examples/eval/task-set.json" ]] || fail "offline committed task set is absent"
+  [[ -f "$ROOT/examples/eval/bundled-fake.json" ]] || fail "offline bundled binding is absent"
+  [[ -f "$ROOT/examples/eval/adapter.json" ]] || fail "offline adapter configuration is absent"
   grep -q 'offline-framework' "$ROOT/scripts/fake-eval-adapter.mjs" || fail "fake adapter lacks permanent offline scope"
+  if grep -E '^import ' "$ROOT/scripts/fake-eval-adapter.mjs" | grep -v 'from "node:' >/dev/null; then
+    fail "fake adapter imports a non-standard-library module"
+  fi
+  node --input-type=module - "$runner" "$ROOT/mcp-memory-server/dist/eval-plan.js" "$ROOT/mcp-memory-server/dist/eval-schema.js" "$ROOT/examples/eval/task-set.json" "$ROOT/examples/eval/adapter.json" "$tmp" <<'NODE'
+import assert from "node:assert/strict";
+import { chmodSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const [runnerPath, planPath, schemaPath, taskSetPath, adapterPath, fixtureRoot] = process.argv.slice(2);
+const runner = await import(pathToFileURL(runnerPath).href);
+const { loadEvalPlan } = await import(pathToFileURL(planPath).href);
+const { canonicalDigest } = await import(pathToFileURL(schemaPath).href);
+const outputRoot=join(fixtureRoot,"offline-output");
+const options={taskSetPath,adapterPath,outputRoot,repetitions:1,seed:"offline-fixture-seed",cwd:process.cwd()};
+const plan=loadEvalPlan(options);
+const taskSet=JSON.parse(readFileSync(taskSetPath,"utf8"));
+assert.equal(plan.source.kind,"bundled_fake");
+assert.equal(plan.task_set_digest,canonicalDigest(taskSet));
+assert.equal(plan.invocation_count,taskSet.tasks.length*2);
+const result=await runner.runTwoPassExperiment({plan,experiment_id:"offline-fixture",temporary_root:fixtureRoot});
+assert.equal(result.report.status,"final");
+assert.equal(result.report.task_set_digest,canonicalDigest(taskSet));
+assert.equal(result.report.evidence.task_set_digest,canonicalDigest(taskSet));
+assert.equal(result.report.evidence.evidence_scope,"offline-framework");
+assert.equal(result.report.observations.length,taskSet.tasks.length*2);
+const byTask=(id)=>result.report.observations.filter(({task_id})=>task_id===id);
+assert.equal(byTask("offline-pass-note").every(({terminal_state,pass_state})=>terminal_state==="completed"&&pass_state==="passed"),true);
+assert.equal(byTask("offline-verifier-fail").every(({terminal_state,pass_state})=>terminal_state==="verifier_failed"&&pass_state==="failed"),true);
+assert.equal(byTask("offline-missing-tokens").every(({result})=>result&&!Object.hasOwn(result,"usage")),true);
+assert.equal(byTask("offline-no-notes")[0].notes.distillation_outcome,"no_notes");
+assert.equal(byTask("offline-no-notes")[1].notes.distillation_outcome,"no_notes");
+assert.equal(byTask("offline-timeout").every(({terminal_state})=>terminal_state==="timeout"),true);
+assert.equal(byTask("offline-adapter-error").every(({terminal_state})=>terminal_state==="adapter_error"),true);
+assert.equal(byTask("offline-invalid-result").every(({terminal_state})=>terminal_state==="invalid_result"),true);
+assert.equal(byTask("offline-cancellation-control").every(({terminal_state})=>terminal_state==="completed"),true);
+assert.equal(result.snapshots.every((snapshot)=>snapshot.task_id==="offline-pass-note"),true);
+
+const bindingPath=join(taskSetPath,"..","bundled-fake.json");
+const originalTask=readFileSync(taskSetPath);
+const originalBinding=readFileSync(bindingPath);
+function rejected(label,mutate) {
+  try { mutate(); assert.throws(()=>loadEvalPlan(options),undefined,label); }
+  finally { writeFileSync(taskSetPath,originalTask); writeFileSync(bindingPath,originalBinding); }
+}
+rejected("task-set bytes",()=>writeFileSync(taskSetPath,Buffer.concat([originalTask,Buffer.from(" ")])));
+rejected("inline fixture",()=>{const value=JSON.parse(originalTask);value.source.files[0].content+="tamper";writeFileSync(taskSetPath,JSON.stringify(value)+"\n");});
+for (const field of ["identifier","package_version","task_set_digest"]) rejected(field,()=>{const value=JSON.parse(originalBinding);value[field]=field==="task_set_digest"?"0".repeat(64):"tampered";writeFileSync(bindingPath,JSON.stringify(value)+"\n");});
+chmodSync(fixtureRoot,0o700);
+try { chmodSync(join(fixtureRoot,"offline-output","offline-fixture","snapshots"),0o700); } catch {}
+for (const snapshot of result.snapshots) {
+  chmodSync(snapshot.root_path,0o700);
+  for (const entry of snapshot.manifest) chmodSync(join(snapshot.root_path,...entry.path.split("/")),0o600);
+}
+NODE
   echo "PASS: Phase 19 deterministic offline fake population contract"
 }
 
