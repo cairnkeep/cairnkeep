@@ -17,6 +17,30 @@ ok()   { printf '  [PASS] %s\n' "$1"; }
 bad()  { printf '  [FAIL] %s\n' "$1"; fails=$((fails + 1)); }
 check() { if [[ "$2" == "$3" ]]; then ok "$1 ($2)"; else bad "$1 (got '$2', want '$3')"; fi; }
 tree_hash() { find "$1" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1; }
+tree_identity() {
+  node - "$1" <<'NODE'
+const { createHash } = require("crypto")
+const { lstatSync, readdirSync, readFileSync } = require("fs")
+const { join, relative } = require("path")
+
+const root = process.argv[2]
+const entries = []
+const visit = (path) => {
+  const stat = lstatSync(path)
+  const label = relative(root, path) || "."
+  const mode = (stat.mode & 0o777).toString(8).padStart(3, "0")
+  if (stat.isDirectory()) {
+    entries.push(`d\t${mode}\t${label}`)
+    for (const name of readdirSync(path).sort()) visit(join(path, name))
+    return
+  }
+  const digest = createHash("sha256").update(readFileSync(path)).digest("hex")
+  entries.push(`f\t${mode}\t${label}\t${digest}`)
+}
+visit(root)
+process.stdout.write(createHash("sha256").update(`${entries.join("\n")}\n`).digest("hex"))
+NODE
+}
 managed_hook_count() {
   node -e '
 const fs = require("fs")
@@ -92,18 +116,44 @@ printf 'backup bytes\n' >"$SB/home/.cairnkeep/notes/.cairnkeep/transactions/prep
 note_before=$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)
 store_before=$(tree_hash "$SB/home/.cairnkeep")
 PROJECT_DATA="$SB/project-data"
-mkdir -p "$PROJECT_DATA/.ai" "$PROJECT_DATA/.agentfs"
+ADJACENT_PROJECT="$SB/adjacent-project"
+mkdir -p "$PROJECT_DATA/.ai" \
+  "$PROJECT_DATA/.agentfs/eval/experiments/complete/snapshots/task-one" \
+  "$PROJECT_DATA/.agentfs/eval/experiments/partial" \
+  "$ADJACENT_PROJECT/.agentfs/eval/experiments/adjacent"
 printf '%s\n' '{"schema_version":1,"capabilities":{"wiki":false},"logging":{"callbacks":true}}' >"$PROJECT_DATA/.ai/capabilities.json"
 chmod 600 "$PROJECT_DATA/.ai/capabilities.json"
 printf 'operator-owned ai bytes\000must-survive\377\n' >"$PROJECT_DATA/.ai/operator-state.bin"
 printf 'artifact-v1\000durable\377bytes\n' >"$PROJECT_DATA/.agentfs/artifacts.db"
 printf 'session-and-callback-v1\000durable\377bytes\n' >"$PROJECT_DATA/.agentfs/trajectory.db"
 printf 'callback-wal-v1\000durable\377bytes\n' >"$PROJECT_DATA/.agentfs/trajectory.db-wal"
+printf 'unrelated-memory-v1\000durable\377bytes\n' >"$PROJECT_DATA/.agentfs/project.db"
+printf 'complete-report-v1\000private\377bytes\n' >"$PROJECT_DATA/.agentfs/eval/experiments/complete/report.json"
+printf 'partial-report-v1\000private\377bytes\n' >"$PROJECT_DATA/.agentfs/eval/experiments/partial/report.json"
+printf 'note-snapshot-v1\000private\377bytes\n' >"$PROJECT_DATA/.agentfs/eval/experiments/complete/snapshots/task-one/note.md"
+printf 'adjacent-eval-v1\000must-survive\377bytes\n' >"$ADJACENT_PROJECT/.agentfs/eval/experiments/adjacent/report.json"
+chmod 700 "$PROJECT_DATA/.agentfs" "$PROJECT_DATA/.agentfs/eval" \
+  "$PROJECT_DATA/.agentfs/eval/experiments" \
+  "$PROJECT_DATA/.agentfs/eval/experiments/complete" \
+  "$PROJECT_DATA/.agentfs/eval/experiments/complete/snapshots" \
+  "$PROJECT_DATA/.agentfs/eval/experiments/complete/snapshots/task-one" \
+  "$PROJECT_DATA/.agentfs/eval/experiments/partial"
+chmod 600 "$PROJECT_DATA/.agentfs/project.db" \
+  "$PROJECT_DATA/.agentfs/eval/experiments/complete/report.json" \
+  "$PROJECT_DATA/.agentfs/eval/experiments/partial/report.json"
+chmod 400 "$PROJECT_DATA/.agentfs/eval/experiments/complete/snapshots/task-one/note.md"
+chmod 700 "$ADJACENT_PROJECT/.agentfs" "$ADJACENT_PROJECT/.agentfs/eval" \
+  "$ADJACENT_PROJECT/.agentfs/eval/experiments" \
+  "$ADJACENT_PROJECT/.agentfs/eval/experiments/adjacent"
+chmod 600 "$ADJACENT_PROJECT/.agentfs/eval/experiments/adjacent/report.json"
 cp "$PROJECT_DATA/.ai/capabilities.json" "$SB/capabilities.before.json"
 cp "$PROJECT_DATA/.ai/operator-state.bin" "$SB/operator-state.before.bin"
 cp "$PROJECT_DATA/.agentfs/artifacts.db" "$SB/artifacts.before.db"
 cp "$PROJECT_DATA/.agentfs/trajectory.db" "$SB/trajectory.before.db"
 cp "$PROJECT_DATA/.agentfs/trajectory.db-wal" "$SB/trajectory.before.db-wal"
+agentfs_before=$(tree_identity "$PROJECT_DATA/.agentfs")
+eval_before=$(tree_identity "$PROJECT_DATA/.agentfs/eval")
+adjacent_before=$(tree_identity "$ADJACENT_PROJECT/.agentfs")
 
 # Normal and master-off sync are the same inert installation. Replaying an
 # explicit overlay request with the master off must not change any legacy byte,
@@ -160,6 +210,9 @@ check "dry-run makes no bundle" "$(ls -d "$SB/home/.cairnkeep-uninstall-"* 2>/de
 check "dry-run leaves Pi extension" "$([[ -f "$PI_LIVE/extensions/cairnkeep-trajectory.ts" ]] && echo yes || echo no)" "yes"
 check "dry-run leaves settings identical" "$(cmp -s "$SB/settings.before.json" "$LIVE/settings.json" && echo yes || echo no)" "yes"
 check "dry-run leaves artifact bytes exact" "$(cmp -s "$SB/artifacts.before.db" "$PROJECT_DATA/.agentfs/artifacts.db" && echo yes || echo no)" "yes"
+check "dry-run leaves eval tree, bytes, and modes exact" "$(tree_identity "$PROJECT_DATA/.agentfs/eval")" "$eval_before"
+check "dry-run leaves unrelated project memory exact" "$(tree_identity "$PROJECT_DATA/.agentfs")" "$agentfs_before"
+check "dry-run leaves adjacent project exact" "$(tree_identity "$ADJACENT_PROJECT/.agentfs")" "$adjacent_before"
 check "dry-run leaves project state byte-identical" "$(tree_hash "$PROJECT_DATA")" "$project_before"
 
 # --- real uninstall ---------------------------------------------------------
@@ -178,6 +231,9 @@ check "default uninstall leaves normal OpenCode installation exact" "$(diff -qr 
 check "default uninstall keeps unrelated .ai bytes exact" "$(cmp -s "$SB/operator-state.before.bin" "$PROJECT_DATA/.ai/operator-state.bin" && echo yes || echo no)" "yes"
 check "default uninstall keeps callback DB exact" "$(cmp -s "$SB/trajectory.before.db" "$PROJECT_DATA/.agentfs/trajectory.db" && echo yes || echo no)" "yes"
 check "default uninstall keeps callback WAL exact" "$(cmp -s "$SB/trajectory.before.db-wal" "$PROJECT_DATA/.agentfs/trajectory.db-wal" && echo yes || echo no)" "yes"
+check "default uninstall keeps complete and partial eval reports, snapshots, modes, and layout exact" "$(tree_identity "$PROJECT_DATA/.agentfs/eval")" "$eval_before"
+check "default uninstall keeps unrelated project memory exact" "$(tree_identity "$PROJECT_DATA/.agentfs")" "$agentfs_before"
+check "default uninstall leaves adjacent project exact" "$(tree_identity "$ADJACENT_PROJECT/.agentfs")" "$adjacent_before"
 BK=$(ls -d "$SB/home/.cairnkeep-uninstall-"* 2>/dev/null | head -1)
 check "revert.sh generated" "$([[ -n "$BK" && -f "$BK/revert.sh" ]] && echo yes || echo no)" "yes"
 check "capability config backup is exact" "$(cmp -s "$SB/capabilities.before.json" "$BK/files/${PROJECT_DATA#/}/.ai/capabilities.json" && echo yes || echo no)" "yes"
@@ -193,6 +249,7 @@ check "capability hook registrations restored" "$(capability_hook_count "$CLAUDE
 check "capability plugin restored" "$([[ -f "$OPENCODE_OVERLAY/plugins/capability-command.ts" ]] && echo yes || echo no)" "yes"
 check "capability config mode restored" "$(stat -c '%a' "$PROJECT_DATA/.ai/capabilities.json" 2>/dev/null || stat -f '%Lp' "$PROJECT_DATA/.ai/capabilities.json")" "600"
 check "unrelated .ai bytes remain exact after revert" "$(cmp -s "$SB/operator-state.before.bin" "$PROJECT_DATA/.ai/operator-state.bin" && echo yes || echo no)" "yes"
+check "default-uninstall revert leaves retained eval exact" "$(tree_identity "$PROJECT_DATA/.agentfs/eval")" "$eval_before"
 
 # --- project artifact purge is backup-first and exactly reversible ---------
 ARTIFACT_HOME="$SB/artifact-home"
@@ -204,10 +261,16 @@ ARTIFACT_BK=$(ls -dt "$ARTIFACT_HOME/.cairnkeep-uninstall-"* 2>/dev/null | head 
 check "artifact purge backup is exact" "$(cmp -s "$SB/artifacts.before.db" "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs/artifacts.db" && echo yes || echo no)" "yes"
 check "callback purge backup is exact" "$(cmp -s "$SB/trajectory.before.db" "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs/trajectory.db" && echo yes || echo no)" "yes"
 check "callback WAL purge backup is exact" "$(cmp -s "$SB/trajectory.before.db-wal" "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs/trajectory.db-wal" && echo yes || echo no)" "yes"
+check "purge backup contains exact eval tree, bytes, and modes" "$(tree_identity "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs/eval")" "$eval_before"
+check "purge backup contains exact unrelated project memory" "$(tree_identity "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs")" "$agentfs_before"
+check "selected-project purge leaves adjacent project exact" "$(tree_identity "$ADJACENT_PROJECT/.agentfs")" "$adjacent_before"
 HOME="$ARTIFACT_HOME" XDG_CONFIG_HOME="$ARTIFACT_HOME/.config" bash "$ARTIFACT_BK/revert.sh" >/dev/null 2>&1
 check "artifact revert restores exact bytes" "$(cmp -s "$SB/artifacts.before.db" "$PROJECT_DATA/.agentfs/artifacts.db" && echo yes || echo no)" "yes"
 check "callback revert restores exact bytes" "$(cmp -s "$SB/trajectory.before.db" "$PROJECT_DATA/.agentfs/trajectory.db" && echo yes || echo no)" "yes"
 check "callback WAL revert restores exact bytes" "$(cmp -s "$SB/trajectory.before.db-wal" "$PROJECT_DATA/.agentfs/trajectory.db-wal" && echo yes || echo no)" "yes"
+check "purge revert restores exact eval tree, bytes, and modes" "$(tree_identity "$PROJECT_DATA/.agentfs/eval")" "$eval_before"
+check "purge revert restores exact unrelated project memory" "$(tree_identity "$PROJECT_DATA/.agentfs")" "$agentfs_before"
+check "purge revert leaves adjacent project exact" "$(tree_identity "$ADJACENT_PROJECT/.agentfs")" "$adjacent_before"
 
 # --- project scaffold + memory purge round-trip ----------------------------
 PROJ="$SB/proj"; mkdir -p "$PROJ"; git -C "$PROJ" init -q
