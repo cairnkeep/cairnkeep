@@ -147,7 +147,9 @@ git("init", "-q");
 git("config", "user.name", "Evaluation Fixture");
 git("config", "user.email", "evaluation-fixture@example.invalid");
 writeFileSync(join(repo, "source.txt"), "immutable-source\n");
-git("add", "source.txt");
+mkdirSync(join(repo, "fixtures", "nested-task"), { recursive: true });
+writeFileSync(join(repo, "fixtures", "nested-task", "sentinel.txt"), "nested-task-root\n");
+git("add", "source.txt", "fixtures/nested-task/sentinel.txt");
 git("commit", "-qm", "fixture");
 const revision = git("rev-parse", "HEAD");
 const invocationLog = join(fixtureRoot, "invocations.log");
@@ -234,6 +236,101 @@ assert.equal(success.notes.note_snapshot_manifest.length>0,true);
 assert.equal((statSync(result.snapshots[0].root_path).mode&0o222),0,"snapshot root remained writable");
 assert.equal(await runner.verifyNoteSnapshot(result.snapshots[0]),true);
 assert.equal(readdirSync(fixtureRoot).some((name)=>name.startsWith("cairn-eval-workspace-")),false,"workspace survived completed run");
+
+const productionAdapterScript = join(fixtureRoot, "production-note-adapter.mjs");
+const productionRequestLog = join(fixtureRoot, "production-note-requests.log");
+writeFileSync(productionAdapterScript, `
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+const chunks=[]; for await (const chunk of process.stdin) chunks.push(chunk);
+const request=JSON.parse(Buffer.concat(chunks).toString("utf8"));
+const taskRoot=resolve(process.cwd(),request.workspace_path);
+const trajectoryRoot=request.task_id==="nested-misplaced" ? resolve(process.cwd(),"source") : taskRoot;
+const sessionId=request.arm+"-r"+request.repetition+"-"+request.pass+"-"+request.task_id;
+appendFileSync(process.env.EVAL_PRODUCTION_REQUEST_LOG,JSON.stringify({task_id:request.task_id,pass:request.pass,workspace_path:request.workspace_path})+"\\n");
+writeFileSync(join(taskRoot,"answer.txt"),"ok\\n");
+const agentfs=join(trajectoryRoot,".agentfs");
+mkdirSync(agentfs,{recursive:true,mode:0o700});
+const database=new DatabaseSync(join(agentfs,"trajectory.db"));
+database.exec("CREATE TABLE kv_store (key TEXT PRIMARY KEY, value TEXT NOT NULL, created_at INTEGER DEFAULT (unixepoch ()), updated_at INTEGER DEFAULT (unixepoch ()))");
+const startedAt="2026-01-01T00:00:00.000Z";
+const endedAt="2026-01-01T00:00:01.000Z";
+const events=[
+  {sequence:0,kind:"tool_invocation",payload:{call_id:"fixture-call",tool_name:"fixture-check",input:{task:request.task_id}}},
+  {sequence:1,kind:"tool_result",payload:{call_id:"fixture-call",is_error:true,error:"Deterministic fixture failure"}},
+];
+const session={schema_version:1,session_id:sessionId,harness:"pi",project_root:trajectoryRoot,started_at:startedAt,ended_at:endedAt,events,capture:{captured_at:endedAt,omitted_reasoning_blocks:0,omitted_unknown_records:0,truncated:false}};
+const index={schema_version:1,session_id:sessionId,harness:"pi",started_at:startedAt,ended_at:endedAt,event_count:events.length,logical_bytes:Buffer.byteLength(JSON.stringify(session)),full_key:"trajectory/session/"+sessionId};
+const insert=database.prepare("INSERT INTO kv_store(key,value) VALUES(?,?)");
+insert.run("trajectory/meta/schema-version","1");
+insert.run("trajectory/session/"+sessionId,JSON.stringify(session));
+insert.run("trajectory/index/"+String(Date.parse(endedAt)).padStart(16,"0")+"/"+sessionId,JSON.stringify(index));
+database.close();
+process.stdout.write(JSON.stringify({schema_version:1,status:"completed",turns:{value:1,semantics:"fixture-turn"},usage:{total_tokens:10},adapter:{id:"fixture-adapter"},observed_capability_digest:request.expected_capability_digest,trajectory_ref:sessionId}));
+`);
+
+const productionTasks = [
+  { id: "root-production", input: "root", workspace: { path: "." } },
+  { id: "nested-production", input: "nested", workspace: { path: "fixtures/nested-task" } },
+  { id: "nested-misplaced", input: "misplaced", workspace: { path: "fixtures/nested-task" } },
+].map((task) => ({
+  ...task,
+  prepare: { program: process.execPath, args: ["-e", "process.exit(0)"] },
+  verify: { program: process.execPath, args: ["-e", "process.exit(require('node:fs').existsSync('answer.txt')?0:9)"] },
+  limits: { elapsed_ms: 2_000, stdout_bytes: 16_384 },
+}));
+function makeProductionPlan() {
+  const taskSet={schema_version:1,id:"production-note-fixture",source:{kind:"git",repository:".",revision},tasks:productionTasks};
+  const schedule=buildEvalSchedule({taskSet,arms:[{id:"baseline",disabled_capability:null}],repetitions:1,passes:["run1","run2"],seed:"production-note-seed"});
+  return {
+    schema_version:1, task_set:taskSet,
+    adapter_config:{schema_version:1,id:"fixture-adapter",command:{program:process.execPath,args:[productionAdapterScript]},turn_semantics:{id:"fixture-turn",description:"One deterministic fake turn."}},
+    task_set_path:join(repo,"production-note-task-set.json"), adapter_path:productionAdapterScript, output_root:join(fixtureRoot,"production-note-output"),
+    source:{kind:"git",repository_root:repo,revision}, repetitions:1, seed:"production-note-seed",
+    arms:[{id:"baseline",disabled_capability:null}], passes:["run1","run2"], concurrency:1,
+    invocation_count:schedule.invocation_count, task_set_commit:revision, task_set_digest:"4".repeat(64),
+    adapter_config_digest:"5".repeat(64), schedule_digest:schedule.digest, plan_digest:"6".repeat(64), schedule:schedule.rows,
+    resolved_programs:{adapter:process.execPath,prepare:productionTasks.map(()=>process.execPath),verify:productionTasks.map(()=>process.execPath)},
+  };
+}
+process.env.EVAL_PRODUCTION_REQUEST_LOG=productionRequestLog;
+const productionPlan=makeProductionPlan();
+const productionStore=await reports.createEvalReportStore({root:join(fixtureRoot,"reports"),experiment_id:"production-note-fixture"});
+const productionResult=await runner.runTwoPassExperiment({plan:productionPlan,report_store:productionStore,temporary_root:fixtureRoot});
+assert.equal(productionResult.report.status,"final");
+const observation=(taskId,pass)=>productionResult.report.observations.find((item)=>item.task_id===taskId&&item.pass===pass);
+const rootRun1=observation("root-production","run1");
+const rootRun2=observation("root-production","run2");
+assert.equal(rootRun1.notes.distillation_outcome,"success","root workspace trajectory must remain compatible");
+assert.equal(rootRun2.notes.notes_exposed,true,"root workspace snapshot must reach Run 2");
+const nestedRun1=observation("nested-production","run1");
+const nestedRun2=observation("nested-production","run2");
+assert.equal(nestedRun1.notes.distillation_outcome,"success","nested workspace trajectory must distill from the admitted task root");
+assert.equal(nestedRun1.notes.note_snapshot_digest!==null,true);
+assert.equal(nestedRun2.notes.notes_exposed,true);
+assert.equal(nestedRun2.notes.note_snapshot_digest,nestedRun1.notes.note_snapshot_digest);
+const misplacedRun1=observation("nested-misplaced","run1");
+const misplacedRun2=observation("nested-misplaced","run2");
+assert.equal(misplacedRun1.terminal_state,"completed");
+assert.equal(misplacedRun1.pass_state,"passed");
+assert.equal(misplacedRun1.notes.distillation_outcome,"failed");
+assert.equal(misplacedRun1.notes.eligibility_reason,"distillation_failed");
+assert.equal(misplacedRun1.notes.note_snapshot_digest,null);
+assert.equal(misplacedRun1.missing_reasons.includes("notes_failed"),true);
+assert.equal(misplacedRun2.notes.notes_exposed,false);
+assert.equal(productionResult.snapshots.length,2);
+for (const snapshot of productionResult.snapshots) {
+  assert.equal((statSync(snapshot.root_path).mode&0o222),0,"production snapshot root remained writable");
+  assert.equal(await runner.verifyNoteSnapshot(snapshot),true);
+}
+const productionRequests=readFileSync(productionRequestLog,"utf8").trim().split("\n").map((line)=>JSON.parse(line));
+assert.deepEqual(productionRequests.filter(({pass})=>pass==="run1").map(({task_id,workspace_path})=>[task_id,workspace_path]),[
+  ["root-production","source"],
+  ["nested-production","source/fixtures/nested-task"],
+  ["nested-misplaced","source/fixtures/nested-task"],
+]);
+assert.equal(readdirSync(fixtureRoot).some((name)=>name.startsWith("cairn-eval-workspace-")),false,"workspace survived production note run");
 
 const cancelTask={...tasks[0],id:"task-cancel",input:"cancel"};
 const cancelPlan=makePlan([cancelTask]);
