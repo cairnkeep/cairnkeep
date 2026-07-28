@@ -347,4 +347,107 @@ fi
 cmp -s "$tmp/callback-corrupt.before" "$callback_corrupt/.agentfs/trajectory.db" ||
   fail "callback diagnostics mutated a corrupt database"
 
-echo "PASS: cairn doctor (existing probes plus value-free capability config/callback diagnostics)"
+# 7. Evaluation diagnostics consume only the private two-key envelope, map all
+# five report states, and collapse malformed CLI output without reflection.
+create_eval_report_fixture() {
+  local project="$1"
+  local state="$2"
+  mkdir -p "$project"
+  node --input-type=module - "$ROOT" "$project" "$state" <<'NODE'
+import { chmod, symlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
+const root = process.argv[2];
+const project = process.argv[3];
+const state = process.argv[4];
+const reportApi = await import(`${root}/mcp-memory-server/dist/eval-report.js`);
+const store = await reportApi.createEvalReportStore({ project_root: project, experiment_id: "fixture-experiment" });
+if (state === "unsafe") {
+  const target = join(project, "environment-sentinel");
+  await writeFile(target, "environment-sentinel\n", { mode: 0o600 });
+  await symlink(target, store.report_path);
+  process.exit(0);
+}
+if (state === "tampered") {
+  await writeFile(store.report_path, '{"adapter-stderr":"adapter-stderr-sentinel"}\n', { mode: 0o600 });
+  await chmod(store.report_path, 0o600);
+  process.exit(0);
+}
+const report = {
+  schema_version: 1,
+  experiment_id: store.experiment_id,
+  status: state === "partial" ? "partial" : "final",
+  experiment_kind: "two_pass",
+  task_set_digest: "0".repeat(64), adapter_config_digest: "1".repeat(64),
+  source_revision: "2".repeat(40), schedule_digest: "3".repeat(64),
+  created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:01.000Z",
+  runtime: { platform: "linux", arch: "x64", node: "22.0.0", cairnkeep: "0.0.0" },
+  schedule: [], observations: [], aggregates: [],
+  missingness: { digest: "4".repeat(64), count: 0, reasons: [] }, warnings: [],
+  evidence: {
+    schema_version: 1, evidence_scope: "offline-framework", source_commit: "2".repeat(40),
+    package_version: "0.0.0", runtime_id: "node-22-linux-x64", task_set_digest: "0".repeat(64),
+    report_digest: "5".repeat(64), schema_digests: ["6".repeat(64)], note_snapshot_digests: [],
+    missingness_digest: "4".repeat(64), claim_anchors: [],
+  },
+};
+await reportApi.checkpointEvalReport(store, report);
+NODE
+}
+
+for state in ok partial tampered unsafe; do
+  eval_project="$tmp/eval-$state"
+  create_eval_report_fixture "$eval_project" "$state"
+  ( cd "$eval_project" && env -u CAIRN_EVAL "$doctor" ) >"$tmp/eval-$state.out" 2>"$tmp/eval-$state.err" ||
+    fail "doctor rejected value-free evaluation state $state"
+done
+grep -q "\[PASS\] evaluation reports are complete and valid" "$tmp/eval-ok.out" ||
+  fail "expected complete evaluation report PASS"
+grep -q "\[WARN\] evaluation reports are partial" "$tmp/eval-partial.out" ||
+  fail "expected partial evaluation report warning"
+grep -q "\[WARN\] evaluation report integrity check failed" "$tmp/eval-tampered.out" ||
+  fail "expected tampered evaluation report warning"
+grep -q "\[WARN\] evaluation report storage is unsafe" "$tmp/eval-unsafe.out" ||
+  fail "expected unsafe evaluation report warning"
+grep -q "\[SKIP\] evaluation reports (not present — evaluation is opt-in)" "$tmp/out1" ||
+  fail "expected disabled/absent evaluation report health result"
+
+real_node=$(command -v node)
+mkdir -p "$tmp/eval-node-shim"
+cat >"$tmp/eval-node-shim/node" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == */eval-cli.js && "${2:-}" == doctor-diagnosis ]]; then
+  printf '%s\n' "$CAIRN_TEST_EVAL_OUTPUT"
+  [[ -z "${CAIRN_TEST_EVAL_STDERR:-}" ]] || printf '%s\n' "$CAIRN_TEST_EVAL_STDERR" >&2
+  exit "${CAIRN_TEST_EVAL_EXIT:-0}"
+fi
+exec "$CAIRN_TEST_REAL_NODE" "$@"
+EOF
+chmod 755 "$tmp/eval-node-shim/node"
+
+oversized=$(printf '%01024d' 0)
+for malformed_output in \
+  '{"schema_version":1,"diagnosis":"unknown"}' \
+  '{"schema_version":1,"diagnosis":"ok","prompt":"prompt-sentinel"}' \
+  "$oversized"; do
+  ( cd "$proj" && PATH="$tmp/eval-node-shim:$PATH" CAIRN_TEST_REAL_NODE="$real_node" \
+      CAIRN_TEST_EVAL_OUTPUT="$malformed_output" "$doctor" ) >"$tmp/eval-malformed.out" 2>"$tmp/eval-malformed.err" ||
+    fail "doctor treated malformed private diagnosis output as a configured dependency failure"
+  grep -q "\[WARN\] evaluation report storage is unsafe" "$tmp/eval-malformed.out" ||
+    fail "malformed private diagnosis output did not fail closed"
+done
+
+( cd "$proj" && PATH="$tmp/eval-node-shim:$PATH" CAIRN_TEST_REAL_NODE="$real_node" \
+    CAIRN_TEST_EVAL_OUTPUT='' CAIRN_TEST_EVAL_STDERR='model-output-sentinel' CAIRN_TEST_EVAL_EXIT=9 "$doctor" ) \
+    >"$tmp/eval-error.out" 2>"$tmp/eval-error.err" ||
+  fail "doctor treated private diagnosis execution failure as a configured dependency failure"
+grep -q "\[WARN\] evaluation report storage is unsafe" "$tmp/eval-error.out" ||
+  fail "private diagnosis execution failure did not fail closed"
+
+for sentinel in prompt-sentinel model-output-sentinel adapter-stderr-sentinel environment-sentinel; do
+  if grep -F "$sentinel" "$tmp"/eval-*.out "$tmp"/eval-*.err >/dev/null; then
+    fail "evaluation doctor exposed $sentinel"
+  fi
+done
+
+echo "PASS: cairn doctor (existing probes plus value-free capability/evaluation diagnostics)"
