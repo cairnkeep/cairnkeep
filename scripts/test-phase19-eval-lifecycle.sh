@@ -170,9 +170,9 @@ writeFileSync(join(source,"source-leak"),request.observation_id??request.task_id
 writeFileSync(join(source,"answer.txt"),"ok\\n");
 writeFileSync(join(process.env.HOME,"home-leak"),"sentinel");
 writeFileSync(join(process.cwd(),request.output_path,"output-leak"),"sentinel");
-if (request.task_id==="task-cancel") await new Promise(()=>{});
+if (request.task_id==="task-cancel") await new Promise((resolve)=>setTimeout(resolve,60_000));
 const result={schema_version:1,status:"completed",turns:{value:1,semantics:"fixture-turn"},usage:{total_tokens:10},adapter:{id:"fixture-adapter"},observed_capability_digest:request.expected_capability_digest};
-if (request.task_id!=="task-skipped") result.trajectory_ref=request.observation_id;
+if (request.task_id!=="task-skipped") result.trajectory_ref=request.arm+"-r"+request.repetition+"-"+request.pass+"-"+request.task_id;
 process.stdout.write(JSON.stringify(result));
 `);
 writeFileSync(distillerScript, `
@@ -246,6 +246,7 @@ assert.deepEqual(cancelled.report.observations.map(({terminal_state})=>terminal_
 assert.equal(cancelled.report.observations[0].process.cleanup!=="pending",true);
 assert.equal(readdirSync(fixtureRoot).some((name)=>name.startsWith("cairn-eval-workspace-")),false,"workspace survived cancellation");
 assert.equal(existsSync(cancelStore.report_path),true);
+execFileSync("chmod",["-R","u+w",fixtureRoot]);
 NODE
   echo "PASS: Phase 19 same-task two-pass and immutable note-snapshot contract"
 }
