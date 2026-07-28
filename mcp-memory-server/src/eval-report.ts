@@ -15,6 +15,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import {
     canonicalDigest,
     canonicalJson,
+    evalAggregateSchema,
     evalReportSchema,
     type EvalAggregate,
     type EvalObservation,
@@ -303,8 +304,9 @@ export async function diagnoseEvalReport(store: EvalReportStore): Promise<EvalRe
 
 type MetricId = "turns" | "total_tokens" | "pass_rate";
 type Condition = { arm: "baseline" | "treatment"; pass: "run1" | "run2" };
+type ComparisonId = "memory-baseline" | "memory-treatment" | "endpoint-treatment-minus-baseline";
 type Comparison = {
-    id: string;
+    id: ComparisonId;
     direction: string;
     reference: Condition;
     comparison: Condition;
@@ -438,6 +440,73 @@ function semanticsForRows(rows: PairedRow[], report: EvalReport, metric: MetricI
     return semantics.size === 1 ? [...semantics][0]! : null;
 }
 
+function comparisonConditions(comparisonId: EvalAggregate["comparison_id"]): Condition[] {
+    if (comparisonId === "memory-baseline") {
+        return [{ arm: "baseline", pass: "run1" }, { arm: "baseline", pass: "run2" }];
+    }
+    if (comparisonId === "memory-treatment") {
+        return [{ arm: "treatment", pass: "run1" }, { arm: "treatment", pass: "run2" }];
+    }
+    if (comparisonId === "endpoint-treatment-minus-baseline") {
+        return [{ arm: "baseline", pass: "run2" }, { arm: "treatment", pass: "run2" }];
+    }
+    return [
+        { arm: "baseline", pass: "run1" },
+        { arm: "baseline", pass: "run2" },
+        { arm: "treatment", pass: "run1" },
+        { arm: "treatment", pass: "run2" },
+    ];
+}
+
+function buildConditionLevels(
+    report: EvalReport,
+    observations: Map<string, EvalObservation>,
+    comparisonId: EvalAggregate["comparison_id"],
+    metric: MetricId,
+    semantics: string | null,
+) {
+    const taskIds = relevantTaskIds(report);
+    return comparisonConditions(comparisonId).map((condition) => {
+        const taskValues: Array<{ taskId: string; value: number }> = [];
+        const missingReasons: string[] = [];
+        let executed = 0;
+        let eligible = 0;
+        for (const taskId of taskIds) {
+            const rows = relevantRepetitions(report, taskId)
+                .map((repetition) => observations.get(conditionKey(taskId, repetition, condition)));
+            if (rows.some((row) => row?.state === "terminal")) executed += 1;
+            if (rows.some((row) => row?.state === "terminal" && row.capability_status === "valid")) eligible += 1;
+            const values = rows.flatMap((row) => {
+                const value = metricValue(row, metric);
+                if (value === null) return [];
+                if (metric === "turns" && (semantics === null || row?.result?.turns?.semantics !== semantics)) return [];
+                return [value];
+            });
+            if (values.length > 0) {
+                taskValues.push({ taskId, value: values.reduce((sum, value) => sum + value, 0) / values.length });
+            } else {
+                const reason = rows.length === 0
+                    ? "observation_missing"
+                    : metric === "turns" && rows.some((row) => row?.result?.turns)
+                        ? "turn_semantics_mismatch"
+                        : missingReason(rows.find((row) => row !== undefined), metric);
+                missingReasons.push(reason);
+            }
+        }
+        return {
+            arm: condition.arm,
+            pass: condition.pass,
+            value: taskValues.length === 0
+                ? null
+                : taskValues.reduce((sum, row) => sum + row.value, 0) / taskValues.length,
+            valid_task_ids: taskValues.map(({ taskId }) => taskId),
+            valid_task_count: taskValues.length,
+            population: { full: taskIds.length, executed, eligible },
+            missing: { count: taskIds.length - taskValues.length, reasons: [...new Set(missingReasons)].sort() },
+        };
+    });
+}
+
 function asAggregate(
     report: EvalReport,
     comparison: Comparison,
@@ -446,11 +515,12 @@ function asAggregate(
     estimate: PairedEstimate,
     observations: Map<string, EvalObservation>,
 ): EvalAggregate {
-    return {
+    const semantics = semanticsForRows(rows, report, metric);
+    return evalAggregateSchema.parse({
         comparison_id: comparison.id,
         metric_id: metric,
         direction: comparison.direction,
-        semantics: semanticsForRows(rows, report, metric),
+        semantics,
         currency: null,
         estimate: estimate.estimate,
         within_arm: {
@@ -473,9 +543,10 @@ function asAggregate(
         warnings: estimate.warnings,
         valid_task_ids: estimate.valid_task_ids,
         valid_pair_count: estimate.valid_pair_count,
+        condition_levels: buildConditionLevels(report, observations, comparison.id, metric, semantics),
         population: comparisonPopulation(report, observations, comparison.reference, comparison.comparison, estimate.valid_pair_count),
         missing: { count: estimate.missing.count, reasons: estimate.missing.reasons.map(({ reason }) => reason) },
-    };
+    });
 }
 
 export function buildEvalAggregates(value: EvalReport): EvalAggregateSet {
@@ -531,11 +602,12 @@ export function buildEvalAggregates(value: EvalReport): EvalAggregateSet {
             });
             const population = comparisonPopulation(report, observationMap,
                 { arm: "baseline", pass: "run1" }, { arm: "treatment", pass: "run2" }, estimate.valid_pair_count);
-            aggregates.push({
+            const semantics = semanticsForRows([...baseline, ...treatment], report, metric);
+            aggregates.push(evalAggregateSchema.parse({
                 comparison_id: "difference-in-differences",
                 metric_id: metric,
                 direction: "treatment-run2-minus-run1-minus-baseline-run2-minus-run1",
-                semantics: semanticsForRows([...baseline, ...treatment], report, metric), currency: null,
+                semantics, currency: null,
                 estimate: estimate.estimate, within_arm: { baseline: null, treatment: null }, endpoint_delta: null,
                 difference_in_differences: estimate.estimate,
                 uncertainty: {
@@ -544,9 +616,17 @@ export function buildEvalAggregates(value: EvalReport): EvalAggregateSet {
                     interval: estimate.interval, null_reason: estimate.null_reason,
                 },
                 warnings: estimate.warnings, valid_task_ids: estimate.valid_task_ids,
-                valid_pair_count: estimate.valid_pair_count, population,
+                valid_pair_count: estimate.valid_pair_count,
+                condition_levels: buildConditionLevels(
+                    report,
+                    observationMap,
+                    "difference-in-differences",
+                    metric,
+                    semantics,
+                ),
+                population,
                 missing: { count: estimate.missing.count, reasons: estimate.missing.reasons.map(({ reason }) => reason) },
-            });
+            }));
         }
     }
     return aggregates;
@@ -593,6 +673,9 @@ export function renderEvalReport(value: EvalReport): string {
     for (const aggregate of report.aggregates) {
         const interval = aggregate.uncertainty.interval;
         lines.push(`${aggregate.comparison_id} / ${aggregate.metric_id}`);
+        for (const level of aggregate.condition_levels) {
+            lines.push(`  condition=${level.arm}/${level.pass} value=${displayNumber(level.value)} valid=${level.valid_task_count} tasks=${level.valid_task_ids.length > 0 ? level.valid_task_ids.join(",") : "none"} full=${level.population.full} executed=${level.population.executed} eligible=${level.population.eligible} missing=${level.missing.count} reasons=${level.missing.reasons.length > 0 ? level.missing.reasons.join(",") : "none"}`);
+        }
         lines.push(`  estimate=${displayNumber(aggregate.estimate)} interval=${interval ? `[${displayNumber(interval.low)}, ${displayNumber(interval.high)}]` : `none (${aggregate.uncertainty.null_reason ?? "unavailable"})`} conclusion=${conclusion(aggregate)}`);
         lines.push(`  full=${aggregate.population.full} executed=${aggregate.population.executed} eligible=${aggregate.population.eligible} paired=${aggregate.valid_pair_count} note-eligible=${aggregate.population.note_eligible}`);
         lines.push(`  missing=${aggregate.missing.count} reasons=${aggregate.missing.reasons.length > 0 ? aggregate.missing.reasons.join(",") : "none"}`);

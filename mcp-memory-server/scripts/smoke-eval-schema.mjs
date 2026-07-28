@@ -135,7 +135,7 @@ const observation = {
 };
 
 const aggregate = {
-    comparison_id: "memory-run2-minus-run1",
+    comparison_id: "memory-baseline",
     metric_id: "total_tokens",
     direction: "run2-minus-run1",
     semantics: null,
@@ -243,7 +243,39 @@ function assertStrict(schema, value, forbiddenKey = "unexpected_phase19_field") 
 
 function loadPublished(name) {
     const value = JSON.parse(readFileSync(join(projectRoot, "schemas", name), "utf8"));
-    return { value, schema: z.fromJSONSchema(value) };
+    const executable = structuredClone(value);
+    // z.fromJSONSchema does not compose object-level oneOf constraints with
+    // sibling properties. Preserve the published comparison/condition
+    // correlation explicitly in this executable parity adapter.
+    if (name === "eval-report.schema.json") delete executable.$defs.aggregate.oneOf;
+    let schema = z.fromJSONSchema(executable);
+    if (name === "eval-report.schema.json") {
+        const conditionKeys = ["arm", "missing", "pass", "population", "valid_task_count", "valid_task_ids", "value"];
+        schema = z.any().superRefine((report, context) => {
+            for (const [aggregateIndex, aggregate] of (report?.aggregates ?? []).entries()) {
+                for (const [levelIndex, level] of (aggregate?.condition_levels ?? []).entries()) {
+                    if (JSON.stringify(Object.keys(level).sort()) !== JSON.stringify(conditionKeys)) {
+                        context.addIssue({ code: "custom", path: ["aggregates", aggregateIndex, "condition_levels", levelIndex], message: "unknown condition-level field" });
+                    }
+                }
+            }
+        }).pipe(schema);
+        const expected = {
+            "memory-baseline": ["baseline/run1", "baseline/run2"],
+            "memory-treatment": ["treatment/run1", "treatment/run2"],
+            "endpoint-treatment-minus-baseline": ["baseline/run2", "treatment/run2"],
+            "difference-in-differences": ["baseline/run1", "baseline/run2", "treatment/run1", "treatment/run2"],
+        };
+        schema = schema.superRefine((report, context) => {
+            for (const [index, aggregate] of (report?.aggregates ?? []).entries()) {
+                const actual = aggregate.condition_levels.map(({ arm, pass }) => `${arm}/${pass}`);
+                if (JSON.stringify(actual) !== JSON.stringify(expected[aggregate.comparison_id])) {
+                    context.addIssue({ code: "custom", path: ["aggregates", index, "condition_levels"], message: "noncanonical condition levels" });
+                }
+            }
+        });
+    }
+    return { value, schema };
 }
 
 function assertPublishedStrict(schema, value, forbiddenKey = "unexpected_phase19_field") {

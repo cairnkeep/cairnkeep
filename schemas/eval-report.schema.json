@@ -241,6 +241,75 @@
         "reasons": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/code" } }
       }
     },
+    "conditionPopulation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["full", "executed", "eligible"],
+      "properties": {
+        "full": { "$ref": "#/$defs/nonnegativeInteger" },
+        "executed": { "$ref": "#/$defs/nonnegativeInteger" },
+        "eligible": { "$ref": "#/$defs/nonnegativeInteger" }
+      }
+    },
+    "conditionLevel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["arm", "pass", "value", "valid_task_ids", "valid_task_count", "population", "missing"],
+      "properties": {
+        "arm": { "enum": ["baseline", "treatment"] },
+        "pass": { "enum": ["run1", "run2"] },
+        "value": { "$ref": "#/$defs/nullableNumber" },
+        "valid_task_ids": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/identifier" } },
+        "valid_task_count": { "$ref": "#/$defs/nonnegativeInteger" },
+        "population": { "$ref": "#/$defs/conditionPopulation" },
+        "missing": { "$ref": "#/$defs/missing" }
+      }
+    },
+    "baselineRun1Level": {
+      "allOf": [
+        { "$ref": "#/$defs/conditionLevel" },
+        { "type": "object", "properties": { "arm": { "const": "baseline" }, "pass": { "const": "run1" } } }
+      ]
+    },
+    "baselineRun2Level": {
+      "allOf": [
+        { "$ref": "#/$defs/conditionLevel" },
+        { "type": "object", "properties": { "arm": { "const": "baseline" }, "pass": { "const": "run2" } } }
+      ]
+    },
+    "treatmentRun1Level": {
+      "allOf": [
+        { "$ref": "#/$defs/conditionLevel" },
+        { "type": "object", "properties": { "arm": { "const": "treatment" }, "pass": { "const": "run1" } } }
+      ]
+    },
+    "treatmentRun2Level": {
+      "allOf": [
+        { "$ref": "#/$defs/conditionLevel" },
+        { "type": "object", "properties": { "arm": { "const": "treatment" }, "pass": { "const": "run2" } } }
+      ]
+    },
+    "baselineMemoryLevels": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "prefixItems": [{ "$ref": "#/$defs/baselineRun1Level" }, { "$ref": "#/$defs/baselineRun2Level" }]
+    },
+    "treatmentMemoryLevels": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "prefixItems": [{ "$ref": "#/$defs/treatmentRun1Level" }, { "$ref": "#/$defs/treatmentRun2Level" }]
+    },
+    "endpointLevels": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "prefixItems": [{ "$ref": "#/$defs/baselineRun2Level" }, { "$ref": "#/$defs/treatmentRun2Level" }]
+    },
+    "differenceInDifferencesLevels": {
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "prefixItems": [
+        { "$ref": "#/$defs/baselineRun1Level" },
+        { "$ref": "#/$defs/baselineRun2Level" },
+        { "$ref": "#/$defs/treatmentRun1Level" },
+        { "$ref": "#/$defs/treatmentRun2Level" }
+      ]
+    },
     "uncertainty": {
       "type": "object",
       "additionalProperties": false,
@@ -270,9 +339,9 @@
     "aggregate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["comparison_id", "metric_id", "direction", "semantics", "currency", "estimate", "within_arm", "endpoint_delta", "difference_in_differences", "uncertainty", "warnings", "valid_task_ids", "valid_pair_count", "population", "missing"],
+      "required": ["comparison_id", "metric_id", "direction", "semantics", "currency", "estimate", "within_arm", "endpoint_delta", "difference_in_differences", "uncertainty", "warnings", "valid_task_ids", "valid_pair_count", "condition_levels", "population", "missing"],
       "properties": {
-        "comparison_id": { "$ref": "#/$defs/identifier" },
+        "comparison_id": { "enum": ["memory-baseline", "memory-treatment", "endpoint-treatment-minus-baseline", "difference-in-differences"] },
         "metric_id": { "$ref": "#/$defs/identifier" },
         "direction": { "$ref": "#/$defs/identifier" },
         "semantics": { "oneOf": [{ "$ref": "#/$defs/identifier" }, { "type": "null" }] },
@@ -293,9 +362,23 @@
         "warnings": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/code" } },
         "valid_task_ids": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/identifier" } },
         "valid_pair_count": { "$ref": "#/$defs/nonnegativeInteger" },
+        "condition_levels": {
+          "oneOf": [
+            { "$ref": "#/$defs/baselineMemoryLevels" },
+            { "$ref": "#/$defs/treatmentMemoryLevels" },
+            { "$ref": "#/$defs/endpointLevels" },
+            { "$ref": "#/$defs/differenceInDifferencesLevels" }
+          ]
+        },
         "population": { "$ref": "#/$defs/population" },
         "missing": { "$ref": "#/$defs/missing" }
-      }
+      },
+      "oneOf": [
+        { "required": ["comparison_id", "condition_levels"], "properties": { "comparison_id": { "const": "memory-baseline" }, "condition_levels": { "$ref": "#/$defs/baselineMemoryLevels" } } },
+        { "required": ["comparison_id", "condition_levels"], "properties": { "comparison_id": { "const": "memory-treatment" }, "condition_levels": { "$ref": "#/$defs/treatmentMemoryLevels" } } },
+        { "required": ["comparison_id", "condition_levels"], "properties": { "comparison_id": { "const": "endpoint-treatment-minus-baseline" }, "condition_levels": { "$ref": "#/$defs/endpointLevels" } } },
+        { "required": ["comparison_id", "condition_levels"], "properties": { "comparison_id": { "const": "difference-in-differences" }, "condition_levels": { "$ref": "#/$defs/differenceInDifferencesLevels" } } }
+      ]
     },
     "reportMissingness": {
       "type": "object",

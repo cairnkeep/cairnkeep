@@ -248,8 +248,25 @@ const missingnessSummarySchema = z.strictObject({
     reasons: z.array(valueFreeCodeSchema).max(256),
 });
 
-export const evalAggregateSchema = z.strictObject({
-    comparison_id: identifierSchema,
+const conditionPopulationSchema = z.strictObject({
+    full: nonnegativeIntegerSchema,
+    executed: nonnegativeIntegerSchema,
+    eligible: nonnegativeIntegerSchema,
+});
+
+function conditionLevelSchema(arm: "baseline" | "treatment", pass: "run1" | "run2") {
+    return z.strictObject({
+        arm: z.literal(arm),
+        pass: z.literal(pass),
+        value: nullableMetricSchema,
+        valid_task_ids: z.array(identifierSchema).max(MAX_TASKS),
+        valid_task_count: nonnegativeIntegerSchema,
+        population: conditionPopulationSchema,
+        missing: missingnessSummarySchema,
+    });
+}
+
+const aggregateCommonShape = {
     metric_id: identifierSchema,
     direction: identifierSchema,
     semantics: identifierSchema.nullable(),
@@ -274,7 +291,40 @@ export const evalAggregateSchema = z.strictObject({
     valid_pair_count: nonnegativeIntegerSchema,
     population: populationSchema,
     missing: missingnessSummarySchema,
-});
+};
+
+const baselineRun1LevelSchema = conditionLevelSchema("baseline", "run1");
+const baselineRun2LevelSchema = conditionLevelSchema("baseline", "run2");
+const treatmentRun1LevelSchema = conditionLevelSchema("treatment", "run1");
+const treatmentRun2LevelSchema = conditionLevelSchema("treatment", "run2");
+
+export const evalAggregateSchema = z.discriminatedUnion("comparison_id", [
+    z.strictObject({
+        comparison_id: z.literal("memory-baseline"),
+        ...aggregateCommonShape,
+        condition_levels: z.tuple([baselineRun1LevelSchema, baselineRun2LevelSchema]),
+    }),
+    z.strictObject({
+        comparison_id: z.literal("memory-treatment"),
+        ...aggregateCommonShape,
+        condition_levels: z.tuple([treatmentRun1LevelSchema, treatmentRun2LevelSchema]),
+    }),
+    z.strictObject({
+        comparison_id: z.literal("endpoint-treatment-minus-baseline"),
+        ...aggregateCommonShape,
+        condition_levels: z.tuple([baselineRun2LevelSchema, treatmentRun2LevelSchema]),
+    }),
+    z.strictObject({
+        comparison_id: z.literal("difference-in-differences"),
+        ...aggregateCommonShape,
+        condition_levels: z.tuple([
+            baselineRun1LevelSchema,
+            baselineRun2LevelSchema,
+            treatmentRun1LevelSchema,
+            treatmentRun2LevelSchema,
+        ]),
+    }),
+]);
 
 const scheduleRowSchema = z.strictObject({
     observation_id: identifierSchema,
