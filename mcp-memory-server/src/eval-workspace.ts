@@ -1,9 +1,10 @@
-import { existsSync } from "node:fs";
+import { constants, existsSync } from "node:fs";
 import {
     chmod,
     lstat,
     mkdir,
     mkdtemp,
+    open,
     readFile,
     realpath,
     writeFile,
@@ -129,17 +130,26 @@ async function validateBundledBinding(plan: EvalPlan): Promise<void> {
         throw new Error("bundled_source_mismatch");
     }
     if (canonicalDigest(plan.task_set) !== plan.task_set_digest) throw new Error("task_set_digest_mismatch");
-    const info = await lstat(plan.source.binding_path);
-    if (info.isSymbolicLink() || !info.isFile() || info.size > BINDING_LIMIT) throw new Error("unsafe_bundled_binding");
+    let handle;
     let binding: unknown;
     try {
-        binding = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(await readFile(plan.source.binding_path)));
+        handle = await open(plan.source.binding_path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+        const info = await handle.stat();
+        if (!info.isFile() || info.size > BINDING_LIMIT) throw new Error("unsafe_bundled_binding");
+        const bytes = await handle.readFile();
+        if (bytes.byteLength > BINDING_LIMIT) throw new Error("unsafe_bundled_binding");
+        binding = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
     } catch {
         throw new Error("invalid_bundled_binding");
+    } finally {
+        await handle?.close().catch(() => undefined);
     }
     if (!binding || typeof binding !== "object" || Array.isArray(binding)) throw new Error("invalid_bundled_binding");
     const record = binding as Record<string, unknown>;
-    if (record.schema_version !== plan.schema_version
+    if (canonicalDigest(Object.keys(record).sort()) !== canonicalDigest([
+        "identifier", "package_version", "schema_version", "task_set_digest",
+    ])
+        || record.schema_version !== plan.schema_version
         || record.identifier !== plan.source.identifier
         || record.package_version !== plan.source.package_version
         || record.task_set_digest !== plan.task_set_digest) {

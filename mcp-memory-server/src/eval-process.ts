@@ -18,6 +18,7 @@ export const EVAL_PROCESS_ERROR_CODES = [
     "invalid_json",
     "invalid_request",
     "invalid_result",
+    "adapter_error",
     "stdin_error",
     "cleanup_failed",
 ] as const;
@@ -52,7 +53,7 @@ export type BoundedJsonAdapterOptions = SharedCommandOptions & {
     request: EvalAdapterRequest;
 };
 
-export type BoundedJsonAdapterResult = BoundedCommandResult & {
+export type BoundedJsonAdapterResult = Omit<BoundedCommandResult, "stdout"> & {
     result: EvalAdapterResult;
 };
 
@@ -307,6 +308,9 @@ export async function runBoundedJsonAdapter(options: BoundedJsonAdapterOptions):
         stdout_mode: "raw",
         stdin_document: Buffer.from(JSON.stringify(request.data), "utf8"),
     });
+    if (commandResult.exit_code !== 0 || commandResult.signal !== null || commandResult.cleanup !== "closed") {
+        throw new EvalProcessError("adapter_error", commandResult);
+    }
     let parsed: unknown;
     try {
         parsed = JSON.parse(commandResult.stdout ?? "");
@@ -318,5 +322,6 @@ export async function runBoundedJsonAdapter(options: BoundedJsonAdapterOptions):
     }
     const result = evalAdapterResultSchema.safeParse(parsed);
     if (!result.success) throw new EvalProcessError("invalid_result", commandResult);
-    return { ...commandResult, result: result.data };
+    const { stdout: _stdout, ...processResult } = commandResult;
+    return { ...processResult, result: result.data };
 }

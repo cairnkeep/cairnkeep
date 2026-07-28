@@ -179,6 +179,20 @@ function injectFault(options: CheckpointEvalReportOptions, stage: EvalReportChec
     if (options.fault === stage) throw new Error(`injected_${stage}`);
 }
 
+async function assertSafeStore(store: EvalReportStore): Promise<void> {
+    const root = await realpath(store.root_path);
+    const experiment = await realpath(store.experiment_path);
+    const info = await lstat(store.experiment_path);
+    if (info.isSymbolicLink() || !info.isDirectory()
+        || root !== store.root_path
+        || experiment !== store.experiment_path
+        || !isContained(root, experiment)
+        || dirname(store.report_path) !== experiment
+        || basename(store.report_path) !== "report.json") {
+        throw new Error("unsafe_report_store");
+    }
+}
+
 export async function createEvalReportStore(options: CreateEvalReportStoreOptions): Promise<EvalReportStore> {
     if (!EXPERIMENT_PATTERN.test(options.experiment_id)) throw new Error("invalid_experiment_id");
     const maxReportBytes = options.max_report_bytes ?? DEFAULT_MAX_REPORT_BYTES;
@@ -210,6 +224,7 @@ export async function checkpointEvalReport(
     options: CheckpointEvalReportOptions = {},
 ): Promise<void> {
     await withWriteQueue(store.report_path, async () => {
+        await assertSafeStore(store);
         const parsed = validatedReport(report);
         if (parsed.experiment_id !== store.experiment_id) throw new Error("report_experiment_mismatch");
         const bytes = Buffer.from(`${canonicalJson(parsed)}\n`, "utf8");

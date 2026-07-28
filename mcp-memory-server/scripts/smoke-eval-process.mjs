@@ -98,6 +98,17 @@ async function processChecks() {
         max_stdout_bytes: 4_096,
     });
     assert.deepEqual(json.result ?? json, resultDocument);
+    assert.equal(json.stdout, undefined, "adapter wrapper exposed raw stdout");
+    await assert.rejects(
+        processApi.runBoundedJsonAdapter({
+            command: command(process.execPath, ["-e", `process.stdout.write(${JSON.stringify(JSON.stringify(resultDocument))});process.exit(9)`]),
+            request,
+            timeout_ms: 2_000,
+            max_stdout_bytes: 4_096,
+        }),
+        (error) => error?.code === "adapter_error" && error?.exit_code === 9,
+        "non-zero adapter exit was accepted",
+    );
 
     const faultCases = [
         ["stdout_overflow", ["-e", "process.stdout.write('x'.repeat(8192))"], { max_stdout_bytes: 32 }],
