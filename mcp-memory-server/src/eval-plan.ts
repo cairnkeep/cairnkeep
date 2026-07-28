@@ -242,10 +242,13 @@ function packageVersion(): string {
     return record.version;
 }
 
-function validateBundledBinding(taskSetPath: string, taskSet: EvalTaskSet): EvalPlan["source"] {
+function validateBundledBinding(taskSetPath: string, taskSet: EvalTaskSet, taskSetBytes: Buffer): EvalPlan["source"] {
     if (taskSet.source.kind !== "bundled_fake") throw new Error("Bundled binding requires the dedicated bundled source.");
     if (!existsSync(bundledTaskSetPath) || realpathSync(taskSetPath) !== realpathSync(bundledTaskSetPath)) {
         throw new Error("The bundled evaluation source is accepted only from the installed package-owned task set.");
+    }
+    if (!taskSetBytes.equals(Buffer.from(`${canonicalJson(taskSet)}\n`, "utf8"))) {
+        throw new Error("The bundled evaluation task set must use its exact canonical bytes.");
     }
     const bindingPath = join(dirname(taskSetPath), "bundled-fake.json");
     const binding = readBoundedJson(bindingPath, "Bundled evaluation binding").value;
@@ -364,7 +367,7 @@ export function validateEvalInputs(options: ValidateEvalInputsOptions): EvalPlan
         resolveWorkspaceDirectories(taskSet, repositoryRoot, revision);
         source = { kind: "git", repository_root: repositoryRoot, revision };
     } else {
-        source = validateBundledBinding(taskInput.path, taskSet);
+        source = validateBundledBinding(taskInput.path, taskSet, taskInput.bytes);
         taskSetCommit = null;
     }
 

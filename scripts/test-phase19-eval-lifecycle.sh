@@ -290,6 +290,7 @@ run_fake() {
   fi
   node --input-type=module - "$runner" "$ROOT/mcp-memory-server/dist/eval-plan.js" "$ROOT/mcp-memory-server/dist/eval-schema.js" "$ROOT/examples/eval/task-set.json" "$ROOT/examples/eval/adapter.json" "$tmp" <<'NODE'
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { chmodSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -317,6 +318,9 @@ assert.equal(byTask("offline-verifier-fail").every(({terminal_state,pass_state})
 assert.equal(byTask("offline-missing-tokens").every(({result})=>result&&!Object.hasOwn(result,"usage")),true);
 assert.equal(byTask("offline-no-notes")[0].notes.distillation_outcome,"no_notes");
 assert.equal(byTask("offline-no-notes")[1].notes.distillation_outcome,"no_notes");
+assert.equal(byTask("offline-distillation-failure").every(({notes})=>notes.distillation_outcome==="failed"),true);
+assert.equal(byTask("offline-skipped-notes").every(({notes})=>notes.distillation_outcome==="skipped"),true);
+assert.deepEqual(byTask("offline-pass-note").map(({notes})=>notes.notes_exposed),[false,true]);
 assert.equal(byTask("offline-timeout").every(({terminal_state})=>terminal_state==="timeout"),true);
 assert.equal(byTask("offline-adapter-error").every(({terminal_state})=>terminal_state==="adapter_error"),true);
 assert.equal(byTask("offline-invalid-result").every(({terminal_state})=>terminal_state==="invalid_result"),true);
@@ -339,6 +343,7 @@ for (const snapshot of result.snapshots) {
   chmodSync(snapshot.root_path,0o700);
   for (const entry of snapshot.manifest) chmodSync(join(snapshot.root_path,...entry.path.split("/")),0o600);
 }
+execFileSync("chmod",["-R","u+w",outputRoot]);
 NODE
   echo "PASS: Phase 19 deterministic offline fake population contract"
 }
