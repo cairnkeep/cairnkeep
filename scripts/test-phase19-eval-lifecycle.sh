@@ -425,6 +425,37 @@ NODE
   echo "PASS: Phase 19 explicit eight-on versus one-off four-cell ablation contract"
 }
 
+create_report_fixtures() {
+  local project=$1
+  mkdir -p "$project"
+  node --input-type=module - "$report" "$project" <<'NODE'
+import { chmodSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+const [modulePath, project] = process.argv.slice(2);
+const reports = await import(pathToFileURL(modulePath).href);
+const digest = "b".repeat(64);
+const make = (id, status) => ({
+  schema_version:1, experiment_id:id, status, experiment_kind:"two_pass",
+  task_set_digest:digest, adapter_config_digest:digest, source_revision:digest, schedule_digest:digest,
+  created_at:"2026-01-01T00:00:00.000Z", updated_at:"2026-01-01T00:00:01.000Z",
+  runtime:{platform:"linux",arch:"x64",node:"v24",cairnkeep:"fixture"}, schedule:[], observations:[], aggregates:[],
+  missingness:{digest,count:0,reasons:[]}, warnings:[],
+  evidence:{schema_version:1,evidence_scope:"offline-framework",source_commit:digest,package_version:"fixture",
+    runtime_id:"node-local",task_set_digest:digest,report_digest:digest,schema_digests:[digest],note_snapshot_digests:[],
+    missingness_digest:digest,claim_anchors:[]},
+});
+const root=join(project,".agentfs","eval","experiments");
+for (const [id,status] of [["final-a","final"],["partial-b","partial"],["old-c","final"]]) {
+  const store=await reports.createEvalReportStore({root,experiment_id:id});
+  await reports.checkpointEvalReport(store,make(id,status));
+}
+const oldPath=join(root,"old-c","report.json");
+const old=JSON.parse(readFileSync(oldPath,"utf8")); old.updated_at="2020-01-01T00:00:00.000Z";
+writeFileSync(oldPath,JSON.stringify(old)+"\n",{mode:0o600}); chmodSync(oldPath,0o600);
+NODE
+}
+
 run_report() {
   require_exports "$report" readEvalReport buildEvalAggregates renderEvalReport
   node "$eval_cli" --help | grep -q 'report' || fail "eval help omits report"
@@ -499,12 +530,83 @@ assert.match(human, /expected capability digest: a{64}/);
 assert.match(human, /observed capability digest: a{64}/);
 assert.equal(human.includes("104000"), false, "paper calibration leaked into output");
 NODE
+  local project="$tmp/report-project"
+  create_report_fixtures "$project"
+  (cd "$project" && CAIRN_EVAL=1 node "$eval_cli" report --experiment final-a --json) >"$tmp/final.json"
+  (cd "$project" && CAIRN_EVAL=1 node "$eval_cli" report --experiment partial-b --json) >"$tmp/partial.json"
+  node - "$project" "$tmp/final.json" "$tmp/partial.json" <<'NODE'
+const assert=require("node:assert/strict");
+const {readFileSync}=require("node:fs");
+const {join}=require("node:path");
+const [project,finalPath,partialPath]=process.argv.slice(2);
+const stored=(id)=>JSON.parse(readFileSync(join(project,".agentfs","eval","experiments",id,"report.json"),"utf8"));
+assert.deepEqual(JSON.parse(readFileSync(finalPath,"utf8")),stored("final-a"));
+assert.deepEqual(JSON.parse(readFileSync(partialPath,"utf8")),stored("partial-b"));
+NODE
+  (cd "$project" && CAIRN_EVAL=1 node "$eval_cli" report --experiment final-a) >"$tmp/final.txt"
+  grep -q '^status: final$' "$tmp/final.txt" || fail "human report omitted final status"
+  grep -q '^evidence: framework-only$' "$tmp/final.txt" || fail "human report omitted fake scope"
+  if grep -F "$project" "$tmp/final.txt" >/dev/null; then fail "human report exposed a private report path"; fi
   echo "PASS: Phase 19 canonical JSON and derived report contract"
 }
 
 run_retention() {
   node "$eval_cli" --help | grep -q 'prune' || fail "eval help omits prune"
   node "$eval_cli" --help | grep -q 'delete' || fail "eval help omits delete"
+  local project="$tmp/retention-project"
+  create_report_fixtures "$project"
+  local experiments="$project/.agentfs/eval/experiments"
+  echo adjacent >"$project/adjacent"
+  local before
+  before=$(sha256sum "$experiments/final-a/report.json")
+  (cd "$project" && CAIRN_EVAL=1 node "$eval_cli" delete --experiment final-a --dry-run --json) >"$tmp/delete-dry.json"
+  [[ "$before" == "$(sha256sum "$experiments/final-a/report.json")" ]] || fail "dry-run delete changed report bytes"
+  node - "$tmp/delete-dry.json" <<'NODE'
+const value=require(process.argv[2]);
+if(value.operation!=="delete"||value.dry_run!==true||value.deleted!==false||value.experiment_id!=="final-a")process.exit(1);
+NODE
+  (cd "$project" && CAIRN_EVAL=1 node "$eval_cli" delete --experiment final-a --json) >/dev/null
+  [[ ! -e "$experiments/final-a" && -f "$experiments/partial-b/report.json" && -f "$project/adjacent" ]] || fail "delete escaped the named experiment"
+
+  before=$(sha256sum "$experiments/old-c/report.json")
+  (cd "$project" && CAIRN_EVAL=1 node "$eval_cli" prune --older-than-days 30 --dry-run --json) >"$tmp/prune-dry.json"
+  [[ "$before" == "$(sha256sum "$experiments/old-c/report.json")" ]] || fail "dry-run prune changed report bytes"
+  node - "$tmp/prune-dry.json" <<'NODE'
+const value=require(process.argv[2]);
+if(value.operation!=="prune"||value.dry_run!==true||value.removed!==0||value.experiments.join()!=="old-c")process.exit(1);
+NODE
+  (cd "$project" && CAIRN_EVAL=1 node "$eval_cli" prune --older-than-days 30 --json) >/dev/null
+  [[ ! -e "$experiments/old-c" && -f "$experiments/partial-b/report.json" && -f "$project/adjacent" ]] || fail "prune escaped eligible experiment trees"
+
+  mkdir "$experiments/malformed-d" && chmod 700 "$experiments/malformed-d"
+  printf '{bad\n' >"$experiments/malformed-d/report.json" && chmod 600 "$experiments/malformed-d/report.json"
+  set +e
+  (cd "$project" && CAIRN_EVAL=1 node "$eval_cli" delete --experiment malformed-d --json) >/dev/null 2>&1
+  local malformed_status=$?
+  (cd "$project" && CAIRN_EVAL=1 node "$eval_cli" delete --experiment ../adjacent --json) >/dev/null 2>&1
+  local traversal_status=$?
+  set -e
+  [[ "$malformed_status" -eq 2 && "$traversal_status" -eq 2 && -f "$experiments/malformed-d/report.json" && -f "$project/adjacent" ]] || fail "malformed or traversal deletion was not fail-closed"
+
+  mkdir "$experiments/tampered-f" && chmod 700 "$experiments/tampered-f"
+  cp "$experiments/partial-b/report.json" "$experiments/tampered-f/report.json" && chmod 600 "$experiments/tampered-f/report.json"
+  chmod 644 "$experiments/partial-b/report.json"
+  set +e
+  (cd "$project" && CAIRN_EVAL=1 node "$eval_cli" delete --experiment tampered-f --json) >/dev/null 2>&1
+  local tampered_status=$?
+  (cd "$project" && CAIRN_EVAL=1 node "$eval_cli" report --experiment partial-b --json) >/dev/null 2>&1
+  local unsafe_mode_status=$?
+  set -e
+  [[ "$tampered_status" -eq 2 && "$unsafe_mode_status" -eq 2 && -f "$experiments/tampered-f/report.json" && -f "$experiments/partial-b/report.json" ]] || fail "tampered or unsafe-mode report was accepted"
+
+  ln -s "$project" "$experiments/link-e"
+  set +e
+  (cd "$project" && CAIRN_EVAL=1 node "$eval_cli" delete --experiment link-e --json) >/dev/null 2>&1
+  local symlink_status=$?
+  (cd "$project" && CAIRN_EVAL=1 node "$eval_cli" prune --older-than-days 0 --json) >/dev/null 2>&1
+  local unsafe_prune_status=$?
+  set -e
+  [[ "$symlink_status" -eq 2 && "$unsafe_prune_status" -eq 2 && -f "$project/adjacent" ]] || fail "symlink retention case was not fail-closed"
   echo "PASS: Phase 19 contained dry-run retention contract"
 }
 

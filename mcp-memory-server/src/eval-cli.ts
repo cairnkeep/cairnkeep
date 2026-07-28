@@ -1,13 +1,22 @@
 #!/usr/bin/env node
 
+import { randomBytes } from "node:crypto";
+import { lstat, readdir, realpath, rename, rm } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
+
 import { capabilityIdSchema, type CapabilityId } from "./capability-schema.js";
 import { isEvalEnabled, loadEvalPlan } from "./eval-plan.js";
+import {
+    readEvalReport,
+    renderEvalReport,
+    type EvalReportStore,
+} from "./eval-report.js";
 import {
     buildAblationArms,
     runCapabilityAblation,
     runTwoPassExperiment,
 } from "./eval-runner.js";
-import { EVAL_SCHEMA_VERSION } from "./eval-schema.js";
+import { canonicalJson, EVAL_SCHEMA_VERSION, type EvalReport } from "./eval-schema.js";
 
 process.stdout.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code === "EPIPE") process.exit(0);
@@ -18,7 +27,13 @@ const publicCommands = new Set(["validate", "run", "ablate", "report", "prune", 
 const validateFlags = new Set(["--task-set", "--adapter", "--output", "--repetitions", "--seed", "--json"]);
 const runFlags = new Set([...validateFlags, "--yes"]);
 const ablateFlags = new Set([...runFlags, "--disable"]);
-const valueFlags = new Set(["--task-set", "--adapter", "--output", "--repetitions", "--seed", "--disable"]);
+const reportFlags = new Set(["--experiment", "--json"]);
+const pruneFlags = new Set(["--older-than-days", "--dry-run", "--json"]);
+const deleteFlags = new Set(["--experiment", "--dry-run", "--json"]);
+const valueFlags = new Set(["--task-set", "--adapter", "--output", "--repetitions", "--seed", "--disable", "--experiment", "--older-than-days"]);
+const EXPERIMENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const DEFAULT_REPORT_BYTES = 16 * 1024 * 1024;
+const DEFAULT_RETENTION_DAYS = 30;
 
 function usage(): string {
     return `cairn eval — deterministic local evaluation coordinator
@@ -27,9 +42,9 @@ Usage:
   cairn eval validate --task-set PATH --adapter PATH --output ROOT [--repetitions N] [--seed VALUE] [--json]
   cairn eval run --task-set PATH --adapter PATH --output ROOT [--repetitions N] [--seed VALUE] --yes [--json]
   cairn eval ablate --disable CAPABILITY --task-set PATH --adapter PATH --output ROOT [--repetitions N] [--seed VALUE] [--yes] [--json]
-  cairn eval report EXPERIMENT [--json]
-  cairn eval prune [--json]
-  cairn eval delete EXPERIMENT [--json]
+  cairn eval report --experiment ID [--json]
+  cairn eval prune [--older-than-days N] [--dry-run] [--json]
+  cairn eval delete --experiment ID [--dry-run] [--json]
 
 Evaluation is disabled unless CAIRN_EVAL is explicitly enabled. Live harness
 commands remain operator-owned; validate resolves inputs without executing one.
@@ -83,6 +98,143 @@ function disabled(json: boolean): void {
         status: "disabled",
     } as const;
     process.stdout.write(`${json ? JSON.stringify(value) : "Evaluation is disabled. Set CAIRN_EVAL=1 to enable it."}\n`);
+}
+
+function isContained(root: string, candidate: string): boolean {
+    const path = relative(root, candidate);
+    return path === "" || (!path.startsWith(`..${sep}`) && path !== ".." && !isAbsolute(path));
+}
+
+function requireExperiment(args: string[]): string {
+    const experimentId = requireValue(args, "--experiment");
+    if (!EXPERIMENT_PATTERN.test(experimentId)) throw new Error("--experiment must be a canonical experiment ID.");
+    return experimentId;
+}
+
+function retentionDays(args: string[]): number {
+    const raw = valueAfter(args, "--older-than-days");
+    if (raw === undefined) return DEFAULT_RETENTION_DAYS;
+    if (!/^[0-9]+$/.test(raw)) throw new Error("--older-than-days must be a nonnegative integer.");
+    const value = Number(raw);
+    if (!Number.isSafeInteger(value) || value > 36_500) throw new Error("--older-than-days is outside the supported range.");
+    return value;
+}
+
+async function evalRoot(): Promise<string | null> {
+    const root = resolve(process.cwd(), ".agentfs", "eval", "experiments");
+    let info;
+    try {
+        info = await lstat(root);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw error;
+    }
+    if (info.isSymbolicLink() || !info.isDirectory() || (info.mode & 0o077) !== 0) {
+        throw new Error("unsafe_eval_root");
+    }
+    const resolvedRoot = await realpath(root);
+    if (resolvedRoot !== root) throw new Error("unsafe_eval_root");
+    return root;
+}
+
+async function safeReportStore(experimentId: string): Promise<EvalReportStore> {
+    const root = await evalRoot();
+    if (!root) throw new Error("eval_report_not_found");
+    const experimentPath = resolve(root, experimentId);
+    if (!isContained(root, experimentPath) || experimentPath === root) throw new Error("unsafe_experiment_path");
+    let directory;
+    try {
+        directory = await lstat(experimentPath);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error("eval_report_not_found");
+        throw error;
+    }
+    if (directory.isSymbolicLink() || !directory.isDirectory() || (directory.mode & 0o077) !== 0
+        || await realpath(experimentPath) !== experimentPath) {
+        throw new Error("unsafe_experiment_path");
+    }
+    const reportPath = join(experimentPath, "report.json");
+    let reportInfo;
+    try {
+        reportInfo = await lstat(reportPath);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error("eval_report_not_found");
+        throw error;
+    }
+    if (reportInfo.isSymbolicLink() || !reportInfo.isFile() || (reportInfo.mode & 0o077) !== 0
+        || reportInfo.size > DEFAULT_REPORT_BYTES) {
+        throw new Error("unsafe_eval_report");
+    }
+    return {
+        root_path: root,
+        experiment_path: experimentPath,
+        report_path: reportPath,
+        experiment_id: experimentId,
+        max_report_bytes: DEFAULT_REPORT_BYTES,
+    };
+}
+
+async function validatedStoredReport(experimentId: string): Promise<{ store: EvalReportStore; report: EvalReport }> {
+    const store = await safeReportStore(experimentId);
+    const report = await readEvalReport(store);
+    if (!report) throw new Error("eval_report_not_found");
+    if (report.experiment_id !== experimentId) throw new Error("report_experiment_mismatch");
+    return { store, report };
+}
+
+async function removeExperiment(store: EvalReportStore): Promise<void> {
+    const tombstone = join(store.root_path, `.delete-${randomBytes(16).toString("hex")}`);
+    await rename(store.experiment_path, tombstone);
+    await rm(tombstone, { recursive: true });
+}
+
+async function reportCommand(args: string[], json: boolean): Promise<void> {
+    assertKnown(args, reportFlags);
+    const { report } = await validatedStoredReport(requireExperiment(args));
+    process.stdout.write(json ? `${canonicalJson(report)}\n` : renderEvalReport(report));
+}
+
+async function deleteCommand(args: string[], json: boolean): Promise<void> {
+    assertKnown(args, deleteFlags);
+    const experimentId = requireExperiment(args);
+    const dryRun = args.includes("--dry-run");
+    const { store } = await validatedStoredReport(experimentId);
+    if (!dryRun) await removeExperiment(store);
+    const value = { schema_version: EVAL_SCHEMA_VERSION, operation: "delete", dry_run: dryRun, experiment_id: experimentId, deleted: !dryRun };
+    process.stdout.write(`${json ? canonicalJson(value) : `${dryRun ? "Would delete" : "Deleted"} experiment ${experimentId}.`}\n`);
+}
+
+async function pruneCommand(args: string[], json: boolean): Promise<void> {
+    assertKnown(args, pruneFlags);
+    const olderThanDays = retentionDays(args);
+    const dryRun = args.includes("--dry-run");
+    const root = await evalRoot();
+    const eligible: Array<{ id: string; store: EvalReportStore }> = [];
+    if (root) {
+        const entries = await readdir(root, { withFileTypes: true });
+        if (entries.length > 10_000) throw new Error("experiment_limit_exceeded");
+        for (const entry of entries) {
+            if (!EXPERIMENT_PATTERN.test(entry.name) || entry.isSymbolicLink() || !entry.isDirectory()) {
+                throw new Error("unsafe_experiment_entry");
+            }
+            const { store, report } = await validatedStoredReport(entry.name);
+            const age = Date.now() - Date.parse(report.updated_at);
+            if (!Number.isFinite(age)) throw new Error("invalid_eval_report");
+            if (age >= olderThanDays * 86_400_000) eligible.push({ id: entry.name, store });
+        }
+    }
+    if (!dryRun) {
+        for (const { store } of eligible) await removeExperiment(store);
+    }
+    const value = {
+        schema_version: EVAL_SCHEMA_VERSION,
+        operation: "prune",
+        dry_run: dryRun,
+        older_than_days: olderThanDays,
+        experiments: eligible.map(({ id }) => id),
+        removed: dryRun ? 0 : eligible.length,
+    };
+    process.stdout.write(`${json ? canonicalJson(value) : `${dryRun ? "Would remove" : "Removed"} ${eligible.length} experiment(s).`}\n`);
 }
 
 function renderValidation(value: ReturnType<typeof validationResult>): string {
@@ -247,6 +399,21 @@ async function main(): Promise<void> {
         else process.stdout.write(`${rendered}\n`);
         if (!args.includes("--yes")) throw new Error("ablate requires --yes for non-interactive execution.");
         await executePlan({ operation: "ablate", plan, json, disabled_capability: disabledCapability });
+        return;
+    }
+
+    if (command === "report") {
+        await reportCommand(args, json);
+        return;
+    }
+
+    if (command === "prune") {
+        await pruneCommand(args, json);
+        return;
+    }
+
+    if (command === "delete") {
+        await deleteCommand(args, json);
         return;
     }
 
