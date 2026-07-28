@@ -352,6 +352,57 @@ run_cancellation() {
   require_exports "$runner" runEvalTwoPass
   require_exports "$report" checkpointEvalReport
   grep -q 'cancelled' "$ROOT/mcp-memory-server/src/eval-schema.ts" || fail "cancelled terminal state is absent"
+  local task_set="$ROOT/examples/eval/task-set.json"
+  local adapter="$ROOT/examples/eval/adapter.json"
+  local rejected_root="$tmp/rejected-output"
+  set +e
+  CAIRN_EVAL=1 node "$eval_cli" run --task-set "$task_set" --adapter "$adapter" --output "$rejected_root" --json >"$tmp/rejected.json" 2>"$tmp/rejected.err"
+  local rejected_status=$?
+  set -e
+  [[ "$rejected_status" -eq 2 ]] || fail "run without --yes did not fail with usage status"
+  [[ ! -e "$rejected_root" ]] || fail "run without --yes created output"
+
+  local complete_root="$tmp/complete-output"
+  CAIRN_EVAL=1 node "$eval_cli" run --task-set "$task_set" --adapter "$adapter" --output "$complete_root" --yes --json >"$tmp/complete.json" 2>"$tmp/complete.err"
+  node - "$tmp/complete.json" <<'NODE'
+const { existsSync, readFileSync } = require("node:fs");
+const value=JSON.parse(readFileSync(process.argv[2],"utf8"));
+if (value.operation!=="run" || value.invocation_count!==20 || value.status!=="final" || !existsSync(value.report_path)) process.exit(1);
+const report=JSON.parse(readFileSync(value.report_path,"utf8"));
+if (report.observations.length!==20 || report.schedule.some((row,index)=>row.observation_id!==report.observations[index].observation_id)) process.exit(1);
+NODE
+  chmod -R u+w "$complete_root"
+
+  local cancel_root="$tmp/cancel-output"
+  local child_pid_file="$tmp/adapter.pid"
+  CAIRN_EVAL=1 CAIRN_FAKE_CANCEL_ALL=1 CAIRN_FAKE_PID_FILE="$child_pid_file" \
+    node "$eval_cli" run --task-set "$task_set" --adapter "$adapter" --output "$cancel_root" --yes --json \
+    >"$tmp/cancel.json" 2>"$tmp/cancel.err" &
+  local cli_pid=$!
+  local attempt=0
+  while [[ ! -s "$child_pid_file" && "$attempt" -lt 100 ]]; do
+    sleep 0.05
+    attempt=$((attempt + 1))
+  done
+  [[ -s "$child_pid_file" ]] || { kill -TERM "$cli_pid" 2>/dev/null || true; fail "cancellation fixture child did not start"; }
+  local child_pid
+  child_pid=$(cat "$child_pid_file")
+  kill -INT "$cli_pid"
+  set +e
+  wait "$cli_pid"
+  local cancel_status=$?
+  set -e
+  [[ "$cancel_status" -eq 130 ]] || fail "SIGINT run exited with $cancel_status instead of 130"
+  if kill -0 "$child_pid" 2>/dev/null; then fail "cancelled adapter child survived CLI exit"; fi
+  node - "$tmp/cancel.json" <<'NODE'
+const { existsSync, readFileSync } = require("node:fs");
+const value=JSON.parse(readFileSync(process.argv[2],"utf8"));
+if (value.operation!=="run" || value.status!=="partial" || !existsSync(value.report_path)) process.exit(1);
+const report=JSON.parse(readFileSync(value.report_path,"utf8"));
+if (report.status!=="partial" || report.observations.length!==1) process.exit(1);
+const row=report.observations[0];
+if (row.terminal_state!=="cancelled" || row.process.cleanup==="pending") process.exit(1);
+NODE
   echo "PASS: Phase 19 cancellation and partial-report contract"
 }
 

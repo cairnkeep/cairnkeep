@@ -38,6 +38,7 @@ if (!request || typeof request !== "object"
 
 const workspace = resolve(process.cwd(), request.workspace_path);
 const sessionId = `${request.arm}-r${request.repetition}-${request.pass}-${request.task_id}`;
+if (process.env.CAIRN_FAKE_PID_FILE) writeFileSync(process.env.CAIRN_FAKE_PID_FILE, `${process.pid}\n`, { mode: 0o600 });
 
 function trajectory(events) {
   const agentfs = join(workspace, ".agentfs");
@@ -78,7 +79,8 @@ function trajectory(events) {
   database.close();
 }
 
-if (request.task_id === "offline-timeout"
+if (process.env.CAIRN_FAKE_CANCEL_ALL === "1"
+    || request.task_id === "offline-timeout"
     || (request.task_id === "offline-cancellation-control" && process.env.CAIRN_FAKE_CANCEL === "1")) {
   await new Promise((resolveWait) => setTimeout(resolveWait, 60_000));
 }

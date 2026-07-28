@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { isEvalEnabled, loadEvalPlan } from "./eval-plan.js";
+import { runTwoPassExperiment } from "./eval-runner.js";
 import { EVAL_SCHEMA_VERSION } from "./eval-schema.js";
 
 process.stdout.on("error", (error: NodeJS.ErrnoException) => {
@@ -10,6 +11,7 @@ process.stdout.on("error", (error: NodeJS.ErrnoException) => {
 
 const publicCommands = new Set(["validate", "run", "ablate", "report", "prune", "delete"]);
 const validateFlags = new Set(["--task-set", "--adapter", "--output", "--repetitions", "--seed", "--json"]);
+const runFlags = new Set([...validateFlags, "--yes"]);
 const valueFlags = new Set(["--task-set", "--adapter", "--output", "--repetitions", "--seed"]);
 
 function usage(): string {
@@ -17,7 +19,7 @@ function usage(): string {
 
 Usage:
   cairn eval validate --task-set PATH --adapter PATH --output ROOT [--repetitions N] [--seed VALUE] [--json]
-  cairn eval run --task-set PATH --adapter PATH --output ROOT [options]
+  cairn eval run --task-set PATH --adapter PATH --output ROOT [--repetitions N] [--seed VALUE] --yes [--json]
   cairn eval ablate --disable CAPABILITY --task-set PATH --adapter PATH --output ROOT [options]
   cairn eval report EXPERIMENT [--json]
   cairn eval prune [--json]
@@ -101,6 +103,16 @@ function validationResult(plan: ReturnType<typeof loadEvalPlan>) {
     };
 }
 
+function loadPlan(args: string[]) {
+    return loadEvalPlan({
+        taskSetPath: requireValue(args, "--task-set"),
+        adapterPath: requireValue(args, "--adapter"),
+        outputRoot: requireValue(args, "--output"),
+        repetitions: repetitions(args),
+        seed: valueAfter(args, "--seed"),
+    });
+}
+
 async function main(): Promise<void> {
     const [command = "help", ...args] = process.argv.slice(2);
     if (["help", "--help", "-h"].includes(command)) {
@@ -117,15 +129,52 @@ async function main(): Promise<void> {
 
     if (command === "validate") {
         assertKnown(args, validateFlags);
-        const plan = loadEvalPlan({
-            taskSetPath: requireValue(args, "--task-set"),
-            adapterPath: requireValue(args, "--adapter"),
-            outputRoot: requireValue(args, "--output"),
-            repetitions: repetitions(args),
-            seed: valueAfter(args, "--seed"),
-        });
+        const plan = loadPlan(args);
         const value = validationResult(plan);
         process.stdout.write(`${json ? JSON.stringify(value) : renderValidation(value)}\n`);
+        return;
+    }
+
+    if (command === "run") {
+        assertKnown(args, runFlags);
+        if (!args.includes("--yes")) throw new Error("run requires --yes for non-interactive execution.");
+        const plan = loadPlan(args);
+        const estimate = `Evaluation will perform ${plan.invocation_count} serial adapter invocation(s).`;
+        if (json) process.stderr.write(`${estimate}\n`);
+        else process.stdout.write(`${estimate}\n`);
+
+        const controller = new AbortController();
+        let receivedSignal: "SIGINT" | "SIGTERM" | null = null;
+        const stop = (signal: "SIGINT" | "SIGTERM"): void => {
+            receivedSignal ??= signal;
+            controller.abort();
+        };
+        const onSigint = (): void => stop("SIGINT");
+        const onSigterm = (): void => stop("SIGTERM");
+        process.on("SIGINT", onSigint);
+        process.on("SIGTERM", onSigterm);
+        try {
+            const run = await runTwoPassExperiment({ plan, signal: controller.signal });
+            const value = {
+                schema_version: EVAL_SCHEMA_VERSION,
+                enabled: true,
+                operation: "run" as const,
+                invocation_count: plan.invocation_count,
+                experiment_id: run.report.experiment_id,
+                report_path: run.report_store.report_path,
+                status: run.report.status,
+            };
+            process.stdout.write(`${json ? JSON.stringify(value) : [
+                `Experiment: ${value.experiment_id}`,
+                `Status: ${value.status}`,
+                `Report: ${value.report_path}`,
+            ].join("\n")}\n`);
+            if (receivedSignal === "SIGINT") process.exitCode = 130;
+            else if (receivedSignal === "SIGTERM") process.exitCode = 143;
+        } finally {
+            process.removeListener("SIGINT", onSigint);
+            process.removeListener("SIGTERM", onSigterm);
+        }
         return;
     }
 
