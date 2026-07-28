@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } 
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
 const RED_MARKER = "PHASE19_RED:EVAL_PROCESS_MISSING";
 const here = dirname(fileURLToPath(import.meta.url));
@@ -209,16 +210,19 @@ async function checkpointChecks() {
 
         for (const fault of ["after_open", "after_write", "after_sync", "after_close", "after_rename"]) {
             const faultStore = await reportApi.createEvalReportStore({ root, experiment_id: `fault-${fault}` });
-            const previous = { ...report, experiment_id: faultStore.experiment_id };
-            const next = { ...previous, updated_at: "2026-01-01T00:00:02.000Z", warnings: ["next_checkpoint"] };
+            const previous = structuredClone(report);
+            previous.experiment_id = faultStore.experiment_id;
             await reportApi.checkpointEvalReport(faultStore, previous);
+            const next = structuredClone(previous);
+            next.updated_at = "2026-01-01T00:00:02.000Z";
+            next.warnings = ["next_checkpoint"];
             await assert.rejects(
                 reportApi.checkpointEvalReport(faultStore, next, { fault }),
                 new RegExp(`injected_${fault}`),
             );
             const retained = await reportApi.readEvalReport(faultStore);
             assert.equal(
-                JSON.stringify(retained) === JSON.stringify(previous) || JSON.stringify(retained) === JSON.stringify(next),
+                isDeepStrictEqual(retained, previous) || isDeepStrictEqual(retained, next),
                 true,
                 `${fault} left neither complete checkpoint`,
             );

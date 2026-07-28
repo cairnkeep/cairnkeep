@@ -18,6 +18,12 @@ server_dependencies_before=$(manifest_field "$ROOT/mcp-memory-server/package.jso
 server_dev_dependencies_before=$(manifest_field "$ROOT/mcp-memory-server/package.json" devDependencies)
 root_lock_before=$(sha256sum "$ROOT/package-lock.json" | cut -d' ' -f1)
 server_lock_before=$(sha256sum "$ROOT/mcp-memory-server/package-lock.json" | cut -d' ' -f1)
+node "$ROOT/mcp-memory-server/dist/eval-cli.js" --help >"$tmp/source-eval-help"
+env -u CAIRN_EVAL "$ROOT/bin/cairn" eval validate \
+  --task-set "$tmp/source-unread-task-set" \
+  --adapter "$tmp/source-unread-adapter" \
+  --output "$tmp/source-unwritten-output" --json >"$tmp/source-eval-disabled.json"
+[[ ! -e "$tmp/source-unwritten-output" ]] || fail "source disabled eval created output"
 
 cd "$ROOT"
 npm pack --silent --pack-destination "$tmp" --dry-run=false >/dev/null
@@ -44,6 +50,17 @@ env -u CAIRN_NOTE_DISTILLATION cairn notes --help >/dev/null \
   || fail "installed package omitted the notes command"
 
 installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
+cairn eval --help >"$tmp/installed-eval-help"
+cmp -s "$tmp/source-eval-help" "$tmp/installed-eval-help" || \
+  fail "source and installed eval help differ"
+env -u CAIRN_EVAL cairn eval validate \
+  --task-set "$tmp/installed-unread-task-set" \
+  --adapter "$tmp/installed-unread-adapter" \
+  --output "$tmp/installed-unwritten-output" --json >"$tmp/installed-eval-disabled.json"
+cmp -s "$tmp/source-eval-disabled.json" "$tmp/installed-eval-disabled.json" || \
+  fail "source and installed disabled eval identity differ"
+[[ ! -e "$tmp/installed-unwritten-output" ]] || fail "installed disabled eval created output"
+
 for required in \
   schemas/capability-contract.schema.json \
   schemas/capability-callback.schema.json \
@@ -60,6 +77,122 @@ for required in \
 do
   [[ -f "$installed_root/$required" ]] || fail "npm tarball omitted $required"
 done
+
+for required in \
+  schemas/eval-task-set.schema.json \
+  schemas/eval-adapter.schema.json \
+  schemas/eval-protocol.schema.json \
+  schemas/eval-report.schema.json \
+  mcp-memory-server/dist/eval-schema.js \
+  mcp-memory-server/dist/eval-process.js \
+  mcp-memory-server/dist/eval-workspace.js \
+  mcp-memory-server/dist/eval-plan.js \
+  mcp-memory-server/dist/eval-statistics.js \
+  mcp-memory-server/dist/eval-report.js \
+  mcp-memory-server/dist/eval-runner.js \
+  mcp-memory-server/dist/eval-cli.js \
+  scripts/fake-eval-adapter.mjs \
+  examples/eval/task-set.json \
+  examples/eval/bundled-fake.json \
+  examples/eval/adapter.json \
+  examples/eval/README.md
+do
+  [[ -f "$installed_root/$required" ]] || fail "npm tarball omitted $required"
+done
+[[ -x "$installed_root/scripts/fake-eval-adapter.mjs" ]] || \
+  fail "installed fake adapter is not executable"
+for asset in \
+  schemas/eval-task-set.schema.json \
+  schemas/eval-adapter.schema.json \
+  schemas/eval-protocol.schema.json \
+  schemas/eval-report.schema.json \
+  examples/eval/task-set.json \
+  examples/eval/bundled-fake.json \
+  examples/eval/adapter.json \
+  examples/eval/README.md
+do
+  [[ ! -x "$installed_root/$asset" ]] || \
+    fail "installed public eval data asset is unexpectedly executable: $asset"
+done
+eval_assets=$(cd "$installed_root/examples/eval" && find . -type f -print | LC_ALL=C sort)
+[[ "$eval_assets" == $'./README.md\n./adapter.json\n./bundled-fake.json\n./task-set.json' ]] || \
+  fail "installed eval examples contain an unexpected path"
+
+node - "$installed_root/examples/eval/adapter.json" <<'NODE'
+const value = require(process.argv[2]);
+if (JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(["command", "id", "schema_version", "turn_semantics"])) process.exit(1);
+if (value.id !== "cairn-offline-fake" || value.command.program !== "../../scripts/fake-eval-adapter.mjs") process.exit(1);
+if (!Array.isArray(value.command.args) || value.command.args.length !== 0) process.exit(1);
+NODE
+if grep -R -E 'https?://|CAIRN_LLM_API_KEY|CAIRN_LLM_ENDPOINT' \
+  "$installed_root/examples/eval" "$installed_root/scripts/fake-eval-adapter.mjs" >/dev/null; then
+  fail "installed eval fixture contains a live endpoint or credential default"
+fi
+
+installed_task_set="$installed_root/examples/eval/task-set.json"
+installed_adapter="$installed_root/examples/eval/adapter.json"
+installed_output="$tmp/installed-eval-output"
+CAIRN_EVAL=1 cairn eval validate \
+  --task-set "$installed_task_set" --adapter "$installed_adapter" \
+  --output "$installed_output" --seed installed-package-seed --json >"$tmp/installed-eval-validate.json"
+[[ ! -e "$installed_output" ]] || fail "installed eval validation created output"
+CAIRN_EVAL=1 cairn eval run \
+  --task-set "$installed_task_set" --adapter "$installed_adapter" \
+  --output "$installed_output" --seed installed-package-seed --yes --json \
+  >"$tmp/installed-eval-run.json" 2>"$tmp/installed-eval-run.err"
+
+node - \
+  "$installed_root/mcp-memory-server/dist/eval-schema.js" \
+  "$installed_root/package.json" \
+  "$installed_task_set" \
+  "$installed_root/examples/eval/bundled-fake.json" \
+  "$tmp/installed-eval-validate.json" \
+  "$tmp/installed-eval-run.json" <<'NODE'
+const { readFileSync } = require("node:fs");
+const { pathToFileURL } = require("node:url");
+(async () => {
+  const [schemaPath, packagePath, taskSetPath, bindingPath, validationPath, runPath] = process.argv.slice(2);
+  const { canonicalDigest } = await import(pathToFileURL(schemaPath).href);
+  const manifest = JSON.parse(readFileSync(taskSetPath, "utf8"));
+  const binding = JSON.parse(readFileSync(bindingPath, "utf8"));
+  const installedPackage = JSON.parse(readFileSync(packagePath, "utf8"));
+  const validation = JSON.parse(readFileSync(validationPath, "utf8"));
+  const run = JSON.parse(readFileSync(runPath, "utf8"));
+  const digest = canonicalDigest(manifest);
+  if (binding.identifier !== "cairn-offline-fake-v1") process.exit(1);
+  if (binding.package_version !== installedPackage.version || binding.task_set_digest !== digest) process.exit(1);
+  if (validation.operation !== "validate" || validation.invocation_count !== manifest.tasks.length * 2) process.exit(1);
+  if (validation.plan.source.identifier !== binding.identifier
+      || validation.plan.source.package_version !== installedPackage.version
+      || validation.plan.task_set_digest !== digest) process.exit(1);
+  if (run.operation !== "run" || run.status !== "final" || run.invocation_count !== manifest.tasks.length * 2) process.exit(1);
+  const report = JSON.parse(readFileSync(run.report_path, "utf8"));
+  if (report.task_set_digest !== digest || report.evidence.task_set_digest !== digest) process.exit(1);
+  if (report.evidence.package_version !== installedPackage.version
+      || report.evidence.evidence_scope !== "offline-framework"
+      || report.observations.length !== manifest.tasks.length * 2) process.exit(1);
+})().catch((error) => { console.error(error); process.exit(1); });
+NODE
+
+binding_path="$installed_root/examples/eval/bundled-fake.json"
+cp "$binding_path" "$tmp/original-bundled-fake.json"
+for field in identifier package_version task_set_digest; do
+  node - "$binding_path" "$field" <<'NODE'
+const { readFileSync, writeFileSync } = require("node:fs");
+const [path, field] = process.argv.slice(2);
+const value = JSON.parse(readFileSync(path, "utf8"));
+value[field] = field === "task_set_digest" ? "0".repeat(64) : `mutated-${field}`;
+writeFileSync(path, `${JSON.stringify(value)}\n`);
+NODE
+  if CAIRN_EVAL=1 cairn eval validate \
+    --task-set "$installed_task_set" --adapter "$installed_adapter" \
+    --output "$tmp/rejected-eval-output" --json >/dev/null 2>&1; then
+    fail "installed eval accepted mutated $field binding"
+  fi
+  cp "$tmp/original-bundled-fake.json" "$binding_path"
+done
+[[ ! -e "$tmp/rejected-eval-output" ]] || fail "rejected installed eval fixture created output"
+chmod -R u+w "$installed_output"
 
 if find \
   "$installed_root/claude/capability-contract/commands" \
@@ -130,8 +263,12 @@ if find "$installed_root" -type f \( \
   -o -path '*/runtime-evidence/*' -o -path '*/generated-artifacts/*' \
   -o -path '*/artifacts/projects/*' -o -path '*/artifacts/sessions/*' -o -path '*/artifacts/data/*' \
   -o -path '*/capability-callback/*' -o -path '*/test-tmp/*' \
+  -o -path '*/.agentfs/*' -o -path '*/eval/experiments/*' \
+  -o -path '*/eval/reports/*' -o -path '*/eval/snapshots/*' \
+  -o -path '*/eval/runtime-evidence/*' -o -path '*/eval/evidence/*' \
+  -o -path '*/eval/user-data/*' \
 \) | grep -q .; then
-  fail "npm tarball included generated capability, callback, evidence, or user data"
+  fail "npm tarball included generated capability, callback, eval evidence, or user data"
 fi
 
 if find "$installed_root" -type f \( -name 'token_miser' -o -name 'token-miser' -o -name 'token_miser.*' -o -name 'token-miser.*' \) | grep -q .; then

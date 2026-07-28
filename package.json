@@ -20,6 +20,7 @@
     "pi/",
     "examples/anythingllm/",
     "examples/overlay-distribution/",
+    "examples/eval/",
     "containers/",
     "schemas/",
     "docs/",
