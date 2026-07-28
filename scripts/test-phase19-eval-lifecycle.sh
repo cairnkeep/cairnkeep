@@ -24,7 +24,7 @@ esac
 
 # Selector validation intentionally precedes all fixture mutation.
 tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
+trap 'chmod -R u+w "$tmp" 2>/dev/null || true; rm -rf "$tmp"' EXIT
 runner="$ROOT/mcp-memory-server/dist/eval-runner.js"
 workspace="$ROOT/mcp-memory-server/dist/eval-workspace.js"
 report="$ROOT/mcp-memory-server/dist/eval-report.js"

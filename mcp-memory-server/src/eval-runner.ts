@@ -4,16 +4,23 @@ import {
     chmod,
     copyFile,
     lstat,
+    mkdtemp,
     mkdir,
     readFile,
     readdir,
     realpath,
     rm,
 } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { CAPABILITY_IDS } from "./capability-schema.js";
+import {
+    CAPABILITY_IDS,
+    capabilityStatusSchema,
+    type CapabilityId,
+    type CapabilityStatus,
+} from "./capability-schema.js";
 import type { EvalPlan, EvalScheduleRow } from "./eval-plan.js";
 import {
     canonicalDigest,
@@ -80,6 +87,24 @@ export type TwoPassRunResult = {
     snapshots: NoteSnapshot[];
 };
 
+export type CapabilityAblationArm = {
+    id: "baseline" | "treatment";
+    disabled_capability: CapabilityId | null;
+    expected_capabilities: Array<{ id: CapabilityId; enabled: boolean }>;
+    expected_configuration_digest: string;
+    environment: Record<string, string>;
+};
+
+export type CapabilityAblationOptions = TwoPassRunOptions & {
+    disabled_capability: CapabilityId;
+};
+
+type CapabilityArmRuntime = {
+    arm: CapabilityAblationArm;
+    root_path: string;
+    status: CapabilityStatus | null;
+};
+
 type ObservationOptions = {
     plan: EvalPlan;
     row: EvalScheduleRow;
@@ -91,6 +116,7 @@ type ObservationOptions = {
     prior_notes?: EvalObservation["notes"];
     distill_command?: EvalCommand;
     distill_timeout_ms?: number;
+    capability_runtime?: CapabilityArmRuntime;
 };
 
 type ObservationResult = {
@@ -123,12 +149,87 @@ function capabilityState(row: EvalScheduleRow): Array<{ id: (typeof CAPABILITY_I
 }
 
 function capabilityDigest(rows: Array<{ id: (typeof CAPABILITY_IDS)[number]; enabled: boolean }>): string {
-    return canonicalDigest({
+    return createHash("sha256").update(JSON.stringify({
         schema_version: 1,
         contract_enabled: true,
         capabilities: rows,
         logging: { callbacks: false },
+    }), "utf8").digest("hex");
+}
+
+function capabilityEnvironmentName(id: CapabilityId): string {
+    return `CAIRN_CAPABILITY_${id.toUpperCase().replaceAll(".", "_")}`;
+}
+
+export function buildAblationArms(disabledCapability: CapabilityId): CapabilityAblationArm[] {
+    if (!(CAPABILITY_IDS as readonly string[]).includes(disabledCapability)) {
+        throw new Error("invalid_disabled_capability");
+    }
+    return ([
+        { id: "baseline" as const, disabled_capability: null },
+        { id: "treatment" as const, disabled_capability: disabledCapability },
+    ]).map(({ id, disabled_capability }) => {
+        const expectedCapabilities = CAPABILITY_IDS.map((capabilityId) => ({
+            id: capabilityId,
+            enabled: disabled_capability !== capabilityId,
+        }));
+        const environment = Object.fromEntries(expectedCapabilities.map(({ id: capabilityId, enabled }) => [
+            capabilityEnvironmentName(capabilityId),
+            enabled ? "1" : "0",
+        ]));
+        return {
+            id,
+            disabled_capability,
+            expected_capabilities: expectedCapabilities,
+            expected_configuration_digest: capabilityDigest(expectedCapabilities),
+            environment: {
+                CAIRN_CAPABILITY_CONTRACT: "1",
+                CAIRN_CAPABILITY_LOGGING: "0",
+                ...environment,
+            },
+        };
     });
+}
+
+async function observeCapabilityArm(
+    arm: CapabilityAblationArm,
+    temporaryRoot: string | undefined,
+    signal: AbortSignal | undefined,
+): Promise<CapabilityArmRuntime> {
+    const root = await mkdtemp(join(temporaryRoot ?? tmpdir(), "cairn-eval-arm-"));
+    const home = join(root, "home");
+    const temporary = join(root, "tmp");
+    await Promise.all([mkdir(home, { mode: 0o700 }), mkdir(temporary, { mode: 0o700 })]);
+    let status: CapabilityStatus | null = null;
+    try {
+        const result = await runBoundedCommand({
+            command: { program: process.execPath, args: [join(moduleDirectory, "capability-cli.js"), "status", "--json"] },
+            cwd: root,
+            env: {
+                ...process.env,
+                ...arm.environment,
+                HOME: home,
+                TMPDIR: temporary,
+                XDG_CACHE_HOME: join(home, ".cache"),
+                XDG_CONFIG_HOME: join(home, ".config"),
+                XDG_DATA_HOME: join(home, ".local", "share"),
+            },
+            stdout_mode: "raw",
+            timeout_ms: 15_000,
+            max_stdout_bytes: 1024 * 1024,
+            signal,
+        });
+        if (result.exit_code === 0 && result.signal === null && result.cleanup === "closed") {
+            status = capabilityStatusSchema.parse(JSON.parse(result.stdout ?? "") as unknown);
+        }
+    } catch {
+        status = null;
+    }
+    return { arm, root_path: root, status };
+}
+
+async function cleanupCapabilityArm(runtime: CapabilityArmRuntime | undefined): Promise<void> {
+    if (runtime) await rm(runtime.root_path, { recursive: true, force: true });
 }
 
 function emptyNotes(row: EvalScheduleRow, snapshot?: NoteSnapshot | null): EvalObservation["notes"] {
@@ -160,9 +261,10 @@ function pendingObservation(
     row: EvalScheduleRow,
     snapshot?: NoteSnapshot | null,
     priorNotes?: EvalObservation["notes"],
+    capabilityRuntime?: CapabilityArmRuntime,
 ): EvalObservation {
-    const capabilities = capabilityState(row);
-    const expectedDigest = capabilityDigest(capabilities);
+    const capabilities = capabilityRuntime?.arm.expected_capabilities ?? capabilityState(row);
+    const expectedDigest = capabilityRuntime?.arm.expected_configuration_digest ?? capabilityDigest(capabilities);
     return {
         schema_version: 1,
         observation_id: row.observation_id,
@@ -185,7 +287,7 @@ function pendingObservation(
         observed_capability_digest: null,
         capability_status: "pending",
         capability_digest_match: null,
-        four_cell_id: `${row.arm}-r${row.repetition}-${row.task_id}`,
+        four_cell_id: `r${row.repetition}-${row.task_id}`,
         notes: row.pass === "run2" && priorNotes
             ? {
                 ...priorNotes,
@@ -387,6 +489,7 @@ export async function distillRunOneNotes(options: {
     command?: EvalCommand;
     timeout_ms?: number;
     signal?: AbortSignal;
+    capability_environment?: Record<string, string>;
 }): Promise<DistillRunOneResult> {
     const trajectoryRef = options.observation.result?.trajectory_ref ?? null;
     if (options.row.pass !== "run1"
@@ -403,6 +506,16 @@ export async function distillRunOneNotes(options: {
     }
     const distillerId = DEFAULT_DISTILLER_ID;
     const distillerConfigDigest = canonicalDigest({ schema_version: 1, distiller_id: distillerId });
+    if (options.capability_environment?.CAIRN_CAPABILITY_NOTES_DISTILL === "0") {
+        return {
+            outcome: "skipped",
+            eligibility_reason: "capability_disabled",
+            distiller_id: distillerId,
+            distiller_config_digest: distillerConfigDigest,
+            trajectory_ref: trajectoryRef,
+            snapshot: null,
+        };
+    }
     const command = options.command ?? { program: process.execPath, args: [join(moduleDirectory, "note-cli.js")] };
     try {
         const result = await runBoundedCommand({
@@ -421,7 +534,8 @@ export async function distillRunOneNotes(options: {
                 CAIRN_AGENTFS_BASE_DIR: options.workspace.notes_path,
                 CAIRN_NOTE_DISTILLATION: "1",
                 CAIRN_NOTE_ENRICHMENT: "0",
-                CAIRN_CAPABILITY_CONTRACT: "0",
+                CAIRN_CAPABILITY_CONTRACT: options.capability_environment ? "1" : "0",
+                ...(options.capability_environment ?? {}),
             },
             stdout_mode: "raw",
             timeout_ms: options.timeout_ms ?? DEFAULT_DISTILL_TIMEOUT_MS,
@@ -494,7 +608,11 @@ function replaceObservation(report: EvalReport, observation: EvalObservation): v
 }
 
 export async function runEvalObservation(options: ObservationOptions): Promise<ObservationResult> {
-    const observation = pendingObservation(options.row, options.snapshot, options.prior_notes);
+    const observation = pendingObservation(options.row, options.snapshot, options.prior_notes, options.capability_runtime);
+    const localStatus = options.capability_runtime?.status ?? null;
+    if (localStatus) {
+        observation.observed_capabilities = localStatus.capabilities.map(({ id, enabled }) => ({ id, enabled }));
+    }
     replaceObservation(options.report, observation);
     await checkpoint(options.report_store, options.report);
     let workspace: EvalWorkspace | undefined;
@@ -539,6 +657,7 @@ export async function runEvalObservation(options: ObservationOptions): Promise<O
                 cwd: workspace.parent_path,
                 env: {
                     ...process.env,
+                    ...(options.capability_runtime?.arm.environment ?? {}),
                     HOME: workspace.home_path,
                     TMPDIR: workspace.temp_path,
                     XDG_CACHE_HOME: join(workspace.home_path, ".cache"),
@@ -552,10 +671,24 @@ export async function runEvalObservation(options: ObservationOptions): Promise<O
             observation.process = commandProcess(adapter);
             observation.result = adapter.result;
             observation.observed_capability_digest = adapter.result.observed_capability_digest ?? null;
-            observation.capability_digest_match = observation.observed_capability_digest === null
-                ? null
-                : observation.observed_capability_digest === observation.expected_capability_digest;
-            observation.capability_status = observation.observed_capability_digest === null
+            if (!options.capability_runtime) {
+                observation.capability_digest_match = observation.observed_capability_digest === null
+                    ? null
+                    : observation.observed_capability_digest === observation.expected_capability_digest;
+            } else {
+                const localStateMatches = localStatus !== null
+                    && localStatus.contract_enabled
+                    && localStatus.issues.length === 0
+                    && localStatus.configuration_digest === observation.expected_capability_digest
+                    && canonicalDigest(observation.observed_capabilities) === canonicalDigest(observation.expected_capabilities);
+                const adapterDigestMatches = observation.observed_capability_digest !== null
+                    && observation.observed_capability_digest === observation.expected_capability_digest
+                    && observation.observed_capability_digest === localStatus?.configuration_digest;
+                observation.capability_digest_match = localStatus === null || observation.observed_capability_digest === null
+                    ? null
+                    : localStateMatches && adapterDigestMatches;
+            }
+            observation.capability_status = observation.capability_digest_match === null
                 ? "unavailable"
                 : observation.capability_digest_match ? "valid" : "mismatch";
             if (observation.capability_status !== "valid") observation.missing_reasons.push(`capability_${observation.capability_status}`);
@@ -603,6 +736,7 @@ export async function runEvalObservation(options: ObservationOptions): Promise<O
             command: options.distill_command,
             timeout_ms: options.distill_timeout_ms,
             signal: options.signal,
+            capability_environment: options.capability_runtime?.arm.environment,
         });
         applyDistillation(observation, distilled);
         distilledSnapshot = distilled.snapshot;
@@ -671,7 +805,10 @@ function initialReport(plan: EvalPlan, experimentId: string): EvalReport {
     });
 }
 
-export async function runTwoPassExperiment(options: TwoPassRunOptions): Promise<TwoPassRunResult> {
+async function runExperiment(
+    options: TwoPassRunOptions,
+    capabilityArms?: CapabilityAblationArm[],
+): Promise<TwoPassRunResult> {
     const experimentId = options.experiment_id ?? options.report_store?.experiment_id
         ?? `eval-${options.plan.plan_digest.slice(0, 24)}`;
     const reportStore = options.report_store ?? await createEvalReportStore({
@@ -684,34 +821,46 @@ export async function runTwoPassExperiment(options: TwoPassRunOptions): Promise<
     const notesByTask = new Map<string, EvalObservation["notes"]>();
     const snapshots: NoteSnapshot[] = [];
     const executed: string[] = [];
+    let capabilityRuntime: CapabilityArmRuntime | undefined;
     await checkpoint(reportStore, report);
 
-    for (const row of options.plan.schedule) {
-        if (options.signal?.aborted) break;
-        const snapshot = row.pass === "run2" ? snapshotsByTask.get(snapshotKey(row)) ?? null : null;
-        const priorNotes = row.pass === "run2" ? notesByTask.get(snapshotKey(row)) : undefined;
-        const result = await runEvalObservation({
-            plan: options.plan,
-            row,
-            report,
-            report_store: reportStore,
-            temporary_root: options.temporary_root,
-            signal: options.signal,
-            snapshot,
-            prior_notes: priorNotes,
-            distill_command: options.distill_command,
-            distill_timeout_ms: options.distill_timeout_ms,
-        });
-        executed.push(row.observation_id);
-        if (result.snapshot) {
-            snapshotsByTask.set(snapshotKey(row), result.snapshot);
-            snapshots.push(result.snapshot);
+    try {
+        for (const row of options.plan.schedule) {
+            if (options.signal?.aborted) break;
+            if (capabilityArms && capabilityRuntime?.arm.id !== row.arm) {
+                await cleanupCapabilityArm(capabilityRuntime);
+                const arm = capabilityArms.find(({ id }) => id === row.arm);
+                if (!arm) throw new Error("ablation_arm_missing");
+                capabilityRuntime = await observeCapabilityArm(arm, options.temporary_root, options.signal);
+            }
+            const snapshot = row.pass === "run2" ? snapshotsByTask.get(snapshotKey(row)) ?? null : null;
+            const priorNotes = row.pass === "run2" ? notesByTask.get(snapshotKey(row)) : undefined;
+            const result = await runEvalObservation({
+                plan: options.plan,
+                row,
+                report,
+                report_store: reportStore,
+                temporary_root: options.temporary_root,
+                signal: options.signal,
+                snapshot,
+                prior_notes: priorNotes,
+                distill_command: options.distill_command,
+                distill_timeout_ms: options.distill_timeout_ms,
+                capability_runtime: capabilityRuntime,
+            });
+            executed.push(row.observation_id);
+            if (result.snapshot) {
+                snapshotsByTask.set(snapshotKey(row), result.snapshot);
+                snapshots.push(result.snapshot);
+            }
+            if (row.pass === "run1") notesByTask.set(snapshotKey(row), {
+                ...result.observation.notes,
+                note_snapshot_manifest: [...result.observation.notes.note_snapshot_manifest],
+            });
+            if (result.cancelled || options.signal?.aborted) break;
         }
-        if (row.pass === "run1") notesByTask.set(snapshotKey(row), {
-            ...result.observation.notes,
-            note_snapshot_manifest: [...result.observation.notes.note_snapshot_manifest],
-        });
-        if (result.cancelled || options.signal?.aborted) break;
+    } finally {
+        await cleanupCapabilityArm(capabilityRuntime);
     }
 
     const expectedPrefix = options.plan.schedule.slice(0, executed.length).map(({ observation_id }) => observation_id);
@@ -723,4 +872,20 @@ export async function runTwoPassExperiment(options: TwoPassRunOptions): Promise<
     return { report: evalReportSchema.parse(report), report_store: reportStore, snapshots };
 }
 
+export async function runTwoPassExperiment(options: TwoPassRunOptions): Promise<TwoPassRunResult> {
+    return runExperiment(options);
+}
+
+export async function runCapabilityAblation(options: CapabilityAblationOptions): Promise<TwoPassRunResult> {
+    const arms = buildAblationArms(options.disabled_capability);
+    const intended = arms.map(({ id, disabled_capability }) => ({ id, disabled_capability }));
+    if (canonicalDigest(options.plan.arms) !== canonicalDigest(intended)) throw new Error("ablation_arm_mismatch");
+    const expectedInvocations = options.plan.task_set.tasks.length * options.plan.repetitions * 4;
+    if (options.plan.invocation_count !== expectedInvocations || options.plan.schedule.length !== expectedInvocations) {
+        throw new Error("ablation_schedule_incomplete");
+    }
+    return runExperiment(options, arms);
+}
+
 export const runEvalTwoPass = runTwoPassExperiment;
+export const runEvalAblation = runCapabilityAblation;
