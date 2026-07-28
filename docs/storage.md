@@ -20,6 +20,7 @@ registration, memory remains on that computer.
 | `project` | `<server working directory>/.agentfs/project.db` |
 | Opt-in session trajectories and capability callback state | `<harness project root>/.agentfs/trajectory.db` |
 | Opt-in local artifacts and compaction revisions | `<project root>/.agentfs/artifacts.db` |
+| Opt-in evaluation reports and note snapshots | `<project root>/.agentfs/eval/experiments/<experiment-id>/` |
 | Opt-in derived hindsight notes | `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/notes/` |
 | Any named/global scope, such as `identity` or `work` | `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/<scope>.db` |
 
@@ -161,6 +162,51 @@ Neither `CAIRN_ARTIFACT_HTTP` nor remote memory registration redirects local
 compaction hooks or trajectories.
 Artifact backup follows the project `.agentfs/` backup boundary described below.
 
+## Evaluation report and note-snapshot storage
+
+Evaluation is disabled by default. When `CAIRN_EVAL` is explicitly enabled and
+an operator confirms a run, each experiment is stored below
+`<project>/.agentfs/eval/experiments/<experiment-id>/`. `report.json` is the
+canonical complete replacement checkpoint; it is rewritten atomically after
+schedule creation and every terminal, distillation, cancellation, and cleanup
+transition. An interrupted run therefore remains an inspectable `partial`
+report rather than an inferred success or failure.
+
+The eval root and experiment directories are mode `0700`; `report.json` is
+mode `0600`. A report is limited to 16 MiB by default (64 MiB is the hard
+implementation ceiling), and one root admits at most 10,000 experiment
+directories. Task sets contain at most 10,000 tasks and input/configuration
+files at most 4 MiB. Experiment-owned note snapshots live under
+`<experiment-id>/snapshots/`; one snapshot contains at most 10,000 files and
+16 MiB. Snapshot files are mode `0400` and their directories are made
+read-only after creation. Each Run 2 receives a separate read-only task-local
+copy; digests are checked before and after exposure.
+
+Reports contain versioned observations, reproducibility digests, optional
+metrics, populations, missingness, warnings, and strict component identifiers.
+Snapshots contain only the same task's distilled note files plus their
+relative-path/byte/digest manifest. Both remain sensitive local data even
+though prompts, model outputs, arbitrary stdout/stderr, environment snapshots,
+and secret values are structurally excluded from reports.
+
+There is no automatic age deletion. Operators inspect with `cairn eval report`,
+remove one validated contained experiment with `cairn eval delete`, or apply
+oldest-eligible removal with `cairn eval prune --older-than-days N` (default
+30 days). Both destructive commands have `--dry-run`; malformed, tampered,
+unsafe-mode, symlinked, or path-escaping trees fail closed. A hard delete or
+prune removes the selected experiment directory, including its report and note
+snapshots, without a hidden tombstone. Cancellation retains the partial report
+and completed snapshot checkpoints until one of these explicit operations or
+an uninstall purge removes them.
+
+Normal `cairn uninstall PROJECT` retains the entire `.agentfs/` tree, including
+evaluation reports and snapshots, byte-for-byte. `--dry-run` changes no file,
+mode, or directory entry. Explicit `cairn uninstall --purge-memory PROJECT`
+backs up the complete project `.agentfs/` boundary before removing it; the
+generated `revert.sh` restores the exact evaluation bytes, modes, and layout
+alongside adjacent project memory, trajectory, and artifact data. Evaluation
+has no separate destructive uninstall shortcut.
+
 When the memory server runs in the official container, the same rule applies:
 the process stores databases below `/data`, normally backed by the
 `cairnkeep-data` named volume. Replacing the container preserves that volume;
@@ -261,6 +307,12 @@ The same boundary includes `<project>/.agentfs/artifacts.db` and its sidecars.
 whole `.agentfs/` tree. `cairn uninstall --purge-memory PROJECT` backs it up
 before removal, and the generated `revert.sh` restores the exact durable bytes.
 No automatic export or migration of existing artifact stores is performed.
+
+The same boundary includes `<project>/.agentfs/eval/experiments/`. `cairn
+memory export` does not include reports or note snapshots. Default uninstall
+retains them; `--purge-memory PROJECT` backs them up with the whole project
+`.agentfs/` tree before removal, and the generated `revert.sh` restores their
+exact bytes, modes, and directory layout.
 
 Global hindsight notes share the `${CAIRN_AGENTFS_BASE_DIR}` durable-store
 boundary. `cairn uninstall` keeps them by default. `cairn uninstall

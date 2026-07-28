@@ -236,6 +236,7 @@ vendor or host.
 | `CAIRN_CAPABILITY_SECURITY_AUDIT` | Strict per-process override for `security.audit` |
 | `CAIRN_CAPABILITY_ROUTE_CHECK` | Strict per-process override for `route.check` |
 | `CAIRN_CAPABILITY_CONTEXT_EXPLORE` | Strict per-process override for `context.explore` |
+| `CAIRN_EVAL` | Opt in to the local evaluation coordinator (`1`, `true`, `yes`, or `on`; unset/default → stable disabled result before input reads, writes, or adapter execution) |
 | `CAIRN_HARNESS_STATE_DIR` | Optional absolute local root for recoverable native capability leases (default `${XDG_STATE_HOME:-~/.local/state}/cairn/harness`) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none`. See [git-providers.md](git-providers.md) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → the `route_check` tool is inert) |
@@ -665,6 +666,94 @@ dedupe row, compaction pointer, and retention state passes. `--repair` may
 rebuild only derived indexes/dedupe/pointers from valid authoritative records.
 Unsupported schema, SQLite failure, invalid full records, or digest corruption
 fails untouched with guidance to preserve the database before manual recovery.
+
+### Evaluation harness (opt-in)
+
+`cairn eval` is a local, serial experiment coordinator. It is disabled unless
+`CAIRN_EVAL` is explicitly truthy. The disabled path returns before reading a
+task set or adapter configuration, creating a workspace or report, opening a
+database, starting a subprocess, or making a network request. Enabling the
+flag does not choose a harness, model, endpoint, or credential: inference
+remains owned by the operator-configured adapter process.
+
+Task sets and adapters are strict schema-v1 JSON. Each task names an immutable
+source commit, fixed input, shell-free preparation and verification commands,
+and limits. An adapter configuration is one program-plus-arguments array and
+an exact turn-semantics ID plus definition. Cairnkeep sends one bounded JSON
+request on stdin and accepts exactly one bounded, strict JSON observation on
+stdout. The adapter may report terminal status, turns under its declared
+semantics, independently optional token components and total, optional
+currency-bearing cost, component identities, capability digest, and local
+trajectory/artifact references. The independent task verifier—not the
+adapter—assigns pass, fail, or unknown. Arbitrary adapter stderr remains live
+operator diagnostics and is not copied into the report.
+
+Validate before spending or mutating:
+
+```bash
+export CAIRN_EVAL=1
+cairn eval validate --task-set tasks.json --adapter adapter.json \
+  --output .agentfs/eval/experiments --json
+
+# Two serial observations per task and repetition: Run 1, then fresh Run 2.
+cairn eval run --task-set tasks.json --adapter adapter.json \
+  --output .agentfs/eval/experiments --repetitions 1 --seed trial-1 --yes --json
+
+# Four serial observations per task and repetition: all-on and one-off,
+# with Run 1 and Run 2 in each arm. Only one capability may be disabled.
+cairn eval ablate --disable memory.search --task-set tasks.json \
+  --adapter adapter.json --output .agentfs/eval/experiments --seed trial-1
+# Inspect the printed invocation estimate and both configuration digests, then
+# repeat with --yes to confirm execution.
+
+cairn eval report --experiment EXPERIMENT-ID --json
+cairn eval prune --older-than-days 30 --dry-run --json
+cairn eval prune --older-than-days 30 --json
+cairn eval delete --experiment EXPERIMENT-ID --dry-run --json
+cairn eval delete --experiment EXPERIMENT-ID --json
+```
+
+`validate` resolves task/adapter bytes and digests, immutable revisions,
+commands, limits, output containment, seeds, and the complete deterministic
+schedule without invoking the adapter. `run` requires `--yes` and prints its
+serial invocation estimate. `ablate` first prints the estimate, the explicit
+all-eight-enabled baseline, the exactly-one-disabled treatment, and their
+configuration digests; execution likewise requires `--yes`. There are no
+automatic retries: repetitions and paired seeds are explicit experiment
+inputs.
+
+The packaged fake workflow uses `examples/eval/task-set.json` and
+`examples/eval/adapter.json` with the same `validate`, `run`, `report`,
+`prune`, and `delete` commands. Its manifest must match the package-owned ID,
+version, canonical bytes, and digest. It is deterministic and network-free,
+but proves framework behavior only; it is not live performance evidence.
+
+Run 1 starts every task from a fresh workspace without evaluation notes. After
+a closed trajectory, the existing offline note distiller may create an
+experiment-owned immutable snapshot. Run 2 uses another fresh workspace and
+can see only its own task's snapshot. Tasks with `no_notes`, failed, or skipped
+distillation still run and remain visible. Reports show the full committed
+population and the note-eligible subset, plus executed, verified, paired, and
+missing populations and reason-coded missingness.
+
+Turns are paired or aggregated only when exact turn-semantics IDs match.
+Token fields remain independent and totals are never inferred. Verified pass
+rates exclude unknown verifier outcomes while retaining them in denominators
+and missingness tables. Task-clustered paired bootstrap intervals use recorded
+seeds and streams; fewer than two valid pairs has no interval and fewer than
+20 emits a small-sample warning. Results are estimates and may be
+inconclusive—reports do not make causal, significance, quality, or efficiency
+claims.
+
+SIGINT or SIGTERM stops schedule admission, terminates the active adapter,
+checkpoints a `cancelled` observation, waits for bounded cleanup, and retains
+an inspectable partial report. On POSIX systems the runner targets the child
+process group with TERM then bounded KILL escalation. Windows descendant-tree
+termination is not guaranteed and is not a supported evaluation claim.
+
+See [storage](storage.md#evaluation-report-and-note-snapshot-storage) for local
+retention/removal and [privacy](privacy-and-data-flow.md#evaluation-adapter-and-report-flow)
+for the exact request, observation, environment, and persistence boundaries.
 
 ### Structured session trajectories (opt-in)
 

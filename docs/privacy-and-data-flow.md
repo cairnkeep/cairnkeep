@@ -31,6 +31,7 @@ request unless the corresponding endpoint and credential are configured.
 | Separately enabled artifact tools over HTTP | MCP artifact requests and explicit read responses | The authenticated server selected by the client; requires `CAIRN_ARTIFACT_STORE`, `CAIRN_ARTIFACT_HTTP`, bearer/Host checks, and validated project identity |
 | Automatic compaction recovery | None | Structured categories are injected locally; raw summary and other bodies are excluded |
 | Explicit artifact read/show | The redacted body only when HTTP is separately enabled and the operator/client explicitly reads it | Local terminal/stdio, or the explicitly registered authenticated server |
+| Opt-in evaluation coordinator | Adapter-defined inference may leave the machine only according to the explicit operator-owned adapter and inherited environment | Local adapter subprocess; Cairnkeep supplies no provider, endpoint, credential, model, or network default |
 
 Model endpoints may be local or remote. Cairnkeep cannot determine a provider's
 retention, training, or logging policy; verify it before sending confidential
@@ -76,6 +77,93 @@ read/CLI output are sensitive data at rest. They are not application-level
 encrypted. Default uninstall retains them; purge is backup-first and the
 generated revert restores exact bytes. Hard delete and explicit prune remove
 content plus derived references without keeping a tombstone.
+
+Evaluation reports and task-local note snapshots are also sensitive local data
+at rest under `<project>/.agentfs/eval/experiments/`. Directories are private,
+reports are mode `0600`, snapshots are read-only, and checkpoints are bounded
+atomic replacements. Default uninstall retains them; explicit
+`--purge-memory PROJECT` backs up the whole `.agentfs/` boundary before removal
+and its generated `revert.sh` restores exact bytes, modes, and layout. Explicit
+`cairn eval delete` and `prune` remove selected contained experiment trees with
+no hidden tombstone.
+
+## Evaluation adapter and report flow
+
+`CAIRN_EVAL` is unset/off by default. With it off, `cairn eval` returns a fixed
+disabled result before task-set or adapter reads, workspace/report creation,
+database access, subprocess execution, or network activity. A credential in
+the environment never enables evaluation. When enabled, Cairnkeep remains a
+local coordinator; the operator selects and owns any inference performed by
+the explicit adapter program.
+
+The per-observation flow is:
+
+```text
+validated committed task set + explicit adapter program/args
+  → fresh task/pass/arm HOME, TMP, XDG, workspace, notes, and output roots
+  → one bounded schema-v1 request on adapter stdin
+  → exactly one bounded strict schema-v1 observation on adapter stdout
+  → independent deterministic task verifier
+  → allow-listed local observation + atomic partial/final report checkpoint
+  → workspace cleanup
+```
+
+The request fields are exactly schema version, experiment/task identity, arm,
+repetition, pass, relative workspace path, nullable relative notes path, fixed
+task input, declared limits, paired seed, expected capability digest, and
+relative output path. The fixed task input is prompt-like content delivered to
+the adapter for execution; it is not copied into the report. Run 2 can receive
+only the immutable note snapshot distilled from that same task's Run 1
+trajectory. No other task's notes, checkout, HOME, temporary directory, XDG
+state, or output directory is reused.
+
+The strict stdout observation can contain only terminal status and a value-free
+error code; turns with an exact semantics ID; independently optional input,
+output, reasoning, cache-read, cache-write, and total token counts; optional
+amount-plus-currency cost; bounded harness/adapter/model/config identities;
+observed capability digest; and bounded trajectory/artifact references. It has
+no pass field—the verifier owns pass state. Unknown fields, oversized output,
+invalid UTF-8/JSON, semantic mismatches, and capability-digest mismatches are
+rejected or retained as explicit missing/invalid observations rather than
+being inferred.
+
+The adapter inherits the operator's process environment so an operator-owned
+harness can use its existing secrets. Cairnkeep overrides only isolated
+task-local HOME/TMP/XDG roots and explicit capability-arm values. Secret values
+and full environment snapshots are never report fields. Adapter stderr is
+inherited for live operator diagnostics and is never buffered into evidence.
+Adapter stdout is discarded after strict observation validation. Prompts,
+model outputs, verifier stdout/stderr, arbitrary errors, workspace contents,
+and complete environment values are not persisted in reports. Identifiers and
+references are bounded and value-minimized so metadata cannot become a free
+text channel.
+
+Reports persist only the versioned schedule and terminal/process/verifier
+states; allow-listed observations; expected/observed capability state and
+digests; task-local note outcome/manifests/digests; revisions and task/adapter
+digests; runtime/component identifiers; explicit optional metrics; populations,
+missingness, warnings, and uncertainty metadata. The stable JSON report is the
+source of truth; human output is rendered only from validated JSON. Local
+report and snapshot retention/removal is documented in
+[storage](storage.md#evaluation-report-and-note-snapshot-storage).
+
+`validate` performs no adapter or network call. `run` and `ablate` print the
+deterministic serial invocation estimate and require explicit `--yes` before
+execution. Cairnkeep supplies no live adapter, provider, endpoint, credential,
+model, retry, or network default. The packaged fake adapter is deterministic,
+network-free, and permanently scoped as framework-only evidence.
+
+SIGINT/SIGTERM stops new schedule admission, terminates the active adapter,
+checkpoints cancellation, performs bounded cleanup, and retains a partial
+report. POSIX process groups receive TERM followed by bounded KILL escalation.
+There is no Windows descendant-process-tree termination guarantee.
+
+Turns aggregate only under exact matching compatibility IDs. Missing token
+components/totals, unknown verifier outcomes, incompatible turn semantics, and
+failed or absent note snapshots remain explicit missingness. Reports show both
+the full committed population and note-eligible subset with paired counts and
+seeded uncertainty; they do not convert framework output into a causal,
+significance, quality, or efficiency claim.
 
 ## Compaction and artifact flows
 

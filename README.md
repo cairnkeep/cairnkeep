@@ -14,7 +14,7 @@ across sessions, projects, and harnesses (Claude Code, OpenCode, Pi, …).
 ## Status
 
 Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync`, `sync-pi`,
-`doctor`, `trajectory`, `artifact`, `notes`, `memory`, `audit-timer`, `completion`, `uninstall`) installable via
+`doctor`, `trajectory`, `artifact`, `notes`, `memory`, `eval`, `audit-timer`, `completion`, `uninstall`) installable via
 `npm i -g @cairnkeep/cli`, and the
 operating layer (commands,
 agents, hooks) installed on Claude Code and OpenCode, plus a native Pi
@@ -71,6 +71,8 @@ storage paths, secrets, and private derived images, see
   `.ai/` launchers + env; `cairn doctor` health-checks the configured pieces;
   `cairn trajectory list|show|prune` manages opt-in local session trajectories;
   `cairn artifact list|show|delete|prune` manages opt-in local artifacts;
+  `cairn eval validate|run|ablate|report|prune|delete` coordinates explicit
+  local two-pass and one-capability-at-a-time measurements;
   `cairn notes distill|search-error|promote|doctor` compiles and searches
   default-off local hindsight notes outside the online agent path;
   `cairn memory export|import` relocates the durable store between machines
@@ -255,6 +257,7 @@ search):
 | `CAIRN_CAPABILITY_SECURITY_AUDIT` | Override `security.audit` for this process |
 | `CAIRN_CAPABILITY_ROUTE_CHECK` | Override `route.check` for this process |
 | `CAIRN_CAPABILITY_CONTEXT_EXPLORE` | Override `context.explore` for this process |
+| `CAIRN_EVAL` | Opt in to the local evaluation coordinator (default off; does not select a harness, model, endpoint, credential, or network) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none` ([docs/git-providers.md](docs/git-providers.md)) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → `route_check` is inert) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws) |
@@ -317,6 +320,44 @@ first create an explicit all-enabled baseline and measure one-disabled states.
 See the [operating guide](docs/operating.md#managed-capability-contract-opt-in),
 [storage contract](docs/storage.md#capability-callback-storage), and
 [privacy flow](docs/privacy-and-data-flow.md#capability-callback-flow).
+
+### Evaluation harness (opt-in, measurement only)
+
+`CAIRN_EVAL=1` enables `cairn eval` for a committed schema-v1 task set and an
+explicit operator-owned adapter program. `validate` resolves immutable inputs,
+limits, commands, digests, output containment, and a deterministic serial
+schedule without invoking the adapter. `run` measures from-scratch Run 1 versus
+a fresh Run 2 that can see only its own task's immutable note snapshot.
+`ablate` measures an explicit all-eight-capabilities-on baseline against one
+exactly-one-disabled treatment, with both passes in both arms. Execution prints
+the invocation estimate and requires `--yes`; there is no retry, inference,
+provider, endpoint, credential, model, or network default.
+
+The canonical local JSON report records optional reported turns/tokens/cost,
+independently verified pass state, full and note-eligible populations,
+missingness, paired deltas, capability/notes/revision digests, and seeded
+bootstrap uncertainty. Turns compare only under exact matching turn-semantics
+compatibility IDs; token totals are never inferred and unknown verifier results
+are never counted as pass or fail. Reports describe estimates and
+inconclusive/small-sample conditions; they do not claim causality,
+significance, quality change, or efficiency change.
+
+The bundled fake task set and adapter are deterministic, offline framework
+fixtures. They cannot support a Cairnkeep performance statement. Any future
+efficiency statement requires a separate committed `live-evaluation` artifact
+whose source, task-set, report, schema, note-snapshot, missingness, runtime, and
+claim anchors all pass `scripts/verify-phase19-runtime-evidence.mjs`. No such
+live claim or evidence artifact is shipped here, and external paper calibration
+is neither a Cairnkeep result nor an acceptance target.
+
+Reports and note snapshots stay under
+`.agentfs/eval/experiments/<experiment-id>/`; default uninstall retains them,
+while explicit purge is backup-first and revertible. Cancellation retains an
+inspectable partial report. POSIX process-group cleanup is tested; Windows
+descendant-process-tree termination is not guaranteed. See the
+[operating guide](docs/operating.md#evaluation-harness-opt-in),
+[storage contract](docs/storage.md#evaluation-report-and-note-snapshot-storage),
+and [privacy flow](docs/privacy-and-data-flow.md#evaluation-adapter-and-report-flow).
 
 ### Typed memory nodes and structured import (opt-in)
 
