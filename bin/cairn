@@ -53,6 +53,9 @@ Usage:
                            Compile closed trajectories into local hindsight notes,
                            search exact failure signatures, promote corroborated
                            notes, or validate the note store.
+  cairn eval <validate|run|ablate|report|prune|delete>
+                           Validate or run default-off local evaluations, inspect
+                           reports, and manage retained experiment results.
   cairn memory <path|export|import>
                            Relocate global-scope memory. `path` prints its location;
                            `export <file.tgz>` takes a WAL-safe snapshot (requires
@@ -103,6 +106,9 @@ case "$cmd" in
     ;;
   notes)
     exec node "$CAIRN_ROOT/mcp-memory-server/dist/note-cli.js" "$@"
+    ;;
+  eval)
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/eval-cli.js" "$@"
     ;;
   sync)
     exec "$CAIRN_ROOT/scripts/sync-claude-assets.sh" "$@"

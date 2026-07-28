@@ -12,6 +12,8 @@ for shell in bash zsh fish; do
 done
 
 capability_ids='memory.write memory.search notes.distill wiki graph security.audit route.check context.explore'
+eval_commands='validate run ablate report prune delete'
+eval_flags='--task-set --adapter --output --repetitions --seed --json --yes --disable --experiment --older-than-days --dry-run'
 for shell in bash zsh fish; do
   grep -q 'capabilities' "$tmp/$shell"
   grep -q 'list.*status.*enable.*disable.*reset.*logging\|list status enable disable reset logging' "$tmp/$shell"
@@ -23,7 +25,33 @@ for shell in bash zsh fish; do
     echo "completion exposed a private capability operation for $shell" >&2
     exit 1
   fi
+  grep -q 'eval' "$tmp/$shell"
+  grep -q 'validate.*run.*ablate.*report.*prune.*delete\|validate run ablate report prune delete' "$tmp/$shell"
+  for eval_flag in $eval_flags; do
+    grep -q -- "$eval_flag\|-l ${eval_flag#--}" "$tmp/$shell"
+  done
+  for capability_id in $capability_ids; do
+    grep -qF "$capability_id" "$tmp/$shell"
+  done
+  if grep -Eq '(^|[[:space:]"'"'"'])(doctor-diagnosis|guard|start|finish)([[:space:]"'"'"']|$)' "$tmp/$shell"; then
+    echo "completion exposed a private eval lifecycle operation for $shell" >&2
+    exit 1
+  fi
 done
+
+"$ROOT/bin/cairn" help >"$tmp/root-help"
+grep -qF 'cairn eval <validate|run|ablate|report|prune|delete>' "$tmp/root-help"
+node "$ROOT/mcp-memory-server/dist/eval-cli.js" --help >"$tmp/eval-help"
+for command in $eval_commands; do
+  grep -q "cairn eval $command" "$tmp/eval-help"
+done
+for eval_flag in $eval_flags; do
+  grep -q -- "$eval_flag" "$tmp/eval-help"
+done
+if grep -q 'doctor-diagnosis' "$tmp/eval-help"; then
+  echo 'eval help exposed a private lifecycle operation' >&2
+  exit 1
+fi
 
 node - "$ROOT/mcp-memory-server/src/capability-registry.ts" "$tmp/bash" "$tmp/zsh" "$tmp/fish" <<'NODE'
 const fs = require("fs");
