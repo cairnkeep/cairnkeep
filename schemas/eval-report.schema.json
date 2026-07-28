@@ -413,7 +413,7 @@
         "runtime_id": { "$ref": "#/$defs/identifier" },
         "task_set_digest": { "$ref": "#/$defs/digest" },
         "report_digest": { "$ref": "#/$defs/digest" },
-        "schema_digests": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/$defs/digest" } },
+        "schema_digests": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "$ref": "#/$defs/digest" } },
         "note_snapshot_digests": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/digest" } },
         "missingness_digest": { "$ref": "#/$defs/digest" },
         "claim_anchors": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/reference" } }

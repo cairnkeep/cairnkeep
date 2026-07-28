@@ -12,6 +12,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const serverRoot = resolve(here, "..");
 const projectRoot = resolve(serverRoot, "..");
 const schemaModulePath = join(serverRoot, "dist", "eval-schema.js");
+const runnerModulePath = join(serverRoot, "dist", "eval-runner.js");
 const planModulePath = join(serverRoot, "dist", "eval-plan.js");
 const evalCliPath = join(serverRoot, "dist", "eval-cli.js");
 const packagePath = join(serverRoot, "package.json");
@@ -207,7 +208,7 @@ const report = {
         runtime_id: "node-22-linux-x64",
         task_set_digest: digest(taskSet),
         report_digest: ZERO_DIGEST,
-        schema_digests: [ZERO_DIGEST],
+        schema_digests: [ZERO_DIGEST, ZERO_DIGEST],
         note_snapshot_digests: [],
         missingness_digest: ZERO_DIGEST,
         claim_anchors: [],
@@ -285,6 +286,7 @@ function assertPublishedStrict(schema, value, forbiddenKey = "unexpected_phase19
 
 async function schemaChecks() {
     const schema = await load(schemaModulePath);
+    const runner = await load(runnerModulePath);
     assert.equal(schema.EVAL_SCHEMA_VERSION, 1);
     assert.deepEqual([...schema.EVAL_ADAPTER_RESULT_STATUSES], ["completed", "adapter_error"]);
     assert.deepEqual([...schema.EVAL_OBSERVATION_TERMINAL_STATES], [
@@ -297,13 +299,19 @@ async function schemaChecks() {
     assertStrict(schema.evalAdapterConfigSchema, adapterConfig);
     assertStrict(schema.evalAdapterRequestSchema, adapterRequest);
     assertStrict(schema.evalAdapterResultSchema, adapterResult);
-    assertStrict(schema.evalObservationSchema, observation);
-    assertStrict(schema.evalReportSchema, report);
-
     const publishedTaskSet = loadPublished("eval-task-set.schema.json");
     const publishedAdapter = loadPublished("eval-adapter.schema.json");
     const publishedProtocol = loadPublished("eval-protocol.schema.json");
     const publishedReport = loadPublished("eval-report.schema.json");
+    const expectedSchemaDigests = [
+        schema.evalReportRuntimeContractDigest,
+        schema.canonicalDigest(publishedReport.value),
+    ];
+    assert.deepEqual(runner.evalReportSchemaDigests(), expectedSchemaDigests,
+        "runner schema binding differs from the actual report contracts");
+    report.evidence.schema_digests = expectedSchemaDigests;
+    assertStrict(schema.evalObservationSchema, observation);
+    assertStrict(schema.evalReportSchema, report);
     // z.fromJSONSchema currently omits uniqueItems. Preserve that published
     // semantic in the executable parity check so duplicate task IDs cannot
     // pass merely because the in-repository converter is less strict.
@@ -317,6 +325,47 @@ async function schemaChecks() {
     assertPublishedStrict(publishedProtocol.schema, adapterRequest);
     assertPublishedStrict(publishedProtocol.schema, adapterResult);
     assertPublishedStrict(publishedReport.schema, report);
+
+    const reorderedRuntimeContract = Object.fromEntries(Object.entries(schema.evalReportRuntimeContract).reverse());
+    assert.equal(schema.canonicalDigest(reorderedRuntimeContract), schema.evalReportRuntimeContractDigest,
+        "runtime contract digest changed under object-key reordering");
+    const mutatedRuntimeContract = structuredClone(schema.evalReportRuntimeContract);
+    const deleteConditionLevels = (value) => {
+        if (!value || typeof value !== "object") return false;
+        if (Object.prototype.hasOwnProperty.call(value, "condition_levels")) {
+            delete value.condition_levels;
+            return true;
+        }
+        return Object.values(value).some(deleteConditionLevels);
+    };
+    assert.equal(deleteConditionLevels(mutatedRuntimeContract), true, "runtime contract lacks condition-level semantics");
+    assert.notEqual(schema.canonicalDigest(mutatedRuntimeContract), schema.evalReportRuntimeContractDigest,
+        "runtime contract mutation did not change its digest");
+    const mutatedPublishedContract = structuredClone(publishedReport.value);
+    delete mutatedPublishedContract.$defs.aggregate.properties.condition_levels;
+    assert.notEqual(schema.canonicalDigest(mutatedPublishedContract), expectedSchemaDigests[1],
+        "published contract mutation did not change its digest");
+    const formerLabelDigest = schema.canonicalDigest({ schema_version: 1, contract: "eval-report" });
+    assert.equal(expectedSchemaDigests.includes(formerLabelDigest), false,
+        "former label digest was accepted as an actual schema artifact");
+    for (const [name, digests] of [
+        ["one", expectedSchemaDigests.slice(0, 1)],
+        ["three", [...expectedSchemaDigests, ZERO_DIGEST]],
+    ]) {
+        const candidate = { ...report, evidence: { ...report.evidence, schema_digests: digests } };
+        assert.equal(schema.evalReportSchema.safeParse(candidate).success, false,
+            `runtime report accepted ${name} schema digests`);
+        assert.equal(publishedReport.schema.safeParse(candidate).success, false,
+            `published report accepted ${name} schema digests`);
+    }
+    const unknownEvidenceField = {
+        ...report,
+        evidence: { ...report.evidence, unexpected_phase19_field: true },
+    };
+    assert.equal(schema.evalReportSchema.safeParse(unknownEvidenceField).success, false,
+        "runtime report evidence accepted an unknown field");
+    assert.equal(publishedReport.schema.safeParse(unknownEvidenceField).success, false,
+        "published report evidence accepted an unknown field");
 
     const aggregateWithoutLevels = { ...aggregate };
     delete aggregateWithoutLevels.condition_levels;

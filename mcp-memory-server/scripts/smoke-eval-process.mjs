@@ -192,7 +192,7 @@ async function checkpointChecks() {
             evidence: {
                 schema_version: 1, evidence_scope: "offline-framework", source_commit: "2".repeat(40), package_version: "0.0.0",
                 runtime_id: "node-22-linux-x64", task_set_digest: "0".repeat(64), report_digest: "5".repeat(64),
-                schema_digests: ["6".repeat(64)], note_snapshot_digests: [], missingness_digest: "4".repeat(64), claim_anchors: [],
+                schema_digests: ["6".repeat(64), "7".repeat(64)], note_snapshot_digests: [], missingness_digest: "4".repeat(64), claim_anchors: [],
             },
         };
         await reportApi.checkpointEvalReport(store, report);

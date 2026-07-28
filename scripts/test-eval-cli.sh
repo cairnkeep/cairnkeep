@@ -97,7 +97,7 @@ const report = {
     runtime_id: "node-22-linux-x64",
     task_set_digest: "0".repeat(64),
     report_digest: "5".repeat(64),
-    schema_digests: ["6".repeat(64)],
+    schema_digests: ["6".repeat(64), "7".repeat(64)],
     note_snapshot_digests: [],
     missingness_digest: "4".repeat(64),
     claim_anchors: [],

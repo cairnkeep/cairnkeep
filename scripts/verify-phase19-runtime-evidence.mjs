@@ -59,6 +59,7 @@ const CAPABILITIES = [
   "route.check",
   "context.explore",
 ];
+const REPORT_CONTRACT_CACHE = new Map();
 
 const REPORT_PROBE = String.raw`set -eu
 rm -rf /tmp/cairn-phase19-report-output /tmp/cairn-phase19-report-probe
@@ -286,6 +287,51 @@ function committedBinding(repo, sourceCommit) {
   return { taskSet, binding, packageVersion: packageValue.version, taskSetDigest };
 }
 
+function committedReportContracts(repo, sourceCommit) {
+  const cached = REPORT_CONTRACT_CACHE.get(sourceCommit);
+  if (cached) return cached;
+  const publishedDocument = JSON.parse(committedBytes(repo, sourceCommit, "schemas/eval-report.schema.json").toString("utf8"));
+  const npmCache = requireSuccess(run("npm", ["config", "get", "cache"]), "resolve npm cache for schema oracle");
+  if (!existsSync(npmCache)) throw new Error("local npm cache is unavailable for exact-commit schema verification");
+  const runtimeDocument = withDetachedWorktree(repo, sourceCommit, (worktree) => {
+    const server = join(worktree, "mcp-memory-server");
+    const environment = {
+      ...process.env,
+      NPM_CONFIG_AUDIT: "false",
+      NPM_CONFIG_CACHE: npmCache,
+      NPM_CONFIG_FUND: "false",
+      NPM_CONFIG_OFFLINE: "true",
+    };
+    requireSuccess(run("npm", ["ci", "--offline", "--ignore-scripts"], {
+      cwd: server,
+      env: environment,
+      timeout: 600_000,
+    }), "install exact-commit report contract dependencies");
+    requireSuccess(run("npm", ["run", "build"], {
+      cwd: server,
+      env: environment,
+      timeout: 600_000,
+    }), "build exact-commit report contract");
+    const projection = String.raw`import { z } from "zod";
+import { canonicalJson, evalReportSchema } from "./dist/eval-schema.js";
+process.stdout.write(canonicalJson(z.toJSONSchema(evalReportSchema, { target: "draft-2020-12", io: "input" })));`;
+    const projected = requireSuccess(run(process.execPath, ["--input-type=module", "-e", projection], {
+      cwd: server,
+      env: environment,
+      timeout: 120_000,
+    }), "project exact-commit runtime report contract");
+    return JSON.parse(projected);
+  });
+  const value = {
+    runtimeDocument,
+    publishedDocument,
+    digests: [canonicalDigest(runtimeDocument), canonicalDigest(publishedDocument)],
+  };
+  value.digests.forEach((digest) => requireDigest(digest, "exact-commit report contract digest"));
+  REPORT_CONTRACT_CACHE.set(sourceCommit, value);
+  return value;
+}
+
 function assertCallerSourceClean(repo, sourceCommit) {
   assert.equal(requireSuccess(git(repo, ["rev-parse", "HEAD"]), "read caller HEAD"), sourceCommit, "caller HEAD differs from source commit");
   for (const [label, args] of [
@@ -470,7 +516,7 @@ function parseLog(text, expected) {
   return { runtimeVersion: runtimeLine.slice("runtime_version=".length), commands, metadata: null };
 }
 
-function verifyReportMetadata(metadata, binding, manifest, label) {
+function verifyReportMetadata(metadata, binding, manifest, expectedSchemaDigests, label) {
   assertNoForbiddenKeys(metadata, label);
   assert.deepEqual(Object.keys(metadata).sort(), [
     "adapter_id", "claim_anchors", "evidence_scope", "missingness_digest", "note_snapshot_digests",
@@ -489,8 +535,9 @@ function verifyReportMetadata(metadata, binding, manifest, label) {
   requireDigest(metadata.report_digest, `${label} report digest`);
   requireDigest(metadata.report_file_sha256, `${label} report file digest`);
   requireDigest(metadata.missingness_digest, `${label} missingness digest`);
-  assert.equal(Array.isArray(metadata.schema_digests) && metadata.schema_digests.length > 0, true);
+  assert.equal(Array.isArray(metadata.schema_digests) && metadata.schema_digests.length === 2, true);
   metadata.schema_digests.forEach((value) => requireDigest(value, `${label} schema digest`));
+  assert.deepEqual(metadata.schema_digests, expectedSchemaDigests, `${label}: schema digests differ from exact committed contracts`);
   assert.equal(Array.isArray(metadata.note_snapshot_digests), true);
   metadata.note_snapshot_digests.forEach((value) => requireDigest(value, `${label} note snapshot digest`));
   assert.deepEqual(metadata.claim_anchors, [], `${label}: offline evidence authorized a claim`);
@@ -528,12 +575,15 @@ function verifyEvidence(directory, sourceCommit) {
   assert.deepEqual(manifest.ablated_capabilities, CAPABILITIES, "all eight capability ablations are not bound");
   assert.deepEqual(manifest.claim_anchors, [], "offline evidence authorized a product claim");
   const binding = committedBinding(ROOT, sourceCommit);
+  const reportContracts = committedReportContracts(ROOT, sourceCommit);
   assert.equal(manifest.package_version, binding.packageVersion, "manifest package version is stale");
   assert.equal(manifest.task_set_digest, binding.taskSetDigest, "manifest task-set digest differs from committed canonical artifact");
   assert.equal(manifest.report_source_commit, binding.taskSetDigest, "manifest report source identity changed");
   for (const key of ["plan_digest", "schedule_digest", "report_digest", "missingness_digest"]) requireDigest(manifest[key], `manifest ${key}`);
-  assert.equal(Array.isArray(manifest.schema_digests) && manifest.schema_digests.length > 0, true);
+  assert.equal(Array.isArray(manifest.schema_digests) && manifest.schema_digests.length === 2, true);
   manifest.schema_digests.forEach((value) => requireDigest(value, "manifest schema digest"));
+  assert.deepEqual(manifest.schema_digests, reportContracts.digests,
+    "manifest schema digests differ from the exact committed report contracts");
   assert.equal(Array.isArray(manifest.note_snapshot_digests), true);
   manifest.note_snapshot_digests.forEach((value) => requireDigest(value, "manifest note snapshot digest"));
   assert.deepEqual(manifest.logs?.map(({ file }) => file), EXPECTED_LOGS, "manifest log names mismatch");
@@ -567,7 +617,7 @@ function verifyEvidence(directory, sourceCommit) {
     assert.deepEqual(row.commands, parsed.commands, `${row.file}: commands differ from log`);
     flattened.push(...row.commands.map((command) => ({ runtime, ...command })));
     if (parsed.metadata) {
-      verifyReportMetadata(parsed.metadata, binding, manifest, row.file);
+      verifyReportMetadata(parsed.metadata, binding, manifest, reportContracts.digests, row.file);
       requireDigest(row.report_file_sha256, `${row.file} report file digest`);
       assert.equal(row.report_file_sha256, parsed.metadata.report_file_sha256, `${row.file}: report file digest differs from log`);
       const stable = { ...parsed.metadata };
@@ -586,7 +636,7 @@ function verifyEvidence(directory, sourceCommit) {
   return manifest;
 }
 
-function fixtureMetadata(binding) {
+function fixtureMetadata(binding, schemaDigests) {
   return {
     schema_version: 1,
     evidence_scope: "offline-framework",
@@ -599,7 +649,7 @@ function fixtureMetadata(binding) {
     report_file_sha256: "4".repeat(64),
     report_source_commit: binding.taskSetDigest,
     runtime_id: "node-local",
-    schema_digests: ["5".repeat(64)],
+    schema_digests: [...schemaDigests],
     note_snapshot_digests: ["6".repeat(64)],
     missingness_digest: "7".repeat(64),
     claim_anchors: [],
@@ -632,7 +682,7 @@ function fixtureLog(commit, runtime, image, generatedAt, metadata) {
 function writeFixture(directory, commit, overrides = {}) {
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const binding = committedBinding(ROOT, commit);
-  const metadata = fixtureMetadata(binding);
+  const metadata = fixtureMetadata(binding, committedReportContracts(ROOT, commit).digests);
   const generatedAt = "2026-07-28T00:00:00.000Z";
   const logs = [];
   for (const [runtime, image] of [...NODE_IMAGES, ["bash-3.2", BASH_IMAGE]]) {
@@ -715,6 +765,26 @@ function expectFailure(label, operation) {
 function selfTest() {
   const sourceCommit = requireSuccess(git(ROOT, ["rev-parse", "HEAD"]), "read self-test source commit");
   requireCommit(sourceCommit);
+  const reportContracts = committedReportContracts(ROOT, sourceCommit);
+  const reorderedRuntime = Object.fromEntries(Object.entries(reportContracts.runtimeDocument).reverse());
+  assert.equal(canonicalDigest(reorderedRuntime), reportContracts.digests[0],
+    "runtime contract digest changed under object-key reordering");
+  const mutatedRuntime = structuredClone(reportContracts.runtimeDocument);
+  const deleteConditionLevels = (value) => {
+    if (!value || typeof value !== "object") return false;
+    if (Object.prototype.hasOwnProperty.call(value, "condition_levels")) {
+      delete value.condition_levels;
+      return true;
+    }
+    return Object.values(value).some(deleteConditionLevels);
+  };
+  assert.equal(deleteConditionLevels(mutatedRuntime), true, "runtime report contract lacks condition-level semantics");
+  assert.notEqual(canonicalDigest(mutatedRuntime), reportContracts.digests[0],
+    "runtime contract mutation did not change its digest");
+  const mutatedPublished = structuredClone(reportContracts.publishedDocument);
+  delete mutatedPublished.$defs.aggregate.properties.condition_levels;
+  assert.notEqual(canonicalDigest(mutatedPublished), reportContracts.digests[1],
+    "published contract mutation did not change its digest");
   const root = mkdtempSync(join(tmpdir(), "cairn-phase19-evidence-"));
   try {
     const valid = join(root, "valid");
@@ -753,10 +823,19 @@ function selfTest() {
     writeFileSync(join(staleLog, "node-24.log"), `${readFileSync(join(staleLog, "node-24.log"), "utf8")}tampered\n`);
     expectFailure("stale log", () => verifyEvidence(staleLog, sourceCommit));
 
-    const coherentSchemaForgery = join(root, "coherent-schema-forgery");
-    writeFixture(coherentSchemaForgery, sourceCommit);
-    forgeSchemaBinding(coherentSchemaForgery, ["8".repeat(64), "9".repeat(64)]);
-    expectFailure("coherent schema forgery", () => verifyEvidence(coherentSchemaForgery, sourceCommit));
+    const formerLabelDigest = canonicalDigest({ schema_version: 1, contract: "eval-report" });
+    const schemaForgeries = [
+      ["coherent-schema-forgery", ["8".repeat(64), "9".repeat(64)]],
+      ["swapped-schema-digests", [...reportContracts.digests].reverse()],
+      ["missing-schema-digest", reportContracts.digests.slice(0, 1)],
+      ["stale-label-schema-digest", [formerLabelDigest, reportContracts.digests[1]]],
+    ];
+    for (const [label, forgedDigests] of schemaForgeries) {
+      const directory = join(root, label);
+      writeFixture(directory, sourceCommit);
+      forgeSchemaBinding(directory, forgedDigests);
+      expectFailure(label, () => verifyEvidence(directory, sourceCommit));
+    }
 
     process.stdout.write("PASS: Phase 19 runtime-evidence capture and integrity self-test\n");
   } finally {

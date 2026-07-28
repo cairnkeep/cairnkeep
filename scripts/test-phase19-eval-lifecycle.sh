@@ -442,7 +442,7 @@ const make = (id, status) => ({
   runtime:{platform:"linux",arch:"x64",node:"v24",cairnkeep:"fixture"}, schedule:[], observations:[], aggregates:[],
   missingness:{digest,count:0,reasons:[]}, warnings:[],
   evidence:{schema_version:1,evidence_scope:"offline-framework",source_commit:digest,package_version:"fixture",
-    runtime_id:"node-local",task_set_digest:digest,report_digest:digest,schema_digests:[digest],note_snapshot_digests:[],
+    runtime_id:"node-local",task_set_digest:digest,report_digest:digest,schema_digests:[digest,digest],note_snapshot_digests:[],
     missingness_digest:digest,claim_anchors:[]},
 });
 const root=join(project,".agentfs","eval","experiments");
@@ -508,7 +508,7 @@ const base = {
   aggregates: [], missingness: { digest, count: 0, reasons: [] }, warnings: [],
   evidence: { schema_version: 1, evidence_scope: "offline-framework", source_commit: digest,
     package_version: "fixture", runtime_id: "node-local", task_set_digest: digest, report_digest: digest,
-    schema_digests: [digest], note_snapshot_digests: [digest], missingness_digest: digest, claim_anchors: [] },
+    schema_digests: [digest, digest], note_snapshot_digests: [digest], missingness_digest: digest, claim_anchors: [] },
 };
 const aggregates = reports.buildEvalAggregates(base);
 const byMetric = (metric) => aggregates.find(({ comparison_id, metric_id }) => comparison_id === "memory-baseline" && metric_id === metric);

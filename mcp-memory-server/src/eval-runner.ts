@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import {
     chmod,
     copyFile,
@@ -15,6 +15,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { z } from "zod";
+
 import {
     CAPABILITY_IDS,
     capabilityStatusSchema,
@@ -25,6 +27,7 @@ import type { EvalPlan, EvalScheduleRow } from "./eval-plan.js";
 import {
     canonicalDigest,
     evalReportSchema,
+    evalReportRuntimeContractDigest,
     type EvalCommand,
     type EvalObservation,
     type EvalReport,
@@ -127,6 +130,35 @@ type ObservationResult = {
 };
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
+const publishedReportSchemaPath = resolve(moduleDirectory, "..", "..", "schemas", "eval-report.schema.json");
+let reportSchemaDigestsCache: readonly [string, string] | undefined;
+
+export function evalReportSchemaDigests(): readonly [string, string] {
+    if (reportSchemaDigestsCache) return reportSchemaDigestsCache;
+    let published: unknown;
+    try {
+        published = JSON.parse(readFileSync(publishedReportSchemaPath, "utf8"));
+        z.fromJSONSchema(published as Parameters<typeof z.fromJSONSchema>[0]);
+    } catch (error) {
+        throw new Error(`invalid published eval report schema: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (!published || typeof published !== "object" || Array.isArray(published)) {
+        throw new Error("invalid published eval report schema: expected one JSON object");
+    }
+    const document = published as Record<string, unknown>;
+    const definitions = document.$defs;
+    if (document.$schema !== "https://json-schema.org/draft/2020-12/schema"
+        || document.type !== "object"
+        || document.additionalProperties !== false
+        || !definitions
+        || typeof definitions !== "object"
+        || !("aggregate" in definitions)
+        || !("evidence" in definitions)) {
+        throw new Error("invalid published eval report schema: required strict report definitions are missing");
+    }
+    reportSchemaDigestsCache = [evalReportRuntimeContractDigest, canonicalDigest(published)];
+    return reportSchemaDigestsCache;
+}
 const DEFAULT_DISTILLER_ID = "cairn-note-distiller-v1";
 const DEFAULT_DISTILL_TIMEOUT_MS = 120_000;
 const MAX_SNAPSHOT_FILES = 10_000;
@@ -833,7 +865,7 @@ function initialReport(plan: EvalPlan, experimentId: string): EvalReport {
             runtime_id: "node-local",
             task_set_digest: plan.task_set_digest,
             report_digest: canonicalDigest({ experiment_id: experimentId, plan_digest: plan.plan_digest }),
-            schema_digests: [canonicalDigest({ schema_version: 1, contract: "eval-report" })],
+            schema_digests: [...evalReportSchemaDigests()],
             note_snapshot_digests: [],
             missingness_digest: canonicalDigest(missingness),
             claim_anchors: [],

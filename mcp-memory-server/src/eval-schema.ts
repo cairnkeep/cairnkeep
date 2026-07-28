@@ -343,7 +343,7 @@ const evidenceProvenanceSchema = z.strictObject({
     runtime_id: identifierSchema,
     task_set_digest: digestSchema,
     report_digest: digestSchema,
-    schema_digests: z.array(digestSchema).min(1).max(32),
+    schema_digests: z.array(digestSchema).length(2),
     note_snapshot_digests: z.array(digestSchema).max(MAX_TASKS),
     missingness_digest: digestSchema,
     claim_anchors: z.array(referenceSchema).max(256),
@@ -409,3 +409,10 @@ export function sha256Hex(value: string | Buffer): string {
 export function canonicalDigest(value: unknown): string {
     return sha256Hex(canonicalBytes(value));
 }
+
+export const evalReportRuntimeContract = z.toJSONSchema(evalReportSchema, {
+    target: "draft-2020-12",
+    io: "input",
+});
+
+export const evalReportRuntimeContractDigest = canonicalDigest(evalReportRuntimeContract);
