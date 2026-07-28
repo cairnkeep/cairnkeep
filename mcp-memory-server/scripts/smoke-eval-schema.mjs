@@ -4,6 +4,7 @@ import { existsSync, lstatSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { z } from "zod";
 
 const RED_MARKER = "PHASE19_RED:EVAL_SCHEMA_MISSING";
 const here = dirname(fileURLToPath(import.meta.url));
@@ -218,6 +219,16 @@ function assertStrict(schema, value, forbiddenKey = "unexpected_phase19_field") 
     assert.equal(schema.safeParse({ ...value, [forbiddenKey]: true }).success, false);
 }
 
+function loadPublished(name) {
+    const value = JSON.parse(readFileSync(join(projectRoot, "schemas", name), "utf8"));
+    return { value, schema: z.fromJSONSchema(value) };
+}
+
+function assertPublishedStrict(schema, value, forbiddenKey = "unexpected_phase19_field") {
+    assert.deepEqual(schema.parse(value), value);
+    assert.equal(schema.safeParse({ ...value, [forbiddenKey]: true }).success, false);
+}
+
 async function schemaChecks() {
     const schema = await load(schemaModulePath);
     assert.equal(schema.EVAL_SCHEMA_VERSION, 1);
@@ -235,20 +246,49 @@ async function schemaChecks() {
     assertStrict(schema.evalObservationSchema, observation);
     assertStrict(schema.evalReportSchema, report);
 
+    const publishedTaskSet = loadPublished("eval-task-set.schema.json");
+    const publishedAdapter = loadPublished("eval-adapter.schema.json");
+    const publishedProtocol = loadPublished("eval-protocol.schema.json");
+    const publishedReport = loadPublished("eval-report.schema.json");
+    // z.fromJSONSchema currently omits uniqueItems. Preserve that published
+    // semantic in the executable parity check so duplicate task IDs cannot
+    // pass merely because the in-repository converter is less strict.
+    const publishedTaskSetSchema = publishedTaskSet.schema.superRefine((value, context) => {
+        if (!value || typeof value !== "object" || !Array.isArray(value.tasks)) return;
+        const ids = value.tasks.map((task) => task?.id);
+        if (new Set(ids).size !== ids.length) context.addIssue({ code: "custom", message: "duplicate task id" });
+    });
+    assertPublishedStrict(publishedTaskSetSchema, taskSet);
+    assertPublishedStrict(publishedAdapter.schema, adapterConfig);
+    assertPublishedStrict(publishedProtocol.schema, adapterRequest);
+    assertPublishedStrict(publishedProtocol.schema, adapterResult);
+    assertPublishedStrict(publishedReport.schema, report);
+
     for (const key of ["pass", "passed", "failed", "pass_state", "verifier_failed", "verifier", "verifier_status", "verifier_reason", "verifier_output"]) {
         assert.equal(schema.evalAdapterResultSchema.safeParse({ ...adapterResult, [key]: key === "pass" ? true : "sentinel" }).success, false,
             `adapter result accepted verifier-owned field ${key}`);
+        assert.equal(publishedProtocol.schema.safeParse({ ...adapterResult, [key]: key === "pass" ? true : "sentinel" }).success, false,
+            `published adapter result accepted verifier-owned field ${key}`);
     }
     assert.equal(schema.evalAdapterResultSchema.safeParse({ ...adapterResult, status: "verifier_failed" }).success, false);
+    assert.equal(publishedProtocol.schema.safeParse({ ...adapterResult, status: "verifier_failed" }).success, false);
     assert.equal(schema.evalAdapterResultSchema.safeParse({ ...adapterResult, usage: { input_tokens: 1, output_tokens: 2 } }).success, true,
         "usage total was inferred/required");
+    assert.equal(publishedProtocol.schema.safeParse({ ...adapterResult, usage: { input_tokens: 1, output_tokens: 2 } }).success, true,
+        "published usage total was inferred/required");
     assert.equal(schema.evalTaskSetSchema.safeParse({ ...taskSet, tasks: [...taskSet.tasks, taskSet.tasks[0]] }).success, false,
         "duplicate task IDs were accepted");
+    assert.equal(publishedTaskSetSchema.safeParse({ ...taskSet, tasks: [...taskSet.tasks, taskSet.tasks[0]] }).success, false,
+        "published schema accepted duplicate task documents");
     assert.equal(schema.evalTaskSetSchema.safeParse({ ...taskSet, source: { ...taskSet.source, revision: "HEAD" } }).success, false,
         "mutable revision was accepted");
+    assert.equal(publishedTaskSet.schema.safeParse({ ...taskSet, source: { ...taskSet.source, revision: "HEAD" } }).success, false,
+        "published schema accepted a mutable revision");
     assert.equal(schema.evalCommandSchema.safeParse("node fixture.mjs").success, false, "command string was accepted");
     assert.equal(schema.evalTaskSetSchema.safeParse({ ...taskSet, tasks: [{ ...taskSet.tasks[0], workspace: { path: "../escape" } }] }).success, false,
         "path traversal was accepted");
+    assert.equal(publishedTaskSet.schema.safeParse({ ...taskSet, tasks: [{ ...taskSet.tasks[0], workspace: { path: "../escape" } }] }).success, false,
+        "published schema accepted path traversal");
 
     const root = mkdtempSync(join(tmpdir(), "cairn-eval-schema-symlink-"));
     try {

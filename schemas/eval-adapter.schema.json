@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/eval-adapter.schema.json",
+  "title": "Cairnkeep evaluation adapter configuration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "command", "turn_semantics"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": { "$ref": "#/$defs/identifier" },
+    "command": { "$ref": "#/$defs/command" },
+    "turn_semantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["program", "args"],
+      "properties": {
+        "program": { "type": "string", "minLength": 1, "maxLength": 4096, "pattern": "^[^\\u0000\\r\\n]+$" },
+        "args": {
+          "type": "array",
+          "maxItems": 256,
+          "items": { "type": "string", "maxLength": 16384, "pattern": "^[^\\u0000]*$" }
+        }
+      }
+    }
+  }
+}
