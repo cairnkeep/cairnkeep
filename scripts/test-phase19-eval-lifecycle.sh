@@ -252,8 +252,108 @@ NODE
 }
 
 run_ablation() {
-  require_exports "$runner" runEvalAblation
-  node "$eval_cli" --help | grep -q 'ablate' || fail "eval help omits ablation"
+  require_exports "$runner" buildAblationArms runCapabilityAblation
+  node --input-type=module - "$runner" "$report" "$ROOT/mcp-memory-server/dist/eval-plan.js" "$ROOT/mcp-memory-server/dist/capability-schema.js" "$tmp" <<'NODE'
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const [runnerPath, reportPath, planPath, capabilityPath, fixtureRoot] = process.argv.slice(2);
+const runner = await import(pathToFileURL(runnerPath).href);
+const reports = await import(pathToFileURL(reportPath).href);
+const { buildEvalSchedule } = await import(pathToFileURL(planPath).href);
+const { CAPABILITY_IDS } = await import(pathToFileURL(capabilityPath).href);
+const repo = join(fixtureRoot, "ablation-repo");
+mkdirSync(repo);
+const git = (...args) => execFileSync("git", ["-C", repo, ...args], { encoding: "utf8" }).trim();
+git("init", "-q");
+git("config", "user.name", "Evaluation Fixture");
+git("config", "user.email", "evaluation-fixture@example.invalid");
+writeFileSync(join(repo, "source.txt"), "immutable-source\n");
+git("add", "source.txt");
+git("commit", "-qm", "fixture");
+const revision = git("rev-parse", "HEAD");
+const adapterScript = join(fixtureRoot, "ablation-adapter.mjs");
+const distillerScript = join(fixtureRoot, "ablation-distiller.mjs");
+const invocationLog = join(fixtureRoot, "ablation-invocations.log");
+const distillLog = join(fixtureRoot, "ablation-distill.log");
+writeFileSync(adapterScript, `
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+const chunks=[]; for await (const chunk of process.stdin) chunks.push(chunk);
+const request=JSON.parse(Buffer.concat(chunks).toString("utf8"));
+const ids=${JSON.stringify(CAPABILITY_IDS)};
+const name=(id)=>"CAIRN_CAPABILITY_"+id.toUpperCase().replaceAll(".","_");
+const disabled=ids.filter((id)=>process.env[name(id)]!=="1");
+if (process.env.CAIRN_CAPABILITY_CONTRACT!=="1") process.exit(41);
+if ((request.arm==="baseline"&&disabled.length!==0)||(request.arm==="treatment"&&disabled.length!==1)) process.exit(42);
+if (existsSync(join(process.env.HOME,"leak"))) process.exit(43);
+writeFileSync(join(process.env.HOME,"leak"),"sentinel");
+if (request.pass==="run2") {
+  if (disabled[0]==="notes.distill") {
+    if (request.notes_path!==null) process.exit(44);
+  } else {
+    const expected=disabled[0]??"baseline";
+    if (request.notes_path===null||readFileSync(join(process.cwd(),request.notes_path,"note.md"),"utf8")!==expected+"\\n") process.exit(45);
+  }
+}
+appendFileSync(process.env.EVAL_ABLATION_LOG,[process.pid,request.arm,request.repetition,request.pass,request.task_id,request.seed,disabled[0]??"baseline"].join(":")+"\\n");
+writeFileSync(join(process.cwd(),request.workspace_path,"answer.txt"),"ok\\n");
+process.stdout.write(JSON.stringify({schema_version:1,status:"completed",turns:{value:1,semantics:"fixture-turn"},usage:{total_tokens:10},adapter:{id:"fixture-adapter"},observed_capability_digest:process.env.EVAL_FORCE_BAD_DIGEST==="1"?"0".repeat(64):request.expected_capability_digest,trajectory_ref:request.arm+"-r"+request.repetition+"-"+request.pass+"-"+request.task_id}));
+`);
+writeFileSync(distillerScript, `
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+const ids=${JSON.stringify(CAPABILITY_IDS)};
+const name=(id)=>"CAIRN_CAPABILITY_"+id.toUpperCase().replaceAll(".","_");
+const disabled=ids.find((id)=>process.env[name(id)]!=="1")??"baseline";
+appendFileSync(process.env.EVAL_DISTILL_LOG,disabled+"\\n");
+const directory=join(process.env.CAIRN_AGENTFS_BASE_DIR,"notes"); mkdirSync(directory,{recursive:true});
+const path=join(directory,"note.md"); writeFileSync(path,disabled+"\\n");
+process.stdout.write(JSON.stringify({schema_version:1,enabled:true,created:[{id:"fixture-note",path}],updated:[],already_processed:[],enrichment_skipped:[],enrichment_failed:[],failed:[]}));
+`);
+const task={id:"task-alpha",input:"fixture",workspace:{path:"."},prepare:{program:process.execPath,args:["-e","process.exit(0)"]},verify:{program:process.execPath,args:["-e","process.exit(require('node:fs').existsSync('answer.txt')?0:9)"]},limits:{elapsed_ms:2_000,stdout_bytes:16_384}};
+const taskSet={schema_version:1,id:"ablation-fixture",source:{kind:"git",repository:".",revision},tasks:[task]};
+function makePlan(disabled, outputRoot) {
+  const arms=runner.buildAblationArms(disabled).map(({id,disabled_capability})=>({id,disabled_capability}));
+  const schedule=buildEvalSchedule({taskSet,arms,repetitions:1,passes:["run1","run2"],seed:"fixture-seed"});
+  return {schema_version:1,task_set:taskSet,adapter_config:{schema_version:1,id:"fixture-adapter",command:{program:process.execPath,args:[adapterScript]},turn_semantics:{id:"fixture-turn",description:"One deterministic turn."}},task_set_path:join(repo,"task-set.json"),adapter_path:adapterScript,output_root:outputRoot,source:{kind:"git",repository_root:repo,revision},repetitions:1,seed:"fixture-seed",arms,passes:["run1","run2"],concurrency:1,invocation_count:schedule.invocation_count,task_set_commit:revision,task_set_digest:"1".repeat(64),adapter_config_digest:"2".repeat(64),schedule_digest:schedule.digest,plan_digest:"3".repeat(64),schedule:schedule.rows,resolved_programs:{adapter:process.execPath,prepare:[process.execPath],verify:[process.execPath]}};
+}
+process.env.EVAL_ABLATION_LOG=invocationLog;
+process.env.EVAL_DISTILL_LOG=distillLog;
+for (const disabled of CAPABILITY_IDS) {
+  const arms=runner.buildAblationArms(disabled);
+  assert.deepEqual(arms.map(({id})=>id),["baseline","treatment"]);
+  assert.deepEqual(arms[0].expected_capabilities.map(({enabled})=>enabled),Array(8).fill(true));
+  assert.equal(arms[1].expected_capabilities.filter(({enabled})=>!enabled).length,1);
+  assert.equal(arms[1].expected_capabilities.find(({id})=>id===disabled).enabled,false);
+  assert.notEqual(arms[0].expected_configuration_digest,arms[1].expected_configuration_digest);
+  const plan=makePlan(disabled,join(fixtureRoot,`output-${disabled.replaceAll(".","-")}`));
+  const store=await reports.createEvalReportStore({root:plan.output_root,experiment_id:`ablate-${disabled.replaceAll(".","-")}`});
+  const result=await runner.runCapabilityAblation({plan,disabled_capability:disabled,report_store:store,temporary_root:fixtureRoot,distill_command:{program:process.execPath,args:[distillerScript]}});
+  assert.equal(result.report.status,"final");
+  assert.equal(result.report.observations.length,4);
+  assert.deepEqual(result.report.observations.map(({observation_id})=>observation_id),plan.schedule.map(({observation_id})=>observation_id));
+  assert.equal(new Set(result.report.observations.map(({four_cell_id})=>four_cell_id)).size,1);
+  assert.equal(new Set(result.report.observations.map(({seed})=>seed)).size,1);
+  assert.equal(result.report.observations.every(({capability_status,capability_digest_match})=>capability_status==="valid"&&capability_digest_match===true),true);
+  assert.equal(result.report.observations.every(({expected_capabilities,observed_capabilities})=>JSON.stringify(expected_capabilities)===JSON.stringify(observed_capabilities)),true);
+  const treatmentRun2=result.report.observations.find(({arm,pass})=>arm==="treatment"&&pass==="run2");
+  assert.ok(treatmentRun2);
+  assert.equal(treatmentRun2.notes.notes_exposed,disabled!=="notes.distill");
+}
+const lines=readFileSync(invocationLog,"utf8").trim().split("\n");
+assert.equal(lines.length,CAPABILITY_IDS.length*4);
+assert.equal(new Set(lines.map((line)=>line.split(":")[0])).size,lines.length,"an adapter owner process was reused");
+assert.equal(readFileSync(distillLog,"utf8").trim().split("\n").length,CAPABILITY_IDS.length*2-1,"notes.distill treatment was distilled");
+
+process.env.EVAL_FORCE_BAD_DIGEST="1";
+const mismatchPlan=makePlan("memory.write",join(fixtureRoot,"mismatch-output"));
+const mismatch=await runner.runCapabilityAblation({plan:mismatchPlan,disabled_capability:"memory.write",temporary_root:fixtureRoot,distill_command:{program:process.execPath,args:[distillerScript]}});
+assert.equal(mismatch.report.observations.every(({capability_status,capability_digest_match,missing_reasons})=>capability_status==="mismatch"&&capability_digest_match===false&&missing_reasons.includes("capability_mismatch")),true);
+NODE
   echo "PASS: Phase 19 explicit eight-on versus one-off four-cell ablation contract"
 }
 
