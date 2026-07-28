@@ -127,8 +127,126 @@ NODE
 }
 
 run_two_pass() {
-  require_exports "$runner" runEvalTwoPass
+  require_exports "$runner" runTwoPassExperiment runEvalTwoPass runEvalObservation distillRunOneNotes snapshotTaskNotes verifyNoteSnapshot
   node "$eval_cli" --help | grep -qE 'run|two-pass' || fail "eval help omits two-pass run"
+  node --input-type=module - "$runner" "$report" "$ROOT/mcp-memory-server/dist/eval-plan.js" "$tmp" <<'NODE'
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const [runnerPath, reportPath, planPath, fixtureRoot] = process.argv.slice(2);
+const runner = await import(pathToFileURL(runnerPath).href);
+const reports = await import(pathToFileURL(reportPath).href);
+const { buildEvalSchedule } = await import(pathToFileURL(planPath).href);
+const repo = join(fixtureRoot, "two-pass-repo");
+mkdirSync(repo);
+const git = (...args) => execFileSync("git", ["-C", repo, ...args], { encoding: "utf8" }).trim();
+git("init", "-q");
+git("config", "user.name", "Evaluation Fixture");
+git("config", "user.email", "evaluation-fixture@example.invalid");
+writeFileSync(join(repo, "source.txt"), "immutable-source\n");
+git("add", "source.txt");
+git("commit", "-qm", "fixture");
+const revision = git("rev-parse", "HEAD");
+const invocationLog = join(fixtureRoot, "invocations.log");
+const distillLog = join(fixtureRoot, "distill.log");
+const adapterScript = join(fixtureRoot, "adapter.mjs");
+const distillerScript = join(fixtureRoot, "distiller.mjs");
+writeFileSync(adapterScript, `
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+const chunks=[]; for await (const chunk of process.stdin) chunks.push(chunk);
+const request=JSON.parse(Buffer.concat(chunks).toString("utf8"));
+appendFileSync(process.env.EVAL_INVOCATION_LOG, request.task_id+":"+request.pass+"\\n");
+const source=join(process.cwd(), request.workspace_path);
+if (readFileSync(join(source,"source.txt"),"utf8")!=="immutable-source\\n" || existsSync(join(source,"source-leak"))) process.exit(31);
+if (request.pass==="run1" && request.notes_path!==null) process.exit(32);
+if (request.pass==="run2" && request.task_id==="task-success") {
+  if (request.notes_path===null || !existsSync(join(process.cwd(),request.notes_path,"projects","task-success","note.md"))) process.exit(33);
+} else if (request.notes_path!==null) process.exit(34);
+writeFileSync(join(source,"source-leak"),request.observation_id??request.task_id);
+writeFileSync(join(source,"answer.txt"),"ok\\n");
+writeFileSync(join(process.env.HOME,"home-leak"),"sentinel");
+writeFileSync(join(process.cwd(),request.output_path,"output-leak"),"sentinel");
+if (request.task_id==="task-cancel") await new Promise(()=>{});
+const result={schema_version:1,status:"completed",turns:{value:1,semantics:"fixture-turn"},usage:{total_tokens:10},adapter:{id:"fixture-adapter"},observed_capability_digest:request.expected_capability_digest};
+if (request.task_id!=="task-skipped") result.trajectory_ref=request.observation_id;
+process.stdout.write(JSON.stringify(result));
+`);
+writeFileSync(distillerScript, `
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+const value=(flag)=>process.argv[process.argv.indexOf(flag)+1];
+const session=value("--session");
+appendFileSync(process.env.EVAL_DISTILL_LOG,session+"\\n");
+if (session.includes("task-failed")) process.exit(7);
+const created=[];
+if (session.includes("task-success")) {
+  const directory=join(process.env.CAIRN_AGENTFS_BASE_DIR,"notes","projects","task-success");
+  mkdirSync(directory,{recursive:true});
+  const path=join(directory,"note.md"); writeFileSync(path,"same-task-note\\n"); created.push({id:"fixture-note",path});
+}
+process.stdout.write(JSON.stringify({schema_version:1,enabled:true,created,updated:[],already_processed:[],enrichment_skipped:[],enrichment_failed:[],failed:[]}));
+`);
+
+const taskIds = ["task-success", "task-no-notes", "task-failed", "task-skipped"];
+const tasks = taskIds.map((id) => ({
+  id, input: id, workspace: { path: "." },
+  prepare: { program: process.execPath, args: ["-e", "process.exit(0)"] },
+  verify: { program: process.execPath, args: ["-e", "process.exit(require('node:fs').existsSync('answer.txt')?0:9)"] },
+  limits: { elapsed_ms: 2_000, stdout_bytes: 16_384 },
+}));
+function makePlan(selectedTasks=tasks) {
+  const taskSet={schema_version:1,id:"two-pass-fixture",source:{kind:"git",repository:".",revision},tasks:selectedTasks};
+  const schedule=buildEvalSchedule({taskSet,arms:[{id:"baseline",disabled_capability:null}],repetitions:1,passes:["run1","run2"],seed:"fixture-seed"});
+  return {
+    schema_version:1, task_set:taskSet,
+    adapter_config:{schema_version:1,id:"fixture-adapter",command:{program:process.execPath,args:[adapterScript]},turn_semantics:{id:"fixture-turn",description:"One deterministic fake turn."}},
+    task_set_path:join(repo,"task-set.json"), adapter_path:adapterScript, output_root:join(fixtureRoot,"output"),
+    source:{kind:"git",repository_root:repo,revision}, repetitions:1, seed:"fixture-seed",
+    arms:[{id:"baseline",disabled_capability:null}], passes:["run1","run2"], concurrency:1,
+    invocation_count:schedule.invocation_count, task_set_commit:revision, task_set_digest:"1".repeat(64),
+    adapter_config_digest:"2".repeat(64), schedule_digest:schedule.digest, plan_digest:"3".repeat(64), schedule:schedule.rows,
+    resolved_programs:{adapter:process.execPath,prepare:selectedTasks.map(()=>process.execPath),verify:selectedTasks.map(()=>process.execPath)},
+  };
+}
+mkdirSync(join(fixtureRoot,"output"));
+process.env.EVAL_INVOCATION_LOG=invocationLog;
+process.env.EVAL_DISTILL_LOG=distillLog;
+const plan=makePlan();
+const store=await reports.createEvalReportStore({root:join(fixtureRoot,"reports"),experiment_id:"two-pass-fixture"});
+const result=await runner.runTwoPassExperiment({plan,report_store:store,temporary_root:fixtureRoot,distill_command:{program:process.execPath,args:[distillerScript]}});
+assert.equal(result.report.status,"final");
+assert.deepEqual(result.report.observations.map(({observation_id})=>observation_id),plan.schedule.map(({observation_id})=>observation_id));
+assert.deepEqual(readFileSync(invocationLog,"utf8").trim().split("\n"),[
+  ...taskIds.map((id)=>`${id}:run1`), ...taskIds.map((id)=>`${id}:run2`),
+]);
+assert.deepEqual(readFileSync(distillLog,"utf8").trim().split("\n"),taskIds.slice(0,3).map((id)=>`baseline-r0-run1-${id}`));
+const run2=result.report.observations.filter(({pass})=>pass==="run2");
+assert.deepEqual(run2.map(({notes})=>notes.distillation_outcome),["success","no_notes","failed","skipped"]);
+assert.deepEqual(run2.map(({notes})=>notes.notes_exposed),[true,false,false,false]);
+assert.equal(run2.every(({pass_state})=>pass_state==="passed"),true);
+assert.equal(result.report.observations.every(({process})=>process.cleanup==="closed"),true);
+const success=run2[0];
+assert.equal(success.notes.note_snapshot_manifest.length>0,true);
+assert.equal((statSync(result.snapshots[0].root_path).mode&0o222),0,"snapshot root remained writable");
+assert.equal(await runner.verifyNoteSnapshot(result.snapshots[0]),true);
+assert.equal(readdirSync(fixtureRoot).some((name)=>name.startsWith("cairn-eval-workspace-")),false,"workspace survived completed run");
+
+const cancelTask={...tasks[0],id:"task-cancel",input:"cancel"};
+const cancelPlan=makePlan([cancelTask]);
+const cancelStore=await reports.createEvalReportStore({root:join(fixtureRoot,"reports"),experiment_id:"cancel-fixture"});
+const controller=new AbortController();
+setTimeout(()=>controller.abort(),100);
+const cancelled=await runner.runTwoPassExperiment({plan:cancelPlan,report_store:cancelStore,temporary_root:fixtureRoot,signal:controller.signal,distill_command:{program:process.execPath,args:[distillerScript]}});
+assert.equal(cancelled.report.status,"partial");
+assert.deepEqual(cancelled.report.observations.map(({terminal_state})=>terminal_state),["cancelled"]);
+assert.equal(cancelled.report.observations[0].process.cleanup!=="pending",true);
+assert.equal(readdirSync(fixtureRoot).some((name)=>name.startsWith("cairn-eval-workspace-")),false,"workspace survived cancellation");
+assert.equal(existsSync(cancelStore.report_path),true);
+NODE
   echo "PASS: Phase 19 same-task two-pass and immutable note-snapshot contract"
 }
 
