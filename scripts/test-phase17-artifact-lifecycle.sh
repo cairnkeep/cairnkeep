@@ -277,17 +277,22 @@ check_docs_contract() {
 }
 
 check_dependency_delta() {
-  local first_phase_commit phase_base
+  local first_phase_commit last_phase_commit phase_base
   first_phase_commit=$(git -C "$ROOT" log --reverse --format='%H' --grep='^test(17-01):' HEAD | head -1)
   [[ -n "$first_phase_commit" ]] || fail "cannot resolve the first Phase 17 source commit"
+  last_phase_commit=$(git -C "$ROOT" log --format='%H %s' HEAD \
+    | awk '$2 ~ /^[a-z]+\(17-[0-9]+\):$/ { print $1; exit }')
+  [[ -n "$last_phase_commit" ]] || fail "cannot resolve the last Phase 17 source commit"
   phase_base=$(git -C "$ROOT" rev-parse "$first_phase_commit^") || fail "cannot resolve the pre-Phase 17 base"
 
-  if ! node - "$ROOT" "$phase_base" <<'NODE'
-const fs = require("fs");
+  if ! node - "$ROOT" "$phase_base" "$last_phase_commit" <<'NODE'
 const { execFileSync } = require("child_process");
-const [root, base] = process.argv.slice(2);
-const loadCurrent = (path) => JSON.parse(fs.readFileSync(`${root}/${path}`, "utf8"));
-const loadBase = (path) => JSON.parse(execFileSync("git", ["-C", root, "show", `${base}:${path}`], { encoding: "utf8" }));
+const [root, base, terminal] = process.argv.slice(2);
+const loadAt = (commit, path) => JSON.parse(execFileSync(
+  "git",
+  ["-C", root, "show", `${commit}:${path}`],
+  { encoding: "utf8" },
+));
 const normalize = (value) => Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)));
 const selected = (value, includeVersion) => ({
   ...(includeVersion ? { version: value.version } : {}),
@@ -297,8 +302,8 @@ const selected = (value, includeVersion) => ({
   peerDependencies: normalize(value.peerDependencies ?? {}),
 });
 for (const [path, includeVersion] of [["package.json", true], ["mcp-memory-server/package.json", false]]) {
-  const before = selected(loadBase(path), includeVersion);
-  const after = selected(loadCurrent(path), includeVersion);
+  const before = selected(loadAt(base, path), includeVersion);
+  const after = selected(loadAt(terminal, path), includeVersion);
   if (JSON.stringify(before) !== JSON.stringify(after)) {
     console.error(`dependency or version delta from pre-phase base: ${path}`);
     process.exit(1);
@@ -308,7 +313,7 @@ NODE
   then
     fail "package dependency/version declarations changed during Phase 17"
   fi
-  git -C "$ROOT" diff --quiet "$phase_base" -- package-lock.json mcp-memory-server/package-lock.json \
+  git -C "$ROOT" diff --quiet "$phase_base" "$last_phase_commit" -- package-lock.json mcp-memory-server/package-lock.json \
     || fail "lockfile changed during Phase 17"
 }
 
