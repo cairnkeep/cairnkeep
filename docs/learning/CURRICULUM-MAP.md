@@ -43,6 +43,22 @@ For every minor release:
 5. Keep untested additions as Brief, even when the underlying feature ships.
 6. Re-record only scripts whose observable behavior or mental model changed.
 
+## Course Spine
+
+The public `cairnkeep-course-labs` repository is the executable spine; this
+repository remains the canonical source for explanations and scripts.
+
+| Checkpoint | Lessons | Purpose |
+|---|---|---|
+| `course-00-app` | L00-L02 | Plain synthetic application before Cairnkeep |
+| `course-01-bootstrap` | L03 | Neutral bootstrap and isolated environment |
+| `course-02-memory` | L04-L05 | Memory lifecycle and derived knowledge |
+| `course-03-quality` | L06 | Repository review and deliberately vulnerable fixture |
+| `course-04-operation` | L07-L12 | Storage, routing, integrations, containers, overlays |
+| `course-05-evidence` | L13-L14 | Evidence lifecycle and typed memory |
+| `course-06-governance` | L15 | Capability precedence and restart boundaries |
+| `course-07-evaluation` | L16-L17 | Package-owned offline fixture and design boundary |
+
 ## Command Ownership
 
 Every top-level CLI command has a teaching destination. This table is checked

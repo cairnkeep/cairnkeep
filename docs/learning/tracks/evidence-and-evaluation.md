@@ -15,3 +15,6 @@ The track is complete when the learner can explain each consent boundary,
 inspect and manage every local evidence store, compare baseline and ablation
 reports without making unsupported claims, and distinguish current runtime
 features from the design-only meta-agent contract.
+
+Hands-on spine: `course-05-evidence` through `course-07-evaluation` in the
+public [course labs](https://github.com/cairnkeep/cairnkeep-course-labs).

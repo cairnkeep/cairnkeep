@@ -8,10 +8,17 @@ version=$(node -p "require('./package.json').version")
 landing=docs/learning/README.md
 production=docs/learning/PRODUCTION-PLAN.md
 coverage=docs/learning/CURRICULUM-MAP.md
+feature_guide=docs/learning/FEATURE-GUIDE.md
 
-[[ -f "$landing" && -f "$production" && -f "$coverage" ]]
+[[ -f "$landing" && -f "$production" && -f "$coverage" && -f "$feature_guide" ]]
 grep -qF 'docs/learning/README.md' README.md
 grep -qF "**Baseline:** Cairnkeep $version" "$coverage"
+grep -qF "**Baseline:** Cairnkeep $version" "$feature_guide"
+grep -qF 'https://github.com/cairnkeep/cairnkeep-course-labs' "$landing"
+for checkpoint in course-00-app course-01-bootstrap course-02-memory course-03-quality \
+  course-04-operation course-05-evidence course-06-governance course-07-evaluation; do
+  grep -qF "\`$checkpoint\`" "$coverage"
+done
 
 ready=0
 brief=0

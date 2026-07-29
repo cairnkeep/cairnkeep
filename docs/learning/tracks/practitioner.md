@@ -14,3 +14,7 @@
 The track is complete when the learner can decide what should become memory,
 review derived knowledge, run governed repository checks, locate the store, and
 perform a reversible backup or migration.
+
+Hands-on spine: `course-02-memory`, `course-03-quality`, and
+`course-05-evidence` in the public
+[course labs](https://github.com/cairnkeep/cairnkeep-course-labs).

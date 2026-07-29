@@ -57,9 +57,12 @@ Expand L04-L06 and L13 in this order:
 4. L13 structured evidence, redaction, deterministic hindsight, compaction,
    artifact inspection, and cleanup against synthetic sessions.
 
-Create the public `cairnkeep-course-labs` repository during this wave, not
-before. It must contain synthetic code only, prominent safety warnings, tagged
-starter states, and solution branches.
+Use the public `cairnkeep-course-labs` repository created for this wave. Its
+synthetic Trail Ledger project, prominent safety boundary, eight tagged
+checkpoints, executable verification, offline evaluation route, and
+`solutions/review-target` branch are the shared demo source. Expand lesson prose
+and presenter scripts against those immutable starts rather than copying the
+demo into this repository.
 
 **Exit gate:** a learner can complete all labs from a fresh clone, and CI resets
 and verifies every starter state.
@@ -143,8 +146,8 @@ For each lesson, follow this loop:
 8. **Pilot:** give the written lesson to a learner before publishing the video.
 9. **Improve:** incorporate observed failures and publish both formats together.
 
-The immediate next step after the 2.4 curriculum rebaseline is an unrecorded
-L00-L03 rehearsal because the mental model and installation demonstration
-changed. Then expand L04-L06 and L13 in Wave 2. Use the checklist in the
-[instructor guide](instructor-guide.md) and record questions rather than
-polishing video production prematurely.
+The immediate next step is an unrecorded L00-L03 rehearsal using
+`course-00-app` and `course-01-bootstrap`. Then expand L04-L06 and L13 against
+`course-02-memory`, `course-03-quality`, and `course-05-evidence`. Use the
+checklist in the [instructor guide](instructor-guide.md) and record questions
+rather than polishing video production prematurely.
