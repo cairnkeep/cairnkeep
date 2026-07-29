@@ -41,6 +41,10 @@ fact, and recall it from a new harness session.
    cairn doctor
    ```
 
+   Also leave trajectory, note, compaction, artifact, typed-memory, capability,
+   and evaluation flags unset. The quickstart proves core memory without
+   silently changing the amount of retained data.
+
 4. Launch Claude Code through the generated project launcher:
 
    ```bash
@@ -85,7 +89,8 @@ The lesson is complete only if:
 
 Use synthetic memory in the course. The local stdio server writes to local
 AgentFS/SQLite storage. Project wiki and planning files are derived artifacts;
-the repository remains canonical.
+the repository remains canonical. Optional session evidence is off in this
+lesson and is introduced in L13.
 
 ## Clean up
 

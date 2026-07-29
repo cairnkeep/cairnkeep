@@ -17,6 +17,8 @@ through supported seams, delivers no secrets, and upgrades fleets safely.
 - Machine-private configuration versus distributable defaults.
 - Bootstrap, diagnostics, fleet status/update, release gates, and rollback.
 - Compatibility guarantees for existing clients and stored memory.
+- Explicit decisions for every new default-off evidence, capability, and
+  evaluation flag rather than enabling the entire advanced stack by policy.
 
 ## Hands-on lab
 

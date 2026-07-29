@@ -14,6 +14,8 @@ will go before starting a session.
 - The placement rule: the server process owns the store it opens.
 - Local stdio versus explicitly configured remote HTTP.
 - AgentFS/SQLite data at rest and project-derived artifacts.
+- Separate local stores and retention for trajectories, notes, immutable
+  artifacts, capability callbacks, and evaluation experiments.
 - Credential boundaries and environment-variable precedence.
 - Embedding/extraction endpoints and what content they receive.
 - `cairn memory path` and a preflight data-flow checklist.
@@ -30,6 +32,7 @@ names, and prove that no remote destination was discovered.
 - Secrets are never printed, committed, or included in screenshots.
 - Optional model and RAG flows are identified separately from memory storage.
 - The learner can stop when an effective destination is ambiguous.
+- Independent feature flags are not treated as one blanket consent switch.
 
 ## Planned video
 

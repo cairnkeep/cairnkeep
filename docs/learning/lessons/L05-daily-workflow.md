@@ -12,6 +12,8 @@ confusing derived knowledge with canonical project sources.
 ## Planned lesson
 
 - SessionStart recall, pre-edit recall, and SessionEnd candidate staging.
+- Optional structured capture, hindsight distillation, and compaction continuity
+  as separate post-session paths that do not bypass memory review.
 - `/wiki-ingest`, `/wiki-query`, and `/wiki-lint`.
 - Sparse, citation-heavy wiki pages rather than copied documentation.
 - Alignment gaps, contradictions, and project planning artifacts.
@@ -29,6 +31,7 @@ queue before exiting.
 - Every derived claim links to a canonical source.
 - A stale or contradictory page is detected rather than silently trusted.
 - Automatic hooks are observable and do not bypass human memory review.
+- Captured evidence and notes are never described as canonical project state.
 - The learner can describe what to do at session start, before editing, and at
   session end.
 
@@ -41,3 +44,4 @@ minutes and split wiki maintenance into a second video if rehearsal runs long.
 
 - [Operating guide](../../operating.md#the-workflow)
 - [Git provider configuration](../../git-providers.md)
+- [L13 - Session evidence and hindsight](L13-session-evidence.md)

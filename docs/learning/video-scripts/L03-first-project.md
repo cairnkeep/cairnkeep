@@ -43,6 +43,9 @@ does not reinstall the machine-level MCP server or operating assets.”
 **Say:** “Optional unconfigured integrations may be skipped. A configured but
 unreachable dependency is a failure and should be fixed before relying on it.”
 
+**Point out:** Session capture, notes, compaction, artifacts, typed memory,
+capability governance, and evaluation remain off for the core-memory proof.
+
 ## 05:00 - Launch and remember
 
 **Do:** Start `./.ai/start-claude.sh`.
