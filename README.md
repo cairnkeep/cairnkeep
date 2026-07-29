@@ -10,7 +10,7 @@ A *cairn* is a stack of stones left as a trail marker for whoever follows; a
 *keep* is where you store what matters. **Cairnkeep** is where coding agents
 stack durable memory — decisions, pitfalls, patterns — and follow the trail
 across sessions, projects, and harnesses (Claude Code, OpenCode, Kimi Code,
-Pi, and other MCP clients).
+Qwen Code, Pi, and other MCP clients).
 
 ## Status
 
@@ -38,6 +38,7 @@ and 20 are end-of-life upstream.
 | Claude Code on Linux/macOS | Memory server plus commands, agents, hooks, and launchers |
 | OpenCode on Linux/macOS | Memory server plus commands, plugins, hooks, and launchers |
 | Kimi Code on Linux/macOS | Memory MCP server plus project launcher; no Cairnkeep operating-layer assets yet |
+| Qwen Code on Linux/macOS | Memory MCP server plus project launcher; no Cairnkeep operating-layer assets yet |
 | Pi on Linux/macOS | Native opt-in trajectory extension and launcher; no bundled MCP bridge |
 | Codex CLI | Memory MCP server; no Cairnkeep operating-layer assets |
 | Other MCP clients | Memory and optional domain-knowledge MCP tools |
@@ -47,7 +48,7 @@ Linux, macOS, Bash 3.2 portability, and clean Node 22/24/26 runtime checks
 are exercised in CI.
 
 See [Harness compatibility](docs/harness-compatibility.md) for exact support
-levels, Kimi configuration, and candidates that are not yet runtime-tested.
+levels, Kimi and Qwen configuration, and candidates that are not yet runtime-tested.
 
 ## Try with Podman
 
@@ -159,6 +160,12 @@ configuration requires a literal URL and supports a token reference through
 `bearerTokenEnvVar`; it does not expand `${VAR}` in the URL. See
 [Harness compatibility](docs/harness-compatibility.md#kimi-code).
 
+For Qwen Code, use project `.qwen/settings.json`: local stdio launches
+`cairn memory-server`, while remote HTTP uses `httpUrl` and environment-expanded
+headers. Review and approve project MCP configuration with
+`qwen mcp approve cairn-memory`, then launch with `./.ai/start-qwen.sh`. See
+[Harness compatibility](docs/harness-compatibility.md#qwen-code).
+
 For Pi, install the local trajectory adapter and use the scaffolded launcher:
 
 ```bash
@@ -208,8 +215,8 @@ unless a wrapper opts in:
   export env (e.g. a provider base URL) or abort the launch by returning
   non-zero. This is where credential refresh / connectivity setup lives.
 - **`CAIRN_EXTRA_SETTINGS`** — path to a settings file layered onto the harness
-  (`--settings` for Claude Code, `OPENCODE_CONFIG` for OpenCode). Pi has no equivalent
-  generic settings-file flag, so its launcher leaves this variable unused.
+  (`--settings` for Claude Code, `OPENCODE_CONFIG` for OpenCode). Kimi, Qwen,
+  and Pi do not interpret this variable in their generic launchers.
   Process env still wins, so an inline value beats the profile.
 - **`.ai/post-exit.sh`** — sourced after the harness exits, with
   `CAIRN_EXIT_STATUS` set to its exit code.

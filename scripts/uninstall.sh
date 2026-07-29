@@ -40,6 +40,7 @@ PROJECT_AI_FILES=(
   start-opencode.sh
   start-pi.sh
   start-kimi.sh
+  start-qwen.sh
   env.example
   trajectory-redaction.json
   capabilities.json

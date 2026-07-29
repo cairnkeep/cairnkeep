@@ -425,6 +425,8 @@ pi_launcher="$repo/.ai/start-pi.sh"
 [[ -x "$pi_launcher" ]] || fail "Pi launcher not scaffolded"
 kimi_launcher="$repo/.ai/start-kimi.sh"
 [[ -x "$kimi_launcher" ]] || fail "Kimi launcher not scaffolded"
+qwen_launcher="$repo/.ai/start-qwen.sh"
+[[ -x "$qwen_launcher" ]] || fail "Qwen launcher not scaffolded"
 
 # OpenCode's run mode ends a turn after content-only output. Commands that need
 # owner I/O must therefore make their first response action a tool call rather
@@ -471,12 +473,18 @@ cat > "$tmp/bin/kimi" <<'FAKE'
 { echo "args:$*"; echo "prelaunch:${PRELAUNCH_RAN:-0}"; echo "extra:${CAIRN_EXTRA_SETTINGS:-}"; } > "$KIMI_LOG"
 exit "${FAKE_EXIT:-0}"
 FAKE
-chmod +x "$tmp/bin/claude" "$tmp/bin/opencode" "$tmp/bin/kimi"
+cat > "$tmp/bin/qwen" <<'FAKE'
+#!/usr/bin/env bash
+{ echo "args:$*"; echo "prelaunch:${PRELAUNCH_RAN:-0}"; echo "extra:${CAIRN_EXTRA_SETTINGS:-}"; } > "$QWEN_LOG"
+exit "${FAKE_EXIT:-0}"
+FAKE
+chmod +x "$tmp/bin/claude" "$tmp/bin/opencode" "$tmp/bin/kimi" "$tmp/bin/qwen"
 ln -s "$ROOT/bin/cairn" "$tmp/bin/cairn"
 export PATH="$tmp/bin:$PATH"
 export CLAUDE_LOG="$tmp/claude.log"
 export OPENCODE_LOG="$tmp/opencode.log"
 export KIMI_LOG="$tmp/kimi.log"
+export QWEN_LOG="$tmp/qwen.log"
 
 # Claude sync has three exact installation states. Normal sync and an explicit
 # overlay request with the master off must contain no capability hook bytes or
@@ -539,6 +547,10 @@ grep -qx "capability-registration:0" "$OPENCODE_LOG" || fail "OpenCode baseline 
 "$kimi_launcher" --foo bar >/dev/null 2>&1 || fail "Kimi baseline launch failed"
 grep -qx "args:--foo bar" "$KIMI_LOG" || fail "Kimi baseline did not pass args through"
 grep -qx "prelaunch:0" "$KIMI_LOG" || fail "Kimi prelaunch marker leaked without a hook"
+
+"$qwen_launcher" --foo bar >/dev/null 2>&1 || fail "Qwen baseline launch failed"
+grep -qx "args:--foo bar" "$QWEN_LOG" || fail "Qwen baseline did not pass args through"
+grep -qx "prelaunch:0" "$QWEN_LOG" || fail "Qwen prelaunch marker leaked without a hook"
 
 # Invalid/off master values stay on the legacy direct-exec path: one harness
 # process, unchanged argv/config environment, and no isolated assets or store.
@@ -636,6 +648,12 @@ grep -qx "args:--plan" "$KIMI_LOG" || fail "Kimi pre-launch changed harness argv
 grep -qx "prelaunch:1" "$KIMI_LOG" || fail "Kimi pre-launch env not visible to harness"
 grep -qx "extra:$tmp/settings.json" "$KIMI_LOG" || fail "Kimi pre-launch environment was not preserved"
 
+rm -f "$QWEN_LOG"
+"$qwen_launcher" --approval-mode plan >/dev/null 2>&1 || fail "Qwen launch with pre-launch failed"
+grep -qx "args:--approval-mode plan" "$QWEN_LOG" || fail "Qwen pre-launch changed harness argv"
+grep -qx "prelaunch:1" "$QWEN_LOG" || fail "Qwen pre-launch env not visible to harness"
+grep -qx "extra:$tmp/settings.json" "$QWEN_LOG" || fail "Qwen pre-launch environment was not preserved"
+
 # 3. pre-launch.sh non-zero aborts the launch before the harness runs.
 rm -f "$CLAUDE_LOG"
 cat > "$repo/.ai/pre-launch.sh" <<'EOF'
@@ -647,6 +665,9 @@ if "$launcher" >/dev/null 2>&1; then fail "non-zero pre-launch should abort the 
 rm -f "$KIMI_LOG"
 if "$kimi_launcher" >/dev/null 2>&1; then fail "non-zero pre-launch should abort Kimi"; fi
 [[ ! -f "$KIMI_LOG" ]] || fail "Kimi ran despite pre-launch abort"
+rm -f "$QWEN_LOG"
+if "$qwen_launcher" >/dev/null 2>&1; then fail "non-zero pre-launch should abort Qwen"; fi
+[[ ! -f "$QWEN_LOG" ]] || fail "Qwen ran despite pre-launch abort"
 rm -f "$repo/.ai/pre-launch.sh"
 
 # 4. post-exit.sh runs after the harness with $CAIRN_EXIT_STATUS.
@@ -665,6 +686,13 @@ status=$?
 [[ "$status" -eq 8 ]] || fail "expected exit 8 from Kimi launcher, got $status"
 grep -qx "args:--auto" "$KIMI_LOG" || fail "Kimi launcher changed arguments"
 grep -qx "post:8" "$tmp/post.log" || fail "Kimi launcher post-exit status missing"
+
+rm -f "$tmp/post.log" "$QWEN_LOG"
+FAKE_EXIT=10 "$qwen_launcher" --output-format json >/dev/null 2>&1 && fail "Qwen launcher should propagate harness exit code"
+status=$?
+[[ "$status" -eq 10 ]] || fail "expected exit 10 from Qwen launcher, got $status"
+grep -qx "args:--output-format json" "$QWEN_LOG" || fail "Qwen launcher changed arguments"
+grep -qx "post:10" "$tmp/post.log" || fail "Qwen launcher post-exit status missing"
 
 # 5. Pi launcher preserves the same env/pre/post seams and passes arguments
 # unchanged; Pi has no generic settings-file flag so CAIRN_EXTRA_SETTINGS is ignored.
