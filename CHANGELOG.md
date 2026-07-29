@@ -5,6 +5,15 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-07-29
+
+### Added
+
+- Add Qwen Code as a supported memory client with a generated project launcher,
+  local stdio guidance, and tested authenticated remote HTTP configuration.
+- Expand the harness comparison to cover current native plugin and MCP clients,
+  while keeping memory-only support separate from the full operating layer.
+
 ## [2.5.0] - 2026-07-29
 
 ### Added
@@ -211,7 +220,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.3.0...v2.3.1

@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart
 **Time:** 25 minutes
-**Tested with:** Cairnkeep 2.5.0 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.6.0 and Node.js 22 or newer
 
 ## Outcome
 
@@ -13,7 +13,7 @@ layer, and distinguish a complete installation from a partial one.
 ## Prerequisites
 
 - Node.js 22 or newer and npm.
-- Claude Code installed for the commands below. OpenCode and Kimi Code users
+- Claude Code installed for the commands below. OpenCode, Kimi Code, and Qwen Code users
   should follow the equivalent setup in
   [the operating guide](../../operating.md).
 - Permission to install an npm package globally for your user.
@@ -41,7 +41,7 @@ machine-level steps.
 2. Install Cairnkeep:
 
    ```bash
-   npm install --global @cairnkeep/cli@2.5.0
+   npm install --global @cairnkeep/cli@2.6.0
    cairn --version
    ```
 
@@ -107,6 +107,14 @@ Kimi Code can use the same memory server through its generated
 URL rather than `${CAIRN_MEMORY_REMOTE_URL}`. Keep the resolved URL in a private
 `.kimi-code/mcp.json` and keep the bearer token in the environment. See
 [Harness compatibility](../../harness-compatibility.md#kimi-code).
+
+Qwen Code can use the generated `.ai/start-qwen.sh` launcher. Its project
+`.qwen/settings.json` supports environment references for both the remote URL
+and authorization header, so the file can contain names such as
+`${CAIRN_MEMORY_REMOTE_URL}` and `${CAIRN_MEMORY_HTTP_TOKEN}` instead of secret
+values. Keep this project settings file untracked and approve the generated MCP
+entry with `qwen mcp approve cairn-memory`. See
+[Harness compatibility](../../harness-compatibility.md#qwen-code).
 
 ## Clean up if you stop the evaluation
 

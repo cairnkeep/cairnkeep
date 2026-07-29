@@ -1,7 +1,7 @@
 {
   "name": "@cairnkeep/cli",
-  "version": "2.5.0",
-  "description": "A durable, harness-agnostic memory + context layer for coding agents (Claude Code, OpenCode, Pi).",
+  "version": "2.6.0",
+  "description": "A durable, harness-agnostic memory + context layer for coding agents and MCP clients.",
   "license": "Apache-2.0",
   "type": "module",
   "publishConfig": {
@@ -63,6 +63,7 @@
     "agent",
     "claude-code",
     "opencode",
+    "qwen-code",
     "pi-coding-agent",
     "context",
     "rag"
