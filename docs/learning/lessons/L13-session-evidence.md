@@ -57,12 +57,6 @@ cairn artifact list --json
   memory by purpose, store, lifecycle, and trust level.
 - Cleanup targets only the disposable course evidence.
 
-## Planned video
-
-Draw the evidence lifecycle, capture one synthetic session, inspect the redacted
-record, and find the resulting failure note. Target 14 minutes. Treat compaction
-and Pi as short boundary chapters rather than requiring three harness demos.
-
 ## Source material
 
 - [Operating guide: structured trajectories](../../operating.md#structured-session-trajectories-opt-in)

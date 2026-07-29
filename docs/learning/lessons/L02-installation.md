@@ -135,7 +135,3 @@ Do not delete memory stores as part of a course cleanup.
 - Default stdio memory is local.
 
 Next: [L03 - Bootstrap the first project](L03-first-project.md).
-
-## Video
-
-Use [the L02 presenter script](../video-scripts/L02-installation.md).

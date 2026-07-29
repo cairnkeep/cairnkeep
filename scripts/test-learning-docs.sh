@@ -6,11 +6,10 @@ cd "$ROOT"
 
 version=$(node -p "require('./package.json').version")
 landing=docs/learning/README.md
-production=docs/learning/PRODUCTION-PLAN.md
 coverage=docs/learning/CURRICULUM-MAP.md
 feature_guide=docs/learning/FEATURE-GUIDE.md
 
-[[ -f "$landing" && -f "$production" && -f "$coverage" && -f "$feature_guide" ]]
+[[ -f "$landing" && -f "$coverage" && -f "$feature_guide" ]]
 grep -qF 'docs/learning/README.md' README.md
 grep -qF "**Baseline:** Cairnkeep $version" "$coverage"
 grep -qF "**Baseline:** Cairnkeep $version" "$feature_guide"
@@ -33,17 +32,11 @@ for number in $(seq -w 0 17); do
   if grep -q '^\*\*Status:\*\* Ready' "$lesson"; then
     ready=$((ready + 1))
     grep -qF "Tested with:** Cairnkeep $version" "$lesson"
-    script=$(sed -n 's|.*(\.\./video-scripts/\([^)]*\)).*|docs/learning/video-scripts/\1|p' "$lesson")
-    [[ -n "$script" && -f "$script" ]] || {
-      echo "ready lesson has no presenter script: $lesson" >&2
-      exit 1
-    }
     grep -q '^## Common failures$' "$lesson"
     grep -q '^## Privacy and trust boundary$' "$lesson"
   elif grep -q '^\*\*Status:\*\* Brief' "$lesson"; then
     brief=$((brief + 1))
     grep -q '^## Acceptance criteria$' "$lesson"
-    grep -q '^## Planned video$' "$lesson"
   else
     echo "lesson has an unsupported status: $lesson" >&2
     exit 1
@@ -91,4 +84,4 @@ for (const file of markdownFiles("docs/learning")) {
 }
 NODE
 
-echo "PASS: learning path structure, readiness, scripts, and version alignment"
+echo "PASS: public learning path structure, readiness, links, and version alignment"

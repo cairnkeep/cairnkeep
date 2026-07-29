@@ -93,7 +93,3 @@ configuration and are taught later.
 - Optional services are not prerequisites.
 
 Next: [L01 - Try it safely](L01-safe-trial.md).
-
-## Video
-
-Use [the L00 presenter script](../video-scripts/L00-why-cairnkeep.md).

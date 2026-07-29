@@ -33,12 +33,6 @@ solution branch.
 - No scan reaches outside the disposable repository or its local processes.
 - The lab passes after remediation and fails in its tagged starter state.
 
-## Planned video
-
-This is the flagship value demonstration. Show one serious synthetic defect
-from discovery through validation and fix. Target 15 minutes; publish the full
-45-minute exercise as a workshop.
-
 ## Source material
 
 - [Operating guide](../../operating.md#the-workflow)

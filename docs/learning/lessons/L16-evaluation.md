@@ -52,13 +52,6 @@ after the lab is rehearsed from the packaged CLI rather than a source clone.
   without claiming causality, significance, or product improvement.
 - Course cleanup is limited to its temporary contained experiment root.
 
-## Planned video
-
-Start with the claim boundary, validate before running, inspect one two-pass
-report, and close by marking the fixture `offline-framework`. Target 16 minutes.
-Publish ablation as a second short video if the complete schedule obscures the
-measurement concepts.
-
 ## Source material
 
 - [Operating guide: evaluation harness](../../operating.md#evaluation-harness-opt-in)

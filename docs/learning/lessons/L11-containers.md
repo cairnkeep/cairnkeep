@@ -32,11 +32,6 @@ only the course resources.
   volume is deliberately removed.
 - The learner can enumerate every mount and network boundary.
 
-## Planned video
-
-Use a diagram first, then replace a running container while retaining its
-volume. Target 15 minutes.
-
 ## Source material
 
 - [Containers](../../containers.md)

@@ -35,11 +35,6 @@ queue before exiting.
 - The learner can describe what to do at session start, before editing, and at
   session end.
 
-## Planned video
-
-Follow one small feature from session start to reviewed handoff. Target 15
-minutes and split wiki maintenance into a second video if rehearsal runs long.
-
 ## Source material
 
 - [Operating guide](../../operating.md#the-workflow)

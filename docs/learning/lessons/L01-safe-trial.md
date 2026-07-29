@@ -90,7 +90,3 @@ podman volume rm cairnkeep-course-data
 - Persistence belongs to an explicitly named volume.
 
 Next: [L02 - Install the local workflow](L02-installation.md).
-
-## Video
-
-Use [the L01 presenter script](../video-scripts/L01-safe-trial.md).

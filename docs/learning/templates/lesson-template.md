@@ -58,7 +58,3 @@ Offer one bounded extension that is not required for the next lesson.
 ## Recap
 
 List three facts and link the next lesson.
-
-## Video
-
-Link to `../video-scripts/LXX-title.md` only after the script is verified.

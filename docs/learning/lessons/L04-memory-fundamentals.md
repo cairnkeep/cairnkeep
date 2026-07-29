@@ -35,12 +35,6 @@ candidate.
 - No extracted candidate becomes durable without an explicit review action.
 - Enabling typed nodes changes discovery structure, not the authority of a fact.
 
-## Planned video
-
-Open with two contradictory memories, demonstrate search and superseding, then
-finish with the review queue. Target 12-15 minutes. Write the complete script in
-Wave 2 after the lab fixture is executable.
-
 ## Source material
 
 - [Operating guide](../../operating.md#the-workflow)
