@@ -423,6 +423,8 @@ launcher="$repo/.ai/start-claude.sh"
 [[ -x "$launcher" ]] || fail "launcher not scaffolded"
 pi_launcher="$repo/.ai/start-pi.sh"
 [[ -x "$pi_launcher" ]] || fail "Pi launcher not scaffolded"
+kimi_launcher="$repo/.ai/start-kimi.sh"
+[[ -x "$kimi_launcher" ]] || fail "Kimi launcher not scaffolded"
 
 # OpenCode's run mode ends a turn after content-only output. Commands that need
 # owner I/O must therefore make their first response action a tool call rather
@@ -464,11 +466,17 @@ cat > "$tmp/bin/opencode" <<'FAKE'
 } > "$OPENCODE_LOG"
 exit "${FAKE_EXIT:-0}"
 FAKE
-chmod +x "$tmp/bin/claude" "$tmp/bin/opencode"
+cat > "$tmp/bin/kimi" <<'FAKE'
+#!/usr/bin/env bash
+{ echo "args:$*"; echo "prelaunch:${PRELAUNCH_RAN:-0}"; echo "extra:${CAIRN_EXTRA_SETTINGS:-}"; } > "$KIMI_LOG"
+exit "${FAKE_EXIT:-0}"
+FAKE
+chmod +x "$tmp/bin/claude" "$tmp/bin/opencode" "$tmp/bin/kimi"
 ln -s "$ROOT/bin/cairn" "$tmp/bin/cairn"
 export PATH="$tmp/bin:$PATH"
 export CLAUDE_LOG="$tmp/claude.log"
 export OPENCODE_LOG="$tmp/opencode.log"
+export KIMI_LOG="$tmp/kimi.log"
 
 # Claude sync has three exact installation states. Normal sync and an explicit
 # overlay request with the master off must contain no capability hook bytes or
@@ -527,6 +535,10 @@ opencode_launcher="$repo/.ai/start-opencode.sh"
 grep -qx "args:--foo bar" "$OPENCODE_LOG" || fail "OpenCode baseline did not pass args through"
 grep -qx "config:" "$OPENCODE_LOG" || fail "OpenCode baseline selected a config root"
 grep -qx "capability-registration:0" "$OPENCODE_LOG" || fail "OpenCode baseline registered a capability plugin"
+
+"$kimi_launcher" --foo bar >/dev/null 2>&1 || fail "Kimi baseline launch failed"
+grep -qx "args:--foo bar" "$KIMI_LOG" || fail "Kimi baseline did not pass args through"
+grep -qx "prelaunch:0" "$KIMI_LOG" || fail "Kimi prelaunch marker leaked without a hook"
 
 # Invalid/off master values stay on the legacy direct-exec path: one harness
 # process, unchanged argv/config environment, and no isolated assets or store.
@@ -618,6 +630,12 @@ grep -qx "prelaunch:1" "$OPENCODE_LOG" || fail "OpenCode pre-launch env not visi
 grep -qx "args:--settings-probe" "$OPENCODE_LOG" || fail "OpenCode extra config changed harness argv"
 grep -qx "explicit-config:$tmp/settings.json" "$OPENCODE_LOG" || fail "CAIRN_EXTRA_SETTINGS not exported as OPENCODE_CONFIG"
 
+rm -f "$KIMI_LOG"
+"$kimi_launcher" --plan >/dev/null 2>&1 || fail "Kimi launch with pre-launch failed"
+grep -qx "args:--plan" "$KIMI_LOG" || fail "Kimi pre-launch changed harness argv"
+grep -qx "prelaunch:1" "$KIMI_LOG" || fail "Kimi pre-launch env not visible to harness"
+grep -qx "extra:$tmp/settings.json" "$KIMI_LOG" || fail "Kimi pre-launch environment was not preserved"
+
 # 3. pre-launch.sh non-zero aborts the launch before the harness runs.
 rm -f "$CLAUDE_LOG"
 cat > "$repo/.ai/pre-launch.sh" <<'EOF'
@@ -626,6 +644,9 @@ return 1
 EOF
 if "$launcher" >/dev/null 2>&1; then fail "non-zero pre-launch should abort the launch"; fi
 [[ ! -f "$CLAUDE_LOG" ]] || fail "harness ran despite pre-launch abort"
+rm -f "$KIMI_LOG"
+if "$kimi_launcher" >/dev/null 2>&1; then fail "non-zero pre-launch should abort Kimi"; fi
+[[ ! -f "$KIMI_LOG" ]] || fail "Kimi ran despite pre-launch abort"
 rm -f "$repo/.ai/pre-launch.sh"
 
 # 4. post-exit.sh runs after the harness with $CAIRN_EXIT_STATUS.
@@ -637,6 +658,13 @@ FAKE_EXIT=7 "$launcher" >/dev/null 2>&1 && fail "launcher should propagate harne
 status=$?
 [[ "$status" -eq 7 ]] || fail "expected exit 7 from launcher, got $status"
 grep -qx "post:7" "$tmp/post.log" || fail "post-exit hook did not see CAIRN_EXIT_STATUS"
+
+rm -f "$tmp/post.log" "$KIMI_LOG"
+FAKE_EXIT=8 "$kimi_launcher" --auto >/dev/null 2>&1 && fail "Kimi launcher should propagate harness exit code"
+status=$?
+[[ "$status" -eq 8 ]] || fail "expected exit 8 from Kimi launcher, got $status"
+grep -qx "args:--auto" "$KIMI_LOG" || fail "Kimi launcher changed arguments"
+grep -qx "post:8" "$tmp/post.log" || fail "Kimi launcher post-exit status missing"
 
 # 5. Pi launcher preserves the same env/pre/post seams and passes arguments
 # unchanged; Pi has no generic settings-file flag so CAIRN_EXTRA_SETTINGS is ignored.

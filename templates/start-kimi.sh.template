@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Cairnkeep launcher for Kimi Code. Loads this repo's .ai/.env (if present),
+# then launches Kimi from the repo root. Kimi reads a valid project .mcp.json
+# and an optional .kimi-code/mcp.json override; it does not expand environment
+# references in an HTTP URL, so remote URLs must be materialized by private
+# machine configuration rather than committed to a shared project file.
+#
+# Wrapper seams (both optional, both no-ops when absent):
+#   .ai/pre-launch.sh        sourced after .env, before launch. May export env
+#                            or abort the launch by returning/exiting non-zero.
+#   .ai/post-exit.sh         sourced after Kimi exits, with
+#                            $CAIRN_EXIT_STATUS set to the exit code.
+set -euo pipefail
+ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+
+if [[ -f "$ROOT_DIR/.ai/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/.env"
+  set +a
+fi
+if [[ -f "$ROOT_DIR/.ai/pre-launch.sh" ]]; then
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/pre-launch.sh"
+fi
+
+cd "$ROOT_DIR"
+
+if [[ -f "$ROOT_DIR/.ai/post-exit.sh" ]]; then
+  set +e
+  kimi "$@"
+  CAIRN_EXIT_STATUS=$?
+  set -e
+  export CAIRN_EXIT_STATUS
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/post-exit.sh" || true
+  exit "$CAIRN_EXIT_STATUS"
+fi
+exec kimi "$@"

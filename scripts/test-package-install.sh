@@ -43,6 +43,7 @@ bootstrap_output=$(cairn bootstrap "$tmp/project")
 [[ "$bootstrap_output" == *"cairn sync --apply"* ]] || fail "bootstrap printed invalid operating-layer setup instructions"
 [[ -x "$tmp/project/.ai/start-claude.sh" ]] || fail "bootstrap did not install an executable Claude launcher"
 [[ -x "$tmp/project/.ai/start-pi.sh" ]] || fail "bootstrap did not install an executable Pi launcher"
+[[ -x "$tmp/project/.ai/start-kimi.sh" ]] || fail "bootstrap did not install an executable Kimi launcher"
 [[ -f "$tmp/project/.planning/config.json" ]] || fail "bootstrap did not install the planning scaffold"
 
 (cd "$tmp/project" && cairn doctor) >/dev/null || fail "installed package failed cairn doctor"
@@ -220,6 +221,8 @@ NODE
   fail "npm tarball omitted the Pi sync command"
 [[ -f "$installed_root/templates/start-pi.sh.template" ]] || \
   fail "npm tarball omitted the Pi launcher template"
+[[ -f "$installed_root/templates/start-kimi.sh.template" ]] || \
+  fail "npm tarball omitted the Kimi launcher template"
 [[ -f "$installed_root/schemas/note.schema.json" ]] || \
   fail "npm tarball omitted the note schema"
 [[ -f "$installed_root/schemas/memory-node.schema.json" ]] || \

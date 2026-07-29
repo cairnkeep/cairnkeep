@@ -5,6 +5,21 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-07-29
+
+### Added
+
+- Add Kimi Code as a supported memory client with a generated project launcher,
+  local stdio guidance, and tested authenticated remote HTTP configuration.
+- Add an explicit harness compatibility matrix and a documented validation
+  process for future MCP clients.
+
+### Fixed
+
+- Document that Kimi requires a literal MCP URL and a token reference through
+  `bearerTokenEnvVar`, preventing invalid `${VAR}` URL configurations without
+  writing bearer-token values to project files.
+
 ## [2.4.0] - 2026-07-29
 
 ### Added
@@ -196,7 +211,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.4.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.2.1...v2.3.0

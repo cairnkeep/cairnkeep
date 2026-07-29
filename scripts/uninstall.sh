@@ -39,6 +39,7 @@ PROJECT_AI_FILES=(
   start-claude.sh
   start-opencode.sh
   start-pi.sh
+  start-kimi.sh
   env.example
   trajectory-redaction.json
   capabilities.json

@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart
 **Time:** 25 minutes
-**Tested with:** Cairnkeep 2.4.0 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.5.0 and Node.js 22 or newer
 
 ## Outcome
 
@@ -13,8 +13,9 @@ layer, and distinguish a complete installation from a partial one.
 ## Prerequisites
 
 - Node.js 22 or newer and npm.
-- Claude Code installed for the commands below. OpenCode users should follow
-  the equivalent setup in [the operating guide](../../operating.md).
+- Claude Code installed for the commands below. OpenCode and Kimi Code users
+  should follow the equivalent setup in
+  [the operating guide](../../operating.md).
 - Permission to install an npm package globally for your user.
 
 ## Mental model
@@ -40,7 +41,7 @@ machine-level steps.
 2. Install Cairnkeep:
 
    ```bash
-   npm install --global @cairnkeep/cli@2.4.0
+   npm install --global @cairnkeep/cli@2.5.0
    cairn --version
    ```
 
@@ -100,6 +101,12 @@ does not discover a server, send memory to a remote host, configure embeddings,
 enable session capture, or enable an optional document-RAG integration. Pi uses
 the separate `cairn sync-pi` trajectory adapter and still needs a user-selected
 bridge if Pi should expose MCP memory tools.
+
+Kimi Code can use the same memory server through its generated
+`.ai/start-kimi.sh` launcher, but its HTTP MCP configuration requires a literal
+URL rather than `${CAIRN_MEMORY_REMOTE_URL}`. Keep the resolved URL in a private
+`.kimi-code/mcp.json` and keep the bearer token in the environment. See
+[Harness compatibility](../../harness-compatibility.md#kimi-code).
 
 ## Clean up if you stop the evaluation
 

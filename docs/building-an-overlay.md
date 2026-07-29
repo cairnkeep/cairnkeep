@@ -27,13 +27,14 @@ manifest, profile-lock, private-registry, and rollback contract.
 
 ## The launcher seams
 
-The generic launchers (`.ai/start-claude.sh`, `.ai/start-opencode.sh`, scaffolded
-by `cairn bootstrap`) run three optional hooks, each a no-op when absent:
+The generic launchers (`.ai/start-claude.sh`, `.ai/start-opencode.sh`,
+`.ai/start-kimi.sh`, and `.ai/start-pi.sh`, scaffolded by `cairn bootstrap`) run
+optional hooks, each a no-op when absent:
 
 | Seam | When | Use it for |
 |---|---|---|
 | `.ai/pre-launch.sh` | sourced after `.env`, before launch | export a provider base URL / credentials, refresh a token, run a connectivity check, or **abort** the launch by returning non-zero |
-| `CAIRN_EXTRA_SETTINGS` | read just before launch | path to a settings file layered onto the harness (`--settings` for Claude Code, `OPENCODE_CONFIG` for OpenCode); process env still wins, so an inline value beats the file |
+| `CAIRN_EXTRA_SETTINGS` | read just before launch | path to a settings file layered onto Claude Code (`--settings`) or OpenCode (`OPENCODE_CONFIG`); Kimi and Pi leave it available to hooks but do not interpret it |
 | `.ai/post-exit.sh` | sourced after the harness exits | teardown; `CAIRN_EXIT_STATUS` holds the exit code |
 
 **Typical overlay launcher** — a corporate wrapper needs a non-default provider

@@ -56,6 +56,7 @@ install_file() {
 install_file "$TPL/start-claude.sh.template"   "$target/.ai/start-claude.sh"   0755
 install_file "$TPL/start-opencode.sh.template" "$target/.ai/start-opencode.sh" 0755
 install_file "$TPL/start-pi.sh.template"       "$target/.ai/start-pi.sh"       0755
+install_file "$TPL/start-kimi.sh.template"     "$target/.ai/start-kimi.sh"     0755
 install_file "$TPL/env.example.template"       "$target/.ai/env.example"       0644
 install_file "$TPL/trajectory-redaction.json.template" "$target/.ai/trajectory-redaction.json" 0644
 install_file "$TPL/capabilities.json.template" "$target/.ai/capabilities.json" 0600
@@ -105,3 +106,4 @@ echo "  3. Install the operating layer (commands/agents/hooks): cairn sync --app
 echo "     For Pi trajectory capture, also run: cairn sync-pi --apply"
 echo "     From a source clone, use bin/cairn in place of cairn."
 echo "  4. Launch: $target/.ai/start-claude.sh"
+echo "     Kimi memory-client launch: $target/.ai/start-kimi.sh"
