@@ -84,4 +84,3 @@ prerequisites for ordinary memory.
 - Revisit the [storage guide](../storage.md) and
   [privacy/data-flow guide](../privacy-and-data-flow.md) before enabling a new
   network or retention path.
-
