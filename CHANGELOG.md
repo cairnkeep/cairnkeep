@@ -5,6 +5,8 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-07-29
+
 ### Added
 
 - Add opt-in, local-only, structured Claude Code and OpenCode session
@@ -35,6 +37,13 @@ All notable user-facing changes are documented here. This project follows
   project CLI overrides, compatibility-aware status/digests, exact MCP tool
   omission, guarded installed workflows, and separately consented payload-free
   local callback records.
+- Add a default-off, adapter-driven two-pass evaluation harness with immutable
+  task sets, paired seeds, confidence intervals, per-capability ablations,
+  deterministic offline fixtures, bounded reports, and exact-source runtime
+  evidence without claiming an unmeasured quality improvement.
+- Add a design-only meta-agent contract describing how future configuration
+  proposals could be evaluated through the existing harness without giving
+  Cairnkeep ownership of an agent or inference loop.
 
 ### Fixed
 
@@ -51,6 +60,10 @@ All notable user-facing changes are documented here. This project follows
   a closed trajectory CLI output pipe as a normal consumer exit.
 - Make the audit script executable so its rendered systemd service target can
   run directly.
+- Bind evaluation note distillation to the admitted task workspace so nested
+  task trajectories cannot be missed or replaced by a source-root fallback.
+- Upgrade the MCP SDK to 1.30.0 so both package graphs use the upstream-owned,
+  patched Hono transport and report zero production vulnerabilities.
 
 Trajectory/compaction capture, artifact access, and note distillation/enrichment remain disabled by default. Existing
 MCP tools, memory database paths, and remote HTTP behavior are unchanged. No
@@ -183,6 +196,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.2.1...v2.3.0
 [2.2.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.2.0...v2.2.1
