@@ -12,3 +12,6 @@
 The track is complete when a learner can start a new harness session, retrieve
 a previously accepted fact, and explain that default stdio memory is stored on
 the local machine rather than a discovered remote service.
+
+Hands-on spine: `course-00-app` through `course-01-bootstrap` in the public
+[course labs](https://github.com/cairnkeep/cairnkeep-course-labs).

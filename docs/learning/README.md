@@ -16,6 +16,12 @@ Choose the shortest track that matches your goal:
 - [Operator](tracks/operator.md) - storage, optional services, containers, and
   managed distributions.
 
+For a single view of every released surface, its default, storage boundary,
+restart requirement, and rollback path, use the [feature guide](FEATURE-GUIDE.md).
+The public [course labs](https://github.com/cairnkeep/cairnkeep-course-labs)
+provide one synthetic project with tagged checkpoints shared by lessons,
+articles, workshops, and videos.
+
 Lessons marked **Ready** include a complete exercise and presenter script.
 Lessons marked **Brief** define outcomes and acceptance criteria and will be
 expanded according to the [production plan](PRODUCTION-PLAN.md).

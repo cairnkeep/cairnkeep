@@ -14,3 +14,7 @@
 All modules are optional. The track is complete when the operator can add and
 remove each integration without breaking the standalone local workflow and can
 explain its storage, network, credential, and rollback boundaries.
+
+Hands-on spine: `course-04-operation`, `course-06-governance`, and
+`course-07-evaluation` in the public
+[course labs](https://github.com/cairnkeep/cairnkeep-course-labs).
