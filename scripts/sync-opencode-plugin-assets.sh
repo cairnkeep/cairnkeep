@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: sync-opencode-plugin-assets.sh [--check|--apply] [--live-root PATH]
+Usage: sync-opencode-plugin-assets.sh [--check|--apply] [--capability-overlay] [--live-root PATH]
 
 Compare or sync the repo-managed OpenCode plugin assets against the live
 OpenCode config tree.
@@ -11,6 +11,8 @@ OpenCode config tree.
 Options:
   --check            Verify that the managed live assets match the repo copies (default)
   --apply            Copy the repo-managed assets into the live OpenCode tree, then verify
+  --capability-overlay
+                     Include the native capability plugin only when CAIRN_CAPABILITY_CONTRACT is enabled
   --live-root PATH   Override the live OpenCode root (default: $OPENCODE_CONFIG_DIR or $HOME/.config/opencode)
   -h, --help         Show this help text
 
@@ -24,6 +26,7 @@ ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SOURCE_ROOT="$ROOT_DIR/opencode"
 LIVE_ROOT="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 MODE="check"
+CAPABILITY_OVERLAY=0
 
 ASSETS=(
   "plugins/memory-wakeup.ts"
@@ -39,6 +42,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --apply)
       MODE="apply"
+      shift
+      ;;
+    --capability-overlay)
+      CAPABILITY_OVERLAY=1
       shift
       ;;
     --live-root)
@@ -57,6 +64,23 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+case "${CAIRN_CAPABILITY_CONTRACT:-}" in
+  1|true|TRUE|yes|YES|on|ON)
+    if [[ "$CAPABILITY_OVERLAY" -eq 1 ]]; then
+      ASSETS+=("plugins/capability-command.ts")
+    fi
+    ;;
+esac
+
+source_asset() {
+  local rel="$1"
+  if [[ "$rel" == "plugins/capability-command.ts" ]]; then
+    printf '%s\n' "$SOURCE_ROOT/capability-contract/plugins/capability-command.ts"
+  else
+    printf '%s\n' "$SOURCE_ROOT/$rel"
+  fi
+}
+
 render_asset() {
   local src="$1"
   sed "s|@@INFRA_ROOT@@|$ROOT_DIR|g" "$src"
@@ -67,8 +91,10 @@ ensure_source_assets_exist() {
   local missing=0
 
   for rel in "${ASSETS[@]}"; do
-    if [[ ! -f "$SOURCE_ROOT/$rel" ]]; then
-      echo "Missing repo-managed source asset: $SOURCE_ROOT/$rel" >&2
+    local src
+    src=$(source_asset "$rel")
+    if [[ ! -f "$src" ]]; then
+      echo "Missing repo-managed source asset: $src" >&2
       missing=1
     fi
   done
@@ -86,7 +112,7 @@ check_asset_sync() {
   local -a mismatched=()
 
   for rel in "${ASSETS[@]}"; do
-    src="$SOURCE_ROOT/$rel"
+    src=$(source_asset "$rel")
     dst="$LIVE_ROOT/$rel"
 
     if [[ ! -f "$dst" ]]; then
@@ -133,7 +159,7 @@ run_apply() {
   ensure_source_assets_exist
 
   for rel in "${ASSETS[@]}"; do
-    src="$SOURCE_ROOT/$rel"
+    src=$(source_asset "$rel")
     dst="$LIVE_ROOT/$rel"
 
     mkdir -p "$(dirname "$dst")"

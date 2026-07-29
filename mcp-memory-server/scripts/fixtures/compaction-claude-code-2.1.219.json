@@ -1,0 +1,9 @@
+{
+  "session_id": "claude-compaction-session-001",
+  "transcript_path": "/synthetic/project/transcript.jsonl",
+  "cwd": "/synthetic/project",
+  "permission_mode": "default",
+  "hook_event_name": "PostCompact",
+  "trigger": "manual",
+  "compact_summary": "# Task Goals\n- Preserve supported compaction state across sessions.\n\n# Decisions Made\n- Decision: Pin adapter behavior to the documented PostCompact family.\n\n# Open TODOs\n- TODO: Implement the local immutable compaction adapter.\n\n# Critical Error Traces\n- Error: TypeError: recovery pointer invalid at selectRecovery (compaction.ts:42) with {\"authorization\":\"Bearer claude-compaction-secret-001\",\"nested\":{\"api_key\":\"sk-claude-compaction-secret-002\"}}"
+}

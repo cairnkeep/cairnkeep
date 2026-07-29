@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/trajectory.schema.json",
+  "title": "Cairnkeep trajectory session",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "harness",
+    "project_root",
+    "started_at",
+    "ended_at",
+    "events",
+    "capture"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "session_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$" },
+    "harness": { "enum": ["claude-code", "opencode", "pi"] },
+    "project_root": { "type": "string", "minLength": 1 },
+    "started_at": { "type": "string", "format": "date-time" },
+    "ended_at": { "type": "string", "format": "date-time" },
+    "usage": { "$ref": "#/$defs/usage" },
+    "events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/event" }
+    },
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["captured_at", "omitted_reasoning_blocks", "omitted_unknown_records", "truncated"],
+      "properties": {
+        "captured_at": { "type": "string", "format": "date-time" },
+        "omitted_reasoning_blocks": { "type": "integer", "minimum": 0 },
+        "omitted_unknown_records": { "type": "integer", "minimum": 0 },
+        "omitted_size_events": { "type": "integer", "minimum": 0 },
+        "truncated": { "type": "boolean" },
+        "original_bytes": { "type": "integer", "minimum": 0 },
+        "stored_bytes": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": { "type": "number", "minimum": 0 },
+        "output_tokens": { "type": "number", "minimum": 0 },
+        "reasoning_tokens": { "type": "number", "minimum": 0 },
+        "cache_read_tokens": { "type": "number", "minimum": 0 },
+        "cache_write_tokens": { "type": "number", "minimum": 0 },
+        "cost": { "type": "number", "minimum": 0 }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "kind", "payload"],
+      "properties": {
+        "sequence": { "type": "integer", "minimum": 0 },
+        "kind": {
+          "enum": ["user_message", "model_output", "tool_invocation", "tool_result", "system_event", "usage"]
+        },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "native_id": { "type": "string" },
+        "parent_id": { "type": "string" },
+        "payload": { "type": "object" },
+        "truncation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["original_bytes", "stored_bytes"],
+          "properties": {
+            "original_bytes": { "type": "integer", "minimum": 0 },
+            "stored_bytes": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

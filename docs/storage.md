@@ -18,6 +18,10 @@ registration, memory remains on that computer.
 | Scope | Database path |
 |---|---|
 | `project` | `<server working directory>/.agentfs/project.db` |
+| Opt-in session trajectories and capability callback state | `<harness project root>/.agentfs/trajectory.db` |
+| Opt-in local artifacts and compaction revisions | `<project root>/.agentfs/artifacts.db` |
+| Opt-in evaluation reports and note snapshots | `<project root>/.agentfs/eval/experiments/<experiment-id>/` |
+| Opt-in derived hindsight notes | `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/notes/` |
 | Any named/global scope, such as `identity` or `work` | `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/<scope>.db` |
 
 For the local launchers, the server working directory is normally the project
@@ -28,6 +32,180 @@ accidentally committed. SQLite may also create `-wal` and `-shm` sidecar files.
 services used to process/search memory. They do not change where the SQLite
 databases are stored. Git-provider and routing configuration do not change
 storage either.
+
+Trajectory storage is deliberately separate from MCP memory. The harness hook
+writes `.agentfs/trajectory.db` on the client machine where Claude Code,
+OpenCode, or Pi is running; it is never redirected to the remote HTTP memory server.
+The database contains versioned full-session records and small time-ordered
+indexes. Defaults are 5 MiB per serialized session, 256 MiB logical total and
+30 days retention. Capture and `cairn trajectory prune` remove expired records
+and then the oldest records needed to meet the logical budget. `prune
+--dry-run` reports the same decision without changing the database.
+
+## Capability callback storage
+
+Managed operating callbacks use two separate versioned KV namespaces inside
+the existing project-local `.agentfs/trajectory.db`:
+
+- `capability-callback/v1/pending/` contains bounded transient issuance
+  markers for operating starts.
+- `capability-callback/v1/record/` contains immutable retained final callback
+  records.
+
+No capability state exists in exact legacy master-off operation. With the
+master contract on, a target-enabled invocation creates no lease or final when
+either measurement consent is off. A target-disabled invocation still blocks
+before owner I/O in that unmeasured branch, but likewise writes no state. Only
+all three consents may create the recoverable lease and, for a disabled target,
+atomically settle it as exactly one value-free `disabled` final.
+
+An issuance marker contains only the strict operating-handle allow-list:
+schema version, capability/invocation/correlation identifiers,
+harness/source/transport classifications, start time, effective state source,
+and configuration digest. It contains no arguments, results, errors, paths,
+prompts, queries, secrets, or arbitrary metadata. A marker is not a trajectory
+session, trajectory start, or callback start record. It is consumed once by a
+matching finish or defensive invalidation and is never exposed as final
+callback evidence.
+
+Both namespaces are project-local state, not trajectory sessions: the existing
+`trajectory/v1` session envelopes, keys, indexes, CLI, and path are unchanged.
+There is no database migration, mirror, or second callback database. The file
+is created with mode `0600`; its SQLite `-wal` and `-shm` files remain in the
+same sensitive backup boundary.
+
+Each eligible completed invocation consumes its exact recoverable lease and
+appends one immutable final record in the same immediate transaction. This
+settlement is atomic and idempotent: duplicate success, error, timeout,
+disabled, or abandonment attempts cannot append or rewrite another final.
+Crash recovery and SessionEnd/plugin-disposal cleanup consume only unfinished
+leases as abandonment; they never replace a settled terminal. Callback age retention reuses
+`CAIRN_TRAJECTORY_RETENTION_DAYS` (default 30 days). Each namespace has an
+independent 10,000-record cap that prunes its oldest keys.
+Expired issuance is consumed without a final record, and a final record older
+than the current retention cutoff is not appended. Existing trajectory session
+byte limits and total-store accounting remain session contracts; callback
+state does not change their schema or path.
+
+The namespaces are strictly local. Stdio MCP callbacks, offline notes, and
+guarded local harness commands may persist final evidence only after all three
+consents pass. Pending issuance and final records are never redirected through
+HTTP or remote project storage. Authenticated HTTP callbacks are skipped:
+there is no remote/HTTP callback persistence, server-base-directory mapping,
+payload delivery, telemetry, export, or network delivery. Disabling logging
+stops future records, invalidates an already-issued operating marker at finish,
+and does not delete retained final rows.
+
+Default uninstall retains `.agentfs/trajectory.db` and its sidecars exactly.
+It removes the managed `.ai/capabilities.json` only after backing it up, and
+the generated `revert.sh` restores the exact bytes and mode. An explicit
+`cairn uninstall --purge-memory PROJECT` backs up and removes the entire
+project `.agentfs/` boundary, including trajectory sessions and callback rows;
+its `revert.sh` restores that boundary byte-for-byte. Back up the database and
+sidecars together while moving or inspecting a project.
+
+Hindsight notes are also separate derived data. They are human-readable
+Markdown below `notes/projects/` and `notes/shared/`, with a local schema-v1
+manifest and lock directories below `notes/.cairnkeep/`. Project paths are
+represented in visible filenames by readable slugs plus stable local hashes;
+the hidden local manifest retains the canonical project root needed for later
+all-project runs. Occurrence provenance is capped at 1024 entries per note and
+the processed-session ledger at 4096 digests per project. Note bodies do not
+expire automatically: inspect/delete them according to your own retention
+policy. Trajectory pruning does not delete already-derived notes.
+
+## Artifact storage
+
+Artifacts are deliberately separate from memory and trajectories. Local
+compaction hooks, recovery, operator commands, and stdio MCP tools use
+`<project>/.agentfs/artifacts.db` with restrictive permissions. Existing
+memory/trajectory databases are not migrated, rewritten, or mirrored into it.
+SQLite `-wal` and `-shm` sidecars share the same sensitive backup boundary.
+
+The schema-v1 authoritative rows are immutable full envelopes containing ID,
+kind, creation time, stable session reference, optional typed-node reference,
+media type, logical/stored bytes, digest, provenance, redaction/truncation
+metadata, optional supersession, and bounded content. Small derived namespaces
+hold created/session/kind indexes, request-dedupe bindings, monotonic
+`compaction/sequence/<session>` counters, and latest session/project pointers.
+Artifact indexes contain value-minimized metadata and references, never bodies.
+Full record, indexes, dedupe, counter, and pointer updates share one immediate
+transaction. An identical retry returns the existing ID; changed content
+appends a new immutable revision. Deleted revision numbers are never reused.
+
+Defaults are 1 MiB per artifact, 16 MiB per session, 256 MiB total, 30 days,
+eight compaction revisions per session, and a 256 KiB generated-file snapshot
+cap (or the lower artifact cap). Automatic retention applies age and revision
+limits, then removes the oldest eligible records to meet session/store budgets.
+It protects the newest valid project compaction. Explicit delete or
+`cairn artifact prune --include-protected` may remove that record. Hard delete
+removes content, indexes, dedupe rows, and affected pointers; there is no
+tombstone or hidden retained body.
+
+`cairn doctor` validates SQLite integrity, schema, authoritative envelopes and
+digests, derived indexes, dedupe state, revision pointers, and retention state.
+`--repair` rebuilds only safely derived indexes/dedupe/pointers from valid full
+records. Unsupported schema, invalid full records, digest mismatch, or SQLite
+corruption remains failed and untouched; preserve `.agentfs/artifacts.db` and
+its sidecars before manual inspection.
+
+Generated-file `path_label` values are contained project-relative labels only.
+They are never dereferenced by MCP, CLI, capture, doctor, or recovery. Binary
+or oversized candidates become metadata-only; optional inline text is bounded.
+
+For separately enabled HTTP artifact access, the server requires a validated
+`X-Cairn-Project` and derives the database under the server-side configured
+base directory as `${CAIRN_AGENTFS_BASE_DIR}/<project-id>/.agentfs/artifacts.db`.
+Clients cannot supply a filesystem path, and different project identities use
+separate derived roots. The bearer token still defines the trust domain.
+Neither `CAIRN_ARTIFACT_HTTP` nor remote memory registration redirects local
+compaction hooks or trajectories.
+Artifact backup follows the project `.agentfs/` backup boundary described below.
+
+## Evaluation report and note-snapshot storage
+
+Evaluation is disabled by default. When `CAIRN_EVAL` is explicitly enabled and
+an operator confirms a run, each experiment is stored below
+`<project>/.agentfs/eval/experiments/<experiment-id>/`. `report.json` is the
+canonical complete replacement checkpoint; it is rewritten atomically after
+schedule creation and every terminal, distillation, cancellation, and cleanup
+transition. An interrupted run therefore remains an inspectable `partial`
+report rather than an inferred success or failure.
+
+The eval root and experiment directories are mode `0700`; `report.json` is
+mode `0600`. A report is limited to 16 MiB by default (64 MiB is the hard
+implementation ceiling), and one root admits at most 10,000 experiment
+directories. Task sets contain at most 10,000 tasks and input/configuration
+files at most 4 MiB. Experiment-owned note snapshots live under
+`<experiment-id>/snapshots/`; one snapshot contains at most 10,000 files and
+16 MiB. Snapshot files are mode `0400` and their directories are made
+read-only after creation. Each Run 2 receives a separate read-only task-local
+copy; digests are checked before and after exposure.
+
+Reports contain versioned observations, reproducibility digests, optional
+metrics, populations, missingness, warnings, and strict component identifiers.
+Snapshots contain only the same task's distilled note files plus their
+relative-path/byte/digest manifest. Both remain sensitive local data even
+though prompts, model outputs, arbitrary stdout/stderr, environment snapshots,
+and secret values are structurally excluded from reports.
+
+There is no automatic age deletion. Operators inspect with `cairn eval report`,
+remove one validated contained experiment with `cairn eval delete`, or apply
+oldest-eligible removal with `cairn eval prune --older-than-days N` (default
+30 days). Both destructive commands have `--dry-run`; malformed, tampered,
+unsafe-mode, symlinked, or path-escaping trees fail closed. A hard delete or
+prune removes the selected experiment directory, including its report and note
+snapshots, without a hidden tombstone. Cancellation retains the partial report
+and completed snapshot checkpoints until one of these explicit operations or
+an uninstall purge removes them.
+
+Normal `cairn uninstall PROJECT` retains the entire `.agentfs/` tree, including
+evaluation reports and snapshots, byte-for-byte. `--dry-run` changes no file,
+mode, or directory entry. Explicit `cairn uninstall --purge-memory PROJECT`
+backs up the complete project `.agentfs/` boundary before removing it; the
+generated `revert.sh` restores the exact evaluation bytes, modes, and layout
+alongside adjacent project memory, trajectory, and artifact data. Evaluation
+has no separate destructive uninstall shortcut.
 
 When the memory server runs in the official container, the same rule applies:
 the process stores databases below `/data`, normally backed by the
@@ -117,6 +295,80 @@ sqlite3 /path/to/project/.agentfs/project.db \
 
 Treat every database and export archive as sensitive. They may contain source
 paths, decisions, incident details, and other project context.
+
+The same backup boundary applies to `<project>/.agentfs/trajectory.db`, which
+is not included in `cairn memory export`. `cairn uninstall PROJECT` retains the
+whole `.agentfs/` directory by default. `cairn uninstall --purge-memory PROJECT`
+backs it up and removes it, including memory and trajectories; the generated
+`revert.sh` can restore it.
+
+The same boundary includes `<project>/.agentfs/artifacts.db` and its sidecars.
+`cairn memory export` does not include artifacts. Default uninstall retains the
+whole `.agentfs/` tree. `cairn uninstall --purge-memory PROJECT` backs it up
+before removal, and the generated `revert.sh` restores the exact durable bytes.
+No automatic export or migration of existing artifact stores is performed.
+
+The same boundary includes `<project>/.agentfs/eval/experiments/`. `cairn
+memory export` does not include reports or note snapshots. Default uninstall
+retains them; `--purge-memory PROJECT` backs them up with the whole project
+`.agentfs/` tree before removal, and the generated `revert.sh` restores their
+exact bytes, modes, and directory layout.
+
+Global hindsight notes share the `${CAIRN_AGENTFS_BASE_DIR}` durable-store
+boundary. `cairn uninstall` keeps them by default. `cairn uninstall
+--purge-memory` backs up and removes the entire boundary, including `notes/`,
+and the generated bundle's `revert.sh` restores the exact files. Back up both
+the global store and each project's `.agentfs/` when moving a complete setup;
+`cairn memory export` covers SQLite memory scopes, not the Markdown note tree.
+
+## Typed metadata, import replay, and history
+
+With `CAIRN_TYPED_MEMORY_NODES=1`, each concrete AgentFS database keeps raw
+live values in the existing `kv_store`. The same SQLite transaction stores
+only additive metadata in `cairn_node_metadata_v1` and optional import-ID
+bindings in `cairn_node_import_replays_v1`. A legacy row with no metadata is
+projected as schema-v1 type `memory` with no tags; reading it creates no table,
+row, cache, or rewritten value. There is no ORM or schema-push step: tables are
+created lazily only by enabled mutations.
+The public portable contract is `schemas/memory-node.schema.json`; matching
+runtime validation lives in the packaged server.
+
+Supersede, metadata-only supersede, reviewed changes, import replacement, and
+delete write complete value/type/tag snapshots under hidden `__history__` keys
+in the same immediate transaction. Delete removes the live metadata row but
+retains its final snapshot; recreating the key is supported. Import commit
+rechecks conflicts and replay inside one concrete store transaction. Dry-run
+does not create the database or metadata tables.
+
+SQLite backups and `cairn memory export` include metadata, replay bindings, and
+history. `cairn doctor` treats absent tables as healthy legacy state. Repair
+may remove provably orphaned derived metadata, but never rewrites raw KV,
+infers non-default types, discards corrupt authoritative metadata, or repairs
+a divergent replay digest.
+
+## Canonical note lifecycle and recovery
+
+Note address spaces remain file-backed. The canonical set includes Markdown
+leaves, `README.md` indexes, `.cairnkeep/manifest-v1.json`, typed history,
+`note-import-replays-v1.json`, and transaction directories below
+`notes/.cairnkeep/transactions/<transaction-id>/`. Create, supersede, delete,
+and import render immutable path/byte/pre-image/hash plans and install them
+through one journal primitive, with the manifest last. There is no AgentFS
+mirror and clients never supply filesystem paths.
+
+Staged same-filesystem bytes, backups, and a `prepared` journal are durable
+before live replacement. `committing` records completed paths; `committed`
+records intended final hashes. Any pending journal blocks later mutations.
+Doctor repair restores verified pre-images for prepared/committing state. For
+committed-before-cleanup state it verifies final hashes, preserves the completed
+operation, and removes only transaction artifacts. Failed verification leaves
+the journal and live state untouched; a committed operation is never treated
+as an uncommitted rollback candidate.
+
+Generated managed blocks may change, but unmarked maintainer bytes after the
+managed marker are preserved exactly. Default uninstall retains databases,
+note history, replay ledgers, and journals. `--purge-memory` uses the existing
+backup-first whole-store boundary; `revert.sh` restores their exact bytes.
 
 ## Reviewed-memory integration
 

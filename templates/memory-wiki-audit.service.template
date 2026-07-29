@@ -1,5 +1,5 @@
 [Unit]
-Description=Cairnkeep memory + wiki invalidation audit
+Description=Cairnkeep memory + wiki audit and optional note distillation
 
 [Service]
 Type=oneshot

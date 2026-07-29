@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/memory-node.schema.json",
+  "title": "Cairnkeep typed memory node and import envelope",
+  "oneOf": [
+    { "$ref": "#/$defs/nodeMetadata" },
+    { "$ref": "#/$defs/importEnvelope" },
+    { "$ref": "#/$defs/importResult" }
+  ],
+  "$defs": {
+    "nodeType": {
+      "oneOf": [
+        { "enum": ["memory", "knowledge", "hindsight", "shared", "provenance"] },
+        { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}:[a-z0-9][a-z0-9-]{0,63}$" }
+      ]
+    },
+    "tag": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,127}$" },
+    "tags": { "type": "array", "items": { "$ref": "#/$defs/tag" }, "maxItems": 64, "uniqueItems": true },
+    "nodePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?!.*(?:^|/)(?:\\.|\\.\\.)(?:/|$))(?!.*//)(?!.*\\\\)(?!__)(?!\\.cairnkeep)(?!.*[\\u0000-\\u001f\\u007f]).+(?<!/)$"
+    },
+    "nodeMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "node_type", "tags"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "node_type": { "$ref": "#/$defs/nodeType" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    "importNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "value", "node_type", "tags"],
+      "properties": {
+        "key": { "$ref": "#/$defs/nodePath" },
+        "value": { "type": "string", "maxLength": 262144 },
+        "node_type": { "$ref": "#/$defs/nodeType" },
+        "tags": { "$ref": "#/$defs/tags" },
+        "note": { "$ref": "note.schema.json" }
+      }
+    },
+    "importEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "scope", "nodes"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "scope": { "type": "string", "minLength": 1, "not": { "const": "all" } },
+        "address_space": { "enum": ["memory", "project-notes", "shared-notes"], "default": "memory" },
+        "import_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
+        "conflict_policy": { "enum": ["reject", "supersede"], "default": "reject" },
+        "dry_run": { "type": "boolean", "default": false },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/importNode" }, "minItems": 1, "maxItems": 256 }
+      }
+    },
+    "importAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "action"],
+      "properties": {
+        "key": { "$ref": "#/$defs/nodePath" },
+        "action": { "enum": ["would_create", "would_replace", "created", "replaced", "unchanged", "rejected"] },
+        "code": { "type": "string" }
+      }
+    },
+    "importResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "scope", "address_space", "batch_digest", "dry_run", "conflict_policy", "committed", "counts", "actions"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "scope": { "type": "string" },
+        "address_space": { "enum": ["memory", "project-notes", "shared-notes"] },
+        "batch_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "import_id": { "type": "string" },
+        "dry_run": { "type": "boolean" },
+        "conflict_policy": { "enum": ["reject", "supersede"] },
+        "committed": { "type": "boolean" },
+        "replayed": { "type": "boolean" },
+        "counts": { "type": "object" },
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/importAction" }, "maxItems": 256 }
+      }
+    }
+  }
+}

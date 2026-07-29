@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: sync-opencode-security-assets.sh [--check|--apply] [--live-root PATH]
+Usage: sync-opencode-security-assets.sh [--check|--apply] [--capability-overlay] [--live-root PATH]
 
 Compare or sync the repo-managed OpenCode security-audit assets against the live
 OpenCode config tree.
@@ -11,12 +11,17 @@ OpenCode config tree.
 Options:
   --check            Verify that the managed live assets match the repo copy (default)
   --apply            Copy the repo-managed assets into the live OpenCode tree, then verify
+  --capability-overlay
+                     Select guarded command/workflow overlays for a contract-enabled isolated root
   --live-root PATH   Override the live OpenCode root (default: $OPENCODE_CONFIG_DIR or $HOME/.config/opencode)
   -h, --help         Show this help text
 
 Notes:
   - The repo-managed source of truth lives under ./opencode/
   - This script manages only the security-audit OpenCode assets
+  - Plugin installation is delegated to sync-opencode-plugin-assets.sh;
+    --capability-overlay selects its native plugin only when the master switch is on
+  - Command and workflow assets always retain their legacy owners and bytes
   - --apply also removes the legacy gsd-overrides security-audit workflow/template files
 EOF
 }
@@ -25,6 +30,7 @@ ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SOURCE_ROOT="$ROOT_DIR/opencode"
 LIVE_ROOT="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 MODE="check"
+CAPABILITY_OVERLAY=0
 
 ASSETS=(
   "command/security-audit.md"
@@ -56,6 +62,10 @@ while [[ $# -gt 0 ]]; do
       MODE="apply"
       shift
       ;;
+    --capability-overlay)
+      CAPABILITY_OVERLAY=1
+      shift
+      ;;
     --live-root)
       LIVE_ROOT="$2"
       shift 2
@@ -71,6 +81,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+source_for() {
+  local rel="$1"
+  printf '%s\n' "$SOURCE_ROOT/$rel"
+}
 
 ensure_source_assets_exist() {
   local rel
@@ -116,7 +131,7 @@ run_check() {
   ensure_source_assets_exist
 
   for rel in "${ASSETS[@]}"; do
-    src="$SOURCE_ROOT/$rel"
+    src=$(source_for "$rel")
     dst="$LIVE_ROOT/$rel"
 
     if [[ ! -f "$dst" ]]; then
@@ -160,7 +175,7 @@ run_apply() {
   ensure_source_assets_exist
 
   for rel in "${ASSETS[@]}"; do
-    src="$SOURCE_ROOT/$rel"
+    src=$(source_for "$rel")
     dst="$LIVE_ROOT/$rel"
 
     mkdir -p "$(dirname "$dst")"
@@ -193,3 +208,9 @@ case "$MODE" in
     run_apply
     ;;
 esac
+
+plugin_args=("--$MODE" "--live-root" "$LIVE_ROOT")
+if [[ "$CAPABILITY_OVERLAY" -eq 1 ]]; then
+  plugin_args+=("--capability-overlay")
+fi
+"$ROOT_DIR/scripts/sync-opencode-plugin-assets.sh" "${plugin_args[@]}"

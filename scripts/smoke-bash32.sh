@@ -30,6 +30,7 @@ SCRIPTS=(
   scripts/sync-claude-assets.sh
   scripts/sync-opencode-explore-assets.sh
   scripts/sync-opencode-wiki-assets.sh
+  scripts/sync-pi-assets.sh
 )
 
 fails=0
@@ -48,6 +49,14 @@ for s in "${SCRIPTS[@]}"; do
     echo "  [PASS] $s runs on bash 3.2"
   fi
 done
+
+help_out=$("$RUNTIME" run --rm -v "$ROOT_DIR":/w:ro -w /w "$IMG" bash scripts/doctor.sh --help 2>&1) || true
+if grep -q 'typed metadata.*note transactions' <<<"$help_out"; then
+  echo "  [PASS] doctor help runs on bash 3.2"
+else
+  echo "  [FAIL] doctor help did not expose Phase 16 repair scope"
+  fails=$((fails + 1))
+fi
 
 if [[ $fails -eq 0 ]]; then
   echo "smoke-bash32: OK"

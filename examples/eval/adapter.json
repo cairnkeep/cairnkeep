@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "cairn-offline-fake",
+  "command": {
+    "program": "../../scripts/fake-eval-adapter.mjs",
+    "args": []
+  },
+  "turn_semantics": {
+    "id": "offline-fixture-turn",
+    "description": "One deterministic fixture state transition; meaningful only for offline framework verification."
+  }
+}

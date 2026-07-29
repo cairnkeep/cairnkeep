@@ -25,6 +25,8 @@ import path from "node:path"
 // degraded outcome, not a retry loop (Pitfall 3).
 
 const SERVER_ENTRY = "@@INFRA_ROOT@@/mcp-memory-server/dist/index.js"
+const TRAJECTORY_ENTRY = "@@INFRA_ROOT@@/mcp-memory-server/dist/trajectory-cli.js"
+const ARTIFACT_ENTRY = "@@INFRA_ROOT@@/mcp-memory-server/dist/artifact-cli.js"
 const MAX_CHARS = 12000
 const RETENTION_CAP = 5
 
@@ -43,9 +45,9 @@ type SessionMessage = {
 // phase). Async/non-blocking so a slow extraction call never freezes a live
 // interactive session; bounded by `timeoutMs` and resolves (never rejects)
 // so the caller's existing fail-open handling is unchanged.
-function runExtract(
-  serverEntry: string,
-  model: string,
+function runNode(
+  entry: string,
+  args: string[],
   input: string,
   timeoutMs = 120000,
 ): Promise<{ stdout: string; stderr: string }> {
@@ -60,12 +62,12 @@ function runExtract(
       resolvePromise({ stdout, stderr })
     }
 
-    const child = spawn("node", [serverEntry, "extract", model], {
+    const child = spawn("node", [entry, ...args], {
       stdio: ["pipe", "pipe", "pipe"],
     })
     const timer = setTimeout(() => {
       try {
-        child.kill("SIGTERM")
+        child.kill("SIGKILL")
       } catch {
         // best-effort kill only
       }
@@ -79,10 +81,21 @@ function runExtract(
     })
     child.on("close", finish)
     child.on("error", finish)
+    child.stdin.on("error", () => {
+      // EPIPE after a failed/terminated child is part of the fail-open path.
+    })
 
     child.stdin.write(input)
     child.stdin.end()
   })
+}
+
+function trajectoryCaptureEnabled(): boolean {
+  return /^(1|true|yes|on)$/i.test(process.env.CAIRN_TRAJECTORY_CAPTURE ?? "")
+}
+
+function compactionCaptureEnabled(): boolean {
+  return /^(1|true|yes|on)$/i.test(process.env.CAIRN_COMPACTION_CAPTURE ?? "")
 }
 
 // Reimplements scripts/transcript-to-text.mjs's behavior (skip tool/reasoning/
@@ -113,6 +126,31 @@ export const MemoryCapturePlugin: Plugin = async ({ client, directory }) => {
   return {
     event: async ({ event }) => {
       try {
+        if (event.type === "session.compacted") {
+          if (!compactionCaptureEnabled()) return
+          const sessionID = event.properties?.sessionID
+          if (!sessionID) return
+
+          const sessionRes = await client.session.get({ path: { id: sessionID } })
+          const session = (sessionRes as { data?: { id?: string; parentID?: string; version?: string } })?.data
+          if (!session || session.parentID) return
+
+          const messagesRes = await client.session.messages({ path: { id: sessionID } })
+          const messages = ((messagesRes as { data?: unknown[] })?.data ?? []) as unknown[]
+          if (!fs.existsSync(ARTIFACT_ENTRY)) return
+
+          const capture = await runNode(
+            ARTIFACT_ENTRY,
+            ["capture-opencode", directory],
+            JSON.stringify({ event, session, messages, harness_version: "1.17.20" }),
+            3000,
+          )
+          if (capture.stderr.trim()) {
+            console.warn("cairn compaction capture skipped: local capture failed")
+          }
+          return
+        }
+
         if (event.type !== "session.idle") return
         const sessionID = event.properties?.sessionID
         if (!sessionID) return
@@ -122,19 +160,24 @@ export const MemoryCapturePlugin: Plugin = async ({ client, directory }) => {
 
         const repo = directory
         const agentfsDb = path.join(repo, ".agentfs", "project.db")
-        if (!fs.existsSync(agentfsDb)) return
-        if (!fs.existsSync(SERVER_ENTRY)) return
+        const trajectoryEnabled = trajectoryCaptureEnabled()
 
+        // Preserve the original disabled path: all pre-existing guards run
+        // before any SDK request or subprocess when trajectory capture is off.
+        if (!trajectoryEnabled) {
+          if (!fs.existsSync(agentfsDb)) return
+          if (!fs.existsSync(SERVER_ENTRY)) return
+        }
         const apiKey = process.env.CAIRN_LLM_API_KEY
         const model = process.env.CAIRN_LLM_EXTRACTION_MODEL
-        if (!apiKey || !model) return
+        if (!trajectoryEnabled && (!apiKey || !model)) return
 
         // session.idle's event payload only carries sessionID (no parentID) —
         // fetch the full session record to filter out subagent subsessions
         // (Pitfall 2: subagent tool calls also idle and would otherwise
         // over-stage past the 5-session retention cap's intent).
         const sessionRes = await client.session.get({ path: { id: sessionID } })
-        const session = (sessionRes as { data?: { parentID?: string } })?.data
+        const session = (sessionRes as { data?: { id?: string; parentID?: string; time?: unknown } })?.data
         if (session?.parentID) return
 
         // Mark processed before doing the (possibly slow) extract call so a
@@ -144,13 +187,36 @@ export const MemoryCapturePlugin: Plugin = async ({ client, directory }) => {
 
         const messagesRes = await client.session.messages({ path: { id: sessionID } })
         const messages = ((messagesRes as { data?: SessionMessage[] })?.data ?? []) as SessionMessage[]
+
+        if (trajectoryEnabled && fs.existsSync(TRAJECTORY_ENTRY)) {
+          const payload = JSON.stringify({
+            session: { ...session, id: session?.id ?? sessionID },
+            messages,
+          })
+          const capture = await runNode(
+            TRAJECTORY_ENTRY,
+            ["capture-opencode", repo],
+            payload,
+            3000,
+          )
+          if (capture.stderr.trim()) {
+            console.warn("cairn trajectory capture skipped: local capture failed")
+          }
+        }
+
+        // Durable-memory extraction retains its independent project/model
+        // gates and behavior when trajectory capture is enabled.
+        if (!fs.existsSync(agentfsDb)) return
+        if (!fs.existsSync(SERVER_ENTRY)) return
+        if (!apiKey || !model) return
+
         const text = messagesToText(messages)
         if (!text) return
 
         // Pipe the session text into the shared `extract` subcommand via
         // stdin (T-04-01 mitigation) — never string-interpolate arbitrary
         // session/message content into the shell command.
-        const res = await runExtract(SERVER_ENTRY, model, text)
+        const res = await runNode(SERVER_ENTRY, ["extract", model], text)
         const candidatesJson = String(res.stdout ?? "").trim()
         if (!candidatesJson) return
 

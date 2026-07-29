@@ -1,0 +1,96 @@
+{
+  "equivalent": [
+    {
+      "name": "typescript checkout roots and line numbers",
+      "left": { "root": "/home/alice/work/app", "text": "TypeError: Cannot read properties of undefined (reading 'name')\n    at loadUser (/home/alice/work/app/src/user.ts:41:9)" },
+      "right": { "root": "/srv/build/app", "text": "TypeError: Cannot read properties of undefined (reading 'name')\n    at loadUser (/srv/build/app/src/user.ts:188:27)" }
+    },
+    {
+      "name": "python checkout roots and line numbers",
+      "left": { "root": "/home/alice/work/app", "text": "Traceback (most recent call last):\n  File \"/home/alice/work/app/pkg/cache.py\", line 19, in fetch\n    return entries[key]\nKeyError: 'missing-user'" },
+      "right": { "root": "/tmp/checkout/app", "text": "Traceback (most recent call last):\n  File \"/tmp/checkout/app/pkg/cache.py\", line 207, in fetch\n    return entries[key]\nKeyError: 'missing-user'" }
+    },
+    {
+      "name": "ansi and whitespace",
+      "left": { "root": "/repo", "component": "src/parser.ts", "text": "\u001b[31mSyntaxError:\u001b[0m   Unexpected token  '}'" },
+      "right": { "root": "/repo", "component": "src/parser.ts", "text": "SyntaxError: Unexpected token '}'" }
+    },
+    {
+      "name": "volatile process identifiers",
+      "left": { "root": "/repo", "component": "worker", "text": "WorkerError: pid 49172 request 123e4567-e89b-12d3-a456-426614174000 crashed at 0x7ffdeadbeef on 2026-07-26T10:11:12Z" },
+      "right": { "root": "/repo", "component": "worker", "text": "WorkerError: pid 88211 request aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee crashed at 0x1234abcd on 2026-07-27T01:02:03Z" }
+    },
+    {
+      "name": "javascript runtime wrappers",
+      "left": { "root": "/repo", "text": "Error: cache unavailable\n    at readCache (/repo/src/cache.ts:22:5)\n    at processTicksAndRejections (node:internal/process/task_queues:95:5)" },
+      "right": { "root": "/repo", "text": "Error: cache unavailable\n    at readCache (/repo/src/cache.ts:77:2)\n    at async processTicksAndRejections (node:internal/process/task_queues:105:5)" }
+    },
+    {
+      "name": "provider transient request identifiers",
+      "left": { "root": "/repo", "component": "model", "text": "ConnectionError: upstream request req_12345678901234567890 timed out after 30000 ms" },
+      "right": { "root": "/repo", "component": "model", "text": "ConnectionError: upstream request req_abcdefghijklmnopqrst timed out after 30000 ms" }
+    },
+    {
+      "name": "rust source line and address",
+      "left": { "root": "/repo", "text": "thread 'main' panicked at 'invalid state', /repo/src/state.rs:81:14\nstack backtrace:\n   0: 0x7fabc123 - app::state::load" },
+      "right": { "root": "/repo", "text": "thread 'main' panicked at 'invalid state', /repo/src/state.rs:202:3\nstack backtrace:\n   0: 0x1eeff777 - app::state::load" }
+    },
+    {
+      "name": "java source line",
+      "left": { "root": "/repo", "text": "java.lang.IllegalStateException: cache closed\n\tat com.example.Cache.read(Cache.java:44)" },
+      "right": { "root": "/repo", "text": "java.lang.IllegalStateException: cache closed\n\tat com.example.Cache.read(Cache.java:901)" }
+    }
+  ],
+  "distinct": [
+    {
+      "name": "typescript diagnostic code",
+      "left": { "root": "/repo", "component": "src/types.ts", "text": "TS2322: Type 'string' is not assignable to type 'number'" },
+      "right": { "root": "/repo", "component": "src/types.ts", "text": "TS2345: Argument of type 'string' is not assignable to parameter of type 'number'" }
+    },
+    {
+      "name": "quoted symbol",
+      "left": { "root": "/repo", "component": "src/api.ts", "text": "ReferenceError: 'loadUser' is not defined" },
+      "right": { "root": "/repo", "component": "src/api.ts", "text": "ReferenceError: 'saveUser' is not defined" }
+    },
+    {
+      "name": "affected component",
+      "left": { "root": "/repo", "component": "src/cache.ts", "text": "Error: operation failed" },
+      "right": { "root": "/repo", "component": "src/database.ts", "text": "Error: operation failed" }
+    },
+    {
+      "name": "exception family",
+      "left": { "root": "/repo", "component": "src/parser.ts", "text": "TypeError: invalid token" },
+      "right": { "root": "/repo", "component": "src/parser.ts", "text": "RangeError: invalid token" }
+    },
+    {
+      "name": "semantic message",
+      "left": { "root": "/repo", "component": "src/cache.ts", "text": "Error: cache is closed" },
+      "right": { "root": "/repo", "component": "src/cache.ts", "text": "Error: cache entry is missing" }
+    },
+    {
+      "name": "causal stack function",
+      "left": { "root": "/repo", "text": "Error: invalid state\n    at loadCache (/repo/src/state.ts:10:2)" },
+      "right": { "root": "/repo", "text": "Error: invalid state\n    at saveCache (/repo/src/state.ts:10:2)" }
+    },
+    {
+      "name": "python exception",
+      "left": { "root": "/repo", "component": "pkg/cache.py", "text": "KeyError: 'user'" },
+      "right": { "root": "/repo", "component": "pkg/cache.py", "text": "ValueError: 'user'" }
+    },
+    {
+      "name": "provider failure class",
+      "left": { "root": "/repo", "component": "model", "text": "AuthenticationError: invalid credential" },
+      "right": { "root": "/repo", "component": "model", "text": "ConnectionError: request timed out" }
+    },
+    {
+      "name": "test identity",
+      "left": { "root": "/repo", "component": "test/cache.test.ts", "text": "AssertionError: expected cache hit to equal true" },
+      "right": { "root": "/repo", "component": "test/cache.test.ts", "text": "AssertionError: expected cache miss to equal true" }
+    },
+    {
+      "name": "rust panic payload",
+      "left": { "root": "/repo", "component": "src/state.rs", "text": "thread 'main' panicked at 'invalid state'" },
+      "right": { "root": "/repo", "component": "src/state.rs", "text": "thread 'main' panicked at 'missing state'" }
+    }
+  ]
+}

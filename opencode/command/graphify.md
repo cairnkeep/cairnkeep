@@ -7,21 +7,20 @@ tools:
   task: true
 ---
 
-**STOP -- DO NOT READ THIS FILE. You are already reading it. This prompt was injected into your context by Claude Code's command system. Using the Read tool on this file wastes tokens. Begin executing Step 0 immediately.**
+**STOP -- DO NOT READ THIS FILE. You are already reading it. This prompt was injected into your context by OpenCode's command system. Using the Read tool on this file wastes tokens. Begin executing Step 1 immediately.**
 
 **graphify CLI:** the `graphify` subcommand is exposed by `gsd-tools` (on PATH). Invoke as `gsd-tools graphify …` as documented in this command and in `docs/CLI-TOOLS.md`. Other GSD queries use `gsd-tools <subcmd>` where a handler exists.
 
-## Step 0 -- Banner
+## Output heading
 
-**Before ANY tool calls**, display this banner:
-
-```
-GRAPHIFY
-```
-
-Then proceed to Step 1.
+Begin the final user-facing response with `GRAPHIFY`. Do not emit a standalone
+banner before owner I/O: in headless OpenCode, content-only output can end the
+turn before the command reaches its tools.
 
 ## Step 1 -- Config Gate
+
+**First action:** invoke the Read tool for `.planning/config.json`; do not emit
+text before this tool call.
 
 Check if graphify is enabled by reading `.planning/config.json` directly using the Read tool.
 
@@ -49,7 +48,15 @@ Then run /graphify build to create the initial graph.
 
 ## Step 2 -- Parse Argument
 
-Parse `$ARGUMENTS` to determine the operation mode:
+The exact invocation argument is delimited here:
+
+```text
+<argument>$ARGUMENTS</argument>
+```
+
+Parse only the text between those markers to determine the operation mode. If
+the markers contain `status`, that is the status mode; do not treat it as an
+empty or unknown argument. Apply the same exact matching rule to every row:
 
 | Argument | Action |
 |----------|--------|
@@ -75,7 +82,8 @@ Modes:
 
 ### Step 2a -- Query
 
-Run:
+**Invoke the shell tool** with this exact command; do not print the command as
+the result and do not continue until the tool returns:
 
 ```bash
 gsd-tools graphify query <term>
@@ -91,7 +99,8 @@ Parse the JSON output and display results:
 
 ### Step 2b -- Status
 
-Run:
+**Invoke the shell tool** with this exact command; do not print the command as
+the result and do not continue until the tool returns:
 
 ```bash
 gsd-tools graphify status
@@ -105,7 +114,8 @@ Parse the JSON output and display:
 
 ### Step 2c -- Diff
 
-Run:
+**Invoke the shell tool** with this exact command; do not print the command as
+the result and do not continue until the tool returns:
 
 ```bash
 gsd-tools graphify diff
@@ -123,7 +133,8 @@ If no snapshot exists, suggest running `build` twice (first to create, second to
 
 ## Step 3 -- Build (Inline)
 
-Run:
+**Invoke the shell tool** with this exact command; do not print the command as
+the result and do not continue until the tool returns:
 
 ```bash
 gsd-tools graphify build [--force]

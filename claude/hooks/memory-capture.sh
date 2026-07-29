@@ -14,15 +14,31 @@
 set -euo pipefail
 
 repo="$(pwd)"
-[ -f "$repo/.agentfs/project.db" ] || exit 0
+
+trajectory_enabled=0
+case "${CAIRN_TRAJECTORY_CAPTURE:-}" in
+  1|true|TRUE|yes|YES|on|ON) trajectory_enabled=1 ;;
+esac
+
+# Preserve the original disabled path: outside a bootstrapped repository the
+# hook exits before reading stdin or starting a process.
+if [ "$trajectory_enabled" -eq 0 ]; then
+  [ -f "$repo/.agentfs/project.db" ] || exit 0
+fi
 
 INFRA_ROOT="@@INFRA_ROOT@@"
 SERVER_ENTRY="$INFRA_ROOT/mcp-memory-server/dist/index.js"
+TRAJECTORY_ENTRY="$INFRA_ROOT/mcp-memory-server/dist/trajectory-cli.js"
 TEXT_HELPER="$INFRA_ROOT/scripts/transcript-to-text.mjs"
-[ -f "$SERVER_ENTRY" ] || exit 0
-[ -z "${CAIRN_LLM_API_KEY:-}" ] && exit 0
-EXTRACT_MODEL="${CAIRN_LLM_EXTRACTION_MODEL:-}"
-[ -z "$EXTRACT_MODEL" ] && exit 0
+
+# Keep every pre-existing no-model guard ahead of stdin parsing when trajectory
+# capture is disabled.
+if [ "$trajectory_enabled" -eq 0 ]; then
+  [ -f "$SERVER_ENTRY" ] || exit 0
+  [ -z "${CAIRN_LLM_API_KEY:-}" ] && exit 0
+  EXTRACT_MODEL="${CAIRN_LLM_EXTRACTION_MODEL:-}"
+  [ -z "$EXTRACT_MODEL" ] && exit 0
+fi
 
 # Read hook JSON from stdin; pull transcript_path (fail-open if absent/malformed).
 input="$(cat)"
@@ -31,6 +47,32 @@ try:
     d=json.load(sys.stdin); print(d.get("transcript_path",""))
 except Exception: print("")' 2>/dev/null || true)"
 [ -n "$transcript_path" ] && [ -f "$transcript_path" ] || exit 0
+
+# Trajectory capture is local, model-free and independently bounded. The
+# watchdog exists only on the opt-in path and cannot fail the SessionEnd hook.
+if [ "$trajectory_enabled" -eq 1 ] && [ -f "$TRAJECTORY_ENTRY" ]; then
+  node "$TRAJECTORY_ENTRY" capture-claude "$transcript_path" "$repo" >/dev/null 2>&1 &
+  trajectory_pid=$!
+  (
+    sleep 3
+    kill -KILL "$trajectory_pid" >/dev/null 2>&1 || true
+  ) &
+  trajectory_watchdog_pid=$!
+  wait "$trajectory_pid" >/dev/null 2>&1 || true
+  kill "$trajectory_watchdog_pid" >/dev/null 2>&1 || true
+  wait "$trajectory_watchdog_pid" >/dev/null 2>&1 || true
+fi
+
+# Durable-memory extraction remains independently gated by the pre-existing
+# project/model requirements. The disabled path passed these checks before
+# stdin parsing above; the enabled path reaches them only after local capture.
+if [ "$trajectory_enabled" -eq 1 ]; then
+  [ -f "$repo/.agentfs/project.db" ] || exit 0
+  [ -f "$SERVER_ENTRY" ] || exit 0
+  [ -z "${CAIRN_LLM_API_KEY:-}" ] && exit 0
+  EXTRACT_MODEL="${CAIRN_LLM_EXTRACTION_MODEL:-}"
+  [ -z "$EXTRACT_MODEL" ] && exit 0
+fi
 
 # Convert transcript JSONL → readable text, then extract candidates.
 text="$(node "$TEXT_HELPER" "$transcript_path" 2>/dev/null || true)"

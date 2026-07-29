@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/capability-contract.schema.json",
+  "title": "Cairnkeep capability contract",
+  "oneOf": [
+    { "$ref": "#/$defs/managedConfig" },
+    { "$ref": "#/$defs/status" }
+  ],
+  "$defs": {
+    "capabilityId": {
+      "enum": [
+        "memory.write",
+        "memory.search",
+        "notes.distill",
+        "wiki",
+        "graph",
+        "security.audit",
+        "route.check",
+        "context.explore"
+      ]
+    },
+    "capabilityKind": {
+      "enum": ["mcp-tool", "offline-job", "operating-workflow"]
+    },
+    "source": {
+      "enum": ["environment", "project", "compatibility"]
+    },
+    "capabilityOverrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "memory.write": { "type": "boolean" },
+        "memory.search": { "type": "boolean" },
+        "notes.distill": { "type": "boolean" },
+        "wiki": { "type": "boolean" },
+        "graph": { "type": "boolean" },
+        "security.audit": { "type": "boolean" },
+        "route.check": { "type": "boolean" },
+        "context.explore": { "type": "boolean" }
+      }
+    },
+    "loggingConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "callbacks": { "type": "boolean" }
+      }
+    },
+    "managedConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "capabilities", "logging"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "capabilities": { "$ref": "#/$defs/capabilityOverrides" },
+        "logging": { "$ref": "#/$defs/loggingConfig" }
+      }
+    },
+    "statusRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "enabled", "source", "restart_required"],
+      "properties": {
+        "id": { "$ref": "#/$defs/capabilityId" },
+        "kind": { "$ref": "#/$defs/capabilityKind" },
+        "enabled": { "type": "boolean" },
+        "source": { "$ref": "#/$defs/source" },
+        "restart_required": { "type": "boolean" }
+      }
+    },
+    "loggingStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "source"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "source": { "$ref": "#/$defs/source" }
+      }
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code"],
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid-config",
+            "unknown-capability",
+            "invalid-capability-value",
+            "invalid-logging-value"
+          ]
+        },
+        "capability_id": { "$ref": "#/$defs/capabilityId" },
+        "setting": { "const": "logging.callbacks" }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "contract_enabled",
+        "logging",
+        "configuration_digest",
+        "capabilities",
+        "issues"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "contract_enabled": { "type": "boolean" },
+        "logging": { "$ref": "#/$defs/loggingStatus" },
+        "configuration_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "capabilities": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/statusRow" }
+        },
+        "issues": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/issue" }
+        }
+      }
+    }
+  }
+}

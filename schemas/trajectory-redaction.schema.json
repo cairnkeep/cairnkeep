@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/trajectory-redaction.schema.json",
+  "title": "Cairnkeep trajectory redaction configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "patterns"],
+  "properties": {
+    "version": { "const": 1 },
+    "patterns": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pattern"],
+        "properties": {
+          "pattern": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "flags": { "type": "string", "pattern": "^[gimsu]*$" },
+          "replacement": { "type": "string", "maxLength": 128 }
+        }
+      }
+    }
+  }
+}

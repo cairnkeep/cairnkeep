@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/note.schema.json",
+  "title": "Cairnkeep note node",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "title",
+    "description",
+    "keywords",
+    "node_type",
+    "tags",
+    "occurrences",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,255}$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "keywords": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 128 }, "uniqueItems": true, "maxItems": 64 },
+    "node_type": { "enum": ["hindsight", "knowledge", "shared", "provenance"] },
+    "tags": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 128 }, "uniqueItems": true, "maxItems": 64 },
+    "project_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,255}$" },
+    "canonical_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,255}$" },
+    "status": { "enum": ["unresolved", "resolved", "abandoned"] },
+    "signature": { "$ref": "#/$defs/signature" },
+    "enrichment": { "$ref": "#/$defs/enrichment" },
+    "occurrences": { "type": "array", "items": { "$ref": "#/$defs/occurrence" }, "maxItems": 1024 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "node_type": { "enum": ["hindsight", "provenance"] } }, "required": ["node_type"] },
+      "then": { "required": ["project_id", "status", "signature"] }
+    },
+    {
+      "if": { "properties": { "node_type": { "const": "provenance" } }, "required": ["node_type"] },
+      "then": { "required": ["canonical_id"] }
+    },
+    {
+      "if": { "properties": { "node_type": { "const": "shared" } }, "required": ["node_type"] },
+      "then": { "required": ["status", "signature"] }
+    }
+  ],
+  "$defs": {
+    "enrichment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "lessons", "caveats"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "lessons": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 1024 }, "maxItems": 16 },
+        "caveats": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 1024 }, "maxItems": 16 }
+      }
+    },
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["function", "file"],
+      "properties": {
+        "function": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "file": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      }
+    },
+    "lookupKeys": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["full", "message_stack", "message_component", "message"],
+      "properties": {
+        "full": { "type": "string", "pattern": "^v1:full:[a-f0-9]{64}$" },
+        "message_stack": { "type": "string", "pattern": "^v1:message-stack:[a-f0-9]{64}$" },
+        "message_component": { "type": "string", "pattern": "^v1:message-component:[a-f0-9]{64}$" },
+        "message": { "type": "string", "pattern": "^v1:message:[a-f0-9]{64}$" }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signature_version", "family", "normalized_message", "stack_digest", "component", "frames", "lookup_keys", "fingerprint"],
+      "properties": {
+        "signature_version": { "const": 1 },
+        "family": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,127}$" },
+        "normalized_message": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "stack_digest": { "type": "string", "pattern": "^(?:|[a-f0-9]{64})$" },
+        "component": { "type": "string", "maxLength": 1024 },
+        "frames": { "type": "array", "items": { "$ref": "#/$defs/frame" }, "maxItems": 16 },
+        "lookup_keys": { "$ref": "#/$defs/lookupKeys" },
+        "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "occurrence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "session_digest", "ended_at", "sequence", "outcome", "evidence"],
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "session_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "ended_at": { "type": "string", "format": "date-time" },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "outcome": { "enum": ["failure", "resolution", "abandonment"] },
+        "tool_name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "validation_key": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "evidence": { "type": "string", "minLength": 1, "maxLength": 4096 }
+      }
+    }
+  }
+}

@@ -3,6 +3,73 @@
 All notable user-facing changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [2.4.0] - 2026-07-29
+
+### Added
+
+- Add opt-in, local-only, structured Claude Code and OpenCode session
+  trajectories with pre-write redaction, reasoning omission, bounded retention
+  and no model or network dependency.
+- Add `cairn trajectory list|show|prune`, shell completion, and explicit
+  `cairn doctor --repair` support for trajectory metadata and indexes.
+- Add native Pi trajectory capture through its `session_shutdown` extension,
+  `cairn sync-pi`, a generic Pi launcher, uninstall coverage, and the same
+  opt-in local redaction, size, and retention boundary as other harnesses.
+- Add default-off deterministic hindsight-note distillation, exact repeated
+  error lookup, typed local Markdown hierarchy, lifecycle history, explicit
+  corroborated shared promotion, and `cairn notes` CLI/completion support.
+- Add separately opted-in provider-neutral note prose enrichment and integrate
+  all-project incremental distillation into the existing audit timer without
+  adding online-agent latency.
+- Add default-off typed memory metadata/tags, hard-filtered discovery,
+  history-aware structured `memory_import`, and logical project/shared note
+  address spaces with journaled crash recovery and doctor integration.
+- Add independent default-off compaction continuity for supported Claude Code
+  and OpenCode seams, capturing only harness-produced summaries into local,
+  redacted, bounded immutable revisions with structured fresh-session recovery.
+- Add a separate local artifact store for compaction summaries, diffs, test
+  output, and generated-file metadata/snapshots; four gated MCP tools;
+  `cairn artifact list|show|delete|prune`; doctor, completion, package, and
+  backup-first uninstall coverage; and separately consented HTTP access.
+- Add a default-off managed contract for eight existing capabilities, including
+  project CLI overrides, compatibility-aware status/digests, exact MCP tool
+  omission, guarded installed workflows, and separately consented payload-free
+  local callback records.
+- Add a default-off, adapter-driven two-pass evaluation harness with immutable
+  task sets, paired seeds, confidence intervals, per-capability ablations,
+  deterministic offline fixtures, bounded reports, and exact-source runtime
+  evidence without claiming an unmeasured quality improvement.
+- Add a design-only meta-agent contract describing how future configuration
+  proposals could be evaluated through the existing harness without giving
+  Cairnkeep ownership of an agent or inference loop.
+
+### Fixed
+
+- Load the native OpenCode capability plugin through its supported single-export
+  shape, run its coordinator with Node under OpenCode's Bun host, accept the
+  pinned runtime event envelope, and settle terminal callbacks before the host
+  can exit.
+- Layer `CAIRN_EXTRA_SETTINGS` through OpenCode's supported
+  `OPENCODE_CONFIG` environment seam and keep headless graph commands in the
+  tool-calling path until their real owner operation completes.
+- Pin the Claude Code 2.1.220 `PostCompact` `prompt_id` payload shape alongside
+  the retained 2.1.219 adapter while continuing to refuse unknown versions.
+- Preserve redacted Pi provider failures as trajectory system events and treat
+  a closed trajectory CLI output pipe as a normal consumer exit.
+- Make the audit script executable so its rendered systemd service target can
+  run directly.
+- Bind evaluation note distillation to the admitted task workspace so nested
+  task trajectories cannot be missed or replaced by a source-root fallback.
+- Upgrade the MCP SDK to 1.30.0 so both package graphs use the upstream-owned,
+  patched Hono transport and report zero production vulnerabilities.
+
+Trajectory/compaction capture, artifact access, and note distillation/enrichment remain disabled by default. Existing
+MCP tools, memory database paths, and remote HTTP behavior are unchanged. No
+memory-quality or efficiency improvement is claimed before the evaluation
+harness measures it.
+
 ## [2.3.1] - 2026-07-25
 
 ### Fixed
@@ -129,6 +196,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.2.1...v2.3.0
 [2.2.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.2.0...v2.2.1

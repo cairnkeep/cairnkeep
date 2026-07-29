@@ -1,0 +1,408 @@
+{
+  "schema_version": 1,
+  "fixture_policy": "Strict target-version shapes with synthetic, value-free samples only.",
+  "claude": {
+    "version": "2.1.220",
+    "source": {
+      "kind": "official-current-documentation",
+      "url": "https://code.claude.com/docs/en/hooks",
+      "verified_on": "2026-07-27",
+      "notes": "The documentation identifies version-specific behavior through 2.1.220-era fields; this fixture pins the supported contract to Claude Code 2.1.220."
+    },
+    "common_input": {
+      "required_fields": [
+        "session_id",
+        "transcript_path",
+        "cwd",
+        "hook_event_name"
+      ],
+      "optional_fields": [
+        "prompt_id",
+        "permission_mode",
+        "effort",
+        "agent_id",
+        "agent_type"
+      ],
+      "additional_properties": false
+    },
+    "events": {
+      "UserPromptExpansion": {
+        "phase": "admission-before-expansion",
+        "matcher_field": "command_name",
+        "can_block": true,
+        "required_fields": [
+          "session_id",
+          "transcript_path",
+          "cwd",
+          "hook_event_name",
+          "expansion_type",
+          "command_name",
+          "command_args",
+          "command_source",
+          "prompt"
+        ],
+        "optional_fields": [
+          "prompt_id",
+          "permission_mode",
+          "effort",
+          "agent_id",
+          "agent_type"
+        ],
+        "enum_fields": {
+          "hook_event_name": ["UserPromptExpansion"],
+          "expansion_type": ["slash_command", "mcp_prompt"]
+        },
+        "sample": {
+          "session_id": "session-fixture",
+          "transcript_path": "/fixture/transcript.jsonl",
+          "cwd": "/fixture/project",
+          "permission_mode": "default",
+          "hook_event_name": "UserPromptExpansion",
+          "expansion_type": "slash_command",
+          "command_name": "wiki-query",
+          "command_args": "",
+          "command_source": "project",
+          "prompt": "/wiki-query"
+        }
+      },
+      "UserPromptSubmit": {
+        "phase": "admission-before-processing",
+        "matcher_field": null,
+        "can_block": true,
+        "required_fields": [
+          "session_id",
+          "transcript_path",
+          "cwd",
+          "hook_event_name",
+          "prompt"
+        ],
+        "optional_fields": [
+          "prompt_id",
+          "permission_mode",
+          "effort",
+          "agent_id",
+          "agent_type"
+        ],
+        "enum_fields": {
+          "hook_event_name": ["UserPromptSubmit"]
+        },
+        "sample": {
+          "session_id": "session-fixture",
+          "transcript_path": "/fixture/transcript.jsonl",
+          "cwd": "/fixture/project",
+          "permission_mode": "default",
+          "hook_event_name": "UserPromptSubmit",
+          "prompt": "/wiki-query"
+        }
+      },
+      "Stop": {
+        "phase": "success-terminal",
+        "can_block": true,
+        "required_fields": [
+          "session_id",
+          "transcript_path",
+          "cwd",
+          "hook_event_name",
+          "stop_hook_active",
+          "last_assistant_message",
+          "background_tasks",
+          "session_crons"
+        ],
+        "optional_fields": [
+          "prompt_id",
+          "permission_mode",
+          "effort",
+          "agent_id",
+          "agent_type"
+        ],
+        "enum_fields": {
+          "hook_event_name": ["Stop"]
+        },
+        "sample": {
+          "session_id": "session-fixture",
+          "transcript_path": "/fixture/transcript.jsonl",
+          "cwd": "/fixture/project",
+          "hook_event_name": "Stop",
+          "stop_hook_active": false,
+          "last_assistant_message": "fixture-complete",
+          "background_tasks": [],
+          "session_crons": []
+        }
+      },
+      "StopFailure": {
+        "phase": "error-terminal",
+        "can_block": false,
+        "output_and_exit_ignored": true,
+        "required_fields": [
+          "session_id",
+          "transcript_path",
+          "cwd",
+          "hook_event_name",
+          "error"
+        ],
+        "optional_fields": [
+          "prompt_id",
+          "permission_mode",
+          "effort",
+          "agent_id",
+          "agent_type",
+          "error_details",
+          "last_assistant_message"
+        ],
+        "enum_fields": {
+          "hook_event_name": ["StopFailure"],
+          "error": [
+            "rate_limit",
+            "overloaded",
+            "authentication_failed",
+            "oauth_org_not_allowed",
+            "billing_error",
+            "invalid_request",
+            "model_not_found",
+            "server_error",
+            "max_output_tokens",
+            "unknown"
+          ]
+        },
+        "sample": {
+          "session_id": "session-fixture",
+          "transcript_path": "/fixture/transcript.jsonl",
+          "cwd": "/fixture/project",
+          "hook_event_name": "StopFailure",
+          "error": "server_error"
+        }
+      },
+      "CwdChanged": {
+        "phase": "identity-observation",
+        "can_block": false,
+        "required_fields": [
+          "session_id",
+          "transcript_path",
+          "cwd",
+          "hook_event_name",
+          "old_cwd",
+          "new_cwd"
+        ],
+        "optional_fields": [
+          "prompt_id",
+          "permission_mode",
+          "effort",
+          "agent_id",
+          "agent_type"
+        ],
+        "enum_fields": {
+          "hook_event_name": ["CwdChanged"]
+        },
+        "sample": {
+          "session_id": "session-fixture",
+          "transcript_path": "/fixture/transcript.jsonl",
+          "cwd": "/fixture/decoy",
+          "hook_event_name": "CwdChanged",
+          "old_cwd": "/fixture/project",
+          "new_cwd": "/fixture/decoy"
+        }
+      },
+      "SessionEnd": {
+        "phase": "abandonment-cleanup-only",
+        "can_block": false,
+        "required_fields": [
+          "session_id",
+          "transcript_path",
+          "cwd",
+          "hook_event_name",
+          "reason"
+        ],
+        "optional_fields": [
+          "prompt_id",
+          "permission_mode",
+          "effort",
+          "agent_id",
+          "agent_type"
+        ],
+        "enum_fields": {
+          "hook_event_name": ["SessionEnd"],
+          "reason": [
+            "clear",
+            "resume",
+            "logout",
+            "prompt_input_exit",
+            "bypass_permissions_disabled",
+            "other"
+          ]
+        },
+        "sample": {
+          "session_id": "session-fixture",
+          "transcript_path": "/fixture/transcript.jsonl",
+          "cwd": "/fixture/project",
+          "hook_event_name": "SessionEnd",
+          "reason": "other"
+        }
+      }
+    },
+    "outputs": {
+      "allow": {},
+      "block": {
+        "decision": "block",
+        "reason": "capability disabled"
+      },
+      "exit_code_block": 2
+    },
+    "lifecycle": {
+      "success_terminal": "Stop",
+      "error_terminal": "StopFailure",
+      "abandonment_only": "SessionEnd",
+      "identity_drift_signal": "CwdChanged"
+    }
+  },
+  "opencode": {
+    "version": "1.17.20",
+    "source": {
+      "kind": "official-tagged-source",
+      "repository": "https://github.com/anomalyco/opencode",
+      "tag": "v1.17.20",
+      "commit": "4473fc3c9055046183990a965d68df3db7ea6f62",
+      "plugin_types": "packages/plugin/src/index.ts",
+      "event_types": "packages/sdk/js/src/gen/types.gen.ts",
+      "dispatch": "packages/opencode/src/session/prompt.ts",
+      "verified_on": "2026-07-27"
+    },
+    "installed_analog": {
+      "version": "1.17.15",
+      "path": "@opencode-ai/plugin/dist/index.d.ts",
+      "authority": false,
+      "target_delta": "No command.execute.before signature delta was found; 1.17.20 event and dispatch source remains authoritative."
+    },
+    "hook": {
+      "name": "command.execute.before",
+      "phase": "admission-before-prompt",
+      "input": {
+        "required_fields": ["command", "sessionID", "arguments"],
+        "optional_fields": [],
+        "additional_properties": false,
+        "sample": {
+          "command": "wiki-query",
+          "sessionID": "session-fixture",
+          "arguments": ""
+        }
+      },
+      "output": {
+        "required_fields": ["parts"],
+        "optional_fields": [],
+        "additional_properties": false,
+        "sample": {
+          "parts": []
+        }
+      },
+      "blocking": "A rejected hook promise propagates before prompt() is called."
+    },
+    "dispose": {
+      "name": "dispose",
+      "phase": "plugin-shutdown",
+      "input_fields": [],
+      "additional_properties": false,
+      "source_file": "packages/plugin/src/index.ts",
+      "source_commit": "4473fc3c9055046183990a965d68df3db7ea6f62",
+      "purpose": "Release plugin-owned resources after the host stops using the plugin instance."
+    },
+    "events": {
+      "session.idle": {
+        "phase": "success-terminal",
+        "required_fields": ["type", "properties"],
+        "optional_fields": ["id"],
+        "properties_required_fields": ["sessionID"],
+        "properties_optional_fields": [],
+        "sample": {
+          "id": "event-fixture-idle",
+          "type": "session.idle",
+          "properties": {
+            "sessionID": "session-fixture"
+          }
+        }
+      },
+      "session.error": {
+        "phase": "error-terminal",
+        "required_fields": ["type", "properties"],
+        "optional_fields": ["id"],
+        "properties_required_fields": [],
+        "properties_optional_fields": ["sessionID", "error"],
+        "error_variants": [
+          "ProviderAuthError",
+          "UnknownError",
+          "MessageOutputLengthError",
+          "MessageAbortedError",
+          "APIError"
+        ],
+        "sample": {
+          "id": "event-fixture-error",
+          "type": "session.error",
+          "properties": {
+            "sessionID": "session-fixture"
+          }
+        }
+      },
+      "session.status": {
+        "phase": "status-terminal-when-idle",
+        "required_fields": ["type", "properties"],
+        "optional_fields": ["id"],
+        "properties_required_fields": ["sessionID", "status"],
+        "properties_optional_fields": [],
+        "status_variants": [
+          { "type": "idle" },
+          { "type": "retry", "attempt": 1, "message": "fixture-retry", "next": 2 },
+          { "type": "busy" }
+        ],
+        "sample": {
+          "id": "event-fixture-status",
+          "type": "session.status",
+          "properties": {
+            "sessionID": "session-fixture",
+            "status": {
+              "type": "idle"
+            }
+          }
+        }
+      },
+      "session.deleted": {
+        "phase": "abandonment-cleanup-only",
+        "required_fields": ["type", "properties"],
+        "optional_fields": ["id"],
+        "properties_required_fields": ["info"],
+        "properties_optional_fields": [],
+        "info_required_fields": [
+          "id",
+          "projectID",
+          "directory",
+          "title",
+          "version",
+          "time"
+        ],
+        "info_optional_fields": ["parentID", "summary", "share", "revert"],
+        "time_required_fields": ["created", "updated"],
+        "time_optional_fields": ["compacting"],
+        "sample": {
+          "id": "event-fixture-deleted",
+          "type": "session.deleted",
+          "properties": {
+            "info": {
+              "id": "session-fixture",
+              "projectID": "project-fixture",
+              "directory": "/fixture/project",
+              "title": "fixture",
+              "version": "1.17.20",
+              "time": {
+                "created": 1,
+                "updated": 2
+              }
+            }
+          }
+        }
+      }
+    },
+    "lifecycle": {
+      "success_terminals": ["session.idle", "session.status:idle"],
+      "error_terminal": "session.error",
+      "abandonment_only": "session.deleted",
+      "event_callback_is_awaited": false
+    }
+  }
+}

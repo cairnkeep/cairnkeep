@@ -1,7 +1,7 @@
 {
   "name": "@cairnkeep/cli",
-  "version": "2.3.1",
-  "description": "A durable, harness-agnostic memory + context layer for coding agents (Claude Code, OpenCode).",
+  "version": "2.4.0",
+  "description": "A durable, harness-agnostic memory + context layer for coding agents (Claude Code, OpenCode, Pi).",
   "license": "Apache-2.0",
   "type": "module",
   "publishConfig": {
@@ -17,8 +17,10 @@
     "templates/",
     "claude/",
     "opencode/",
+    "pi/",
     "examples/anythingllm/",
     "examples/overlay-distribution/",
+    "examples/eval/",
     "containers/",
     "schemas/",
     "docs/",
@@ -26,6 +28,7 @@
     "CONTRIBUTING.md",
     "SECURITY.md",
     "mcp-memory-server/dist/",
+    "mcp-memory-server/scripts/fixtures/compaction-*.json",
     "mcp-memory-server/package.json",
     "AGENTS.md"
   ],
@@ -33,7 +36,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "agentfs-sdk": "^0.6.4",
     "zod": "^4.4.3"
   },
@@ -42,7 +45,7 @@
     "fix:perms": "git ls-files -s | awk '$1==\"100755\"{print $4}' | xargs chmod 755",
     "prepack": "npm run build:server && npm run fix:perms",
     "test": "for test in scripts/test-*.sh; do \"$test\" || exit 1; done",
-    "audit:runtime": "npm audit --omit=dev --audit-level=high && npm --prefix mcp-memory-server audit --omit=dev --audit-level=high",
+    "audit:runtime": "node scripts/verify-dependency-security.mjs && npm audit --omit=dev --audit-level=high && npm --prefix mcp-memory-server audit --omit=dev --audit-level=high",
     "check:public": "scripts/verify-no-private-references.sh && scripts/verify-docs-parity.sh && npm run audit:runtime && npm run build:server && npm test",
     "prepublishOnly": "npm run check:public && npm --prefix mcp-memory-server test --global=false --dry-run=false"
   },
@@ -60,6 +63,7 @@
     "agent",
     "claude-code",
     "opencode",
+    "pi-coding-agent",
     "context",
     "rag"
   ]

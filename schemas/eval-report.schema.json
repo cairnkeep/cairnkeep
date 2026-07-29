@@ -1,0 +1,423 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/eval-report.schema.json",
+  "title": "Cairnkeep evaluation report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "experiment_id", "status", "experiment_kind", "task_set_digest", "adapter_config_digest", "source_revision", "schedule_digest", "created_at", "updated_at", "runtime", "schedule", "observations", "aggregates", "missingness", "warnings", "evidence"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "experiment_id": { "$ref": "#/$defs/identifier" },
+    "status": { "enum": ["partial", "final"] },
+    "experiment_kind": { "enum": ["two_pass", "ablation"] },
+    "task_set_digest": { "$ref": "#/$defs/digest" },
+    "adapter_config_digest": { "$ref": "#/$defs/digest" },
+    "source_revision": { "$ref": "#/$defs/commit" },
+    "schedule_digest": { "$ref": "#/$defs/digest" },
+    "created_at": { "$ref": "#/$defs/timestamp" },
+    "updated_at": { "$ref": "#/$defs/timestamp" },
+    "runtime": { "$ref": "#/$defs/runtime" },
+    "schedule": { "type": "array", "maxItems": 1000000, "items": { "$ref": "#/$defs/scheduleRow" } },
+    "observations": { "type": "array", "maxItems": 1000000, "items": { "$ref": "#/$defs/observation" } },
+    "aggregates": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/aggregate" } },
+    "missingness": { "$ref": "#/$defs/reportMissingness" },
+    "warnings": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/code" } },
+    "evidence": { "$ref": "#/$defs/evidence" }
+  },
+  "$defs": {
+    "identifier": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" },
+    "reference": { "type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$" },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*//)(?!.*[\\u0000-\\u001f\\u007f])(?!.*\\/$).+$"
+    },
+    "code": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "commit": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "nonnegativeInteger": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "nullableNumber": { "type": ["number", "null"] },
+    "capabilityId": {
+      "enum": ["memory.write", "memory.search", "notes.distill", "wiki", "graph", "security.audit", "route.check", "context.explore"]
+    },
+    "capabilityState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "enabled"],
+      "properties": {
+        "id": { "$ref": "#/$defs/capabilityId" },
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "capabilityStates": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": { "$ref": "#/$defs/capabilityState" }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["elapsed_ms", "stdout_bytes"],
+      "properties": {
+        "elapsed_ms": { "type": "integer", "minimum": 1, "maximum": 86400000 },
+        "stdout_bytes": { "type": "integer", "minimum": 1, "maximum": 16777216 }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": { "$ref": "#/$defs/nonnegativeInteger" },
+        "output_tokens": { "$ref": "#/$defs/nonnegativeInteger" },
+        "reasoning_tokens": { "$ref": "#/$defs/nonnegativeInteger" },
+        "cache_read_tokens": { "$ref": "#/$defs/nonnegativeInteger" },
+        "cache_write_tokens": { "$ref": "#/$defs/nonnegativeInteger" },
+        "total_tokens": { "$ref": "#/$defs/nonnegativeInteger" }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "adapterResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "status"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "status": { "enum": ["completed", "adapter_error"] },
+        "error_code": { "$ref": "#/$defs/code" },
+        "turns": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "semantics"],
+          "properties": {
+            "value": { "$ref": "#/$defs/nonnegativeInteger" },
+            "semantics": { "$ref": "#/$defs/identifier" }
+          }
+        },
+        "usage": { "$ref": "#/$defs/usage" },
+        "cost": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["amount", "currency"],
+          "properties": {
+            "amount": { "type": "number", "minimum": 0 },
+            "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+          }
+        },
+        "harness": { "$ref": "#/$defs/component" },
+        "adapter": { "$ref": "#/$defs/component" },
+        "model": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id"],
+          "properties": {
+            "id": { "$ref": "#/$defs/identifier" },
+            "config_id": { "$ref": "#/$defs/identifier" }
+          }
+        },
+        "observed_capability_digest": { "$ref": "#/$defs/digest" },
+        "trajectory_ref": { "$ref": "#/$defs/reference" },
+        "artifact_refs": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/reference" } }
+      }
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exit_code", "signal", "error_code", "cleanup"],
+      "properties": {
+        "exit_code": { "type": ["integer", "null"] },
+        "signal": { "enum": ["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", null] },
+        "error_code": { "oneOf": [{ "$ref": "#/$defs/code" }, { "type": "null" }] },
+        "cleanup": { "enum": ["pending", "closed", "terminated", "killed", "failed"] }
+      }
+    },
+    "verifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "reason"],
+      "properties": {
+        "state": { "enum": ["pending", "not_run", "completed", "error"] },
+        "reason": { "oneOf": [{ "$ref": "#/$defs/code" }, { "type": "null" }] }
+      }
+    },
+    "noteSnapshotEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "digest", "bytes"],
+      "properties": {
+        "path": { "$ref": "#/$defs/relativePath" },
+        "digest": { "$ref": "#/$defs/digest" },
+        "bytes": { "$ref": "#/$defs/nonnegativeInteger" }
+      }
+    },
+    "notes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["distiller_id", "distiller_config_digest", "trajectory_ref", "distillation_outcome", "eligibility_reason", "note_snapshot_digest", "note_snapshot_manifest", "notes_exposed"],
+      "properties": {
+        "distiller_id": { "oneOf": [{ "$ref": "#/$defs/identifier" }, { "type": "null" }] },
+        "distiller_config_digest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "trajectory_ref": { "oneOf": [{ "$ref": "#/$defs/reference" }, { "type": "null" }] },
+        "distillation_outcome": { "enum": ["not_applicable", "success", "no_notes", "failed", "skipped"] },
+        "eligibility_reason": { "$ref": "#/$defs/code" },
+        "note_snapshot_digest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "note_snapshot_manifest": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/noteSnapshotEntry" } },
+        "notes_exposed": { "type": "boolean" }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "observation_id", "task_id", "schedule_index", "arm", "disabled_capability", "arm_order", "repetition", "pass", "seed", "state", "terminal_state", "process", "verifier", "pass_state", "expected_capabilities", "observed_capabilities", "expected_capability_digest", "observed_capability_digest", "capability_status", "capability_digest_match", "four_cell_id", "notes", "result", "missing_reasons"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "observation_id": { "$ref": "#/$defs/identifier" },
+        "task_id": { "$ref": "#/$defs/identifier" },
+        "schedule_index": { "$ref": "#/$defs/nonnegativeInteger" },
+        "arm": { "enum": ["baseline", "treatment"] },
+        "disabled_capability": { "oneOf": [{ "$ref": "#/$defs/capabilityId" }, { "type": "null" }] },
+        "arm_order": { "$ref": "#/$defs/nonnegativeInteger" },
+        "repetition": { "$ref": "#/$defs/nonnegativeInteger" },
+        "pass": { "enum": ["run1", "run2"] },
+        "seed": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "state": { "enum": ["pending", "terminal"] },
+        "terminal_state": { "enum": ["completed", "verifier_failed", "timeout", "cancelled", "adapter_error", "invalid_result", null] },
+        "process": { "$ref": "#/$defs/process" },
+        "verifier": { "$ref": "#/$defs/verifier" },
+        "pass_state": { "enum": ["passed", "failed", "unknown"] },
+        "expected_capabilities": { "$ref": "#/$defs/capabilityStates" },
+        "observed_capabilities": { "$ref": "#/$defs/capabilityStates" },
+        "expected_capability_digest": { "$ref": "#/$defs/digest" },
+        "observed_capability_digest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "capability_status": { "enum": ["pending", "valid", "mismatch", "unavailable"] },
+        "capability_digest_match": { "type": ["boolean", "null"] },
+        "four_cell_id": { "$ref": "#/$defs/identifier" },
+        "notes": { "$ref": "#/$defs/notes" },
+        "result": { "oneOf": [{ "$ref": "#/$defs/adapterResult" }, { "type": "null" }] },
+        "missing_reasons": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/code" } }
+      }
+    },
+    "scheduleRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["observation_id", "task_id", "arm", "repetition", "pass", "seed"],
+      "properties": {
+        "observation_id": { "$ref": "#/$defs/identifier" },
+        "task_id": { "$ref": "#/$defs/identifier" },
+        "arm": { "enum": ["baseline", "treatment"] },
+        "repetition": { "$ref": "#/$defs/nonnegativeInteger" },
+        "pass": { "enum": ["run1", "run2"] },
+        "seed": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "population": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["full", "executed", "eligible", "paired", "note_eligible"],
+      "properties": {
+        "full": { "$ref": "#/$defs/nonnegativeInteger" },
+        "executed": { "$ref": "#/$defs/nonnegativeInteger" },
+        "eligible": { "$ref": "#/$defs/nonnegativeInteger" },
+        "paired": { "$ref": "#/$defs/nonnegativeInteger" },
+        "note_eligible": { "$ref": "#/$defs/nonnegativeInteger" }
+      }
+    },
+    "missing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "reasons"],
+      "properties": {
+        "count": { "$ref": "#/$defs/nonnegativeInteger" },
+        "reasons": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/code" } }
+      }
+    },
+    "conditionPopulation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["full", "executed", "eligible"],
+      "properties": {
+        "full": { "$ref": "#/$defs/nonnegativeInteger" },
+        "executed": { "$ref": "#/$defs/nonnegativeInteger" },
+        "eligible": { "$ref": "#/$defs/nonnegativeInteger" }
+      }
+    },
+    "conditionLevel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["arm", "pass", "value", "valid_task_ids", "valid_task_count", "population", "missing"],
+      "properties": {
+        "arm": { "enum": ["baseline", "treatment"] },
+        "pass": { "enum": ["run1", "run2"] },
+        "value": { "$ref": "#/$defs/nullableNumber" },
+        "valid_task_ids": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/identifier" } },
+        "valid_task_count": { "$ref": "#/$defs/nonnegativeInteger" },
+        "population": { "$ref": "#/$defs/conditionPopulation" },
+        "missing": { "$ref": "#/$defs/missing" }
+      }
+    },
+    "baselineRun1Level": {
+      "allOf": [
+        { "$ref": "#/$defs/conditionLevel" },
+        { "type": "object", "properties": { "arm": { "const": "baseline" }, "pass": { "const": "run1" } } }
+      ]
+    },
+    "baselineRun2Level": {
+      "allOf": [
+        { "$ref": "#/$defs/conditionLevel" },
+        { "type": "object", "properties": { "arm": { "const": "baseline" }, "pass": { "const": "run2" } } }
+      ]
+    },
+    "treatmentRun1Level": {
+      "allOf": [
+        { "$ref": "#/$defs/conditionLevel" },
+        { "type": "object", "properties": { "arm": { "const": "treatment" }, "pass": { "const": "run1" } } }
+      ]
+    },
+    "treatmentRun2Level": {
+      "allOf": [
+        { "$ref": "#/$defs/conditionLevel" },
+        { "type": "object", "properties": { "arm": { "const": "treatment" }, "pass": { "const": "run2" } } }
+      ]
+    },
+    "baselineMemoryLevels": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "prefixItems": [{ "$ref": "#/$defs/baselineRun1Level" }, { "$ref": "#/$defs/baselineRun2Level" }]
+    },
+    "treatmentMemoryLevels": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "prefixItems": [{ "$ref": "#/$defs/treatmentRun1Level" }, { "$ref": "#/$defs/treatmentRun2Level" }]
+    },
+    "endpointLevels": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "prefixItems": [{ "$ref": "#/$defs/baselineRun2Level" }, { "$ref": "#/$defs/treatmentRun2Level" }]
+    },
+    "differenceInDifferencesLevels": {
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "prefixItems": [
+        { "$ref": "#/$defs/baselineRun1Level" },
+        { "$ref": "#/$defs/baselineRun2Level" },
+        { "$ref": "#/$defs/treatmentRun1Level" },
+        { "$ref": "#/$defs/treatmentRun2Level" }
+      ]
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "version", "seed", "stream", "iterations", "confidence", "quantile", "interval", "null_reason"],
+      "properties": {
+        "algorithm": { "const": "paired-bootstrap" },
+        "version": { "const": 1 },
+        "seed": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "stream": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "iterations": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "confidence": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "quantile": { "const": "percentile-nearest-rank-v1" },
+        "interval": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["low", "high"],
+              "properties": { "low": { "type": "number" }, "high": { "type": "number" } }
+            },
+            { "type": "null" }
+          ]
+        },
+        "null_reason": { "oneOf": [{ "$ref": "#/$defs/code" }, { "type": "null" }] }
+      }
+    },
+    "aggregate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["comparison_id", "metric_id", "direction", "semantics", "currency", "estimate", "within_arm", "endpoint_delta", "difference_in_differences", "uncertainty", "warnings", "valid_task_ids", "valid_pair_count", "condition_levels", "population", "missing"],
+      "properties": {
+        "comparison_id": { "enum": ["memory-baseline", "memory-treatment", "endpoint-treatment-minus-baseline", "difference-in-differences"] },
+        "metric_id": { "$ref": "#/$defs/identifier" },
+        "direction": { "$ref": "#/$defs/identifier" },
+        "semantics": { "oneOf": [{ "$ref": "#/$defs/identifier" }, { "type": "null" }] },
+        "currency": { "type": ["string", "null"], "pattern": "^[A-Z]{3}$" },
+        "estimate": { "$ref": "#/$defs/nullableNumber" },
+        "within_arm": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["baseline", "treatment"],
+          "properties": {
+            "baseline": { "$ref": "#/$defs/nullableNumber" },
+            "treatment": { "$ref": "#/$defs/nullableNumber" }
+          }
+        },
+        "endpoint_delta": { "$ref": "#/$defs/nullableNumber" },
+        "difference_in_differences": { "$ref": "#/$defs/nullableNumber" },
+        "uncertainty": { "$ref": "#/$defs/uncertainty" },
+        "warnings": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/code" } },
+        "valid_task_ids": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/identifier" } },
+        "valid_pair_count": { "$ref": "#/$defs/nonnegativeInteger" },
+        "condition_levels": {
+          "oneOf": [
+            { "$ref": "#/$defs/baselineMemoryLevels" },
+            { "$ref": "#/$defs/treatmentMemoryLevels" },
+            { "$ref": "#/$defs/endpointLevels" },
+            { "$ref": "#/$defs/differenceInDifferencesLevels" }
+          ]
+        },
+        "population": { "$ref": "#/$defs/population" },
+        "missing": { "$ref": "#/$defs/missing" }
+      },
+      "oneOf": [
+        { "required": ["comparison_id", "condition_levels"], "properties": { "comparison_id": { "const": "memory-baseline" }, "condition_levels": { "$ref": "#/$defs/baselineMemoryLevels" } } },
+        { "required": ["comparison_id", "condition_levels"], "properties": { "comparison_id": { "const": "memory-treatment" }, "condition_levels": { "$ref": "#/$defs/treatmentMemoryLevels" } } },
+        { "required": ["comparison_id", "condition_levels"], "properties": { "comparison_id": { "const": "endpoint-treatment-minus-baseline" }, "condition_levels": { "$ref": "#/$defs/endpointLevels" } } },
+        { "required": ["comparison_id", "condition_levels"], "properties": { "comparison_id": { "const": "difference-in-differences" }, "condition_levels": { "$ref": "#/$defs/differenceInDifferencesLevels" } } }
+      ]
+    },
+    "reportMissingness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["digest", "count", "reasons"],
+      "properties": {
+        "digest": { "$ref": "#/$defs/digest" },
+        "count": { "$ref": "#/$defs/nonnegativeInteger" },
+        "reasons": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/code" } }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform", "arch", "node", "cairnkeep"],
+      "properties": {
+        "platform": { "$ref": "#/$defs/identifier" },
+        "arch": { "$ref": "#/$defs/identifier" },
+        "node": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "cairnkeep": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "evidence_scope", "source_commit", "package_version", "runtime_id", "task_set_digest", "report_digest", "schema_digests", "note_snapshot_digests", "missingness_digest", "claim_anchors"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "evidence_scope": { "enum": ["offline-framework", "live-evaluation"] },
+        "source_commit": { "$ref": "#/$defs/commit" },
+        "package_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "runtime_id": { "$ref": "#/$defs/identifier" },
+        "task_set_digest": { "$ref": "#/$defs/digest" },
+        "report_digest": { "$ref": "#/$defs/digest" },
+        "schema_digests": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "$ref": "#/$defs/digest" } },
+        "note_snapshot_digests": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/digest" } },
+        "missingness_digest": { "$ref": "#/$defs/digest" },
+        "claim_anchors": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/reference" } }
+      }
+    }
+  }
+}

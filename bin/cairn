@@ -32,8 +32,30 @@ Usage:
                            Install/update the Claude Code operating layer (commands,
                            agents, hooks) into ~/.claude, or into DIR for a single
                            project (--live-root <project>/.claude).
+  cairn sync-pi [--apply] [--live-root DIR]
+                           Install/update the Pi trajectory extension into
+                           ~/.pi/agent, or into DIR for an isolated Pi root.
   cairn doctor             Health-check the memory server and configured LLM /
-                           embedding endpoints, git provider, and store.
+                           embedding endpoints, git provider, and stores.
+                           Use --repair for derived trajectory/typed metadata,
+                           indexes, and interrupted note transactions.
+  cairn trajectory <list|show|prune>
+                           Inspect and prune opt-in local session trajectories.
+  cairn artifact <list|show|delete|prune>
+                           Inspect and delete opt-in local artifacts. List/show
+                           support --json; delete supports --dry-run; prune
+                           supports --dry-run and --include-protected.
+  cairn capabilities <list|status|enable|disable|reset|logging>
+                           Inspect and manage project capability state. MCP changes
+                           require a memory-server restart; operating changes apply
+                           on the next invocation.
+  cairn notes <distill|search-error|promote|doctor>
+                           Compile closed trajectories into local hindsight notes,
+                           search exact failure signatures, promote corroborated
+                           notes, or validate the note store.
+  cairn eval <validate|run|ablate|report|prune|delete>
+                           Validate or run default-off local evaluations, inspect
+                           reports, and manage retained experiment results.
   cairn memory <path|export|import>
                            Relocate global-scope memory. `path` prints its location;
                            `export <file.tgz>` takes a WAL-safe snapshot (requires
@@ -41,7 +63,8 @@ Usage:
   cairn audit-timer [--on-calendar SPEC] [--para-root PATH] [--render-only DIR]
                            Install (opt-in) a systemd user timer that runs the
                            memory+wiki audit on a schedule; prints a cron alternative.
-  cairn uninstall [--dry-run] [--yes] [--purge-memory] [--live-root DIR] [PROJECT ...]
+  cairn uninstall [--dry-run] [--yes] [--purge-memory] [--live-root DIR]
+                  [--pi-live-root DIR] [PROJECT ...]
                            Reverse what cairnkeep installed/modified (operating
                            layer, hook registrations, MCP registration, audit
                            timer, and any given projects' bootstrap scaffold).
@@ -72,8 +95,26 @@ case "$cmd" in
     #   claude mcp add cairn-memory -s user -- cairn memory-server
     exec node "$CAIRN_ROOT/mcp-memory-server/dist/index.js" "$@"
     ;;
+  trajectory)
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/trajectory-cli.js" "$@"
+    ;;
+  artifact)
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/artifact-cli.js" "$@"
+    ;;
+  capabilities)
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/capability-cli.js" "$@"
+    ;;
+  notes)
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/note-cli.js" "$@"
+    ;;
+  eval)
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/eval-cli.js" "$@"
+    ;;
   sync)
     exec "$CAIRN_ROOT/scripts/sync-claude-assets.sh" "$@"
+    ;;
+  sync-pi)
+    exec "$CAIRN_ROOT/scripts/sync-pi-assets.sh" "$@"
     ;;
   audit-timer)
     exec "$CAIRN_ROOT/scripts/install-audit-timer.sh" "$@"

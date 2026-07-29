@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/capability-callback.schema.json",
+  "title": "Cairnkeep capability callback record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "capability_id",
+    "invocation_id",
+    "correlation_id",
+    "harness",
+    "source",
+    "transport",
+    "started_at",
+    "finished_at",
+    "duration_ms",
+    "outcome",
+    "state_source",
+    "configuration_digest"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "capability_id": {
+      "enum": [
+        "memory.write",
+        "memory.search",
+        "notes.distill",
+        "wiki",
+        "graph",
+        "security.audit",
+        "route.check",
+        "context.explore"
+      ]
+    },
+    "invocation_id": {
+      "type": "string",
+      "pattern": "^cap:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^(?!unknown$)(?:cairn:)?[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"
+    },
+    "harness": { "enum": ["claude-code", "opencode", "pi", "other"] },
+    "source": { "enum": ["mcp", "notes-cli", "audit-timer", "operating-command", "operating-workflow"] },
+    "transport": { "enum": ["stdio", "http", "local-process", "harness-command"] },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": "string", "format": "date-time" },
+    "duration_ms": { "type": "number", "minimum": 0 },
+    "outcome": { "enum": ["success", "error", "timeout", "disabled"] },
+    "error_code": { "enum": ["callback-error", "callback-timeout", "result-error", "result-timeout", "capability-disabled"] },
+    "state_source": { "enum": ["environment", "project", "compatibility"] },
+    "configuration_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "outcome": { "const": "success" } }, "required": ["outcome"] },
+      "then": { "not": { "required": ["error_code"] } },
+      "else": { "required": ["error_code"] }
+    },
+    {
+      "if": { "properties": { "outcome": { "const": "disabled" } }, "required": ["outcome"] },
+      "then": { "properties": { "error_code": { "const": "capability-disabled" } } }
+    }
+  ]
+}

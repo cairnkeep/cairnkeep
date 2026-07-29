@@ -15,6 +15,31 @@
 #                            with $CAIRN_EXIT_STATUS set to the harness exit code.
 set -euo pipefail
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+
+capability_contract_enabled() {
+  local value="${CAIRN_CAPABILITY_CONTRACT:-}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  case "$value" in
+    1|[Tt][Rr][Uu][Ee]|[Yy][Ee][Ss]|[Oo][Nn]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+resolve_cairn_root() {
+  local source dir
+  if ! source=$(type -P cairn); then
+    echo "cairn: capability contract requires the cairn executable on PATH" >&2
+    return 127
+  fi
+  while [[ -L "$source" ]]; do
+    dir=$(cd -P "$(dirname "$source")" && pwd)
+    source=$(readlink "$source")
+    [[ "$source" == /* ]] || source="$dir/$source"
+  done
+  cd -P "$(dirname "$source")/.." && pwd
+}
+
 if [[ -f "$ROOT_DIR/.ai/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -25,6 +50,17 @@ if [[ -f "$ROOT_DIR/.ai/pre-launch.sh" ]]; then
   # shellcheck disable=SC1091
   . "$ROOT_DIR/.ai/pre-launch.sh"
 fi
+
+if capability_contract_enabled; then
+  CAIRN_RUNTIME_ROOT=$(resolve_cairn_root)
+  node "$CAIRN_RUNTIME_ROOT/mcp-memory-server/dist/capability-cli.js" \
+    harness-recover </dev/null >/dev/null 2>&1 || true
+  CLAUDE_CAPABILITY_ROOT="$ROOT_DIR/.ai/capability-contract/claude"
+  "$CAIRN_RUNTIME_ROOT/scripts/sync-claude-assets.sh" \
+    --apply --capability-overlay --live-root "$CLAUDE_CAPABILITY_ROOT" >/dev/null
+  export CLAUDE_CONFIG_DIR="$CLAUDE_CAPABILITY_ROOT"
+fi
+
 cd "$ROOT_DIR"
 
 launch_args=()

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/artifact.schema.json",
+  "title": "Cairnkeep artifact contract",
+  "oneOf": [
+    { "$ref": "#/$defs/writeInput" },
+    { "$ref": "#/$defs/envelope" },
+    { "$ref": "#/$defs/listOutput" },
+    { "$ref": "#/$defs/doctorOutput" }
+  ],
+  "$defs": {
+    "kind": { "enum": ["compaction_summary", "diff", "test_output", "generated_file"] },
+    "artifactId": { "type": "string", "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
+    "sessionRef": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "nodeRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scope", "address_space", "key"],
+      "properties": {
+        "scope": { "type": "string", "minLength": 1, "maxLength": 256, "not": { "const": "all" } },
+        "address_space": { "enum": ["memory", "project-notes", "shared-notes"] },
+        "key": { "type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^(?!/)(?!.*(?:^|/)(?:\\.|\\.\\.)(?:/|$))(?!.*//)(?!.*\\\\)(?!__)(?!\\.cairnkeep)(?!.*[\\u0000-\\u001f\\u007f]).+(?<!/)$" }
+      }
+    },
+    "provenance": {
+      "type": "object", "additionalProperties": false, "required": ["producer"],
+      "properties": {
+        "producer": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[^\\u0000-\\u001f\\u007f]+$" },
+        "source_event": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "harness": { "enum": ["claude-code", "opencode", "pi"] },
+        "harness_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "native_id": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "completeness": {
+      "type": "object", "additionalProperties": false,
+      "required": ["task_goals", "decisions_made", "open_todos", "critical_error_traces"],
+      "properties": {
+        "task_goals": { "enum": ["complete", "partial", "missing"] },
+        "decisions_made": { "enum": ["complete", "partial", "missing"] },
+        "open_todos": { "enum": ["complete", "partial", "missing"] },
+        "critical_error_traces": { "enum": ["complete", "partial", "missing"] }
+      }
+    },
+    "compactionInputContent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["raw_summary", "task_goals", "decisions_made", "open_todos", "critical_error_traces", "completeness", "trigger"],
+      "properties": {
+        "raw_summary": { "type": "string", "maxLength": 67108864 },
+        "task_goals": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 67108864 } },
+        "decisions_made": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 67108864 } },
+        "open_todos": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 67108864 } },
+        "critical_error_traces": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 67108864 } },
+        "completeness": { "$ref": "#/$defs/completeness" },
+        "trigger": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "compactionContent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["raw_summary", "task_goals", "decisions_made", "open_todos", "critical_error_traces", "completeness", "trigger", "revision"],
+      "properties": {
+        "raw_summary": { "type": "string", "maxLength": 67108864 },
+        "task_goals": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 67108864 } },
+        "decisions_made": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 67108864 } },
+        "open_todos": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 67108864 } },
+        "critical_error_traces": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 67108864 } },
+        "completeness": { "$ref": "#/$defs/completeness" },
+        "trigger": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "revision": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "diffContent": { "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string", "maxLength": 67108864 } } },
+    "testOutputContent": {
+      "type": "object", "additionalProperties": false, "required": ["text"],
+      "properties": { "text": { "type": "string", "maxLength": 67108864 }, "exit_code": { "type": "integer" }, "status": { "enum": ["passed", "failed", "unknown"] } }
+    },
+    "generatedFileInputContent": {
+      "type": "object", "additionalProperties": false, "required": ["path_label", "file_digest", "logical_bytes", "binary"],
+      "properties": {
+        "path_label": { "type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^(?!/)(?!.*(?:^|/)(?:\\.|\\.\\.)(?:/|$))(?!.*//)(?!.*\\\\)(?!.*[\\u0000-\\u001f\\u007f]).+(?<!/)$" },
+        "file_digest": { "$ref": "#/$defs/digest" }, "logical_bytes": { "type": "integer", "minimum": 0 }, "binary": { "type": "boolean" }, "snapshot": { "type": "string", "maxLength": 67108864 }
+      }
+    },
+    "generatedFileContent": {
+      "type": "object", "additionalProperties": false, "required": ["path_label", "file_digest", "logical_bytes", "binary"],
+      "properties": {
+        "path_label": { "type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^(?!/)(?!.*(?:^|/)(?:\\.|\\.\\.)(?:/|$))(?!.*//)(?!.*\\\\)(?!.*[\\u0000-\\u001f\\u007f]).+(?<!/)$" },
+        "file_digest": { "$ref": "#/$defs/digest" }, "logical_bytes": { "type": "integer", "minimum": 0 }, "binary": { "type": "boolean" }, "snapshot": { "type": "string", "maxLength": 67108864 }, "metadata_only": { "type": "boolean" }
+      }
+    },
+    "writeInput": {
+      "oneOf": [
+        { "$ref": "#/$defs/writeCompaction" }, { "$ref": "#/$defs/writeDiff" }, { "$ref": "#/$defs/writeTestOutput" }, { "$ref": "#/$defs/writeGeneratedFile" }
+      ]
+    },
+    "writeBase": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "session_ref", "media_type", "provenance", "content"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/kind" }, "session_ref": { "$ref": "#/$defs/sessionRef" }, "node_ref": { "$ref": "#/$defs/nodeRef" },
+        "media_type": { "type": "string", "minLength": 1, "maxLength": 255 }, "provenance": { "$ref": "#/$defs/provenance" }, "supersedes": { "$ref": "#/$defs/artifactId" }, "content": {}
+      }
+    },
+    "writeCompaction": { "allOf": [{ "$ref": "#/$defs/writeBase" }, { "properties": { "kind": { "const": "compaction_summary" }, "content": { "$ref": "#/$defs/compactionInputContent" } } }] },
+    "writeDiff": { "allOf": [{ "$ref": "#/$defs/writeBase" }, { "properties": { "kind": { "const": "diff" }, "content": { "$ref": "#/$defs/diffContent" } } }] },
+    "writeTestOutput": { "allOf": [{ "$ref": "#/$defs/writeBase" }, { "properties": { "kind": { "const": "test_output" }, "content": { "$ref": "#/$defs/testOutputContent" } } }] },
+    "writeGeneratedFile": { "allOf": [{ "$ref": "#/$defs/writeBase" }, { "properties": { "kind": { "const": "generated_file" }, "content": { "$ref": "#/$defs/generatedFileInputContent" } } }] },
+    "envelope": {
+      "oneOf": [
+        { "$ref": "#/$defs/envelopeCompaction" }, { "$ref": "#/$defs/envelopeDiff" }, { "$ref": "#/$defs/envelopeTestOutput" }, { "$ref": "#/$defs/envelopeGeneratedFile" }
+      ]
+    },
+    "envelopeBase": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "artifact_id", "kind", "created_at", "session_ref", "media_type", "logical_bytes", "stored_bytes", "content_digest", "provenance", "redaction", "truncation", "content"],
+      "properties": {
+        "schema_version": { "const": 1 }, "artifact_id": { "$ref": "#/$defs/artifactId" }, "kind": { "$ref": "#/$defs/kind" }, "created_at": { "type": "string", "format": "date-time" },
+        "session_ref": { "$ref": "#/$defs/sessionRef" }, "node_ref": { "$ref": "#/$defs/nodeRef" }, "media_type": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "logical_bytes": { "type": "integer", "minimum": 0 }, "stored_bytes": { "type": "integer", "minimum": 0 }, "content_digest": { "$ref": "#/$defs/digest" },
+        "provenance": { "$ref": "#/$defs/provenance" }, "redaction": { "type": "object", "additionalProperties": false, "required": ["applied", "replacement_count"], "properties": { "applied": { "type": "boolean" }, "replacement_count": { "type": "integer", "minimum": 0 } } },
+        "truncation": { "type": "object", "additionalProperties": false, "required": ["truncated", "original_bytes", "stored_bytes"], "properties": { "truncated": { "type": "boolean" }, "reason": { "enum": ["artifact_limit", "generated_file_metadata_only"] }, "original_bytes": { "type": "integer", "minimum": 0 }, "stored_bytes": { "type": "integer", "minimum": 0 } } },
+        "supersedes": { "$ref": "#/$defs/artifactId" }, "content": {}
+      }
+    },
+    "envelopeCompaction": { "allOf": [{ "$ref": "#/$defs/envelopeBase" }, { "properties": { "kind": { "const": "compaction_summary" }, "content": { "$ref": "#/$defs/compactionContent" } } }] },
+    "envelopeDiff": { "allOf": [{ "$ref": "#/$defs/envelopeBase" }, { "properties": { "kind": { "const": "diff" }, "content": { "$ref": "#/$defs/diffContent" } } }] },
+    "envelopeTestOutput": { "allOf": [{ "$ref": "#/$defs/envelopeBase" }, { "properties": { "kind": { "const": "test_output" }, "content": { "$ref": "#/$defs/testOutputContent" } } }] },
+    "envelopeGeneratedFile": { "allOf": [{ "$ref": "#/$defs/envelopeBase" }, { "properties": { "kind": { "const": "generated_file" }, "content": { "$ref": "#/$defs/generatedFileContent" } } }] },
+    "listOutput": { "type": "object", "additionalProperties": false, "required": ["schema_version", "artifacts", "logical_bytes"], "properties": { "schema_version": { "const": 1 }, "artifacts": { "type": "array", "items": { "$ref": "#/$defs/envelope" } }, "logical_bytes": { "type": "integer", "minimum": 0 }, "next_cursor": { "type": "string" } } },
+    "doctorOutput": { "type": "object", "additionalProperties": false, "required": ["schema_version", "ok", "repaired", "integrity", "issues"], "properties": { "schema_version": { "const": 1 }, "ok": { "type": "boolean" }, "repaired": { "type": "boolean" }, "integrity": { "enum": ["ok", "failed"] }, "issues": { "type": "array", "items": { "type": "string" } } }
+  }
+}
+}

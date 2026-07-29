@@ -1,0 +1,79 @@
+{
+  "failure": {
+    "schema_version": 1,
+    "session_id": "note-failure-001",
+    "harness": "pi",
+    "project_root": "$PROJECT_ROOT",
+    "started_at": "2026-07-26T10:00:00.000Z",
+    "ended_at": "2026-07-26T10:01:00.000Z",
+    "events": [
+      { "sequence": 0, "kind": "tool_invocation", "timestamp": "2026-07-26T10:00:10.000Z", "payload": { "call_id": "test-1", "tool_name": "bash", "input": { "command": "npm test" } } },
+      { "sequence": 1, "kind": "tool_result", "timestamp": "2026-07-26T10:00:20.000Z", "payload": { "call_id": "test-1", "is_error": true, "output": "TypeError: Cannot read properties of undefined (reading 'name')\n    at loadUser ($PROJECT_ROOT/src/user.ts:41:9)" } }
+    ],
+    "capture": { "captured_at": "2026-07-26T10:01:01.000Z", "omitted_reasoning_blocks": 1, "omitted_unknown_records": 0, "truncated": false }
+  },
+  "fix": {
+    "schema_version": 1,
+    "session_id": "note-fix-001",
+    "harness": "opencode",
+    "project_root": "$PROJECT_ROOT",
+    "started_at": "2026-07-26T11:00:00.000Z",
+    "ended_at": "2026-07-26T11:01:00.000Z",
+    "events": [
+      { "sequence": 0, "kind": "tool_invocation", "timestamp": "2026-07-26T11:00:10.000Z", "payload": { "call_id": "test-2", "tool_name": "bash", "input": { "command": "npm test" } } },
+      { "sequence": 1, "kind": "tool_result", "timestamp": "2026-07-26T11:00:20.000Z", "payload": { "call_id": "test-2", "is_error": false, "output": "18 tests passed" } }
+    ],
+    "capture": { "captured_at": "2026-07-26T11:01:01.000Z", "omitted_reasoning_blocks": 0, "omitted_unknown_records": 0, "truncated": false }
+  },
+  "abandoned": {
+    "schema_version": 1,
+    "session_id": "note-abandoned-001",
+    "harness": "claude-code",
+    "project_root": "$PROJECT_ROOT",
+    "started_at": "2026-07-26T12:00:00.000Z",
+    "ended_at": "2026-07-26T12:01:00.000Z",
+    "events": [
+      { "sequence": 0, "kind": "tool_invocation", "timestamp": "2026-07-26T12:00:10.000Z", "payload": { "call_id": "lint-1", "tool_name": "bash", "input": { "command": "npm run lint" } } },
+      { "sequence": 1, "kind": "tool_result", "timestamp": "2026-07-26T12:00:20.000Z", "payload": { "call_id": "lint-1", "is_error": true, "output": "SyntaxError: Unexpected token '}'\n    at parseConfig ($PROJECT_ROOT/src/config.ts:55:3)" } },
+      { "sequence": 2, "kind": "model_output", "timestamp": "2026-07-26T12:00:30.000Z", "payload": { "text": "I am abandoning this approach because the generated configuration is not maintainable." } }
+    ],
+    "capture": { "captured_at": "2026-07-26T12:01:01.000Z", "omitted_reasoning_blocks": 0, "omitted_unknown_records": 0, "truncated": false }
+  },
+  "recurrence": {
+    "schema_version": 1,
+    "session_id": "note-recurrence-001",
+    "harness": "pi",
+    "project_root": "$PROJECT_ROOT",
+    "started_at": "2026-07-26T13:00:00.000Z",
+    "ended_at": "2026-07-26T13:01:00.000Z",
+    "events": [
+      { "sequence": 0, "kind": "tool_invocation", "timestamp": "2026-07-26T13:00:10.000Z", "payload": { "call_id": "test-3", "tool_name": "bash", "input": { "command": "npm test" } } },
+      { "sequence": 1, "kind": "tool_result", "timestamp": "2026-07-26T13:00:20.000Z", "payload": { "call_id": "test-3", "is_error": true, "output": "TypeError: Cannot read properties of undefined (reading 'name')\n    at loadUser ($PROJECT_ROOT/src/user.ts:188:27)" } }
+    ],
+    "capture": { "captured_at": "2026-07-26T13:01:01.000Z", "omitted_reasoning_blocks": 0, "omitted_unknown_records": 0, "truncated": false }
+  },
+  "provider_error": {
+    "schema_version": 1,
+    "session_id": "note-provider-001",
+    "harness": "pi",
+    "project_root": "$PROJECT_ROOT",
+    "started_at": "2026-07-26T14:00:00.000Z",
+    "ended_at": "2026-07-26T14:01:00.000Z",
+    "events": [
+      { "sequence": 0, "kind": "system_event", "timestamp": "2026-07-26T14:00:10.000Z", "payload": { "event": "model_error", "message": "ConnectionError: request timed out", "provider": "fixture-provider", "model": "fixture-model" } }
+    ],
+    "capture": { "captured_at": "2026-07-26T14:01:01.000Z", "omitted_reasoning_blocks": 0, "omitted_unknown_records": 0, "truncated": false }
+  },
+  "no_failure": {
+    "schema_version": 1,
+    "session_id": "note-no-failure-001",
+    "harness": "opencode",
+    "project_root": "$PROJECT_ROOT",
+    "started_at": "2026-07-26T15:00:00.000Z",
+    "ended_at": "2026-07-26T15:01:00.000Z",
+    "events": [
+      { "sequence": 0, "kind": "model_output", "timestamp": "2026-07-26T15:00:10.000Z", "payload": { "text": "The requested documentation was updated." } }
+    ],
+    "capture": { "captured_at": "2026-07-26T15:01:01.000Z", "omitted_reasoning_blocks": 0, "omitted_unknown_records": 0, "truncated": false }
+  }
+}

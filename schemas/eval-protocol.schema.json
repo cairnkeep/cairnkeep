@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/eval-protocol.schema.json",
+  "title": "Cairnkeep evaluation adapter protocol v1",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/result" }
+  ],
+  "$defs": {
+    "identifier": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" },
+    "reference": { "type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$" },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*//)(?!.*[\\u0000-\\u001f\\u007f])(?!.*\\/$).+$"
+    },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "nonnegativeInteger": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["elapsed_ms", "stdout_bytes"],
+      "properties": {
+        "elapsed_ms": { "type": "integer", "minimum": 1, "maximum": 86400000 },
+        "stdout_bytes": { "type": "integer", "minimum": 1, "maximum": 16777216 }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "experiment_id", "task_id", "arm", "repetition", "pass", "workspace_path", "notes_path", "input", "limits", "seed", "expected_capability_digest", "output_path"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "experiment_id": { "$ref": "#/$defs/identifier" },
+        "task_id": { "$ref": "#/$defs/identifier" },
+        "arm": { "enum": ["baseline", "treatment"] },
+        "repetition": { "$ref": "#/$defs/nonnegativeInteger" },
+        "pass": { "enum": ["run1", "run2"] },
+        "workspace_path": { "$ref": "#/$defs/relativePath" },
+        "notes_path": { "oneOf": [{ "$ref": "#/$defs/relativePath" }, { "type": "null" }] },
+        "input": { "type": "string", "maxLength": 1048576 },
+        "limits": { "$ref": "#/$defs/limits" },
+        "seed": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "expected_capability_digest": { "$ref": "#/$defs/digest" },
+        "output_path": { "$ref": "#/$defs/relativePath" }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": { "$ref": "#/$defs/nonnegativeInteger" },
+        "output_tokens": { "$ref": "#/$defs/nonnegativeInteger" },
+        "reasoning_tokens": { "$ref": "#/$defs/nonnegativeInteger" },
+        "cache_read_tokens": { "$ref": "#/$defs/nonnegativeInteger" },
+        "cache_write_tokens": { "$ref": "#/$defs/nonnegativeInteger" },
+        "total_tokens": { "$ref": "#/$defs/nonnegativeInteger" }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "status"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "status": { "enum": ["completed", "adapter_error"] },
+        "error_code": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+        "turns": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "semantics"],
+          "properties": {
+            "value": { "$ref": "#/$defs/nonnegativeInteger" },
+            "semantics": { "$ref": "#/$defs/identifier" }
+          }
+        },
+        "usage": { "$ref": "#/$defs/usage" },
+        "cost": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["amount", "currency"],
+          "properties": {
+            "amount": { "type": "number", "minimum": 0 },
+            "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+          }
+        },
+        "harness": { "$ref": "#/$defs/component" },
+        "adapter": { "$ref": "#/$defs/component" },
+        "model": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id"],
+          "properties": {
+            "id": { "$ref": "#/$defs/identifier" },
+            "config_id": { "$ref": "#/$defs/identifier" }
+          }
+        },
+        "observed_capability_digest": { "$ref": "#/$defs/digest" },
+        "trajectory_ref": { "$ref": "#/$defs/reference" },
+        "artifact_refs": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/reference" } }
+      }
+    }
+  }
+}
