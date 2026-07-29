@@ -6,12 +6,14 @@
 
 ## Outcome
 
-Use optional token-miser/FastContext exploration with compact citations and
-understand caching, routing, and fallback behavior.
+Use optional token-miser exploration with compact citations and understand
+caching, routing, and fallback behavior.
 
 ## Planned lesson
 
 - `context_explore` as a thin delegate rather than a second memory store.
+- token-miser as the public sibling that owns routing and context exploration;
+  Cairnkeep retains only the integration seam.
 - Repository root, query, citations, and cache keys.
 - Cross-referencing citations with memory and the wiki.
 - Optional pre-task invocation and its privacy implication.

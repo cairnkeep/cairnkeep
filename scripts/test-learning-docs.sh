@@ -7,13 +7,15 @@ cd "$ROOT"
 version=$(node -p "require('./package.json').version")
 landing=docs/learning/README.md
 production=docs/learning/PRODUCTION-PLAN.md
+coverage=docs/learning/CURRICULUM-MAP.md
 
-[[ -f "$landing" && -f "$production" ]]
+[[ -f "$landing" && -f "$production" && -f "$coverage" ]]
 grep -qF 'docs/learning/README.md' README.md
+grep -qF "**Baseline:** Cairnkeep $version" "$coverage"
 
 ready=0
 brief=0
-for number in $(seq -w 0 12); do
+for number in $(seq -w 0 17); do
   matches=(docs/learning/lessons/L"$number"-*.md)
   [[ ${#matches[@]} -eq 1 && -f ${matches[0]} ]] || {
     echo "learning path must contain exactly one L$number lesson" >&2
@@ -41,16 +43,23 @@ for number in $(seq -w 0 12); do
   fi
 done
 
-[[ $ready -eq 4 && $brief -eq 9 ]] || {
+[[ $ready -eq 4 && $brief -eq 14 ]] || {
   echo "unexpected learning status totals: ready=$ready brief=$brief" >&2
   exit 1
 }
 
-for track in quickstart practitioner operator; do
+for track in quickstart practitioner evidence-and-evaluation operator; do
   file=docs/learning/tracks/$track.md
   [[ -f "$file" ]]
   grep -q '^# ' "$file"
 done
+
+while read -r command; do
+  grep -qF "\`cairn $command\`" "$coverage" || {
+    echo "top-level command has no curriculum owner: cairn $command" >&2
+    exit 1
+  }
+done < <(bin/cairn help | sed -n 's/^  cairn \([a-z-]*\).*/\1/p' | sort -u)
 
 node <<'NODE'
 const { existsSync, readdirSync, readFileSync } = require("node:fs");

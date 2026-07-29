@@ -10,6 +10,10 @@
 - Increase terminal font size and keep one command per visible line.
 - Prepare a clean start snapshot and a known-good completed snapshot.
 - Rehearse the failure-recovery section, not only the happy path.
+- For L13-L16, prove every optional flag starts disabled and clean up only the
+  disposable evidence or experiment root created by the lesson.
+- Label deterministic evaluation fixtures as framework evidence, never product
+  quality or efficiency evidence.
 
 ## Recommended recording format
 
@@ -58,3 +62,5 @@ A lesson is **Ready** only when:
 - storage and privacy implications are stated;
 - the video script matches the verified lesson;
 - a learner other than the author completed it without hidden instructions.
+- the command surface and lesson assignment agree with the
+  [curriculum coverage map](CURRICULUM-MAP.md).

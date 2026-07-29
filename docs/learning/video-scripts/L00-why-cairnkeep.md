@@ -5,7 +5,7 @@
 
 ## Recording setup
 
-- Show only the four-layer table from the lesson.
+- Show only the trust-ladder table from the lesson.
 - Prepare one slide containing the question: “What should survive this session?”
 - No terminal or private project is required.
 
@@ -24,12 +24,14 @@ remember, and what must remain in the repository or another canonical system.”
 
 **Show:** The lesson outcome.
 
-## 01:00 - Four layers
+## 01:00 - Trust ladder
 
-**Say:** “Start with four different layers. The current conversation is working
-context. Cairnkeep memory is a set of concise operational facts. The project
-wiki is derived, cited knowledge. Code, tests, specifications, policies, and
-issue trackers remain canonical.”
+**Say:** “Follow information through a trust ladder. The current conversation is
+working context. Optional captured evidence and hindsight notes preserve bounded
+local observations, but they are not automatically trusted memory. Cairnkeep
+memory holds concise operational facts. The project wiki is derived, cited
+knowledge. Code, tests, specifications, policies, and issue trackers remain
+canonical.”
 
 **Show:** Reveal one table row at a time.
 
@@ -38,10 +40,11 @@ agent find and apply knowledge; it does not redefine truth.”
 
 ## 02:40 - Memory versus RAG
 
-**Say:** “Document RAG answers a different question: which parts of a larger
-document are relevant right now? Cairnkeep can integrate with a RAG system, but
-it does not require one. A decision such as ‘use transactional migrations’ is a
-memory. The complete migration policy remains a document.”
+**Say:** “Document RAG and codebase exploration answer a different question:
+which source material is relevant right now? Cairnkeep can integrate with those
+retrieval paths, but it does not require them. A decision such as ‘use
+transactional migrations’ is a memory. The complete migration policy remains a
+document.”
 
 **Show:** Memory on the left, document retrieval on the right.
 
@@ -57,20 +60,21 @@ until confirmed. A verified operational prohibition is a durable constraint.”
 ## 05:10 - Boundary
 
 **Say:** “Cairnkeep does not store every sentence from a session. The default
-stdio setup stores memory on this computer. Remote storage, model extraction,
-embeddings, and document RAG are all explicit, optional choices.”
+stdio setup stores memory on this computer. Structured capture, notes,
+artifacts, evaluation, remote storage, model extraction, embeddings, and
+document RAG are separate explicit choices.”
 
 **Show:** “Local by default. Optional means opt-in.”
 
 ## 06:10 - Recap
 
-**Say:** “Remember three things: durable memory is selective, derived knowledge
-does not overrule canonical sources, and optional services are not prerequisites.
-In L01 we will inspect the published container without installing the complete
-workflow.”
+**Say:** “Remember three things: durable memory is selective, evidence is not
+automatically trusted memory, and canonical sources still win. Optional layers
+are not prerequisites. In L01 we will inspect the published container without
+installing the complete workflow.”
 
 ## Editing notes
 
-- Chapters: Problem, Four layers, Memory vs RAG, Exercise, Boundary.
+- Chapters: Problem, Trust ladder, Memory vs retrieval, Exercise, Boundary.
 - Link L00 and L01 in the description.
 - Re-record the version-independent slide only if the conceptual model changes.

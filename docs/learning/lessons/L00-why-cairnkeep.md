@@ -18,22 +18,27 @@ entire transcript into the next prompt is expensive and preserves noise along
 with useful facts.
 
 Cairnkeep stores small, reviewed operational facts and retrieves them when they
-are relevant. It also provides a derived wiki and governed review workflows,
-without replacing source code, tests, issue trackers, or canonical documents.
+are relevant. It also provides a derived wiki and governed review workflows.
+Optional local evidence features can retain redacted session structure,
+artifacts, and deterministic hindsight notes, but they remain distinct from
+reviewed memory and are disabled by default. None of these layers replaces
+source code, tests, issue trackers, or canonical documents.
 
 ## Mental model
 
-Keep four layers distinct:
+Follow information through a trust ladder:
 
 | Layer | Example | Role |
 |---|---|---|
 | Harness history | The current conversation | Temporary working context |
+| Captured evidence (optional) | A redacted tool result or compaction summary | Bounded local evidence, not trusted instruction |
+| Hindsight note (optional) | A repeated failure signature and resolution | Deterministic derived knowledge, not automatically shared |
 | Cairnkeep memory | “Use transactional migrations” | Durable operational fact |
 | Project wiki | A cited architecture summary | Derived, reviewable knowledge |
 | Canonical source | Code, tests, ADR, issue | Authority when layers disagree |
 
-Document RAG is an optional fifth layer for retrieving larger documents. It is
-not required for Cairnkeep memory.
+Document RAG and token-miser context exploration are optional retrieval paths,
+not additional authorities. Neither is required for Cairnkeep memory.
 
 ## Exercise
 
@@ -43,6 +48,7 @@ For each statement, choose the appropriate destination:
 2. “Here is the complete API specification.”
 3. “The current debugging hypothesis is a race in the cache.”
 4. “Never run the production migration from a developer laptop.”
+5. “This synthetic stack trace appeared and was resolved twice.”
 
 Suggested answer:
 
@@ -51,6 +57,8 @@ Suggested answer:
 - 2 stays a canonical document and may optionally be indexed for RAG.
 - 3 remains session context until confirmed.
 - 4 is a durable constraint after it is verified against policy.
+- 5 may become local session evidence and a hindsight note. It becomes reviewed
+  memory only through a separate explicit workflow.
 
 ## Verify
 
@@ -59,6 +67,7 @@ You are ready for L01 if you can answer these questions:
 - Does Cairnkeep replace the repository or its documentation? **No.**
 - Does the default installation discover a remote memory server? **No.**
 - Should every sentence in a session become durable memory? **No.**
+- Does enabling one optional evidence feature enable the others? **No.**
 
 ## Common failures
 
@@ -66,17 +75,20 @@ You are ready for L01 if you can answer these questions:
 |---|---|
 | Memory is another transcript store | Store concise, durable facts rather than complete prompts |
 | RAG and memory are the same | RAG retrieves documents; memory preserves reviewed operational facts |
+| Captured evidence is trusted memory | Evidence and notes remain derived until explicitly reviewed or promoted |
 | Derived knowledge is authoritative | Code, tests, policies, and canonical documents win conflicts |
 
 ## Privacy and trust boundary
 
 The default stdio topology stores memory on the local machine. Remote storage,
-model-backed extraction, embeddings, and document RAG require explicit
-configuration and are taught separately.
+structured capture, note distillation/enrichment, artifacts, evaluation,
+model-backed extraction, embeddings, and document RAG require separate explicit
+configuration and are taught later.
 
 ## Recap
 
 - Memory is selective and durable.
+- Optional evidence and notes are distinct from reviewed memory.
 - Derived knowledge remains subordinate to canonical sources.
 - Optional services are not prerequisites.
 

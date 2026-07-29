@@ -17,6 +17,8 @@ review extracted candidates before they become durable memory.
 - Exact read versus semantic search and substring fallback.
 - Superseding a fact without losing history.
 - Session-end candidate extraction and `/memory-review` as the acceptance gate.
+- Typed node metadata, tags, and hard filters as an independent opt-in.
+- Why hindsight notes and logical note address spaces are not reviewed memory.
 - Deleting synthetic course memory safely.
 
 ## Hands-on lab
@@ -31,6 +33,7 @@ candidate.
 - Search finds a fact without requiring its exact key.
 - Superseding preserves the prior value in history.
 - No extracted candidate becomes durable without an explicit review action.
+- Enabling typed nodes changes discovery structure, not the authority of a fact.
 
 ## Planned video
 
@@ -42,3 +45,4 @@ Wave 2 after the lab fixture is executable.
 
 - [Operating guide](../../operating.md#the-workflow)
 - [Storage and deployment](../../storage.md)
+- [L14 - Typed memory and controlled import](L14-typed-memory.md)

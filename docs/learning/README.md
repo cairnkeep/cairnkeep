@@ -10,6 +10,9 @@ Choose the shortest track that matches your goal:
 
 - [Quickstart](tracks/quickstart.md) - prove the core value in about 75 minutes.
 - [Practitioner](tracks/practitioner.md) - adopt Cairnkeep in daily project work.
+- [Evidence and evaluation](tracks/evidence-and-evaluation.md) - inspect optional
+  session evidence, govern capabilities, and measure changes without overstating
+  results.
 - [Operator](tracks/operator.md) - storage, optional services, containers, and
   managed distributions.
 
@@ -34,6 +37,15 @@ expanded according to the [production plan](PRODUCTION-PLAN.md).
 | L10 | [Faster context exploration](lessons/L10-context-exploration.md) | Brief | 30 min |
 | L11 | [Containers and isolation](lessons/L11-containers.md) | Brief | 40 min |
 | L12 | [Managed overlays](lessons/L12-managed-overlays.md) | Brief | 45 min |
+| L13 | [Session evidence and hindsight](lessons/L13-session-evidence.md) | Brief | 45 min |
+| L14 | [Typed memory and controlled import](lessons/L14-typed-memory.md) | Brief | 40 min |
+| L15 | [Capability governance](lessons/L15-capability-governance.md) | Brief | 35 min |
+| L16 | [Evaluation and ablation](lessons/L16-evaluation.md) | Brief | 50 min |
+| L17 | [The agent boundary](lessons/L17-agent-boundary.md) | Brief | 25 min |
+
+The [curriculum coverage map](CURRICULUM-MAP.md) records where every public
+feature is introduced, practised, and operated. It also marks design-only work
+that must not be taught as a released capability.
 
 ## Teaching contract
 
@@ -47,7 +59,8 @@ Every complete lesson contains:
 6. A presenter-ready video script.
 
 The learner should never need optional infrastructure to complete L00-L06.
-Remote memory, RAG, routing, and containers are separate opt-in modules.
+Remote memory, RAG, routing, containers, structured capture, typed nodes,
+capability governance, and evaluation are separate opt-in modules.
 
 ## For contributors
 

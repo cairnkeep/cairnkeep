@@ -62,6 +62,15 @@ machine-level steps.
    cairn sync --check
    ```
 
+6. Optionally enable completion in the current Bash shell:
+
+   ```bash
+   source <(cairn completion bash)
+   ```
+
+   Use `cairn completion zsh` or `cairn completion fish` for those shells.
+   Completion is a convenience and is not another runtime component.
+
 ## Verify
 
 Run both checks:
@@ -88,7 +97,9 @@ installation.
 
 This registration starts `cairn memory-server` locally as a stdio child. It
 does not discover a server, send memory to a remote host, configure embeddings,
-or enable an optional document-RAG integration.
+enable session capture, or enable an optional document-RAG integration. Pi uses
+the separate `cairn sync-pi` trajectory adapter and still needs a user-selected
+bridge if Pi should expose MCP memory tools.
 
 ## Clean up if you stop the evaluation
 

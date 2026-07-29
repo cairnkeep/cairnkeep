@@ -71,13 +71,20 @@ the harness after applying assets.”
 
 **Show:** The two verification commands together.
 
-## 09:40 - Boundary
+## 09:30 - Optional shell completion
+
+**Do:** Run `source <(cairn completion bash)` and complete `cairn tra`.
+
+**Say:** “Completion is optional convenience. It does not start another server
+or enable any feature.”
+
+## 10:00 - Boundary
 
 **Say:** “This default server is local. We did not configure embeddings,
 document RAG, or remote HTTP memory. Those choices have separate lessons
 because they change data flow.”
 
-## 10:30 - Recap
+## 11:00 - Recap
 
 **Say:** “The machine setup has three pieces: CLI, MCP registration, and the
 operating layer. In L03 we add the fourth piece, a bootstrapped project, and

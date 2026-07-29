@@ -1,7 +1,7 @@
 # LXX - Lesson title
 
 **Status:** Draft
-**Track:** Quickstart | Practitioner | Operator
+**Track:** Quickstart | Practitioner | Evidence and Evaluation | Operator
 **Time:** NN minutes
 **Tested with:** Cairnkeep X.Y.Z
 
@@ -43,6 +43,9 @@ failed setup.
 
 State where data and credentials go, what leaves the machine, and what remains
 derived rather than canonical.
+
+For measurements, also state which claims the retained evidence can and cannot
+support.
 
 ## Clean up
 
