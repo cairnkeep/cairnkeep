@@ -16,8 +16,9 @@ installs. This guide covers all three in order.
 
 ## Prerequisites
 
-- Node.js 22 or newer (for the memory server) and a supported harness: Claude
-  Code, OpenCode, or Pi.
+- Node.js 22 or newer (for the memory server) and a supported harness. Claude
+  Code and OpenCode receive the full operating layer. Kimi Code receives the
+  memory MCP and launcher. Pi receives its native trajectory adapter.
 - Optional: the `sqlite3` CLI for `cairn memory export`. Runtime memory and
   `cairn memory import` do not require it.
 - Optional: an OpenAI-compatible LLM endpoint for memory extraction and
@@ -156,6 +157,37 @@ Model selection stays operator-env-driven through the existing
 `CAIRN_LLM_API_KEY` / `CAIRN_LLM_API_URL` / `CAIRN_LLM_EXTRACTION_MODEL`
 variables (see "Configuration" below) — the harness commits no default model
 and carries no known-good allowlist.
+
+## Setup order (Kimi Code)
+
+Kimi Code can use the Cairnkeep memory MCP and the generated project launcher.
+It does not yet receive Cairnkeep-specific skills, commands, or hooks.
+
+For local stdio memory, create `.kimi-code/mcp.json` in the project:
+
+```json
+{
+  "mcpServers": {
+    "cairn-memory": {
+      "command": "cairn",
+      "args": ["memory-server"]
+    }
+  }
+}
+```
+
+Then launch from the project root with `./.ai/start-kimi.sh`. The launcher
+loads `.ai/.env`, runs the optional pre-launch and post-exit hooks, and forwards
+all arguments to `kimi`.
+
+Remote HTTP configuration needs one extra precaution: Kimi validates `url` as
+a literal URL and does not expand `${CAIRN_MEMORY_REMOTE_URL}` there. Put the
+resolved URL in a private `.kimi-code/mcp.json` and use
+`bearerTokenEnvVar: "CAIRN_MEMORY_HTTP_TOKEN"` so the token value remains in
+the environment. A repository-root `.mcp.json` must also be valid because Kimi
+parses it before applying its private override. See
+[Harness compatibility](harness-compatibility.md#kimi-code) for the complete
+configuration and trust-boundary guidance.
 
 ## Setup order (Pi)
 
@@ -630,13 +662,14 @@ maintain a running install — without forking the core. All are opt-in.
 
 ### Launcher seams
 
-The generic launchers (`.ai/start-claude.sh`, `.ai/start-opencode.sh`) run three
-optional hooks around the harness, each a no-op when absent:
+The generic launchers (`.ai/start-claude.sh`, `.ai/start-opencode.sh`,
+`.ai/start-kimi.sh`, and `.ai/start-pi.sh`) run optional hooks around the
+harness, each a no-op when absent:
 
 | Seam | When | Purpose |
 |---|---|---|
 | `.ai/pre-launch.sh` | sourced after `.env`, before launch | export env (e.g. a provider base URL / auth), refresh credentials, or abort by returning non-zero |
-| `CAIRN_EXTRA_SETTINGS` | read just before launch | path to a settings file layered on the harness (`--settings` / `OPENCODE_CONFIG`); process env still wins over it |
+| `CAIRN_EXTRA_SETTINGS` | read just before launch | path to a settings file layered on Claude Code (`--settings`) or OpenCode (`OPENCODE_CONFIG`); Kimi and Pi leave the variable available to hooks but do not interpret it |
 | `.ai/post-exit.sh` | sourced after the harness exits | teardown; `CAIRN_EXIT_STATUS` holds the exit code |
 
 A wrapper that needs a non-default provider drops a `pre-launch.sh` that renders

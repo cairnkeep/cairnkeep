@@ -9,7 +9,8 @@
 A *cairn* is a stack of stones left as a trail marker for whoever follows; a
 *keep* is where you store what matters. **Cairnkeep** is where coding agents
 stack durable memory — decisions, pitfalls, patterns — and follow the trail
-across sessions, projects, and harnesses (Claude Code, OpenCode, Pi, …).
+across sessions, projects, and harnesses (Claude Code, OpenCode, Kimi Code,
+Pi, and other MCP clients).
 
 ## Status
 
@@ -36,6 +37,7 @@ and 20 are end-of-life upstream.
 |---|---|
 | Claude Code on Linux/macOS | Memory server plus commands, agents, hooks, and launchers |
 | OpenCode on Linux/macOS | Memory server plus commands, plugins, hooks, and launchers |
+| Kimi Code on Linux/macOS | Memory MCP server plus project launcher; no Cairnkeep operating-layer assets yet |
 | Pi on Linux/macOS | Native opt-in trajectory extension and launcher; no bundled MCP bridge |
 | Codex CLI | Memory MCP server; no Cairnkeep operating-layer assets |
 | Other MCP clients | Memory and optional domain-knowledge MCP tools |
@@ -43,6 +45,9 @@ and 20 are end-of-life upstream.
 
 Linux, macOS, Bash 3.2 portability, and clean Node 22/24/26 runtime checks
 are exercised in CI.
+
+See [Harness compatibility](docs/harness-compatibility.md) for exact support
+levels, Kimi configuration, and candidates that are not yet runtime-tested.
 
 ## Try with Podman
 
@@ -147,6 +152,12 @@ patterns/transactional-migrations: Use transactional migrations for schema chang
 
 The exact command rendering depends on the client. Any MCP client can call
 `memory_write` and `memory_search` directly.
+
+For Kimi Code, bootstrap supplies a launcher and Kimi reads the repository's
+MCP configuration. A local stdio entry uses `cairn memory-server`. Remote Kimi
+configuration requires a literal URL and supports a token reference through
+`bearerTokenEnvVar`; it does not expand `${VAR}` in the URL. See
+[Harness compatibility](docs/harness-compatibility.md#kimi-code).
 
 For Pi, install the local trajectory adapter and use the scaffolded launcher:
 
