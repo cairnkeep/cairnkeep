@@ -32,11 +32,6 @@ verify the new answer. Then unset the integration and prove memory still works.
 - Updated content replaces stale retrieval results.
 - Disabling RAG leaves `/remember` and `/recall` healthy.
 
-## Planned video
-
-Lead with “optional, not required”, show query then sync, and finish by disabling
-the integration. Target 12 minutes.
-
 ## Source material
 
 - [Domain knowledge](../../domain-knowledge.md)

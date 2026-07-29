@@ -1,8 +1,8 @@
 # Learn Cairnkeep
 
-This learning path teaches Cairnkeep through small, verifiable outcomes. The
-canonical lesson is written once and can be reused as a guide, blog post,
-workshop handout, or video script.
+This public learning path teaches Cairnkeep through small, verifiable outcomes.
+It is the technical source for guides, workshops, and independently reviewed
+publication material.
 
 ## Start here
 
@@ -22,9 +22,9 @@ The public [course labs](https://github.com/cairnkeep/cairnkeep-course-labs)
 provide one synthetic project with tagged checkpoints shared by lessons,
 articles, workshops, and videos.
 
-Lessons marked **Ready** include a complete exercise and presenter script.
-Lessons marked **Brief** define outcomes and acceptance criteria and will be
-expanded according to the [production plan](PRODUCTION-PLAN.md).
+Lessons marked **Ready** include a complete, release-verified exercise. Lessons
+marked **Brief** define public outcomes and acceptance criteria and will be
+expanded only after their labs are executable.
 
 ## Curriculum
 
@@ -62,7 +62,7 @@ Every complete lesson contains:
 3. A hands-on exercise using non-sensitive sample data.
 4. Verification and recovery steps.
 5. A privacy or security boundary.
-6. A presenter-ready video script.
+6. Release compatibility metadata for completed exercises.
 
 The learner should never need optional infrastructure to complete L00-L06.
 Remote memory, RAG, routing, containers, structured capture, typed nodes,
@@ -70,8 +70,8 @@ capability governance, and evaluation are separate opt-in modules.
 
 ## For contributors
 
-Use [the lesson template](templates/lesson-template.md) and
-[the video template](templates/video-script-template.md). The
-[instructor guide](instructor-guide.md) defines rehearsal, recording, and
-publication checks. Commands in finished lessons must be tested against the
-current release before publication.
+Use [the lesson template](templates/lesson-template.md). Commands in finished
+lessons must be tested against the current release before publication.
+Unpublished editorial plans and recording scripts are intentionally maintained
+outside the public product repository; stable video links or transcripts can
+be added here after publication.

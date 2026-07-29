@@ -38,12 +38,6 @@ import.
 - Imported values never appear in command diagnostics or course screenshots.
 - The learner does not present a logical note address as a host path.
 
-## Planned video
-
-Use a small type-and-tag diagram, then demonstrate filtered discovery and the
-dry-run/replay sequence. Target 12 minutes. Keep the full import limits in the
-written lesson rather than narrating a table of numbers.
-
 ## Source material
 
 - [Operating guide: typed memory nodes](../../operating.md#typed-memory-nodes-and-note-address-spaces-opt-in)

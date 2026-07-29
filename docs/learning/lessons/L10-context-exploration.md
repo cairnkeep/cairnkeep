@@ -33,11 +33,6 @@ invalidation. Disable the binary and verify standalone Cairnkeep remains usable.
 - The learner distinguishes exploration output from durable memory.
 - An unavailable explorer fails locally without breaking memory operations.
 
-## Planned video
-
-Compare a broad manual search with one cited exploration result. Target 10
-minutes and keep routing as a separate optional chapter.
-
 ## Source material
 
 - [Operating guide](../../operating.md#exploration-cache-context_explore-on-by-default)

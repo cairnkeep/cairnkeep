@@ -33,12 +33,6 @@ upgrades the pin, verifies fleet status, and rolls one project back.
 - Effective storage and service destinations are explainable before launch.
 - Upgrade and rollback preserve the disposable memory store.
 
-## Planned video
-
-Show the same project under public core and a generic managed overlay, then
-explain the small delta. Target 15 minutes; keep registry administration in the
-written operator lab.
-
 ## Source material
 
 - [Building a private overlay](../../building-an-overlay.md)

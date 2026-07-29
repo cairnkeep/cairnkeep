@@ -34,11 +34,6 @@ names, and prove that no remote destination was discovered.
 - The learner can stop when an effective destination is ambiguous.
 - Independent feature flags are not treated as one blanket consent switch.
 
-## Planned video
-
-Use two simple diagrams and one terminal preflight. Target 10 minutes. Do not
-demonstrate real endpoints or credentials.
-
 ## Source material
 
 - [Privacy and data flow](../../privacy-and-data-flow.md)

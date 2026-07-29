@@ -115,7 +115,3 @@ inspect `.git/info/exclude` to see how contributor mode avoids shared changes.
 - Persistence is proven only after a new session recalls the accepted fact.
 
 Next: [L04 - Memory fundamentals](L04-memory-fundamentals.md).
-
-## Video
-
-Use [the L03 presenter script](../video-scripts/L03-first-project.md).

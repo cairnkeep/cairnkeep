@@ -43,12 +43,6 @@ be required before any future implementation could act.
 - The learner can name at least one explicit future prerequisite and one
   unconditional human stop point.
 
-## Planned video
-
-Use one ownership diagram and one fictional proposal. Target 9 minutes. Put a
-persistent `DESIGN ONLY` label on every future component and end on the exact
-current-versus-future boundary.
-
 ## Source material
 
 - [Meta-agent design contract](../../design/meta-agent.md)

@@ -43,12 +43,6 @@ CAIRN_CAPABILITY_CONTRACT=1 cairn capabilities logging enable
 - No callback record contains prompts, tool arguments, results, or memory values.
 - Disabling an optional capability does not break standalone memory.
 
-## Planned video
-
-Show precedence as three stacked layers, then perform one disable/reset cycle.
-Target 11 minutes. Use JSON status for evidence and avoid presenting a digest as
-a security signature or performance result.
-
 ## Source material
 
 - [Operating guide: managed capability contract](../../operating.md#managed-capability-contract-opt-in)

@@ -31,11 +31,6 @@ the pre-import backup.
 - The learner verifies counts and exact synthetic values on both sides.
 - No remote service is introduced merely to complete the migration lab.
 
-## Planned video
-
-Record the backup, migration, verification, and rollback without cuts that hide
-state transitions. Target 12 minutes.
-
 ## Source material
 
 - [Storage and deployment](../../storage.md#inspecting-and-moving-memory)
