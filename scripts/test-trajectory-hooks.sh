@@ -127,6 +127,8 @@ pi_live="$tmp/pi-live"
 render "$ROOT/pi/extensions/cairnkeep-trajectory.ts" "$tmp/expected-pi-capture.ts"
 cmp -s "$tmp/expected-pi-capture.ts" "$pi_live/extensions/cairnkeep-trajectory.ts" \
   || fail "installed Pi trajectory extension differs from rendered source"
+cmp -s "$ROOT/pi/prompts/graphify.md" "$pi_live/prompts/graphify.md" \
+  || fail "installed Pi graph prompt differs from source"
 [[ $(find "$pi_live" -type f -name 'cairnkeep-trajectory.ts' | wc -l) -eq 1 ]] \
   || fail "Pi trajectory extension is duplicated"
 
@@ -136,7 +138,9 @@ cmp -s "$tmp/expected-pi-capture.ts" "$pi_live/extensions/cairnkeep-trajectory.t
   || fail "Claude memory-capture hook registration is missing or duplicated"
 [[ $(grep -c 'plugins/memory-capture.ts' "$ROOT/scripts/sync-opencode-plugin-assets.sh") -eq 1 ]] \
   || fail "OpenCode memory-capture plugin asset is missing or duplicated"
-[[ $(grep -c 'extensions/cairnkeep-trajectory.ts' "$ROOT/scripts/sync-pi-assets.sh") -eq 1 ]] \
+[[ $(grep -c '^  "extensions/cairnkeep-trajectory.ts"' "$ROOT/scripts/sync-pi-assets.sh") -eq 1 ]] \
   || fail "Pi trajectory extension asset is missing or duplicated"
+[[ $(grep -c '^  "prompts/graphify.md"' "$ROOT/scripts/sync-pi-assets.sh") -eq 1 ]] \
+  || fail "Pi graph prompt asset is missing or duplicated"
 
 echo "PASS: Claude/OpenCode/Pi trajectory hooks and flag-off regression"

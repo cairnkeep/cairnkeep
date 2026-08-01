@@ -17,9 +17,10 @@ installs. This guide covers all three in order.
 ## Prerequisites
 
 - Node.js 22 or newer (for the memory server) and a supported harness. Claude
-  Code and OpenCode receive the full operating layer. Kimi Code and Qwen Code
-  receive the memory MCP and launcher. Pi receives its native trajectory
-  adapter.
+  Code and OpenCode receive the full operating layer. Kimi Code receives the
+  memory MCP, launcher, and opt-in graph Skill; Qwen Code receives the memory
+  MCP and launcher. Pi receives its native trajectory adapter, graph prompt,
+  and launcher.
 - Optional: the `sqlite3` CLI for `cairn memory export`. Runtime memory and
   `cairn memory import` do not require it.
 - Optional: an OpenAI-compatible LLM endpoint for memory extraction and
@@ -173,7 +174,7 @@ and hooks, so Graphify-owned assets would duplicate that operating layer.
 With the managed capability contract enabled, run
 `cairn capabilities enable graph`; otherwise enable the compatibility setting
 `graphify.enabled` in `.planning/config.json`. Then use the managed command
-surface:
+surface. Claude Code and OpenCode receive the native wrapper:
 
 ```text
 /graphify build
@@ -183,6 +184,30 @@ surface:
 /graphify path putTrajectory resolveCapabilityStatus
 /graphify diff
 ```
+
+Install the equivalent thin adapters for Kimi Code and Pi:
+
+```bash
+cairn sync-kimi --apply
+cairn sync-pi --apply
+```
+
+Kimi then exposes `/graphify` and `/skill:graphify`; Pi exposes `/graphify`.
+Both adapters delegate exclusively to the same portable CLI, which also remains
+available directly from their project shell:
+
+```bash
+cairn graph build
+cairn graph status
+cairn graph query putTrajectory
+cairn graph explain putTrajectory
+cairn graph path putTrajectory resolveCapabilityStatus
+cairn graph diff
+```
+
+The same direct CLI works with Qwen Code, Codex, and other shell-capable
+clients. This does not add a Pi MCP bridge or imply that those harnesses receive
+the rest of Cairnkeep's operating layer.
 
 All six modes delegate to `cairn graph`. Managed builds run Graphify's local
 code-only `update` path with provider credentials removed from the subprocess
@@ -195,8 +220,18 @@ precise. Cairnkeep does not install or update Graphify automatically.
 
 ## Setup order (Kimi Code)
 
-Kimi Code can use the Cairnkeep memory MCP and the generated project launcher.
-It does not yet receive Cairnkeep-specific skills, commands, or hooks.
+Kimi Code can use the Cairnkeep memory MCP, generated project launcher, and one
+thin graph Skill. Install the Skill into `$KIMI_CODE_HOME` (default
+`~/.kimi-code`) with:
+
+```bash
+cairn sync-kimi --apply
+```
+
+Use `cairn sync-kimi --check` to detect drift or `--live-root DIR` for an
+isolated Kimi root. The command owns only `skills/graphify/SKILL.md`; `cairn
+uninstall --kimi-live-root DIR` removes it backup-first. It adds no hooks,
+agents, plugins, or new data flow.
 
 For local stdio memory, create `.kimi-code/mcp.json` in the project:
 
@@ -257,8 +292,8 @@ configuration, approval behavior, and overlay guidance.
 
 ## Setup order (Pi)
 
-Pi trajectory capture uses the same project scaffold and store, but its source
-is a native TypeScript extension installed into Pi's agent root:
+Pi trajectory capture uses the same project scaffold and store. Its sync also
+installs a thin `/graphify` prompt into Pi's agent root:
 
 ```bash
 npm install -g @cairnkeep/cli
@@ -274,8 +309,9 @@ a user-chosen Pi extension/bridge separately.
 
 Use `cairn sync-pi --check` to report drift without writing, or
 `--live-root DIR` to target an isolated Pi agent root. The command owns exactly
-`extensions/cairnkeep-trajectory.ts`; `cairn uninstall --pi-live-root DIR`
-removes that file backup-first and leaves every other Pi asset untouched.
+`extensions/cairnkeep-trajectory.ts` and `prompts/graphify.md`; `cairn
+uninstall --pi-live-root DIR` removes those files backup-first and leaves every
+other Pi asset untouched.
 
 The extension listens for Pi's native `session_shutdown` event and reads only
 the active branch from the read-only session manager. It returns before doing

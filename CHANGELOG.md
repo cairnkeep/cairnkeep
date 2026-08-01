@@ -11,7 +11,9 @@ All notable user-facing changes are documented here. This project follows
   workflow, matching Claude Code and OpenCode `/graphify` modes, shell
   completion, local-only code indexing, atomic publication, and snapshot diffs
   without installing Graphify-owned harness assets or re-indexing generated
-  graph artifacts.
+  graph artifacts; add thin Pi prompt and Kimi Skill adapters that expose
+  `/graphify` while delegating exclusively to `cairn graph`, with explicit sync,
+  uninstall, package, and shell-completion coverage.
 
 ## [2.6.0] - 2026-07-29
 

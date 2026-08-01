@@ -35,6 +35,12 @@ This repository uses `.planning/graphs/` as an optional, local, machine-facing d
   first use (`pipx install graphifyy` is an equivalent fallback). Do not run
   `graphify install`: Cairnkeep owns the installed commands and harness wiring,
   so Graphify-owned skills, instructions, and hooks would duplicate them.
+- Claude Code and OpenCode receive the `/graphify` command with their operating
+  layers. Kimi Code receives the equivalent thin Skill after `cairn sync-kimi
+  --apply`, and Pi receives the equivalent thin prompt after `cairn sync-pi
+  --apply`. Both delegate exclusively to portable forms such as
+  `cairn graph build`, `cairn graph explain <symbol>`, and
+  `cairn graph path <from> <to>`.
 - Use `/graphify build` to create or refresh the graph after meaningful
   code-topology changes. The managed build is local code-only extraction; it
   does not send documents to a semantic extraction backend.

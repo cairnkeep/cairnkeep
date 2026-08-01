@@ -5,8 +5,8 @@ usage() {
   cat <<'EOF'
 Usage: sync-pi-assets.sh [--check|--apply] [--live-root PATH]
 
-Compare or sync the repo-managed Pi extension assets against the live Pi agent
-configuration tree.
+Compare or sync the repo-managed Pi extension and prompt assets against the
+live Pi agent configuration tree.
 
 Options:
   --check            Verify managed live assets match the rendered repo copies (default)
@@ -20,7 +20,10 @@ ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SOURCE_ROOT="$ROOT_DIR/pi"
 LIVE_ROOT="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 MODE="check"
-ASSET="extensions/cairnkeep-trajectory.ts"
+ASSETS=(
+  "extensions/cairnkeep-trajectory.ts"
+  "prompts/graphify.md"
+)
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -33,40 +36,58 @@ while [[ $# -gt 0 ]]; do
 done
 
 render_asset() {
-  sed "s|@@INFRA_ROOT@@|$ROOT_DIR|g" "$SOURCE_ROOT/$ASSET"
+  local rel="$1"
+  if [[ "$rel" == "extensions/cairnkeep-trajectory.ts" ]]; then
+    sed "s|@@INFRA_ROOT@@|$ROOT_DIR|g" "$SOURCE_ROOT/$rel"
+  else
+    cat "$SOURCE_ROOT/$rel"
+  fi
 }
 
-check_asset() {
-  [[ -f "$SOURCE_ROOT/$ASSET" ]] || {
-    echo "Missing repo-managed source asset: $SOURCE_ROOT/$ASSET" >&2
-    return 2
-  }
-  [[ -f "$LIVE_ROOT/$ASSET" ]] || {
-    echo "Missing live Pi extension under $LIVE_ROOT: $ASSET" >&2
-    return 1
-  }
-  cmp -s <(render_asset) "$LIVE_ROOT/$ASSET" || {
-    echo "Out-of-sync live Pi extension under $LIVE_ROOT: $ASSET" >&2
-    return 1
-  }
+ensure_sources() {
+  local rel
+  for rel in "${ASSETS[@]}"; do
+    [[ -f "$SOURCE_ROOT/$rel" ]] || {
+      echo "Missing repo-managed source asset: $SOURCE_ROOT/$rel" >&2
+      return 2
+    }
+  done
 }
+
+check_assets() {
+  local rel
+  local failed=0
+  for rel in "${ASSETS[@]}"; do
+    if [[ ! -f "$LIVE_ROOT/$rel" ]]; then
+      echo "Missing live Pi asset under $LIVE_ROOT: $rel" >&2
+      failed=1
+    elif ! cmp -s <(render_asset "$rel") "$LIVE_ROOT/$rel"; then
+      echo "Out-of-sync live Pi asset under $LIVE_ROOT: $rel" >&2
+      failed=1
+    fi
+  done
+  return "$failed"
+}
+
+ensure_sources
 
 if [[ "$MODE" == "apply" ]]; then
-  [[ -f "$SOURCE_ROOT/$ASSET" ]] || {
-    echo "Missing repo-managed source asset: $SOURCE_ROOT/$ASSET" >&2
-    exit 2
-  }
-  mkdir -p "$(dirname "$LIVE_ROOT/$ASSET")"
-  if [[ -f "$LIVE_ROOT/$ASSET" ]] && cmp -s <(render_asset) "$LIVE_ROOT/$ASSET"; then
-    echo "Applied 0 Pi extension asset(s); 1 already matched."
-  else
+  updated=0
+  unchanged=0
+  for rel in "${ASSETS[@]}"; do
+    mkdir -p "$(dirname "$LIVE_ROOT/$rel")"
+    if [[ -f "$LIVE_ROOT/$rel" ]] && cmp -s <(render_asset "$rel") "$LIVE_ROOT/$rel"; then
+      unchanged=$((unchanged + 1))
+      continue
+    fi
     rendered_tmp=$(mktemp)
-    render_asset > "$rendered_tmp"
-    install -m 0644 "$rendered_tmp" "$LIVE_ROOT/$ASSET"
+    render_asset "$rel" > "$rendered_tmp"
+    install -m 0644 "$rendered_tmp" "$LIVE_ROOT/$rel"
     rm -f "$rendered_tmp"
-    echo "Applied 1 Pi extension asset(s); 0 already matched."
-  fi
+    updated=$((updated + 1))
+  done
+  printf 'Applied %s Pi asset(s); %s already matched.\n' "$updated" "$unchanged"
 fi
 
-check_asset
-printf 'Pi extension assets are in sync under %s\n' "$LIVE_ROOT"
+check_assets
+printf 'Pi extension and graph prompt are in sync under %s\n' "$LIVE_ROOT"

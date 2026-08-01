@@ -70,6 +70,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn memory-server` | L02 |
 | `cairn sync` | L02 |
 | `cairn sync-pi` | L13 |
+| `cairn sync-kimi` | L02 |
 | `cairn doctor` | L03; advanced repair in L13-L14 |
 | `cairn trajectory` | L13 |
 | `cairn artifact` | L13 |

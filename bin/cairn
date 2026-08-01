@@ -33,8 +33,11 @@ Usage:
                            agents, hooks) into ~/.claude, or into DIR for a single
                            project (--live-root <project>/.claude).
   cairn sync-pi [--apply] [--live-root DIR]
-                           Install/update the Pi trajectory extension into
-                           ~/.pi/agent, or into DIR for an isolated Pi root.
+                           Install/update the Pi trajectory extension and thin
+                           /graphify prompt into ~/.pi/agent or isolated DIR.
+  cairn sync-kimi [--apply] [--live-root DIR]
+                           Install/update the thin Kimi /graphify Skill into
+                           $KIMI_CODE_HOME, ~/.kimi-code, or isolated DIR.
   cairn doctor             Health-check the memory server and configured LLM /
                            embedding endpoints, git provider, and stores.
                            Use --repair for derived trajectory/typed metadata,
@@ -67,7 +70,7 @@ Usage:
                            Install (opt-in) a systemd user timer that runs the
                            memory+wiki audit on a schedule; prints a cron alternative.
   cairn uninstall [--dry-run] [--yes] [--purge-memory] [--live-root DIR]
-                  [--pi-live-root DIR] [PROJECT ...]
+                  [--pi-live-root DIR] [--kimi-live-root DIR] [PROJECT ...]
                            Reverse what cairnkeep installed/modified (operating
                            layer, hook registrations, MCP registration, audit
                            timer, and any given projects' bootstrap scaffold).
@@ -121,6 +124,9 @@ case "$cmd" in
     ;;
   sync-pi)
     exec "$CAIRN_ROOT/scripts/sync-pi-assets.sh" "$@"
+    ;;
+  sync-kimi)
+    exec "$CAIRN_ROOT/scripts/sync-kimi-assets.sh" "$@"
     ;;
   audit-timer)
     exec "$CAIRN_ROOT/scripts/install-audit-timer.sh" "$@"

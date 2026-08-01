@@ -76,7 +76,8 @@ prerequisites for ordinary memory.
 
 - Use a generated launcher so project environment and hooks are repeatable.
 - Run `cairn sync --check` after every core upgrade; apply only reported drift.
-- Run `cairn sync-pi --check` when the optional Pi capture adapter is installed.
+- Run `cairn sync-pi --check` when the optional Pi capture/graph adapter is installed.
+- Run `cairn sync-kimi --check` when the optional Kimi graph Skill is installed.
 - Use `cairn doctor --repair` only after preserving the affected store and only
   for repairable derived indexes/metadata.
 - Use `cairn uninstall --dry-run` before uninstall; durable memory is retained

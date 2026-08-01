@@ -68,6 +68,12 @@ if ! grep -qF 'Do not run' "$graph_policy" ||
 fi
 grep -qF '`/graphify build`' "$graph_policy" ||
   fail "Graphify policy must name Cairnkeep's installed build command"
+grep -qF '`cairn sync-kimi' "$graph_policy" ||
+  fail "Graphify policy must identify the Kimi thin adapter"
+grep -qF '`cairn sync-pi' "$graph_policy" ||
+  fail "Graphify policy must identify the Pi thin adapter"
+grep -qF '`cairn graph build`' "$graph_policy" ||
+  fail "Graphify policy must provide the portable CLI equivalent"
 if grep -qF '/gsd-graphify' "$graph_policy"; then
   fail "Graphify policy must not name the GSD-internal command"
 fi

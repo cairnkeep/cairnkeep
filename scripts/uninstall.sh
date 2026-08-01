@@ -22,6 +22,7 @@ TPL="$CAIRN_ROOT/templates"
 
 LIVE_ROOT="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 PI_LIVE_ROOT="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+KIMI_LIVE_ROOT="${KIMI_CODE_HOME:-$HOME/.kimi-code}"
 STORE_DIR="${CAIRN_AGENTFS_BASE_DIR:-$HOME/.cairnkeep}"
 STORE_DIR="${STORE_DIR/#\~/$HOME}"
 DRY_RUN=0
@@ -49,7 +50,7 @@ PROJECT_AI_FILES=(
 usage() {
   cat <<'EOF'
 Usage: uninstall.sh [--dry-run] [--yes] [--purge-memory] [--live-root PATH]
-                    [--pi-live-root PATH] [PROJECT ...]
+                    [--pi-live-root PATH] [--kimi-live-root PATH] [PROJECT ...]
 
 Reverse cairnkeep's install. Everything removed/edited is backed up into
 $HOME/.cairnkeep-uninstall-<ts>/ with a revert.sh before any change.
@@ -60,6 +61,7 @@ $HOME/.cairnkeep-uninstall-<ts>/ with a revert.sh before any change.
                    trajectories in each PROJECT. Backed up first; off by default.
   --live-root PATH Claude root to clean (default: $CLAUDE_CONFIG_DIR or ~/.claude).
   --pi-live-root PATH Pi agent root to clean (default: $PI_CODING_AGENT_DIR or ~/.pi/agent).
+  --kimi-live-root PATH Kimi Code root to clean (default: $KIMI_CODE_HOME or ~/.kimi-code).
   PROJECT ...      Also revert `cairn bootstrap` in these project dirs
                    (.ai/, .planning/, and any .git/info/exclude entries).
   -h, --help       Show this help.
@@ -73,6 +75,7 @@ while [[ $# -gt 0 ]]; do
     --purge-memory) PURGE_MEMORY=1; shift ;;
     --live-root) LIVE_ROOT="$2"; shift 2 ;;
     --pi-live-root) PI_LIVE_ROOT="$2"; shift 2 ;;
+    --kimi-live-root) KIMI_LIVE_ROOT="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     -*) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     *) PROJECTS+=("$1"); shift ;;
@@ -137,6 +140,7 @@ echo "cairn uninstall"
 [[ $DRY_RUN -eq 1 ]] && echo "(dry run — nothing will change)"
 echo "  live root:    $LIVE_ROOT"
 echo "  Pi live root: $PI_LIVE_ROOT"
+echo "  Kimi root:    $KIMI_LIVE_ROOT"
 echo "  memory store: $STORE_DIR ($([[ $PURGE_MEMORY -eq 1 ]] && echo 'WILL be purged' || echo 'kept'))"
 [[ ${#PROJECTS[@]} -gt 0 ]] && echo "  projects:     ${PROJECTS[*]}"
 
@@ -150,10 +154,13 @@ fi
 echo "Operating layer (assets):"
 while IFS= read -r dst; do remove_path "$dst"; done < <(asset_dests)
 
-# The Pi adapter is one precisely owned extension; do not touch any other Pi
-# configuration or extensions in the same user root.
-echo "Pi extension:"
+# These are precisely owned adapter paths; do not touch neighboring harness
+# configuration in either user root.
+echo "Pi adapters:"
 remove_path "$PI_LIVE_ROOT/extensions/cairnkeep-trajectory.ts"
+remove_path "$PI_LIVE_ROOT/prompts/graphify.md"
+echo "Kimi adapter:"
+remove_path "$KIMI_LIVE_ROOT/skills/graphify/SKILL.md"
 
 # 2. settings.json hook registrations (back up whole file, then de-register).
 SETTINGS="$LIVE_ROOT/settings.json"

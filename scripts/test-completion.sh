@@ -71,9 +71,12 @@ grep -q '#compdef cairn' "$tmp/zsh"
 grep -q 'complete -c cairn' "$tmp/fish"
 for shell in bash zsh; do
   grep -q 'sync-pi' "$tmp/$shell"
+  grep -q 'sync-kimi' "$tmp/$shell"
   grep -q -- '--live-root' "$tmp/$shell"
 done
 grep -q 'sync-pi' "$tmp/fish"
+grep -q 'sync-kimi' "$tmp/fish"
+grep -q 'not __fish_seen_subcommand_from .*sync-pi sync-kimi' "$tmp/fish"
 grep -q -- '-l live-root' "$tmp/fish"
 for shell in bash zsh fish; do
   grep -q 'notes' "$tmp/$shell"
