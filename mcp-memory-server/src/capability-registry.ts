@@ -31,7 +31,7 @@ function environmentName(id: CapabilityId): string {
     return `CAIRN_CAPABILITY_${id.toUpperCase().replaceAll(".", "_")}`;
 }
 
-async function readGraphCompatibility(projectRoot: string): Promise<boolean> {
+export async function isGraphCapabilityCompatible(projectRoot: string): Promise<boolean> {
     const planningDirectory = join(projectRoot, ".planning");
     const configPath = join(planningDirectory, "config.json");
     try {
@@ -106,7 +106,7 @@ export const CAPABILITY_REGISTRY: readonly CapabilityRegistryRow[] = [
         compatibility_default: false,
         restart_required: false,
         logging_policy: "final-callback",
-        resolveCompatibility: ({ projectRoot, graphifyEnabled }) => graphifyEnabled ?? readGraphCompatibility(projectRoot),
+        resolveCompatibility: ({ projectRoot, graphifyEnabled }) => graphifyEnabled ?? isGraphCapabilityCompatible(projectRoot),
     },
     {
         id: "security.audit",

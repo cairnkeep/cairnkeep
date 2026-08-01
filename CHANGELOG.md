@@ -5,6 +5,14 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- Add a Cairnkeep-owned `cairn graph build|query|status|diff|explain|path`
+  workflow, matching Claude Code and OpenCode `/graphify` modes, shell
+  completion, local-only code indexing, atomic publication, and snapshot diffs
+  without installing Graphify-owned harness assets or re-indexing generated
+  graph artifacts.
+
 ## [2.6.0] - 2026-07-29
 
 ### Added

@@ -79,6 +79,8 @@ storage paths, secrets, and private derived images, see
   `cairn artifact list|show|delete|prune` manages opt-in local artifacts;
   `cairn eval validate|run|ablate|report|prune|delete` coordinates explicit
   local two-pass and one-capability-at-a-time measurements;
+  `cairn graph build|query|status|diff|explain|path` owns the local Graphify
+  workflow without installing Graphify-owned harness assets;
   `cairn notes distill|search-error|promote|doctor` compiles and searches
   default-off local hindsight notes outside the online agent path;
   `cairn memory export|import` relocates the durable store between machines

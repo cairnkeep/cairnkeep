@@ -159,6 +159,40 @@ Model selection stays operator-env-driven through the existing
 variables (see "Configuration" below) — the harness commits no default model
 and carries no known-good allowlist.
 
+## Optional Graphify workflow
+
+Graphify is an optional local structural index. Install only its isolated CLI:
+
+```bash
+uv tool install graphifyy
+# or: pipx install graphifyy
+```
+
+Do not run `graphify install`: Cairnkeep owns the harness commands, policies,
+and hooks, so Graphify-owned assets would duplicate that operating layer.
+With the managed capability contract enabled, run
+`cairn capabilities enable graph`; otherwise enable the compatibility setting
+`graphify.enabled` in `.planning/config.json`. Then use the managed command
+surface:
+
+```text
+/graphify build
+/graphify status
+/graphify query putTrajectory
+/graphify explain putTrajectory
+/graphify path putTrajectory resolveCapabilityStatus
+/graphify diff
+```
+
+All six modes delegate to `cairn graph`. Managed builds run Graphify's local
+code-only `update` path with provider credentials removed from the subprocess
+environment, then atomically publish validated artifacts under
+`.planning/graphs/`. Previous published artifacts are isolated during the scan
+so Graphify cannot re-index its own generated HTML/report/JSON. Managed builds
+do not perform Graphify's optional semantic document extraction. Prefer exact
+function, class, or file names; broad natural-language graph queries are less
+precise. Cairnkeep does not install or update Graphify automatically.
+
 ## Setup order (Kimi Code)
 
 Kimi Code can use the Cairnkeep memory MCP and the generated project launcher.

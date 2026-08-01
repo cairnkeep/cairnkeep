@@ -79,6 +79,8 @@ for shell in bash zsh fish; do
   grep -q 'notes' "$tmp/$shell"
   grep -q 'distill.*search-error.*promote.*doctor\|distill search-error promote doctor' "$tmp/$shell"
   grep -q 'artifact' "$tmp/$shell"
+  grep -q 'graph' "$tmp/$shell"
+  grep -q 'build.*query.*status.*diff.*explain.*path\|build query status diff explain path' "$tmp/$shell"
   grep -q 'list.*show.*delete.*prune' "$tmp/$shell"
   grep -q -- '--json\|-l json' "$tmp/$shell"
   grep -q -- '--dry-run\|-l dry-run' "$tmp/$shell"

@@ -56,6 +56,9 @@ Usage:
   cairn eval <validate|run|ablate|report|prune|delete>
                            Validate or run default-off local evaluations, inspect
                            reports, and manage retained experiment results.
+  cairn graph <build|query|status|diff|explain|path>
+                           Build the local code graph, inspect freshness and
+                           changes, or query exact symbols and paths.
   cairn memory <path|export|import>
                            Relocate global-scope memory. `path` prints its location;
                            `export <file.tgz>` takes a WAL-safe snapshot (requires
@@ -109,6 +112,9 @@ case "$cmd" in
     ;;
   eval)
     exec node "$CAIRN_ROOT/mcp-memory-server/dist/eval-cli.js" "$@"
+    ;;
+  graph)
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/graph-cli.js" "$@"
     ;;
   sync)
     exec "$CAIRN_ROOT/scripts/sync-claude-assets.sh" "$@"

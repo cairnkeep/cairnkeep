@@ -36,9 +36,13 @@ This repository uses `.planning/graphs/` as an optional, local, machine-facing d
   `graphify install`: Cairnkeep owns the installed commands and harness wiring,
   so Graphify-owned skills, instructions, and hooks would duplicate them.
 - Use `/graphify build` to create or refresh the graph after meaningful
-  topology or architecture-doc changes.
+  code-topology changes. The managed build is local code-only extraction; it
+  does not send documents to a semantic extraction backend.
 - Use `/graphify status`, `/graphify query <term>`, and `/graphify diff` to
   inspect freshness and focused subgraphs.
+- Use `/graphify explain <symbol>` for one exact function, class, or file, and
+  `/graphify path <from> <to>` for the shortest structural route between two
+  exact symbols.
 - Prefer exact symbol names or narrowly scoped terms when querying. Treat broad
   prose-query results as discovery hints and verify them against canonical
   source files.

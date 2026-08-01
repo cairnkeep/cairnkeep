@@ -11,7 +11,7 @@ _cairn_complete() {
   COMPREPLY=()
   current=${COMP_WORDS[COMP_CWORD]}
   previous=${COMP_WORDS[COMP_CWORD-1]:-}
-  commands="bootstrap memory-server sync sync-pi doctor trajectory artifact capabilities notes eval memory audit-timer uninstall completion version help"
+  commands="bootstrap memory-server sync sync-pi doctor trajectory artifact capabilities notes eval graph memory audit-timer uninstall completion version help"
   if (( COMP_CWORD == 1 )); then
     COMPREPLY=( $(compgen -W "$commands" -- "$current") )
     return
@@ -62,6 +62,7 @@ _cairn_complete() {
         *) COMPREPLY=( $(compgen -W "validate run ablate report prune delete" -- "$current") ) ;;
       esac
       ;;
+    graph) COMPREPLY=( $(compgen -W "build query status diff explain path --force" -- "$current") ) ;;
     memory) COMPREPLY=( $(compgen -W "path export import" -- "$current") ) ;;
     audit-timer) COMPREPLY=( $(compgen -W "--on-calendar --para-root --render-only" -- "$current") ) ;;
     uninstall) COMPREPLY=( $(compgen -W "--dry-run --yes --purge-memory --live-root --pi-live-root" -- "$current") ) ;;
@@ -87,6 +88,7 @@ _cairn() {
     'capabilities:inspect and manage project capability state'
     'notes:distill and search local hindsight notes'
     'eval:run and inspect default-off local evaluations'
+    'graph:inspect a published Graphify graph'
     'memory:manage the durable memory store'
     'audit-timer:install a memory and wiki audit timer'
     'uninstall:remove installed Cairnkeep components safely'
@@ -134,6 +136,7 @@ _cairn() {
         *) _values 'eval command' validate run ablate report prune delete ;;
       esac
       ;;
+    graph) _values 'graph command' build query status diff explain path '--force[allow a smaller graph after code deletion]' ;;
     memory) _values 'memory command' path export import ;;
     audit-timer) _arguments '--on-calendar[systemd calendar]:calendar:' '--para-root[PARA root]:directory:_files -/' '--render-only[render directory]:directory:_files -/' ;;
     uninstall) _arguments '--dry-run[show changes]' '--yes[skip confirmation]' '--purge-memory[delete memory]' '--live-root[project Claude root]:directory:_files -/' '--pi-live-root[Pi agent root]:directory:_files -/' '*:project directory:_files -/' ;;
@@ -147,8 +150,8 @@ EOF
   fish)
     cat <<'EOF'
 complete -c cairn -f
-for command in bootstrap memory-server sync sync-pi doctor trajectory artifact capabilities notes eval memory audit-timer uninstall completion version help
-    complete -c cairn -n "not __fish_seen_subcommand_from bootstrap memory-server sync sync-pi doctor trajectory artifact capabilities notes eval memory audit-timer uninstall completion version help" -a $command
+for command in bootstrap memory-server sync sync-pi doctor trajectory artifact capabilities notes eval graph memory audit-timer uninstall completion version help
+    complete -c cairn -n "not __fish_seen_subcommand_from bootstrap memory-server sync sync-pi doctor trajectory artifact capabilities notes eval graph memory audit-timer uninstall completion version help" -a $command
 end
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l apply
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l live-root -r
@@ -183,6 +186,8 @@ complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcomma
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from prune" -l older-than-days -r
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from prune delete" -l dry-run
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from validate run ablate report prune delete" -l json
+complete -c cairn -n "__fish_seen_subcommand_from graph" -a "build query status diff explain path"
+complete -c cairn -n "__fish_seen_subcommand_from graph; and __fish_seen_subcommand_from build" -l force
 complete -c cairn -n "__fish_seen_subcommand_from completion" -a "bash zsh fish"
 complete -c cairn -n "__fish_seen_subcommand_from uninstall" -l pi-live-root -r
 EOF

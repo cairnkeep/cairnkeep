@@ -15,11 +15,13 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 "$cairn" help | grep -q "cairn notes" || fail "help missing notes"
 "$cairn" help | grep -q "cairn artifact <list|show|delete|prune>" || fail "help missing artifact"
 "$cairn" help | grep -q "cairn capabilities <list|status|enable|disable|reset|logging>" || fail "help missing capabilities"
+"$cairn" help | grep -q "cairn graph <build|query|status|diff|explain|path>" || fail "help missing graph"
 "$cairn" sync --help >/dev/null 2>&1 || fail "cairn sync dispatch"
 "$cairn" sync-pi --help >/dev/null 2>&1 || fail "cairn sync-pi dispatch"
 env -u CAIRN_NOTE_DISTILLATION "$cairn" notes --help >/dev/null 2>&1 || fail "cairn notes dispatch"
 "$cairn" artifact --help | grep -q "cairn artifact list" || fail "cairn artifact dispatch"
 "$cairn" capabilities --help >"$tmp/capabilities-help" 2>/dev/null || fail "cairn capabilities dispatch"
+"$cairn" graph --help | grep -q "cairn graph explain <symbol>" || fail "cairn graph dispatch"
 grep -qxF 'MCP capability changes require a memory-server restart. Operating capability' "$tmp/capabilities-help" || fail "capability help missing exact restart wording"
 grep -qxF 'changes apply on the next invocation.' "$tmp/capabilities-help" || fail "capability help missing exact invocation wording"
 if grep -Eq '^  cairn capabilities (guard|start|finish|doctor)' "$tmp/capabilities-help"; then

@@ -76,6 +76,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn capabilities` | L15 |
 | `cairn notes` | L13 |
 | `cairn eval` | L16 |
+| `cairn graph` | L05-L06 |
 | `cairn memory` | L07-L08 |
 | `cairn audit-timer` | L05 and L13 |
 | `cairn uninstall` | L02 and L11-L12 |
