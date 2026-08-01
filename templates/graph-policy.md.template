@@ -31,7 +31,16 @@ This repository uses `.planning/graphs/` as an optional, local, machine-facing d
 ## Maintenance
 
 - Enable Graphify explicitly in `.planning/config.json`.
-- Install it locally with `uv pip install graphifyy && graphify install` before first use.
-- Use `/gsd-graphify build` to create or refresh the graph after meaningful topology or architecture-doc changes.
-- Use `/gsd-graphify status`, `/gsd-graphify query <term>`, and `/gsd-graphify diff` to inspect freshness and focused subgraphs.
-- Planner and query consumers should treat stale graphs as approximate context, not proof.
+- Install only the isolated Graphify CLI with `uv tool install graphifyy` before
+  first use (`pipx install graphifyy` is an equivalent fallback). Do not run
+  `graphify install`: Cairnkeep owns the installed commands and harness wiring,
+  so Graphify-owned skills, instructions, and hooks would duplicate them.
+- Use `/graphify build` to create or refresh the graph after meaningful
+  topology or architecture-doc changes.
+- Use `/graphify status`, `/graphify query <term>`, and `/graphify diff` to
+  inspect freshness and focused subgraphs.
+- Prefer exact symbol names or narrowly scoped terms when querying. Treat broad
+  prose-query results as discovery hints and verify them against canonical
+  source files.
+- Planner and query consumers should treat stale graphs as approximate context,
+  not proof.
