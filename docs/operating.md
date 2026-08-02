@@ -218,6 +218,13 @@ do not perform Graphify's optional semantic document extraction. Prefer exact
 function, class, or file names; broad natural-language graph queries are less
 precise. Cairnkeep does not install or update Graphify automatically.
 
+Graphify also maintains an incremental `graphify-out/` work directory at the
+repository root. It is separate from Cairnkeep's published
+`.planning/graphs/` view and can contain the same sensitive structural data.
+Keep both locations local. Before the first build in a Git repository, add
+`/graphify-out/` to the clone-local exclude file or the repository's ignore
+policy, and verify with `git status --short` after every build.
+
 ## Setup order (Kimi Code)
 
 Kimi Code can use the Cairnkeep memory MCP, generated project launcher, and one

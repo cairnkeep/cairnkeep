@@ -48,6 +48,7 @@ expanded only after their labs are executable.
 | L15 | [Capability governance](lessons/L15-capability-governance.md) | Brief | 35 min |
 | L16 | [Evaluation and ablation](lessons/L16-evaluation.md) | Brief | 50 min |
 | L17 | [The agent boundary](lessons/L17-agent-boundary.md) | Brief | 25 min |
+| L18 | [Local code graph](lessons/L18-local-code-graph.md) | Brief | 35 min |
 
 The [curriculum coverage map](CURRICULUM-MAP.md) records where every public
 feature is introduced, practised, and operated. It also marks design-only work
@@ -65,8 +66,8 @@ Every complete lesson contains:
 6. Release compatibility metadata for completed exercises.
 
 The learner should never need optional infrastructure to complete L00-L06.
-Remote memory, RAG, routing, containers, structured capture, typed nodes,
-capability governance, and evaluation are separate opt-in modules.
+Remote memory, RAG, routing, containers, graph indexing, structured capture,
+typed nodes, capability governance, and evaluation are separate opt-in modules.
 
 ## For contributors
 
