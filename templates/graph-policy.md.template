@@ -26,7 +26,9 @@ This repository uses `.planning/graphs/` as an optional, local, machine-facing d
 
 - Use the graph to compress dependency context for planning, exploration, and impact analysis.
 - Do not use graph outputs as a human-facing substitute for the repo wiki.
-- Do not commit graph build outputs by default; `.planning/graphs/.gitignore` keeps them local unless you intentionally override it.
+- Do not commit graph build outputs by default. `.planning/graphs/.gitignore`
+  covers the published view; also ignore Graphify's root `graphify-out/` work
+  directory through repository policy or the clone-local Git exclude file.
 
 ## Maintenance
 

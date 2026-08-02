@@ -43,7 +43,7 @@ prerequisites for ordinary memory.
 | Scoped memory | `/remember`, `/recall`, MCP memory tools | Available after MCP registration; named/global DBs under `CAIRN_AGENTFS_BASE_DIR`, project DB under `<server-cwd>/.agentfs/` | Recall in a new session; use reviewed delete/supersession rather than filesystem removal | `course-02-memory` |
 | Memory lifecycle | `/memory-review`, `memory_supersede`, `memory_history`, reviewed apply/invalidate tools | Durable history; no automatic promotion | Inspect key history and provenance | `course-02-memory` |
 | Wiki and alignment | `/wiki-ingest`, `/wiki-query`, `/wiki-lint`, alignment files | Written only when invoked; reviewable `.planning/` artifacts | Re-run lint, inspect source citations, revert tracked changes normally | `course-02-memory` |
-| Knowledge graph | `/graphify` and graph tools | Disabled until configured/invoked; derived graph files | Rebuild from canonical sources; never treat the graph as canonical | `course-02-memory` |
+| Local code graph | `cairn graph build|query|status|diff|explain|path`; `/graphify` delegates | Default off; optional isolated `graphify` executable; incremental work under `graphify-out/`, published view under `.planning/graphs/` | Ignore both derived locations; check status and source before trusting a result; use `--force` only after intentional deletion; uninstall adapters separately | `course-08-graph` |
 | Repository quality | `/repo-review`, `/security-audit` | On-demand workflow; findings are hypotheses until reproduced | Require file/line evidence and regression tests | `course-03-quality` |
 
 ## Storage and optional topology

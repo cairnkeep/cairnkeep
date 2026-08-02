@@ -21,7 +21,7 @@ done
 
 ready=0
 brief=0
-for number in $(seq -w 0 17); do
+for number in $(seq -w 0 18); do
   matches=(docs/learning/lessons/L"$number"-*.md)
   [[ ${#matches[@]} -eq 1 && -f ${matches[0]} ]] || {
     echo "learning path must contain exactly one L$number lesson" >&2
@@ -43,7 +43,16 @@ for number in $(seq -w 0 17); do
   fi
 done
 
-[[ $ready -eq 4 && $brief -eq 14 ]] || {
+graph_lesson=docs/learning/lessons/L18-local-code-graph.md
+for mode in build query status diff explain path; do
+  grep -qF "cairn graph $mode" "$graph_lesson"
+done
+grep -qF 'Do not run `graphify install`' "$graph_lesson"
+grep -qF '`cairn sync-kimi --apply`' "$graph_lesson"
+grep -qF '`cairn sync-pi --apply`' "$graph_lesson"
+grep -qF '`graphify-out/`' "$graph_lesson"
+
+[[ $ready -eq 4 && $brief -eq 15 ]] || {
   echo "unexpected learning status totals: ready=$ready brief=$brief" >&2
   exit 1
 }

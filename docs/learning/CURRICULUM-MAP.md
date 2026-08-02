@@ -1,7 +1,7 @@
 # Curriculum Coverage Map
 
 **Baseline:** Cairnkeep 2.7.0
-**Last reviewed:** 2026-07-29
+**Last reviewed:** 2026-08-02
 
 This map prevents the course from drifting behind the product. It assigns each
 user-facing surface to a lesson and records whether the lesson is complete or
@@ -16,7 +16,8 @@ been rehearsed.
 | Local stdio memory and MCP registration | L00-L02 | L03-L04 | L00-L03 Ready; L04 Brief |
 | Project bootstrap, launchers, and contributor mode | L02-L03 | L05 | L02-L03 Ready; L05 Brief |
 | Memory scopes, keys, search, supersession, and history | L04 | L04-L05 | Brief |
-| Wiki, alignment, graph, and repository quality workflows | L05-L06 | L05-L06 | Brief |
+| Wiki, alignment, and repository quality workflows | L05-L06 | L05-L06 | Brief |
+| Optional local code graph, graph inspection, and harness delegates | L18 | L18 | Brief; default off |
 | Storage placement, export/import, and authenticated remote memory | L07 | L07-L08 | Brief |
 | Document RAG | L00 | L09 | Brief; optional |
 | token-miser exploration and routing | L00 | L10 | Brief; optional |
@@ -58,6 +59,7 @@ repository remains the canonical source for explanations and scripts.
 | `course-05-evidence` | L13-L14 | Evidence lifecycle and typed memory |
 | `course-06-governance` | L15 | Capability precedence and restart boundaries |
 | `course-07-evaluation` | L16-L17 | Package-owned offline fixture and design boundary |
+| `course-08-graph` | L18 | Optional local structural graph workflow |
 
 ## Command Ownership
 
@@ -77,7 +79,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn capabilities` | L15 |
 | `cairn notes` | L13 |
 | `cairn eval` | L16 |
-| `cairn graph` | L05-L06 |
+| `cairn graph` | L18 |
 | `cairn memory` | L07-L08 |
 | `cairn audit-timer` | L05 and L13 |
 | `cairn uninstall` | L02 and L11-L12 |
