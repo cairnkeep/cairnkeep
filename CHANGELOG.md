@@ -5,6 +5,8 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-08-02
+
 ### Added
 
 - Add a Cairnkeep-owned `cairn graph build|query|status|diff|explain|path`
@@ -230,7 +232,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.6.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.7.0...HEAD
+[2.7.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.3.1...v2.4.0
