@@ -14,12 +14,12 @@ Qwen Code, Pi, and other MCP clients).
 
 ## Status
 
-Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync`, `sync-pi`,
+Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync`, `sync-pi`, `sync-kimi`,
 `doctor`, `trajectory`, `artifact`, `notes`, `memory`, `eval`, `audit-timer`, `completion`, `uninstall`) installable via
 `npm i -g @cairnkeep/cli`, and the
 operating layer (commands,
 agents, hooks) installed on Claude Code and OpenCode, plus a native Pi
-trajectory extension. The generic launchers
+trajectory extension and thin Pi/Kimi graph adapters. The generic launchers
 expose wrapper seams (`.ai/pre-launch.sh`, `CAIRN_EXTRA_SETTINGS`,
 `.ai/post-exit.sh`) so an enterprise wrapper can add provider/credential setup
 without forking them. Also shipped: context exploration (`/context-explore`) and
@@ -37,12 +37,17 @@ and 20 are end-of-life upstream.
 |---|---|
 | Claude Code on Linux/macOS | Memory server plus commands, agents, hooks, and launchers |
 | OpenCode on Linux/macOS | Memory server plus commands, plugins, hooks, and launchers |
-| Kimi Code on Linux/macOS | Memory MCP server plus project launcher; no Cairnkeep operating-layer assets yet |
+| Kimi Code on Linux/macOS | Memory MCP server, project launcher, and opt-in `/graphify` Skill |
 | Qwen Code on Linux/macOS | Memory MCP server plus project launcher; no Cairnkeep operating-layer assets yet |
-| Pi on Linux/macOS | Native opt-in trajectory extension and launcher; no bundled MCP bridge |
+| Pi on Linux/macOS | Native opt-in trajectory extension, launcher, and `/graphify` prompt; no bundled MCP bridge |
 | Codex CLI | Memory MCP server; no Cairnkeep operating-layer assets |
 | Other MCP clients | Memory and optional domain-knowledge MCP tools |
 | Native Windows | Not supported by the Bash-based installer; use WSL (not yet CI-verified) |
+
+The `cairn graph` CLI is harness-independent and can be run from a project
+shell used by Kimi Code, Pi, Qwen Code, Codex, or another client. Claude Code,
+OpenCode, Pi, and Kimi can receive thin `/graphify` adapters; those adapters do
+not imply equivalent hooks, agents, or MCP support.
 
 Linux, macOS, Bash 3.2 portability, and clean Node 22/24/26 runtime checks
 are exercised in CI.
@@ -79,13 +84,17 @@ storage paths, secrets, and private derived images, see
   `cairn artifact list|show|delete|prune` manages opt-in local artifacts;
   `cairn eval validate|run|ablate|report|prune|delete` coordinates explicit
   local two-pass and one-capability-at-a-time measurements;
+  `cairn graph build|query|status|diff|explain|path` owns the local Graphify
+  workflow from any project shell without installing Graphify-owned harness
+  assets; Claude Code, OpenCode, Pi, and Kimi add thin `/graphify` wrappers;
   `cairn notes distill|search-error|promote|doctor` compiles and searches
   default-off local hindsight notes outside the online agent path;
   `cairn memory export|import` relocates the durable store between machines
   (`export` requires the optional `sqlite3` CLI);
   `cairn audit-timer` installs the scheduled memory+wiki audit;
   `cairn completion bash|zsh|fish` generates shell completion definitions; and
-  `cairn sync-pi` installs the native Pi trajectory extension;
+  `cairn sync-pi` installs the native Pi trajectory extension and graph prompt;
+  `cairn sync-kimi` installs the Kimi graph Skill;
   `cairn uninstall` reverses the install (backup-first, revertible).
 - **`templates/`** — project scaffolding (generic launchers, env) plus the
   derived-knowledge layer (wiki, alignment, graph, security, planning).
@@ -160,6 +169,10 @@ configuration requires a literal URL and supports a token reference through
 `bearerTokenEnvVar`; it does not expand `${VAR}` in the URL. See
 [Harness compatibility](docs/harness-compatibility.md#kimi-code).
 
+Install Kimi's thin graph Skill separately with `cairn sync-kimi --apply`.
+It registers `/graphify` (also `/skill:graphify`) and delegates every supported
+operation exclusively to `cairn graph`.
+
 For Qwen Code, use project `.qwen/settings.json`: local stdio launches
 `cairn memory-server`, while remote HTTP uses `httpUrl` and environment-expanded
 headers. Review and approve project MCP configuration with
@@ -174,9 +187,10 @@ cairn bootstrap /path/to/project
 cd /path/to/project && ./.ai/start-pi.sh
 ```
 
-This installs trajectory capture only. Cairnkeep does not bundle or select a Pi
-MCP bridge; configure a user-chosen bridge separately if you also want the MCP
-memory tools inside Pi.
+This installs trajectory capture plus the thin `/graphify` prompt. The prompt
+delegates exclusively to `cairn graph`. Cairnkeep does not bundle or select a
+Pi MCP bridge; configure a user-chosen bridge separately if you also want the
+MCP memory tools inside Pi.
 
 Closed trajectories can be compiled into local hindsight notes without a model
 or embedding service. Capture and distillation are separate opt-ins:

@@ -16,6 +16,7 @@ request unless the corresponding endpoint and credential are configured.
 | `domain_knowledge_sync` | Files selected by the sync configuration | `ANYTHINGLLM_BASE_URL` |
 | `route_check` | A health request, with no memory or prompt content | `CAIRN_ROUTE_ENDPOINT` |
 | `context_explore` | Repository path and query are passed to the configured local executable | `CAIRN_EXPLORE_BINARY`; any further data flow is controlled by that tool |
+| Optional Graphify workflow | The repository path, exact query/symbol names, and local published graph path are passed to the operator-installed `graphify` executable | Local Graphify subprocess with a minimal environment and no provider credentials; managed build uses code-only `update`, never semantic document extraction |
 | Remote HTTP memory | MCP requests and responses, including memory content | The explicitly registered Cairnkeep HTTP server |
 | Opt-in trajectory capture | None | Local `<project>/.agentfs/trajectory.db` only; no model or HTTP path exists |
 | Opt-in capability callback records | None | Payload-free final metadata in local `<project>/.agentfs/trajectory.db`; HTTP transport is always skipped |

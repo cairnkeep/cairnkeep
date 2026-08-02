@@ -218,8 +218,14 @@ NODE
   fail "npm tarball omitted the default AnythingLLM sync script"
 [[ -f "$installed_root/pi/extensions/cairnkeep-trajectory.ts" ]] || \
   fail "npm tarball omitted the Pi trajectory extension"
+[[ -f "$installed_root/pi/prompts/graphify.md" ]] || \
+  fail "npm tarball omitted the Pi graph prompt"
+[[ -f "$installed_root/kimi/skills/graphify/SKILL.md" ]] || \
+  fail "npm tarball omitted the Kimi graph Skill"
 [[ -x "$installed_root/scripts/sync-pi-assets.sh" ]] || \
   fail "npm tarball omitted the Pi sync command"
+[[ -x "$installed_root/scripts/sync-kimi-assets.sh" ]] || \
+  fail "npm tarball omitted the Kimi sync command"
 [[ -f "$installed_root/templates/start-pi.sh.template" ]] || \
   fail "npm tarball omitted the Pi launcher template"
 [[ -f "$installed_root/templates/start-kimi.sh.template" ]] || \

@@ -10,16 +10,24 @@ commands, hooks, plugins, or trajectory adapters.
 |---|---|---|
 | Claude Code | Memory MCP, commands, agents, hooks, launcher | Exercised by Cairnkeep tests |
 | OpenCode | Memory MCP, commands, workflows, plugins, launcher | Exercised by Cairnkeep tests |
-| Kimi Code | Memory MCP, `AGENTS.md`, launcher | Launcher tested; remote MCP tested with Kimi Code 0.30.0 |
+| Kimi Code | Memory MCP, `AGENTS.md`, launcher, opt-in graph Skill | Launcher tested; remote MCP tested with Kimi Code 0.30.0; graph Skill contract-tested |
 | Qwen Code | Memory MCP, launcher | Launcher tested; stdio and remote MCP tested with Qwen Code 0.21.1 |
-| Pi | Native opt-in trajectory extension and launcher | Exercised by Cairnkeep tests; no bundled MCP bridge |
+| Pi | Native opt-in trajectory extension, launcher, and graph prompt | Exercised by Cairnkeep tests; no bundled MCP bridge |
 | Codex CLI | Memory MCP | Configuration supported; no Cairnkeep operating-layer assets or launcher |
 | Other MCP clients | Memory and optional domain-knowledge tools | Protocol-compatible; not automatically runtime-tested |
 
 Only Claude Code and OpenCode currently receive the complete operating layer.
-Kimi and Qwen skills and hooks require harness-specific adaptation and
-validation before they can be presented as equivalent. In either client, call
-MCP tools directly or use ordinary prompts until that work is complete.
+Kimi receives one narrow graph Skill, while Pi receives one narrow graph prompt;
+neither is equivalent to the full commands, agents, hooks, and plugins surface.
+Qwen skills and hooks still require harness-specific adaptation and validation.
+
+`cairn graph` is a separate, harness-independent project-shell CLI. Kimi Code,
+Pi, Qwen Code, Codex, and other shell-capable clients can invoke
+`cairn graph build|query|status|diff|explain|path` when `cairn` and the isolated
+`graphify` executable are on `PATH`. `cairn sync-kimi --apply` registers a Kimi
+Skill as `/graphify` (or `/skill:graphify`), and `cairn sync-pi --apply`
+registers a Pi prompt template as `/graphify`; both delegate exclusively to
+that CLI. Neither adds an MCP bridge to Pi or expands the other support levels.
 
 ## Kimi Code
 

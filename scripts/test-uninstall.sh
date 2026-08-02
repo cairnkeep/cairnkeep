@@ -82,12 +82,14 @@ chmod +x "$SB/bin/"*
 export HOME="$SB/home" XDG_CONFIG_HOME="$SB/home/.config" PATH="$SB/bin:$PATH"
 LIVE="$SB/live"
 PI_LIVE="$SB/pi-live"
+KIMI_LIVE="$SB/kimi-live"
 
 echo "test-uninstall"
 
 # --- install the operating layer -------------------------------------------
 "$ROOT_DIR/scripts/sync-claude-assets.sh" --apply --live-root "$LIVE" >/dev/null 2>&1
 "$ROOT_DIR/scripts/sync-pi-assets.sh" --apply --live-root "$PI_LIVE" >/dev/null 2>&1
+"$ROOT_DIR/scripts/sync-kimi-assets.sh" --apply --live-root "$KIMI_LIVE" >/dev/null 2>&1
 md_installed=$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')
 check "assets installed" "$([[ $md_installed -gt 0 ]] && echo yes || echo no)" "yes"
 check "managed hooks registered" "$(managed_hook_count "$LIVE/settings.json")" "5"
@@ -105,6 +107,8 @@ fs.writeFileSync(path, JSON.stringify(settings, null, 2) + "\n")
 NODE
 cp "$LIVE/settings.json" "$SB/settings.before.json"
 cp "$PI_LIVE/extensions/cairnkeep-trajectory.ts" "$SB/pi.before.ts"
+cp "$PI_LIVE/prompts/graphify.md" "$SB/pi-graph.before.md"
+cp "$KIMI_LIVE/skills/graphify/SKILL.md" "$SB/kimi-graph.before.md"
 mkdir -p "$SB/home/.cairnkeep/notes/projects/example/hindsight"
 printf 'durable note bytes\n' >"$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md"
 mkdir -p "$SB/home/.cairnkeep/notes/.cairnkeep/history/project-notes/knowledge/example" \
@@ -204,10 +208,12 @@ overlay_before=$(tree_hash "$PROJECT_DATA/.ai/capability-contract")
 project_before=$(tree_hash "$PROJECT_DATA")
 
 # --- dry-run must change nothing -------------------------------------------
-"$ROOT_DIR/scripts/uninstall.sh" --dry-run --live-root "$LIVE" --pi-live-root "$PI_LIVE" "$PROJECT_DATA" >/dev/null 2>&1
+"$ROOT_DIR/scripts/uninstall.sh" --dry-run --live-root "$LIVE" --pi-live-root "$PI_LIVE" --kimi-live-root "$KIMI_LIVE" "$PROJECT_DATA" >/dev/null 2>&1
 check "dry-run leaves assets" "$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')" "$md_installed"
 check "dry-run makes no bundle" "$(ls -d "$SB/home/.cairnkeep-uninstall-"* 2>/dev/null | wc -l | tr -d ' ')" "0"
 check "dry-run leaves Pi extension" "$([[ -f "$PI_LIVE/extensions/cairnkeep-trajectory.ts" ]] && echo yes || echo no)" "yes"
+check "dry-run leaves Pi graph prompt" "$([[ -f "$PI_LIVE/prompts/graphify.md" ]] && echo yes || echo no)" "yes"
+check "dry-run leaves Kimi graph Skill" "$([[ -f "$KIMI_LIVE/skills/graphify/SKILL.md" ]] && echo yes || echo no)" "yes"
 check "dry-run leaves settings identical" "$(cmp -s "$SB/settings.before.json" "$LIVE/settings.json" && echo yes || echo no)" "yes"
 check "dry-run leaves artifact bytes exact" "$(cmp -s "$SB/artifacts.before.db" "$PROJECT_DATA/.agentfs/artifacts.db" && echo yes || echo no)" "yes"
 check "dry-run leaves eval tree, bytes, and modes exact" "$(tree_identity "$PROJECT_DATA/.agentfs/eval")" "$eval_before"
@@ -216,11 +222,13 @@ check "dry-run leaves adjacent project exact" "$(tree_identity "$ADJACENT_PROJEC
 check "dry-run leaves project state byte-identical" "$(tree_hash "$PROJECT_DATA")" "$project_before"
 
 # --- real uninstall ---------------------------------------------------------
-"$ROOT_DIR/scripts/uninstall.sh" --yes --live-root "$LIVE" --pi-live-root "$PI_LIVE" "$PROJECT_DATA" >/dev/null 2>&1
+"$ROOT_DIR/scripts/uninstall.sh" --yes --live-root "$LIVE" --pi-live-root "$PI_LIVE" --kimi-live-root "$KIMI_LIVE" "$PROJECT_DATA" >/dev/null 2>&1
 check "assets removed" "$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')" "0"
 check "managed hooks de-registered" "$(managed_hook_count "$LIVE/settings.json")" "0"
 check "unrelated hook preserved" "$(grep -cF 'keep-me.sh' "$LIVE/settings.json" 2>/dev/null || true)" "1"
 check "Pi extension removed" "$([[ -e "$PI_LIVE/extensions/cairnkeep-trajectory.ts" ]] && echo no || echo yes)" "yes"
+check "Pi graph prompt removed" "$([[ -e "$PI_LIVE/prompts/graphify.md" ]] && echo no || echo yes)" "yes"
+check "Kimi graph Skill removed" "$([[ -e "$KIMI_LIVE/skills/graphify/SKILL.md" ]] && echo no || echo yes)" "yes"
 check "default uninstall keeps notes" "$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)" "$note_before"
 check "default uninstall keeps all typed and journal bytes" "$(tree_hash "$SB/home/.cairnkeep")" "$store_before"
 check "default uninstall keeps artifact bytes exact" "$(cmp -s "$SB/artifacts.before.db" "$PROJECT_DATA/.agentfs/artifacts.db" && echo yes || echo no)" "yes"
@@ -243,6 +251,8 @@ bash "$BK/revert.sh" >/dev/null 2>&1
 check "assets restored" "$(find "$LIVE" -type f -name '*.md' | wc -l | tr -d ' ')" "$md_installed"
 check "settings.json identical" "$(cmp -s "$SB/settings.before.json" "$LIVE/settings.json" && echo yes || echo no)" "yes"
 check "Pi extension restored" "$(cmp -s "$SB/pi.before.ts" "$PI_LIVE/extensions/cairnkeep-trajectory.ts" && echo yes || echo no)" "yes"
+check "Pi graph prompt restored" "$(cmp -s "$SB/pi-graph.before.md" "$PI_LIVE/prompts/graphify.md" && echo yes || echo no)" "yes"
+check "Kimi graph Skill restored" "$(cmp -s "$SB/kimi-graph.before.md" "$KIMI_LIVE/skills/graphify/SKILL.md" && echo yes || echo no)" "yes"
 check "capability config bytes restored" "$(cmp -s "$SB/capabilities.before.json" "$PROJECT_DATA/.ai/capabilities.json" && echo yes || echo no)" "yes"
 check "capability overlay bytes restored" "$(tree_hash "$PROJECT_DATA/.ai/capability-contract")" "$overlay_before"
 check "capability hook registrations restored" "$(capability_hook_count "$CLAUDE_OVERLAY/settings.json")" "5"

@@ -433,8 +433,10 @@ qwen_launcher="$repo/.ai/start-qwen.sh"
 # than requiring a standalone banner before the config gate.
 ! grep -qF '**Before ANY tool calls**, display this banner:' "$ROOT/opencode/command/graphify.md" \
   || fail "OpenCode graphify can stop after its pre-tool banner"
-grep -qF '**First action:** invoke the Read tool' "$ROOT/opencode/command/graphify.md" \
-  || fail "OpenCode graphify does not require the config-gate tool call first"
+! grep -qF '**First action:** invoke the Read tool' "$ROOT/opencode/command/graphify.md" \
+  || fail "OpenCode graphify still duplicates the Cairnkeep-owned capability gate"
+grep -qF '`cairn graph` operation enforces the typed `graph` capability' "$ROOT/opencode/command/graphify.md" \
+  || fail "OpenCode graphify does not delegate its capability gate to the owner"
 grep -qF '**Invoke the shell tool** with this exact command' "$ROOT/opencode/command/graphify.md" \
   || fail "OpenCode graphify does not require real shell delegation"
 grep -qF '<argument>$ARGUMENTS</argument>' "$ROOT/opencode/command/graphify.md" \

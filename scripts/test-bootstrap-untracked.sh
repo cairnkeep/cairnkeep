@@ -56,6 +56,27 @@ git -C "$tmp/repo" init -q
 [[ -x "$tmp/repo/.ai/start-kimi.sh" ]] || fail "Kimi launcher missing"
 [[ -x "$tmp/repo/.ai/start-qwen.sh" ]] || fail "Qwen launcher missing"
 [[ -f "$tmp/repo/.planning/config.json" ]] || fail "planning layer missing"
+graph_policy="$tmp/repo/.planning/graphs/policy.md"
+grep -qF '`uv tool install graphifyy`' "$graph_policy" ||
+  fail "Graphify policy must install the CLI in an isolated uv tool environment"
+if grep -qF '`uv pip install graphifyy && graphify install`' "$graph_policy"; then
+  fail "Graphify policy must not install Graphify-owned skills or hooks"
+fi
+if ! grep -qF 'Do not run' "$graph_policy" ||
+  ! grep -qF '`graphify install`: Cairnkeep owns' "$graph_policy"; then
+  fail "Graphify policy must explain that Cairnkeep owns the harness wiring"
+fi
+grep -qF '`/graphify build`' "$graph_policy" ||
+  fail "Graphify policy must name Cairnkeep's installed build command"
+grep -qF '`cairn sync-kimi' "$graph_policy" ||
+  fail "Graphify policy must identify the Kimi thin adapter"
+grep -qF '`cairn sync-pi' "$graph_policy" ||
+  fail "Graphify policy must identify the Pi thin adapter"
+grep -qF '`cairn graph build`' "$graph_policy" ||
+  fail "Graphify policy must provide the portable CLI equivalent"
+if grep -qF '/gsd-graphify' "$graph_policy"; then
+  fail "Graphify policy must not name the GSD-internal command"
+fi
 [[ -f "$tmp/repo/.agentfs/.gitignore" ]] || fail "project-memory ignore guard missing"
 [[ -z "$(git -C "$tmp/repo" status --porcelain)" ]] || fail "scaffold visible to git"
 grep -qxF "/.ai/" "$tmp/repo/.git/info/exclude" || fail "missing /.ai/ exclude entry"

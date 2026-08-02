@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart
 **Time:** 25 minutes
-**Tested with:** Cairnkeep 2.6.0 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.7.0 and Node.js 22 or newer
 
 ## Outcome
 
@@ -41,7 +41,7 @@ machine-level steps.
 2. Install Cairnkeep:
 
    ```bash
-   npm install --global @cairnkeep/cli@2.6.0
+   npm install --global @cairnkeep/cli@2.7.0
    cairn --version
    ```
 
@@ -99,14 +99,16 @@ installation.
 This registration starts `cairn memory-server` locally as a stdio child. It
 does not discover a server, send memory to a remote host, configure embeddings,
 enable session capture, or enable an optional document-RAG integration. Pi uses
-the separate `cairn sync-pi` trajectory adapter and still needs a user-selected
-bridge if Pi should expose MCP memory tools.
+the separate `cairn sync-pi` trajectory and graph-prompt adapter and still needs
+a user-selected bridge if Pi should expose MCP memory tools.
 
 Kimi Code can use the same memory server through its generated
 `.ai/start-kimi.sh` launcher, but its HTTP MCP configuration requires a literal
 URL rather than `${CAIRN_MEMORY_REMOTE_URL}`. Keep the resolved URL in a private
 `.kimi-code/mcp.json` and keep the bearer token in the environment. See
 [Harness compatibility](../../harness-compatibility.md#kimi-code).
+Its optional `cairn sync-kimi` Skill adds only the local `/graphify` delegate;
+it does not change memory transport or send graph data to a new destination.
 
 Qwen Code can use the generated `.ai/start-qwen.sh` launcher. Its project
 `.qwen/settings.json` supports environment references for both the remote URL

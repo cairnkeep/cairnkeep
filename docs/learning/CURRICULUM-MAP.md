@@ -1,6 +1,6 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.6.0
+**Baseline:** Cairnkeep 2.7.0
 **Last reviewed:** 2026-07-29
 
 This map prevents the course from drifting behind the product. It assigns each
@@ -70,12 +70,14 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn memory-server` | L02 |
 | `cairn sync` | L02 |
 | `cairn sync-pi` | L13 |
+| `cairn sync-kimi` | L02 |
 | `cairn doctor` | L03; advanced repair in L13-L14 |
 | `cairn trajectory` | L13 |
 | `cairn artifact` | L13 |
 | `cairn capabilities` | L15 |
 | `cairn notes` | L13 |
 | `cairn eval` | L16 |
+| `cairn graph` | L05-L06 |
 | `cairn memory` | L07-L08 |
 | `cairn audit-timer` | L05 and L13 |
 | `cairn uninstall` | L02 and L11-L12 |

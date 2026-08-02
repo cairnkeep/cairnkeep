@@ -1,12 +1,14 @@
 ---
 description: "Build, rebuild, query, and inspect the project knowledge graph in .planning/graphs/"
-argument-hint: "[build [--force]|query <term>|status|diff]"
+argument-hint: "[build [--force]|query <term>|explain <symbol>|path <from> <to>|status|diff]"
 allowed-tools: Read, Bash
 ---
 
 **STOP -- DO NOT READ THIS FILE. You are already reading it. This prompt was injected into your context by Claude Code's command system. Using the Read tool on this file wastes tokens. Begin executing Step 0 immediately.**
 
-**graphify CLI:** the `graphify` subcommand is exposed by `gsd-tools` (on PATH). Invoke as `gsd-tools graphify …` as documented in this command and in `docs/CLI-TOOLS.md`. Other GSD queries use `gsd-tools <subcmd>` where a handler exists.
+**graph workflow:** Cairnkeep owns this surface through `cairn graph`. The
+operator installs only the isolated `graphify` executable; do not invoke
+Graphify's harness installer.
 
 ## Step 0 -- Banner
 
@@ -18,29 +20,13 @@ GRAPHIFY
 
 Then proceed to Step 1.
 
-## Step 1 -- Config Gate
+## Step 1 -- Capability ownership
 
-Check if graphify is enabled by reading `.planning/config.json` directly using the Read tool.
-
-**DO NOT use the gsd-tools config get-value command** -- it hard-exits on missing keys.
-
-1. Read `.planning/config.json` using the Read tool
-2. If the file does not exist: display the disabled message below and **STOP**
-3. Parse the JSON content. Check if `config.graphify && config.graphify.enabled === true`
-4. If `graphify.enabled` is NOT explicitly `true`: display the disabled message below and **STOP**
-5. If `graphify.enabled` is `true`: proceed to Step 2
-
-**Disabled message:**
-
-```
-GRAPHIFY
-
-Knowledge graph is disabled. To activate:
-
-  gsd-tools config-set graphify.enabled true
-
-Then run /graphify build to create the initial graph.
-```
+Do not implement a separate configuration gate in the prompt. Every
+`cairn graph` operation enforces the typed `graph` capability and its legacy
+`graphify.enabled` compatibility default before Graphify or graph-file I/O.
+Proceed directly to Step 2; if the owner reports a disabled capability, display
+its fixed remediation message and **STOP**.
 
 ---
 
@@ -52,6 +38,8 @@ Parse `$ARGUMENTS` to determine the operation mode:
 |----------|--------|
 | `build` or `build --force` | Run inline build (Step 3) |
 | `query <term>` | Run inline query (Step 2a) |
+| `explain <symbol>` | Explain one exact symbol (Step 2d) |
+| `path <from> <to>` | Find the shortest path between two exact symbols (Step 2e) |
 | `status` | Run inline status check (Step 2b) |
 | `diff` | Run inline diff check (Step 2c) |
 | No argument or unknown | Show usage message |
@@ -66,6 +54,8 @@ Usage: /graphify <mode>
 Modes:
   build [--force] Build or rebuild the knowledge graph
   query <term>    Search the graph for a term
+  explain <symbol> Explain one exact symbol and its relationships
+  path <from> <to> Find the shortest path between two exact symbols
   status          Show graph freshness and statistics
   diff            Show changes since last build
 ```
@@ -75,28 +65,39 @@ Modes:
 Run:
 
 ```bash
-gsd-tools graphify query <term>
+cairn graph query <term>
 ```
 
-Parse the JSON output and display results:
-- If the output contains `"disabled": true`, display the disabled message from Step 1 and **STOP**
-- If the output contains `"error"` field, display the error message and **STOP**
-- If no nodes found, display: `No graph matches for '<term>'. Try /graphify build to create or rebuild the graph.`
-- Otherwise, display matched nodes grouped by type, with edge relationships and confidence tiers (EXTRACTED/INFERRED/AMBIGUOUS)
+Pass the parsed term as exactly one argument and display the result verbatim.
+On failure, display the error without retrying or changing configuration.
 
 **STOP** after displaying results. Do not spawn an agent.
+
+### Step 2d -- Explain
+
+Run `cairn graph explain <symbol>`, passing the parsed symbol as exactly one
+argument. Display Graphify's explanation verbatim. On failure, display the
+error and suggest `/graphify build` only when the published graph is missing.
+
+**STOP** after displaying the result. Do not spawn an agent.
+
+### Step 2e -- Path
+
+Run `cairn graph path <from> <to>`, passing each parsed symbol as exactly one
+argument. Display Graphify's path result verbatim. On failure, display the
+error and suggest `/graphify build` only when the published graph is missing.
+
+**STOP** after displaying the result. Do not spawn an agent.
 
 ### Step 2b -- Status
 
 Run:
 
 ```bash
-gsd-tools graphify status
+cairn graph status
 ```
 
-Parse the JSON output and display:
-- If `exists: false`, display the message field
-- Otherwise show last build time, node/edge/hyperedge counts, and STALE or FRESH indicator
+Display the local node/edge counts and freshness result verbatim.
 
 **STOP** after displaying status. Do not spawn an agent.
 
@@ -105,14 +106,11 @@ Parse the JSON output and display:
 Run:
 
 ```bash
-gsd-tools graphify diff
+cairn graph diff
 ```
 
-Parse the JSON output and display:
-- If `no_baseline: true`, display the message field
-- Otherwise show node and edge change counts (added/removed/changed)
-
-If no snapshot exists, suggest running `build` twice (first to create, second to generate a diff baseline).
+Display the node and edge change counts verbatim. If no snapshot exists,
+suggest rebuilding after the next code change.
 
 **STOP** after displaying diff. Do not spawn an agent.
 
@@ -123,20 +121,14 @@ If no snapshot exists, suggest running `build` twice (first to create, second to
 Run:
 
 ```bash
-gsd-tools graphify build [--force]
+cairn graph build [--force]
 ```
 
-Parse the JSON output and display:
-- If the output contains `"disabled": true`, display the disabled message from Step 1 and **STOP**
-- If the output contains an `"error"` field, display the error and the `stage` field when present, then **STOP**
-- Otherwise display the build summary using `status.last_build`, `status.node_count`, `status.edge_count`, `status.hyperedge_count`, whether the snapshot was saved, and whether a forced clean rebuild was used
-
-This command now performs the full pipeline directly:
-- runs `graphify update .` with legacy fallback to `graphify . --update`
-- when `--force` is present, clears `graphify-out/`, published graph artifacts, and `.planning/graphs/.last-build-snapshot.json` first
-- validates `graphify-out/graph.json`
-- copies `graph.json`, `graph.html`, and `GRAPH_REPORT.md` into `.planning/graphs/`
-- writes `.planning/graphs/.last-build-snapshot.json`
+Display the build summary verbatim. This managed path runs Graphify's local
+code-only `update`, strips provider credentials from its subprocess
+environment, validates the resulting graph, atomically publishes available
+artifacts into `.planning/graphs/`, and snapshots the previous graph for diff.
+`--force` permits a rebuilt graph with fewer nodes after code deletion.
 
 **STOP** after displaying the build result. Do not spawn an agent.
 
@@ -144,7 +136,6 @@ This command now performs the full pipeline directly:
 
 ## Anti-Patterns
 
-1. DO NOT spawn an agent for graphify operations -- build/query/status/diff are handled directly
+1. DO NOT spawn an agent for graphify operations -- build/query/explain/path/status/diff are handled directly
 2. DO NOT modify graph files directly outside the graphify CLI path
-3. DO NOT skip the config gate check
-4. DO NOT use gsd-tools config get-value for the config gate -- it exits on missing keys
+3. DO NOT duplicate capability parsing in the prompt -- `cairn graph` owns it

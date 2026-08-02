@@ -31,6 +31,7 @@ SCRIPTS=(
   scripts/sync-opencode-explore-assets.sh
   scripts/sync-opencode-wiki-assets.sh
   scripts/sync-pi-assets.sh
+  scripts/sync-kimi-assets.sh
 )
 
 fails=0
