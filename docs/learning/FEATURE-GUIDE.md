@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.7.0
+**Baseline:** Cairnkeep 2.8.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -32,8 +32,9 @@ Run setup in that order, then confirm `cairn doctor`, `cairn sync --check`, and
 | 5 | Trajectories, notes, compaction, artifacts | Local session evidence has an explicit retention purpose |
 | 6 | Typed nodes and capability governance | Filtering and centrally inspectable feature state are needed |
 | 7 | Evaluation and ablation | A concrete change needs bounded measurement |
+| 8 | Validated skill improvement | Repeated resolved hindsight warrants a measured skill change |
 
-Every stage is independently useful. Stages 4-7 are opt-in and are not
+Every stage is independently useful. Stages 4-8 are opt-in and are not
 prerequisites for ordinary memory.
 
 ## Core and derived knowledge
@@ -70,7 +71,8 @@ prerequisites for ordinary memory.
 | Typed nodes/import | `CAIRN_TYPED_MEMORY_NODES=1` | Restart MCP server; tool schema changes | Hard-filter search; dry-run, replay-safe import; `cairn doctor --repair` only for derived state | `course-05-evidence` |
 | Capability contract | `CAIRN_CAPABILITY_CONTRACT=1` | MCP changes require restart; operating changes apply next invocation | `cairn capabilities list|status|enable|disable|reset|logging`; digest identifies state only | `course-06-governance` |
 | Evaluation | `CAIRN_EVAL=1` for the coordinator process | No harness chosen by Cairnkeep | `validate` before `run`; inspect report, missingness and evidence scope; dry-run prune/delete | `course-07-evaluation` |
-| Meta-agent loop | Not shipped | Not applicable | Design contract only; never advertise as an available command | `course-07-evaluation` |
+| Validated skill improvement | Reviewed recurring hindsight; proposal adapter; `CAIRN_EVAL=1` for evaluation | No server restart; explicit subprocesses only | `cairn skill list|show`; exact-digest apply; concurrent-edit-safe rollback | Planned: `course-09-skill` |
+| General meta-agent loop | Not shipped | Not applicable | Skill-file lifecycle only; no generic configuration loop or scheduler | `course-07-evaluation` |
 
 ## Harness and maintenance checks
 

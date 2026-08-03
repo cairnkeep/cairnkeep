@@ -904,6 +904,22 @@ See [storage](storage.md#evaluation-report-and-note-snapshot-storage) for local
 retention/removal and [privacy](privacy-and-data-flow.md#evaluation-adapter-and-report-flow)
 for the exact request, observation, environment, and persistence boundaries.
 
+### Validated skill improvement (opt-in)
+
+After hindsight-note distillation has recorded the same failure family in at
+least two sessions, `cairn skill harvest` creates a local candidate under
+`.agentfs/skills/`. Review its exact evidence with `show`, approve it explicitly,
+then use a private proposal adapter to generate a bounded edit list for one
+existing skill file. Proposal and evaluation do not modify the live target.
+
+Evaluation reuses the default-off evaluation coordinator and therefore requires
+`CAIRN_EVAL=1`, `--yes`, an explicit harness adapter, and two disjoint committed
+task sets. Only a complete, no-regression improvement in exploration opens the
+confirmation set. Only the same result on confirmation makes the proposal
+eligible for exact-digest application. See
+[Validated skill improvement](skill-improvement.md) for the command sequence,
+adapter contract, task constraints, and rollback procedure.
+
 ### Structured session trajectories (opt-in)
 
 Trajectory capture is disabled by default. To enable it for a launched Claude

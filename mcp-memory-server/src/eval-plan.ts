@@ -77,6 +77,7 @@ export type EvalPlan = {
     repetitions: number;
     seed: string;
     arms: EvalArmPlan[];
+    experiment_kind: "two_pass" | "ablation" | "skill_candidate";
     passes: ["run1", "run2"];
     concurrency: 1;
     invocation_count: number;
@@ -100,6 +101,7 @@ export type ValidateEvalInputsOptions = {
     repetitions?: number;
     seed?: string;
     arms?: EvalArmPlan[];
+    experimentKind?: "two_pass" | "ablation" | "skill_candidate";
     cwd?: string;
 };
 
@@ -273,7 +275,10 @@ function validateBundledBinding(taskSetPath: string, taskSet: EvalTaskSet, taskS
     };
 }
 
-function validateArms(arms: EvalArmPlan[]): EvalArmPlan[] {
+function validateArms(
+    arms: EvalArmPlan[],
+    experimentKind: "two_pass" | "ablation" | "skill_candidate",
+): EvalArmPlan[] {
     if (arms.length < 1 || arms.length > 2) throw new Error("Evaluation requires one or two arms.");
     const seen = new Set<string>();
     return arms.map((arm) => {
@@ -284,7 +289,12 @@ function validateArms(arms: EvalArmPlan[]): EvalArmPlan[] {
             throw new Error("Evaluation arm disables an unknown capability.");
         }
         if (arm.id === "baseline" && arm.disabled_capability !== null) throw new Error("Baseline cannot disable a capability.");
-        if (arm.id === "treatment" && arm.disabled_capability === null) throw new Error("Treatment must disable exactly one capability.");
+        if (arm.id === "treatment" && experimentKind === "ablation" && arm.disabled_capability === null) {
+            throw new Error("Ablation treatment must disable exactly one capability.");
+        }
+        if (experimentKind === "skill_candidate" && arm.disabled_capability !== null) {
+            throw new Error("Skill-candidate arms cannot disable capabilities.");
+        }
         return { id: arm.id, disabled_capability: arm.disabled_capability };
     });
 }
@@ -305,7 +315,10 @@ export function buildEvalSchedule(options: {
     seed: string;
 }): EvalSchedule {
     const taskSet = evalTaskSetSchema.parse(options.taskSet);
-    const arms = validateArms(options.arms);
+    const inferredKind = options.arms.length === 1 ? "two_pass" : options.arms.some(({ disabled_capability }) => disabled_capability !== null)
+        ? "ablation"
+        : "skill_candidate";
+    const arms = validateArms(options.arms, inferredKind);
     if (!Number.isSafeInteger(options.repetitions) || options.repetitions < 1 || options.repetitions > MAX_REPETITIONS) {
         throw new Error(`Evaluation repetitions must be an integer from 1 to ${MAX_REPETITIONS}.`);
     }
@@ -373,7 +386,14 @@ export function validateEvalInputs(options: ValidateEvalInputsOptions): EvalPlan
 
     const repetitions = options.repetitions ?? 1;
     const seed = options.seed ?? "cairn-eval-v1";
-    const arms = validateArms(options.arms ?? [{ id: "baseline", disabled_capability: null }]);
+    const suppliedArms = options.arms ?? [{ id: "baseline" as const, disabled_capability: null }];
+    const experimentKind = options.experimentKind
+        ?? (suppliedArms.length === 1 ? "two_pass" : "ablation");
+    if (experimentKind === "two_pass" && suppliedArms.length !== 1) throw new Error("Two-pass evaluation requires one arm.");
+    if ((experimentKind === "ablation" || experimentKind === "skill_candidate") && suppliedArms.length !== 2) {
+        throw new Error(`${experimentKind} evaluation requires two arms.`);
+    }
+    const arms = validateArms(suppliedArms, experimentKind);
     const passes = ["run1", "run2"] as const;
     const schedule = buildEvalSchedule({ taskSet, arms, repetitions, passes, seed });
     const adapterBase = dirname(adapterInput.path);
@@ -395,6 +415,7 @@ export function validateEvalInputs(options: ValidateEvalInputsOptions): EvalPlan
         repetitions,
         seed,
         arms,
+        experiment_kind: experimentKind,
         passes,
         concurrency: 1,
         task_set_commit: taskSetCommit,
@@ -411,6 +432,7 @@ export function validateEvalInputs(options: ValidateEvalInputsOptions): EvalPlan
         repetitions,
         seed,
         arms,
+        experiment_kind: experimentKind,
         passes: ["run1", "run2"],
         concurrency: 1,
         invocation_count: schedule.invocation_count,

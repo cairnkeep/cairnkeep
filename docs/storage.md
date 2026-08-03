@@ -213,6 +213,31 @@ the process stores databases below `/data`, normally backed by the
 removing the volume removes the databases. See [Containers](containers.md) for
 the exact paths and backup boundary.
 
+## Validated skill storage
+
+The skill-improvement lifecycle stores private JSON artifacts below
+`<project>/.agentfs/skills/`: `candidates/`, `proposals/`, `evaluations/`, and
+`applications/`. Pre-application target backups live in `backups/`; isolated
+proposal-adapter homes are created temporarily in `adapter-tmp/` and removed
+after every invocation. Directories are mode `0700`, JSON and backup files are
+mode `0600`, artifacts are bounded to 2 MiB, and candidate target content is
+bounded to 256 KiB.
+
+Candidate and proposal artifacts can contain hindsight excerpts and full skill
+content, so the entire directory is sensitive. Evaluation reports and
+experiment-owned snapshots remain in `.agentfs/eval/experiments/` under the
+existing evaluation retention rules. No skill artifact is written to global or
+remote memory, and remote MCP configuration does not redirect this project
+state.
+
+`apply` writes the original target to a unique private backup before atomically
+replacing the target. If replacement, digest verification, or ledger storage
+fails, Cairnkeep restores the original and removes the incomplete backup.
+`rollback` restores only when both the current target and backup match the
+application ledger, preventing an unrelated later edit from being overwritten.
+Default uninstall retains `.agentfs/`; explicit purge uses the existing
+backup-first project boundary.
+
 ## Remote HTTP mode
 
 Remote storage is explicit. An operator starts Cairnkeep in HTTP mode on a

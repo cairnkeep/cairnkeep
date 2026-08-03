@@ -84,6 +84,9 @@ storage paths, secrets, and private derived images, see
   `cairn artifact list|show|delete|prune` manages opt-in local artifacts;
   `cairn eval validate|run|ablate|report|prune|delete` coordinates explicit
   local two-pass and one-capability-at-a-time measurements;
+  `cairn skill harvest|list|show|review|propose|evaluate|apply|rollback`
+  turns recurring hindsight evidence into reviewed, measured, reversible
+  skill-file improvements;
   `cairn graph build|query|status|diff|explain|path` owns the local Graphify
   workflow from any project shell without installing Graphify-owned harness
   assets; Claude Code, OpenCode, Pi, and Kimi add thin `/graphify` wrappers;
@@ -391,6 +394,25 @@ descendant-process-tree termination is not guaranteed. See the
 [storage contract](docs/storage.md#evaluation-report-and-note-snapshot-storage),
 and [privacy flow](docs/privacy-and-data-flow.md#evaluation-adapter-and-report-flow).
 
+### Validated skill improvement (opt-in)
+
+`cairn skill` promotes repeated, resolved hindsight evidence through a guarded
+lifecycle: local harvest, explicit evidence review, bounded proposal generation,
+separate exploration and confirmation evaluations, exact-digest application,
+and backup-first rollback. Cairnkeep never rewrites a live skill during proposal
+or evaluation, never sends evidence to the proposal adapter before approval,
+and never applies a candidate automatically.
+
+Proposal generation uses an explicit strict adapter configuration with an
+environment allowlist. Evaluation remains disabled unless `CAIRN_EVAL=1`, uses
+the existing isolated worktree runner and independent verifier, and requires
+disjoint committed task sets bound to one immutable source revision. A
+candidate is eligible only when both stages meet the configured improvement
+floor with no regression or unknown pair. See the
+[validated skill guide](docs/skill-improvement.md),
+[storage contract](docs/storage.md#validated-skill-storage), and
+[privacy flow](docs/privacy-and-data-flow.md#validated-skill-improvement-flow).
+
 ### Typed memory nodes and structured import (opt-in)
 
 `CAIRN_TYPED_MEMORY_NODES=1` adds schema-v1 `node_type`, canonical `tags`,
@@ -460,6 +482,7 @@ exposes trajectory data. See the [operating guide](docs/operating.md#compaction-
 - **Memory storage and deployment** — [docs/storage.md](docs/storage.md)
 - **Podman and OCI containers** — [docs/containers.md](docs/containers.md)
 - **Privacy and data flow** — [docs/privacy-and-data-flow.md](docs/privacy-and-data-flow.md)
+- **Validated skill improvement** — [docs/skill-improvement.md](docs/skill-improvement.md)
 - **Git providers** — [docs/git-providers.md](docs/git-providers.md)
 - **Support** — [SUPPORT.md](SUPPORT.md)
 - **Contributing** — [CONTRIBUTING.md](CONTRIBUTING.md)

@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 
+import type { ZodType } from "zod";
+
 import {
     evalAdapterRequestSchema,
     evalAdapterResultSchema,
@@ -55,6 +57,16 @@ export type BoundedJsonAdapterOptions = SharedCommandOptions & {
 
 export type BoundedJsonAdapterResult = Omit<BoundedCommandResult, "stdout"> & {
     result: EvalAdapterResult;
+};
+
+export type BoundedJsonProcessOptions<Request, Result> = SharedCommandOptions & {
+    request: Request;
+    request_schema: ZodType<Request>;
+    result_schema: ZodType<Result>;
+};
+
+export type BoundedJsonProcessResult<Result> = Omit<BoundedCommandResult, "stdout"> & {
+    result: Result;
 };
 
 export class EvalProcessError extends Error {
@@ -298,6 +310,40 @@ function hasTrailingJsonDocument(value: string): boolean {
         }
     }
     return false;
+}
+
+export async function runBoundedJsonProcess<Request, Result>(
+    options: BoundedJsonProcessOptions<Request, Result>,
+): Promise<BoundedJsonProcessResult<Result>> {
+    const request = options.request_schema.safeParse(options.request);
+    if (!request.success) throw new EvalProcessError("invalid_request");
+    const commandResult = await runCommandInternal({
+        command: options.command,
+        cwd: options.cwd,
+        env: options.env,
+        timeout_ms: options.timeout_ms,
+        max_stdout_bytes: options.max_stdout_bytes,
+        kill_grace_ms: options.kill_grace_ms,
+        signal: options.signal,
+        stdout_mode: "raw",
+        stdin_document: Buffer.from(JSON.stringify(request.data), "utf8"),
+    });
+    if (commandResult.exit_code !== 0 || commandResult.signal !== null || commandResult.cleanup !== "closed") {
+        throw new EvalProcessError("adapter_error", commandResult);
+    }
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(commandResult.stdout ?? "");
+    } catch {
+        throw new EvalProcessError(
+            hasTrailingJsonDocument(commandResult.stdout ?? "") ? "multiple_json" : "invalid_json",
+            commandResult,
+        );
+    }
+    const result = options.result_schema.safeParse(parsed);
+    if (!result.success) throw new EvalProcessError("invalid_result", commandResult);
+    const { stdout: _stdout, ...processResult } = commandResult;
+    return { ...processResult, result: result.data };
 }
 
 export async function runBoundedJsonAdapter(options: BoundedJsonAdapterOptions): Promise<BoundedJsonAdapterResult> {

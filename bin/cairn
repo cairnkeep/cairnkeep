@@ -59,6 +59,9 @@ Usage:
   cairn eval <validate|run|ablate|report|prune|delete>
                            Validate or run default-off local evaluations, inspect
                            reports, and manage retained experiment results.
+  cairn skill <harvest|list|show|review|propose|evaluate|apply|rollback>
+                           Turn recurring hindsight evidence into reviewed,
+                           evaluated, reversible skill-file improvements.
   cairn graph <build|query|status|diff|explain|path>
                            Build the local code graph, inspect freshness and
                            changes, or query exact symbols and paths.
@@ -115,6 +118,9 @@ case "$cmd" in
     ;;
   eval)
     exec node "$CAIRN_ROOT/mcp-memory-server/dist/eval-cli.js" "$@"
+    ;;
+  skill)
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/skill-cli.js" "$@"
     ;;
   graph)
     exec node "$CAIRN_ROOT/mcp-memory-server/dist/graph-cli.js" "$@"

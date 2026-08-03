@@ -1,7 +1,7 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.7.0
-**Last reviewed:** 2026-08-02
+**Baseline:** Cairnkeep 2.8.0
+**Last reviewed:** 2026-08-03
 
 This map prevents the course from drifting behind the product. It assigns each
 user-facing surface to a lesson and records whether the lesson is complete or
@@ -31,6 +31,7 @@ been rehearsed.
 | Deterministic two-pass evaluation and one-capability ablation | L16 | L16 | Brief; default off |
 | Shell completion | L02 | L02 | Ready; optional convenience |
 | Bounded meta-agent configuration loop | L17 | None | Design-only; not shipped |
+| Reviewed, evaluated, reversible skill-file improvement | L19 | L19 | Brief; explicit and default off |
 
 ## Release Review
 
@@ -60,6 +61,7 @@ repository remains the canonical source for explanations and scripts.
 | `course-06-governance` | L15 | Capability precedence and restart boundaries |
 | `course-07-evaluation` | L16-L17 | Package-owned offline fixture and design boundary |
 | `course-08-graph` | L18 | Optional local structural graph workflow |
+| Planned: `course-09-skill` | L19 | Validated skill improvement after a disposable lab exists |
 
 ## Command Ownership
 
@@ -79,6 +81,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn capabilities` | L15 |
 | `cairn notes` | L13 |
 | `cairn eval` | L16 |
+| `cairn skill` | L19 |
 | `cairn graph` | L18 |
 | `cairn memory` | L07-L08 |
 | `cairn audit-timer` | L05 and L13 |
