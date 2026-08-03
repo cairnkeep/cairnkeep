@@ -52,7 +52,7 @@ grep -qF '`cairn sync-kimi --apply`' "$graph_lesson"
 grep -qF '`cairn sync-pi --apply`' "$graph_lesson"
 grep -qF '`graphify-out/`' "$graph_lesson"
 
-[[ $ready -eq 4 && $brief -eq 16 ]] || {
+[[ $ready -eq 5 && $brief -eq 15 ]] || {
   echo "unexpected learning status totals: ready=$ready brief=$brief" >&2
   exit 1
 }

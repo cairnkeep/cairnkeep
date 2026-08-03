@@ -31,7 +31,7 @@ been rehearsed.
 | Deterministic two-pass evaluation and one-capability ablation | L16 | L16 | Brief; default off |
 | Shell completion | L02 | L02 | Ready; optional convenience |
 | Bounded meta-agent configuration loop | L17 | None | Design-only; not shipped |
-| Reviewed, evaluated, reversible skill-file improvement | L19 | L19 | Brief; explicit and default off |
+| Reviewed, evaluated, reversible skill-file improvement | L19 | L19 | Ready; explicit and default off |
 
 ## Release Review
 
@@ -61,7 +61,7 @@ repository remains the canonical source for explanations and scripts.
 | `course-06-governance` | L15 | Capability precedence and restart boundaries |
 | `course-07-evaluation` | L16-L17 | Package-owned offline fixture and design boundary |
 | `course-08-graph` | L18 | Optional local structural graph workflow |
-| Planned: `course-09-skill` | L19 | Validated skill improvement after a disposable lab exists |
+| `course-09-skill` | L19 | Validated skill improvement in a disposable project |
 
 ## Command Ownership
 
