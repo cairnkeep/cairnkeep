@@ -14,6 +14,7 @@ done
 capability_ids='memory.write memory.search notes.distill wiki graph security.audit route.check context.explore'
 eval_commands='validate run ablate report prune delete'
 eval_flags='--task-set --adapter --output --repetitions --seed --json --yes --disable --experiment --older-than-days --dry-run'
+skill_commands='harvest list show review propose evaluate apply rollback'
 for shell in bash zsh fish; do
   grep -q 'capabilities' "$tmp/$shell"
   grep -q 'list.*status.*enable.*disable.*reset.*logging\|list status enable disable reset logging' "$tmp/$shell"
@@ -37,6 +38,11 @@ for shell in bash zsh fish; do
     echo "completion exposed a private eval lifecycle operation for $shell" >&2
     exit 1
   fi
+  grep -q 'skill' "$tmp/$shell"
+  grep -q 'harvest.*list.*show.*review.*propose.*evaluate.*apply.*rollback\|harvest list show review propose evaluate apply rollback' "$tmp/$shell"
+  for skill_flag in --candidate --exploration-task-set --confirmation-task-set --evaluation --application --confirm; do
+    grep -q -- "$skill_flag\|-l ${skill_flag#--}" "$tmp/$shell"
+  done
 done
 
 "$ROOT/bin/cairn" help >"$tmp/root-help"
@@ -52,6 +58,11 @@ if grep -q 'doctor-diagnosis' "$tmp/eval-help"; then
   echo 'eval help exposed a private lifecycle operation' >&2
   exit 1
 fi
+grep -qF 'cairn skill <harvest|list|show|review|propose|evaluate|apply|rollback>' "$tmp/root-help"
+node "$ROOT/mcp-memory-server/dist/skill-cli.js" --help >"$tmp/skill-help"
+for command in $skill_commands; do
+  grep -q "cairn skill $command" "$tmp/skill-help"
+done
 
 node - "$ROOT/mcp-memory-server/src/capability-registry.ts" "$tmp/bash" "$tmp/zsh" "$tmp/fish" <<'NODE'
 const fs = require("fs");

@@ -19,6 +19,7 @@ server_dev_dependencies_before=$(manifest_field "$ROOT/mcp-memory-server/package
 root_lock_before=$(sha256sum "$ROOT/package-lock.json" | cut -d' ' -f1)
 server_lock_before=$(sha256sum "$ROOT/mcp-memory-server/package-lock.json" | cut -d' ' -f1)
 node "$ROOT/mcp-memory-server/dist/eval-cli.js" --help >"$tmp/source-eval-help"
+node "$ROOT/mcp-memory-server/dist/skill-cli.js" --help >"$tmp/source-skill-help"
 env -u CAIRN_EVAL "$ROOT/bin/cairn" eval validate \
   --task-set "$tmp/source-unread-task-set" \
   --adapter "$tmp/source-unread-adapter" \
@@ -52,6 +53,11 @@ env -u CAIRN_NOTE_DISTILLATION cairn notes --help >/dev/null \
   || fail "installed package omitted the notes command"
 
 installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
+cairn skill --help >"$tmp/installed-skill-help"
+cmp -s "$tmp/source-skill-help" "$tmp/installed-skill-help" || \
+  fail "source and installed skill help differ"
+cairn skill list --project "$tmp/project" --json >"$tmp/installed-skill-list.json" || \
+  fail "installed package skill list failed"
 cairn eval --help >"$tmp/installed-eval-help"
 cmp -s "$tmp/source-eval-help" "$tmp/installed-eval-help" || \
   fail "source and installed eval help differ"
@@ -76,6 +82,18 @@ for required in \
   claude/capability-contract/hooks/capability-command-start.sh \
   claude/capability-contract/hooks/capability-command-finish.sh \
   opencode/capability-contract/plugins/capability-command.ts
+do
+  [[ -f "$installed_root/$required" ]] || fail "npm tarball omitted $required"
+done
+
+for required in \
+  schemas/skill-adapter.schema.json \
+  schemas/skill-proposal-protocol.schema.json \
+  mcp-memory-server/dist/skill-schema.js \
+  mcp-memory-server/dist/skill-store.js \
+  mcp-memory-server/dist/skill-evaluation.js \
+  mcp-memory-server/dist/skill-cli.js \
+  docs/skill-improvement.md
 do
   [[ -f "$installed_root/$required" ]] || fail "npm tarball omitted $required"
 done

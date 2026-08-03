@@ -6,23 +6,25 @@
 
 ## Outcome
 
-Separate Cairnkeep's shipped evidence and evaluation substrates from the
-design-only bounded meta-agent proposal, and identify which authority always
-remains with the operator and external harness.
+Separate Cairnkeep's shipped evidence, evaluation, and narrow skill-file
+lifecycle from the design-only general meta-agent proposal, and identify which
+authority always remains with the operator and external harness.
 
 ## Planned lesson
 
 - Current facts: typed capability state, local evidence, immutable evaluation
   inputs, isolated schedules, independent verification, and canonical reports.
-- Design only: natural-language form compilation, candidate generation,
-  candidate injection, comparison, proposal bundles, patch application, and
-  rollback ledgers.
+- Shipped in 2.8.0: reviewed hindsight candidates, bounded edits to one existing
+  `SKILL.md`, isolated baseline/candidate comparison, held-out confirmation,
+  exact-digest application, and rollback ledgers.
+- Design only: general natural-language configuration compilation, arbitrary
+  target types, autonomous scheduling, and an owner inference loop.
 - Cairnkeep coordinates evidence; it does not own a harness inference loop.
 - Natural language is untrusted proposal data, not executable authorization.
 - Separate human gates for form, evaluation, application, confirmation, and
   rollback.
-- Why no CLI command, schema, runtime default, or quality claim ships for the
-  proposed meta-agent loop.
+- Why the shipped `cairn skill` command does not authorize or imply the broader
+  proposed meta-agent loop or a product quality claim.
 
 ## Hands-on lab
 
@@ -36,6 +38,8 @@ be required before any future implementation could act.
 
 - No learner attempts to invoke a meta-agent command or treats an illustrative
   block as a supported schema.
+- The learner can distinguish supported `cairn skill` operations from the
+  broader design-only proposal.
 - Every inference execution remains owned by an operator-configured adapter.
 - A capability digest is not treated as approval, identity proof, or evidence
   of improvement.

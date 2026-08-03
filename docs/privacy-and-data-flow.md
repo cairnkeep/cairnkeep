@@ -175,6 +175,47 @@ the full committed population and note-eligible subset with paired counts and
 seeded uncertainty; they do not convert framework output into a causal,
 significance, quality, or efficiency claim.
 
+## Validated skill improvement flow
+
+Harvest and review are local-only operations over project hindsight notes.
+Before approval, no proposal subprocess is started and no evidence crosses a
+process boundary. After explicit approval, the configured proposal adapter
+receives exactly one bounded JSON request containing the approved candidate,
+candidate digest, selected target path, current target content and digest, and
+edit budget.
+
+The proposal adapter receives an isolated private HOME and TMPDIR, a minimal
+PATH and locale, and only environment variables named in its strict
+`environment_allowlist`. It does not inherit the rest of the parent
+environment. HOME, PATH, temporary and XDG roots, and Node runtime injection
+variables are isolation-controlled and cannot be allowlisted. Its stdout must
+be one strict bounded response containing status
+and bounded edits; arbitrary stderr is live operator diagnostics and is not
+stored. Cairnkeep records the adapter executable digest and rejects a change
+during the invocation. The adapter may perform network access according to the
+executable and host policy, but Cairnkeep provides no endpoint, credential, or
+network default. Operators must treat approval as consent to send those exact
+evidence and target fields to that adapter.
+
+The reduced environment is not an operating-system sandbox. The explicit
+adapter executable retains the invoking user's filesystem and network
+authority, so operators must trust it or wrap it in a separately enforced host
+sandbox.
+
+Evaluation sends neither candidate evidence nor proposal rationales to the
+harness adapter. It overlays baseline or candidate skill bytes into separate
+fresh worktrees and otherwise uses the existing evaluation request contract.
+Exploration and confirmation use disjoint task IDs and definitions. Confirmation
+is not opened unless exploration passes, and its results cannot be supplied
+back to proposal generation by this workflow. Both stages bind one evaluation
+adapter executable digest and reject a change during either stage.
+
+Apply and rollback invoke no model and make no network request. They operate on
+one contained regular target and private local artifacts, require exact
+digests, reject symlinks, and fail closed on concurrent target changes. See
+[storage](storage.md#validated-skill-storage) for retained bytes and
+[Validated skill improvement](skill-improvement.md) for the operator sequence.
+
 ## Compaction and artifact flows
 
 Both `CAIRN_COMPACTION_CAPTURE` and `CAIRN_ARTIFACT_STORE` are default-off and

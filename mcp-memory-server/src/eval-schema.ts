@@ -15,7 +15,7 @@ export const EVAL_OBSERVATION_TERMINAL_STATES = [
     "invalid_result",
 ] as const;
 export const EVAL_PASS_STATES = ["passed", "failed", "unknown"] as const;
-export const EVAL_EXPERIMENT_KINDS = ["two_pass", "ablation"] as const;
+export const EVAL_EXPERIMENT_KINDS = ["two_pass", "ablation", "skill_candidate"] as const;
 
 const MAX_TEXT_BYTES = 1024 * 1024;
 const MAX_COMMAND_ARGS = 256;

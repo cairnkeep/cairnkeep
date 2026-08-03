@@ -5,6 +5,26 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-08-03
+
+### Added
+
+- Add `cairn skill harvest|list|show|review|propose|evaluate|apply|rollback`
+  for turning recurring hindsight evidence into explicitly reviewed, bounded,
+  independently evaluated, reversible skill-file improvements.
+- Add strict proposal-adapter schemas and environment allowlisting, immutable
+  baseline/candidate worktree overlays, disjoint exploration and confirmation
+  gates, exact-digest application, private backups, and concurrent-edit-safe
+  rollback.
+- Add installed-style CLI and shell-completion coverage, an end-to-end Git
+  worktree evaluation fixture, and documentation for consent, storage,
+  inference ownership, evaluation limits, and recovery.
+
+The lifecycle is local and operator-controlled. It performs no proposal call
+before evidence approval, evaluation remains disabled unless `CAIRN_EVAL=1`,
+and no candidate is applied automatically. Existing MCP tools, memory storage,
+remote HTTP clients, and project launchers are unchanged.
+
 ## [2.7.0] - 2026-08-02
 
 ### Added
@@ -232,7 +252,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.7.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.8.0...HEAD
+[2.8.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.4.0...v2.5.0

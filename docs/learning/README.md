@@ -49,6 +49,7 @@ expanded only after their labs are executable.
 | L16 | [Evaluation and ablation](lessons/L16-evaluation.md) | Brief | 50 min |
 | L17 | [The agent boundary](lessons/L17-agent-boundary.md) | Brief | 25 min |
 | L18 | [Local code graph](lessons/L18-local-code-graph.md) | Brief | 35 min |
+| L19 | [Validated skill improvement](lessons/L19-validated-skill-improvement.md) | Brief | 50 min |
 
 The [curriculum coverage map](CURRICULUM-MAP.md) records where every public
 feature is introduced, practised, and operated. It also marks design-only work

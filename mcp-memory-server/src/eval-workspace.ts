@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { constants, existsSync } from "node:fs";
 import {
     chmod,
@@ -70,6 +71,12 @@ export type EvalWorkspaceCleanupResult = {
     status: "closed" | "failed";
     worktree_registration: "removed" | "not_applicable" | "failed";
     parent: "removed" | "failed";
+};
+
+export type EvalWorkspaceOverlay = {
+    relative_path: string;
+    content: string;
+    digest: string;
 };
 
 const GIT_TIMEOUT_MS = 120_000;
@@ -224,7 +231,7 @@ export async function createEvalWorkspace(options: CreateEvalWorkspaceOptions): 
         if (options.plan.source.kind === "git") {
             const added = await gitCommand(
                 options.plan.source.repository_root,
-                ["worktree", "add", "--detach", workspace.source_path, options.plan.source.revision],
+                ["worktree", "add", "--quiet", "--detach", workspace.source_path, options.plan.source.revision],
                 "exit-only",
             );
             requireSuccessfulCommand(added, "workspace_add_failed");
@@ -262,6 +269,49 @@ export async function runTaskPreparation(
         kill_grace_ms: options.kill_grace_ms,
         signal: options.signal,
     });
+}
+
+export async function applyEvalWorkspaceOverlay(
+    workspace: EvalWorkspace,
+    overlay: EvalWorkspaceOverlay,
+): Promise<void> {
+    const segments = overlay.relative_path.split("/");
+    if (overlay.relative_path.startsWith("/") || overlay.relative_path.endsWith("/")
+        || overlay.relative_path.includes("\\") || segments.some((segment) => segment === "" || segment === "." || segment === "..")
+        || /[\u0000-\u001f\u007f]/.test(overlay.relative_path)) {
+        throw new Error("workspace_overlay_path_invalid");
+    }
+    const target = resolve(workspace.source_path, overlay.relative_path);
+    if (!isContained(workspace.source_path, target) || target === workspace.source_path) {
+        throw new Error("workspace_overlay_path_escape");
+    }
+    let cursor = workspace.source_path;
+    for (const segment of segments.slice(0, -1)) {
+        cursor = join(cursor, segment);
+        try {
+            const info = await lstat(cursor);
+            if (info.isSymbolicLink() || !info.isDirectory()) throw new Error("workspace_overlay_parent_unsafe");
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+            await mkdir(cursor, { mode: 0o700 });
+        }
+    }
+    try {
+        const info = await lstat(target);
+        if (info.isSymbolicLink() || !info.isFile()) throw new Error("workspace_overlay_target_unsafe");
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    const parent = await realpath(dirname(target));
+    const source = await realpath(workspace.source_path);
+    if (!isContained(source, parent)) throw new Error("workspace_overlay_parent_escape");
+    const bytes = Buffer.from(overlay.content, "utf8");
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    if (digest !== overlay.digest) throw new Error("workspace_overlay_digest_mismatch");
+    await writeFile(target, bytes, { mode: 0o600 });
+    await chmod(target, 0o600);
+    const storedDigest = createHash("sha256").update(await readFile(target)).digest("hex");
+    if (storedDigest !== overlay.digest) throw new Error("workspace_overlay_write_mismatch");
 }
 
 function verifierReason(code: EvalProcessErrorCode): string {

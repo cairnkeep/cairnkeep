@@ -1,17 +1,19 @@
 # Meta-agent design contract
 
-> **Design-only status.** Phase 20 ships this Markdown file only. It ships no
-> executable schema, compiler, generator, controller, adapter change,
-> configuration surface, command-line interface, or runtime default. Phase 18
-> capability state and Phase 19 evaluation behavior described below are current
-> facts. Every meta-agent control, artifact, state, and action described as a
-> requirement is future work that requires separate approval.
+> **General-loop design status.** Cairnkeep 2.8.0 ships a narrower validated
+> lifecycle for one existing `SKILL.md`; see
+> [Validated skill improvement](../skill-improvement.md). It does not ship the
+> general natural-language configuration compiler, autonomous search loop,
+> arbitrary target policy, or capability optimizer specified here. Requirements
+> in this document remain future work except where a paragraph explicitly names
+> the 2.8.0 skill-file lifecycle as current behavior.
 
 ## Status and normative language
 
-This document specifies a future, bounded build-test-improve configuration
-loop. It does not accept input and is not an executable interface. In future
-requirements, **MUST**, **MUST NOT**, **REQUIRED**, and **SHALL** are normative;
+This document specifies a future, general bounded build-test-improve
+configuration loop. It is not the executable interface for `cairn skill`; the
+skill schemas and operating guide are authoritative for that narrower surface.
+In future requirements, **MUST**, **MUST NOT**, **REQUIRED**, and **SHALL** are normative;
 **SHOULD** and **MAY** describe constrained choices. Statements explicitly
 labelled current describe accepted Phase 18 or Phase 19 behavior rather than
 new behavior.
@@ -24,11 +26,12 @@ authority.
 ## Paper concept and Cairnkeep boundary
 
 The paper's build-test-improve concept motivates a future bounded configuration
-loop, but does not redefine Cairnkeep's ownership. Cairnkeep may eventually
-compile an operator objective into a reviewable form, propose bounded candidate
-artifacts, coordinate approved measurement, and prepare a reversible proposal.
-It must not own a harness inference loop. Existing repository contracts remain
-the authority over external design inspiration.
+loop, but does not redefine Cairnkeep's ownership. The shipped skill lifecycle
+can propose one bounded `SKILL.md` candidate through an operator-configured
+adapter. Cairnkeep may eventually compile a broader operator objective into a
+reviewable form and coordinate general candidates. It must not own a harness
+inference loop. Existing repository contracts remain the authority over
+external design inspiration.
 
 Natural-language objectives are untrusted proposal data. They never authorize
 repository reads, writes, commands, network use, evaluation, or application.
@@ -159,9 +162,12 @@ untrusted objective
   -> accept | inconclusive | no_eligible_candidate | rollback
 ```
 
-There is no arrow from a Cairnkeep generator, selector, applier, or rollback
-operation to inference. Phase 19 is the sole Cairnkeep execution and measurement
-seam; the operator-configured external adapter remains the sole inference owner.
+For the future general loop, there is no direct inference edge from a
+Cairnkeep-owned generator, selector, applier, or rollback operation. The shipped
+skill lifecycle has one explicit exception: its operator-configured proposal
+adapter may perform candidate-generation inference through a strict bounded
+process contract. Evaluation still uses the Phase 19 coordinator and external
+adapter; Cairnkeep owns neither inference loop.
 
 | Actor or component | May do | Must not do | Required authority |
 |---|---|---|---|
@@ -189,12 +195,12 @@ diagnostics or model output.
 | Concern | Current accepted Phase 18/19 behavior | Missing future contract; not shipped by Phase 20 |
 |---|---|---|
 | Capability identity | `expected_capability_digest` and `observed_capability_digest` bind the complete Phase 18 effective state. | Candidate-overlay identity and expected/observed candidate digests for arbitrary prompt/config candidates. |
-| Adapter identity | `adapter_config_digest` binds the operator adapter configuration. | It is not a generated-candidate digest and grants no selection or apply authority. |
-| Request surface | Phase 19 sends experiment/task identity, arm, repetition, pass, isolated paths, fixed input, limits, seed, expected capability digest, and output path. | Phase 19 has no arbitrary candidate overlay reference, injection contract, or expected candidate digest. |
+| Adapter identity | `adapter_config_digest` binds the operator adapter configuration. The 2.8.0 skill lifecycle additionally binds proposal and evaluation adapter executable digests. | These identities grant no general selection or apply authority. |
+| Request surface | Phase 19 sends experiment/task identity, arm, repetition, pass, isolated paths, fixed input, limits, seed, expected capability digest, and output path. The skill lifecycle overlays exact baseline/candidate `SKILL.md` bytes before invocation. | Phase 19 has no public arbitrary configuration-overlay protocol or adapter-selected target. |
 | Result surface | Strict results may report bounded metrics, identities, references, and `observed_capability_digest`. | There is no observed candidate-overlay digest, and no candidate pass/approval field. |
 | Ablation | `runCapabilityAblation()` compares an all-enabled baseline with exactly one disabled capability and requires four invocations per task/repetition: two passes in each of two arms. | It is not generic prompt search, arbitrary configuration injection, or a multi-capability candidate arm. |
-| Scheduling | Deterministic, serial, immutable, paired schedules and fresh isolated workspaces are current. | Adaptive generation/selection and separate exploration/held-out campaign control are absent. |
-| Report | Canonical reports preserve observations, aggregates, condition levels, eligible pairs, missingness, warnings, intervals, evidence scope, and provenance. | Reports do not choose winners, authorize application, or provide a proposal/rollback ledger. |
+| Scheduling | Deterministic, serial, immutable, paired schedules and fresh isolated workspaces are current. The skill lifecycle coordinates separate disjoint exploration and confirmation sets. | Adaptive general candidate generation and search remain absent. |
+| Report | Canonical reports preserve observations, aggregates, condition levels, eligible pairs, missingness, warnings, intervals, evidence scope, and provenance. A separate skill evaluation artifact applies the narrow no-regression gate. | Evaluation reports themselves do not authorize application or general configuration selection. |
 
 Exploration and held-out confirmation task sets MUST be separate, committed,
 immutable, non-overlapping, and digest-bound. Exploration results may inform the
@@ -357,14 +363,14 @@ not backlog rows.
 Each row is future work requiring separate approval. The list is exactly nine
 items; Phase 20 delivers none of them.
 
-| # | Exact absent capability | Accepted substrate it may reuse | Delivery status |
+| # | General-loop capability | Accepted substrate it may reuse | Delivery status |
 |---|---|---|---|
 | 1 | Natural-language-to-form compiler and validator | Strict versioning, canonical digests, and path validation patterns | Future work requiring separate approval; not delivered by Phase 20 |
-| 2 | Bounded candidate generator | Phase 18 typed capability identities and retained evidence | Future work requiring separate approval; not delivered by Phase 20 |
-| 3 | Candidate-config injection contract for external adapters | Phase 19 adapter seam and Phase 18 capability digests; Phase 19 currently has no arbitrary overlay identity or observed candidate digest and supports only exactly-one-capability-off ablation | Future work requiring separate approval; not delivered by Phase 20 |
-| 4 | Scoped proposal/artifact schema | Existing strict versioned local artifacts and canonical reports | Future work requiring separate approval; not delivered by Phase 20 |
-| 5 | Backup-first patch applier and rollback ledger | Existing backup-first uninstall/revert and atomic single-file write precedents | Future work requiring separate approval; not delivered by Phase 20 |
-| 6 | Exploration and held-out committed task sets | Current committed task-set schema, exact revisions, and verifier | Future work requiring separate approval; not delivered by Phase 20 |
+| 2 | Bounded candidate generator | Phase 18 typed capability identities and retained evidence | Narrow skill proposer shipped; general objective compiler and candidate search remain future work |
+| 3 | Candidate-config injection contract for external adapters | Phase 19 adapter seam and Phase 18 capability digests | Exact coordinator-owned `SKILL.md` overlays shipped; arbitrary configuration overlays remain future work |
+| 4 | Scoped proposal/artifact schema | Existing strict versioned local artifacts and canonical reports | Narrow candidate/proposal/evaluation/application artifacts shipped; general proposal bundles remain future work |
+| 5 | Backup-first patch applier and rollback ledger | Existing backup-first uninstall/revert and atomic single-file write precedents | One-file exact-digest skill apply/rollback shipped; arbitrary patches remain future work |
+| 6 | Exploration and held-out committed task sets | Current committed task-set schema, exact revisions, and verifier | Shipped for the skill lifecycle; general campaigns remain future work |
 | 7 | Selection policy accounting for uncertainty and repeated comparisons | Phase 19 condition levels, paired estimates, missingness, warnings, and intervals | Future work requiring separate approval; not delivered by Phase 20 |
 | 8 | Sufficient live baseline evidence | Validator-checked evidence scope and exact-source runtime provenance; existing offline evidence is framework-only | Future work requiring separate approval; not delivered by Phase 20 |
 | 9 | Dedicated privacy/security threat review | Current local privacy, bounded storage, secret exclusion, and public hygiene guards | Future work requiring separate approval; not delivered by Phase 20 |
@@ -377,12 +383,10 @@ items; Phase 20 delivers none of them.
 - Architect-style in-loop compression is outside this design and Phase 20.
 - Trace UI is outside this design and Phase 20.
 - Eval UI is outside this design and Phase 20.
-- Phase 20 implements no compiler, generator, selection controller, proposal
-  schema, patch applier, rollback ledger, candidate adapter-protocol change,
-  configuration schema, CLI surface, runtime default, or modification of Phase
-  18 or Phase 19 contracts.
-- Phase 20 adds no symbol, command, flag, package, dependency, test source,
-  executable interface, release, publication, or automatic product claim.
+- Cairnkeep 2.8.0 implements only the reviewed `SKILL.md` lifecycle documented
+  separately. It adds no general objective compiler, autonomous scheduler,
+  capability optimizer, arbitrary patch surface, UI, or automatic product
+  claim.
 
 All excluded implementation work requires a new plan, threat review, approval,
 tests, and evidence. Naming a future contract here does not reserve a public
@@ -394,12 +398,12 @@ interface or represent it as delivered.
 |---|---|---|
 | META-01 | Natural-language specification → strict form | Untrusted prose can become only a complete, versioned, fail-closed future form. |
 | META-02 | Ownership; evaluation; proposal; state machine | Candidates are bounded, measured only through Phase 19/adapters, and separately approved for application. |
-| META-03 | Prerequisites; explicit exclusions | Exactly nine prerequisites remain future work and prohibited ownership/UI/implementation is explicit. |
+| META-03 | Prerequisites; explicit exclusions | Narrow skill delivery is separated from remaining general-loop prerequisites and prohibited ownership/UI behavior. |
 | D-01 | Natural-language specification → strict form | Natural language is untrusted proposal data, never executable control. |
 | D-02 | Required configuration fields | Scope, revisions, paths, resources, safety, capabilities, tasks, evaluation, selection, mutation, and authority are required. |
 | D-03 | Admission is fail closed | Omissions, unknowns, unsafe paths, unresolved revisions, non-finite resources, and inferred defaults invalidate. |
 | D-04 | Admission; privacy invariants | Only value-free operator-owned references are allowed; secret/endpoint/environment values are forbidden. |
-| D-05 | Status and normative language | The artifact is design-only; examples are non-normative; no schema or CLI ships. |
+| D-05 | Status and normative language | The general-loop artifact is design-only; examples are non-normative; the separate narrow skill schema and CLI do not imply broader delivery. |
 | D-06 | Ownership and authority | Phase 19 is the sole execution/measurement seam and the external adapter owns inference. |
 | D-07 | Candidate evaluation | Source, tasks, verifier, adapter identity, schedule, limits, seeds, and digests are frozen and comparable. |
 | D-08 | Candidate evaluation | Canonical terminal/pass states, condition levels, missingness, uncertainty, and evidence scope remain authoritative. |

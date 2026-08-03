@@ -21,7 +21,7 @@ done
 
 ready=0
 brief=0
-for number in $(seq -w 0 18); do
+for number in $(seq -w 0 19); do
   matches=(docs/learning/lessons/L"$number"-*.md)
   [[ ${#matches[@]} -eq 1 && -f ${matches[0]} ]] || {
     echo "learning path must contain exactly one L$number lesson" >&2
@@ -52,7 +52,7 @@ grep -qF '`cairn sync-kimi --apply`' "$graph_lesson"
 grep -qF '`cairn sync-pi --apply`' "$graph_lesson"
 grep -qF '`graphify-out/`' "$graph_lesson"
 
-[[ $ready -eq 4 && $brief -eq 15 ]] || {
+[[ $ready -eq 4 && $brief -eq 16 ]] || {
   echo "unexpected learning status totals: ready=$ready brief=$brief" >&2
   exit 1
 }

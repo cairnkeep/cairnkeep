@@ -11,7 +11,7 @@ _cairn_complete() {
   COMPREPLY=()
   current=${COMP_WORDS[COMP_CWORD]}
   previous=${COMP_WORDS[COMP_CWORD-1]:-}
-  commands="bootstrap memory-server sync sync-pi sync-kimi doctor trajectory artifact capabilities notes eval graph memory audit-timer uninstall completion version help"
+  commands="bootstrap memory-server sync sync-pi sync-kimi doctor trajectory artifact capabilities notes eval skill graph memory audit-timer uninstall completion version help"
   if (( COMP_CWORD == 1 )); then
     COMPREPLY=( $(compgen -W "$commands" -- "$current") )
     return
@@ -63,6 +63,7 @@ _cairn_complete() {
         *) COMPREPLY=( $(compgen -W "validate run ablate report prune delete" -- "$current") ) ;;
       esac
       ;;
+    skill) COMPREPLY=( $(compgen -W "harvest list show review propose evaluate apply rollback --project --minimum-occurrences --kind --id --candidate --approve --target --adapter --edit-budget --proposal --exploration-task-set --confirmation-task-set --output --repetitions --seed --minimum-improvement --evaluation --application --confirm --yes --json" -- "$current") ) ;;
     graph) COMPREPLY=( $(compgen -W "build query status diff explain path --force" -- "$current") ) ;;
     memory) COMPREPLY=( $(compgen -W "path export import" -- "$current") ) ;;
     audit-timer) COMPREPLY=( $(compgen -W "--on-calendar --para-root --render-only" -- "$current") ) ;;
@@ -90,6 +91,7 @@ _cairn() {
     'capabilities:inspect and manage project capability state'
     'notes:distill and search local hindsight notes'
     'eval:run and inspect default-off local evaluations'
+    'skill:review and evaluate evidence-backed skill improvements'
     'graph:inspect a published Graphify graph'
     'memory:manage the durable memory store'
     'audit-timer:install a memory and wiki audit timer'
@@ -139,6 +141,19 @@ _cairn() {
         *) _values 'eval command' validate run ablate report prune delete ;;
       esac
       ;;
+    skill)
+      case $words[3] in
+        harvest) _arguments '--project[project root]:directory:_files -/' '--minimum-occurrences[minimum recurring failures]:count:' '--json[emit JSON]' ;;
+        list) _arguments '--project[project root]:directory:_files -/' '--kind[artifact kind]:kind:(candidate proposal evaluation application)' '--json[emit JSON]' ;;
+        show) _arguments '--project[project root]:directory:_files -/' '--kind[artifact kind]:kind:(candidate proposal evaluation application)' '--id[artifact ID]:artifact ID:' '--json[emit JSON]' ;;
+        review) _arguments '--project[project root]:directory:_files -/' '--candidate[candidate ID]:candidate ID:' '--approve[approve evidence]' '--json[emit JSON]' ;;
+        propose) _arguments '--project[project root]:directory:_files -/' '--candidate[candidate ID]:candidate ID:' '--target[existing SKILL.md]:file:_files' '--adapter[proposal adapter configuration]:file:_files' '--edit-budget[maximum edits]:count:' '--json[emit JSON]' ;;
+        evaluate) _arguments '--project[project root]:directory:_files -/' '--proposal[proposal ID]:proposal ID:' '--exploration-task-set[exploration task set]:file:_files' '--confirmation-task-set[confirmation task set]:file:_files' '--adapter[evaluation adapter configuration]:file:_files' '--output[report root]:directory:_files -/' '--repetitions[repetition count]:count:' '--seed[deterministic seed]:seed:' '--minimum-improvement[distinct improved tasks]:count:' '--yes[confirm execution]' '--json[emit JSON]' ;;
+        apply) _arguments '--project[project root]:directory:_files -/' '--proposal[proposal ID]:proposal ID:' '--evaluation[evaluation ID]:evaluation ID:' '--confirm[exact proposal digest]:digest:' '--json[emit JSON]' ;;
+        rollback) _arguments '--project[project root]:directory:_files -/' '--application[application ID]:application ID:' '--confirm[confirm rollback]' '--json[emit JSON]' ;;
+        *) _values 'skill command' harvest list show review propose evaluate apply rollback ;;
+      esac
+      ;;
     graph) _values 'graph command' build query status diff explain path '--force[allow a smaller graph after code deletion]' ;;
     memory) _values 'memory command' path export import ;;
     audit-timer) _arguments '--on-calendar[systemd calendar]:calendar:' '--para-root[PARA root]:directory:_files -/' '--render-only[render directory]:directory:_files -/' ;;
@@ -153,8 +168,8 @@ EOF
   fish)
     cat <<'EOF'
 complete -c cairn -f
-for command in bootstrap memory-server sync sync-pi sync-kimi doctor trajectory artifact capabilities notes eval graph memory audit-timer uninstall completion version help
-    complete -c cairn -n "not __fish_seen_subcommand_from bootstrap memory-server sync sync-pi sync-kimi doctor trajectory artifact capabilities notes eval graph memory audit-timer uninstall completion version help" -a $command
+for command in bootstrap memory-server sync sync-pi sync-kimi doctor trajectory artifact capabilities notes eval skill graph memory audit-timer uninstall completion version help
+    complete -c cairn -n "not __fish_seen_subcommand_from bootstrap memory-server sync sync-pi sync-kimi doctor trajectory artifact capabilities notes eval skill graph memory audit-timer uninstall completion version help" -a $command
 end
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l apply
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l live-root -r
@@ -191,6 +206,29 @@ complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcomma
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from prune" -l older-than-days -r
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from prune delete" -l dry-run
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from validate run ablate report prune delete" -l json
+complete -c cairn -n "__fish_seen_subcommand_from skill; and not __fish_seen_subcommand_from harvest list show review propose evaluate apply rollback" -a "harvest list show review propose evaluate apply rollback"
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from harvest list show review propose evaluate apply rollback" -l project -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from harvest list show review propose evaluate apply rollback" -l json
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from harvest" -l minimum-occurrences -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from list show" -l kind -r -a "candidate proposal evaluation application"
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from show" -l id -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from review propose" -l candidate -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from review" -l approve
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from propose" -l target -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from propose evaluate" -l adapter -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from propose" -l edit-budget -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from evaluate apply" -l proposal -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from evaluate" -l exploration-task-set -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from evaluate" -l confirmation-task-set -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from evaluate" -l output -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from evaluate" -l repetitions -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from evaluate" -l seed -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from evaluate" -l minimum-improvement -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from evaluate" -l yes
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from apply" -l evaluation -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from apply" -l confirm -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from rollback" -l application -r
+complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from rollback" -l confirm
 complete -c cairn -n "__fish_seen_subcommand_from graph" -a "build query status diff explain path"
 complete -c cairn -n "__fish_seen_subcommand_from graph; and __fish_seen_subcommand_from build" -l force
 complete -c cairn -n "__fish_seen_subcommand_from completion" -a "bash zsh fish"

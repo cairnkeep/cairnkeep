@@ -44,11 +44,13 @@ import {
     type EvalReportStore,
 } from "./eval-report.js";
 import {
+    applyEvalWorkspaceOverlay,
     cleanupEvalWorkspace,
     createEvalWorkspace,
     runTaskPreparation,
     runTaskVerifier,
     type EvalWorkspace,
+    type EvalWorkspaceOverlay,
 } from "./eval-workspace.js";
 
 export type NoteSnapshotOutcome = "success" | "no_notes" | "failed" | "skipped";
@@ -83,6 +85,7 @@ export type TwoPassRunOptions = {
     signal?: AbortSignal;
     distill_command?: EvalCommand;
     distill_timeout_ms?: number;
+    workspace_overlays?: Partial<Record<"baseline" | "treatment", EvalWorkspaceOverlay>>;
 };
 
 export type TwoPassRunResult = {
@@ -121,6 +124,7 @@ type ObservationOptions = {
     distill_command?: EvalCommand;
     distill_timeout_ms?: number;
     capability_runtime?: CapabilityArmRuntime;
+    workspace_overlay?: EvalWorkspaceOverlay;
 };
 
 type ObservationResult = {
@@ -691,6 +695,7 @@ export async function runEvalObservation(options: ObservationOptions): Promise<O
             observation.verifier = { state: "not_run", reason: "preparation_failed" };
             observation.missing_reasons.push("preparation_failed");
         } else {
+            if (options.workspace_overlay) await applyEvalWorkspaceOverlay(workspace, options.workspace_overlay);
             const request = {
                 schema_version: 1 as const,
                 experiment_id: options.report.experiment_id,
@@ -829,7 +834,11 @@ export async function runEvalObservation(options: ObservationOptions): Promise<O
     return { observation, snapshot: distilledSnapshot, cancelled: observation.terminal_state === "cancelled" };
 }
 
-function initialReport(plan: EvalPlan, experimentId: string): EvalReport {
+function initialReport(
+    plan: EvalPlan,
+    experimentId: string,
+    fallbackExperimentKind: EvalReport["experiment_kind"],
+): EvalReport {
     const now = new Date().toISOString();
     const sourceCommit = plan.task_set_commit ?? (plan.source.kind === "git" ? plan.source.revision : plan.task_set_digest);
     const missingness = { count: 0, reasons: [] as string[] };
@@ -837,7 +846,7 @@ function initialReport(plan: EvalPlan, experimentId: string): EvalReport {
         schema_version: 1,
         experiment_id: experimentId,
         status: "partial",
-        experiment_kind: plan.arms.length === 1 ? "two_pass" : "ablation",
+        experiment_kind: plan.experiment_kind ?? fallbackExperimentKind,
         task_set_digest: plan.task_set_digest,
         adapter_config_digest: plan.adapter_config_digest,
         source_revision: plan.source.kind === "git" ? plan.source.revision : plan.task_set_digest,
@@ -884,7 +893,7 @@ async function runExperiment(
         experiment_id: experimentId,
     });
     if (reportStore.experiment_id !== experimentId) throw new Error("report_experiment_mismatch");
-    const report = initialReport(options.plan, experimentId);
+    const report = initialReport(options.plan, experimentId, capabilityArms ? "ablation" : "two_pass");
     const snapshotsByTask = new Map<string, NoteSnapshot>();
     const notesByTask = new Map<string, EvalObservation["notes"]>();
     const snapshots: NoteSnapshot[] = [];
@@ -915,6 +924,7 @@ async function runExperiment(
                 distill_command: options.distill_command,
                 distill_timeout_ms: options.distill_timeout_ms,
                 capability_runtime: capabilityRuntime,
+                workspace_overlay: options.workspace_overlays?.[row.arm],
             });
             executed.push(row.observation_id);
             if (result.snapshot) {
@@ -945,6 +955,9 @@ export async function runTwoPassExperiment(options: TwoPassRunOptions): Promise<
 }
 
 export async function runCapabilityAblation(options: CapabilityAblationOptions): Promise<TwoPassRunResult> {
+    if (options.plan.experiment_kind !== undefined && options.plan.experiment_kind !== "ablation") {
+        throw new Error("ablation_experiment_kind_required");
+    }
     const arms = buildAblationArms(options.disabled_capability);
     const intended = arms.map(({ id, disabled_capability }) => ({ id, disabled_capability }));
     if (canonicalDigest(options.plan.arms) !== canonicalDigest(intended)) throw new Error("ablation_arm_mismatch");
