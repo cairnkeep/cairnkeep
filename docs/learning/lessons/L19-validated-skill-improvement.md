@@ -84,6 +84,22 @@ After rollback, compare the target with `fixtures/skill/SKILL.md` byte for byte.
 - The learner can explain why an eligible small task set supports one local
   decision but not a universal performance claim.
 
+## Common failures
+
+- If harvest returns no candidate, confirm the evidence contains the same
+  failure family in at least two distinct sessions and a recorded resolution.
+- If proposal validation rejects the adapter program, regenerate the lab and
+  verify its configuration resolves to the reviewed executable by absolute
+  path.
+- If evaluation is disabled, set `CAIRN_EVAL=1` only for this disposable lab
+  and retain the explicit `--yes` confirmation.
+- If task validation reports overlap or a mutable revision, use the committed
+  exploration and confirmation fixtures from `course-09-skill` unchanged.
+- If apply rejects the confirmation, copy the full `proposal_digest` from the
+  reviewed proposal rather than an ID, prefix, or candidate-content digest.
+- If rollback reports a concurrent target change, stop and inspect that edit;
+  do not overwrite it by copying the backup manually.
+
 ## Privacy and trust boundary
 
 Hindsight excerpts and skill content remain local until candidate approval.
