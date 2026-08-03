@@ -1,9 +1,9 @@
 # L19 - Validated skill improvement
 
-**Status:** Brief
+**Status:** Ready
 **Track:** Evidence and Evaluation
-**Planned time:** 50 minutes
-**Introduced in:** Cairnkeep 2.8.0
+**Time:** 50 minutes
+**Tested with:** Cairnkeep 2.8.0
 
 ## Outcome
 
@@ -12,7 +12,7 @@ skill proposal, measure it on separate exploration and confirmation tasks,
 apply only the exact eligible digest, and prove rollback without risking a real
 project.
 
-## Planned lesson
+## Lesson
 
 - Why harvest requires failures from at least two sessions and at least one
   recorded resolution.
@@ -31,30 +31,45 @@ project.
 
 ## Hands-on lab
 
-Use a future disposable `course-09-skill` checkpoint containing synthetic
-hindsight evidence, a small `SKILL.md`, deterministic proposal and evaluation
-adapters, and separate committed task sets. The lab will run:
+Use the disposable `course-09-skill` checkpoint from the synthetic course
+repository. It contains bounded hindsight evidence, one existing `SKILL.md`,
+deterministic proposal and evaluation adapters, and separate committed task
+sets. Keep every generated artifact under `.course-state/`:
 
 ```bash
-cairn skill harvest --project . --json
-cairn skill show --kind candidate --id CANDIDATE_ID
-cairn skill review --candidate CANDIDATE_ID --approve --json
-cairn skill propose --candidate CANDIDATE_ID --target skills/demo/SKILL.md \
-  --adapter fixtures/proposal-adapter.json --json
+git switch --detach course-09-skill
+scripts/reset-course-state.sh --yes
+node scripts/setup-skill-lab.mjs
+core=$(node scripts/locate-cairnkeep-core.mjs)
+lab="$PWD/.course-state/skill-project"
+export CAIRN_AGENTFS_BASE_DIR="$PWD/.course-state/agentfs"
+
+"$core/bin/cairn" skill harvest --project "$lab" --json
+"$core/bin/cairn" skill show --project "$lab" \
+  --kind candidate --id CANDIDATE_ID
+"$core/bin/cairn" skill review --project "$lab" \
+  --candidate CANDIDATE_ID --approve --json
+"$core/bin/cairn" skill propose --project "$lab" \
+  --candidate CANDIDATE_ID --target skills/course-review/SKILL.md \
+  --adapter "$lab/fixtures/proposal-adapter.json" --json
 
 export CAIRN_EVAL=1
-cairn skill evaluate --proposal PROPOSAL_ID \
-  --exploration-task-set eval/exploration.json \
-  --confirmation-task-set eval/confirmation.json \
-  --adapter eval/adapter.json --repetitions 2 --yes --json
+"$core/bin/cairn" skill evaluate --project "$lab" \
+  --proposal PROPOSAL_ID \
+  --exploration-task-set "$lab/eval/exploration.json" \
+  --confirmation-task-set "$lab/eval/confirmation.json" \
+  --adapter "$lab/eval/eval-adapter.json" \
+  --repetitions 1 --minimum-improvement 1 --yes --json
 
-cairn skill apply --proposal PROPOSAL_ID --evaluation EVALUATION_ID \
+"$core/bin/cairn" skill apply --project "$lab" \
+  --proposal PROPOSAL_ID --evaluation EVALUATION_ID \
   --confirm FULL_PROPOSAL_DIGEST --json
-cairn skill rollback --application APPLICATION_ID --confirm --json
+"$core/bin/cairn" skill rollback --project "$lab" \
+  --application APPLICATION_ID --confirm --json
 ```
 
-The lesson remains a Brief until that checkpoint is public and every command is
-rehearsed against the release package.
+Before applying, deliberately try an incorrect digest and verify it is rejected.
+After rollback, compare the target with `fixtures/skill/SKILL.md` byte for byte.
 
 ## Acceptance criteria
 

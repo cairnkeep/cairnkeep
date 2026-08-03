@@ -71,7 +71,7 @@ prerequisites for ordinary memory.
 | Typed nodes/import | `CAIRN_TYPED_MEMORY_NODES=1` | Restart MCP server; tool schema changes | Hard-filter search; dry-run, replay-safe import; `cairn doctor --repair` only for derived state | `course-05-evidence` |
 | Capability contract | `CAIRN_CAPABILITY_CONTRACT=1` | MCP changes require restart; operating changes apply next invocation | `cairn capabilities list|status|enable|disable|reset|logging`; digest identifies state only | `course-06-governance` |
 | Evaluation | `CAIRN_EVAL=1` for the coordinator process | No harness chosen by Cairnkeep | `validate` before `run`; inspect report, missingness and evidence scope; dry-run prune/delete | `course-07-evaluation` |
-| Validated skill improvement | Reviewed recurring hindsight; proposal adapter; `CAIRN_EVAL=1` for evaluation | No server restart; explicit subprocesses only | `cairn skill list|show`; exact-digest apply; concurrent-edit-safe rollback | Planned: `course-09-skill` |
+| Validated skill improvement | Reviewed recurring hindsight; proposal adapter; `CAIRN_EVAL=1` for evaluation | No server restart; explicit subprocesses only | `cairn skill list|show`; exact-digest apply; concurrent-edit-safe rollback | `course-09-skill` |
 | General meta-agent loop | Not shipped | Not applicable | Skill-file lifecycle only; no generic configuration loop or scheduler | `course-07-evaluation` |
 
 ## Harness and maintenance checks
