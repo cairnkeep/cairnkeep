@@ -834,7 +834,11 @@ export async function runEvalObservation(options: ObservationOptions): Promise<O
     return { observation, snapshot: distilledSnapshot, cancelled: observation.terminal_state === "cancelled" };
 }
 
-function initialReport(plan: EvalPlan, experimentId: string): EvalReport {
+function initialReport(
+    plan: EvalPlan,
+    experimentId: string,
+    fallbackExperimentKind: EvalReport["experiment_kind"],
+): EvalReport {
     const now = new Date().toISOString();
     const sourceCommit = plan.task_set_commit ?? (plan.source.kind === "git" ? plan.source.revision : plan.task_set_digest);
     const missingness = { count: 0, reasons: [] as string[] };
@@ -842,7 +846,7 @@ function initialReport(plan: EvalPlan, experimentId: string): EvalReport {
         schema_version: 1,
         experiment_id: experimentId,
         status: "partial",
-        experiment_kind: plan.experiment_kind,
+        experiment_kind: plan.experiment_kind ?? fallbackExperimentKind,
         task_set_digest: plan.task_set_digest,
         adapter_config_digest: plan.adapter_config_digest,
         source_revision: plan.source.kind === "git" ? plan.source.revision : plan.task_set_digest,
@@ -889,7 +893,7 @@ async function runExperiment(
         experiment_id: experimentId,
     });
     if (reportStore.experiment_id !== experimentId) throw new Error("report_experiment_mismatch");
-    const report = initialReport(options.plan, experimentId);
+    const report = initialReport(options.plan, experimentId, capabilityArms ? "ablation" : "two_pass");
     const snapshotsByTask = new Map<string, NoteSnapshot>();
     const notesByTask = new Map<string, EvalObservation["notes"]>();
     const snapshots: NoteSnapshot[] = [];
@@ -951,7 +955,9 @@ export async function runTwoPassExperiment(options: TwoPassRunOptions): Promise<
 }
 
 export async function runCapabilityAblation(options: CapabilityAblationOptions): Promise<TwoPassRunResult> {
-    if (options.plan.experiment_kind !== "ablation") throw new Error("ablation_experiment_kind_required");
+    if (options.plan.experiment_kind !== undefined && options.plan.experiment_kind !== "ablation") {
+        throw new Error("ablation_experiment_kind_required");
+    }
     const arms = buildAblationArms(options.disabled_capability);
     const intended = arms.map(({ id, disabled_capability }) => ({ id, disabled_capability }));
     if (canonicalDigest(options.plan.arms) !== canonicalDigest(intended)) throw new Error("ablation_arm_mismatch");
