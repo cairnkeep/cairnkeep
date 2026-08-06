@@ -95,7 +95,7 @@ async function crudChecks(client, storeRoot) {
 
     const replacement = { ...record, description: "Updated without losing nested fields.", updated_at: "2026-07-26T12:01:00.000Z" };
     const superseded = await call(client, "memory_supersede", noteArgs(replacement, { reason: "test update" }));
-    assert.notEqual(superseded.isError, true);
+    assert.notEqual(superseded.isError, true, JSON.stringify(superseded));
     assert.equal(readFileSync(notePath, "utf8").endsWith(MANUAL_SUFFIX), true);
     const history = await call(client, "memory_history", { scope: "project", address_space: "project-notes", key: `knowledge/${record.id}` });
     assert.deepEqual(JSON.parse(history.structuredContent?.history?.[0]?.value), record);

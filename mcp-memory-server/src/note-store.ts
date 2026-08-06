@@ -32,6 +32,7 @@ import {
     type MemoryImportEnvelope,
     type MemoryImportResult,
 } from "./node-schema.js";
+import { atomicReplace } from "./platform-security.js";
 
 const MANAGED_START = "<!-- cairnkeep:managed:v1:start -->";
 const MANAGED_END = "<!-- cairnkeep:managed:v1:end -->";
@@ -996,7 +997,7 @@ export async function commitJournaledNoteMutation(plan: NoteMutationPlan): Promi
         writeJournal(journalPath, journal);
         for (const change of journal.changes) {
             mkdirSync(dirname(change.path), { recursive: true });
-            if (change.staged) renameSync(change.staged, change.path);
+            if (change.staged) await atomicReplace(change.staged, change.path);
             else rmSync(change.path, { force: true });
             if (existsSync(change.path)) syncFile(change.path);
             syncDirectory(dirname(change.path));
