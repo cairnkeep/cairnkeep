@@ -2,6 +2,8 @@
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 
+import { privatePathIsSafe } from "./platform-security.js";
+
 import {
     capabilityAdapterClassificationSchema,
     finishOperatingCapability,
@@ -288,7 +290,7 @@ async function configDoctor(): Promise<{
     try {
         const info = await lstat(path);
         exists = true;
-        unsafePermissions = info.isSymbolicLink() || !info.isFile() || (info.mode & 0o077) !== 0;
+        unsafePermissions = info.isSymbolicLink() || !info.isFile() || !privatePathIsSafe(path);
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") unsafePermissions = true;
     }

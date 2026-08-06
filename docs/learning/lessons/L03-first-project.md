@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart
 **Time:** 25 minutes
-**Tested with:** Cairnkeep 2.9.0
+**Tested with:** Cairnkeep 2.10.0
 
 ## Outcome
 

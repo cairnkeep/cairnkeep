@@ -18,6 +18,7 @@ import {
     runTwoPassExperiment,
 } from "./eval-runner.js";
 import { canonicalJson, EVAL_SCHEMA_VERSION, type EvalReport } from "./eval-schema.js";
+import { privatePathIsSafe } from "./platform-security.js";
 
 process.stdout.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code === "EPIPE") process.exit(0);
@@ -133,7 +134,7 @@ async function evalRoot(): Promise<string | null> {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
         throw error;
     }
-    if (info.isSymbolicLink() || !info.isDirectory() || (info.mode & 0o077) !== 0) {
+    if (info.isSymbolicLink() || !info.isDirectory() || !privatePathIsSafe(root)) {
         throw new Error("unsafe_eval_root");
     }
     const resolvedRoot = await realpath(root);
@@ -189,7 +190,7 @@ async function diagnoseProjectReports(projectRoot: string): Promise<DoctorDiagno
             return "unsafe";
         }
         if (info.isSymbolicLink() || !info.isDirectory() || await realpath(directory) !== directory) return "unsafe";
-        if (directory === root && (info.mode & 0o077) !== 0) return "unsafe";
+        if (directory === root && !privatePathIsSafe(directory)) return "unsafe";
     }
 
     const entries = await readdir(root, { withFileTypes: true });
@@ -202,7 +203,7 @@ async function diagnoseProjectReports(projectRoot: string): Promise<DoctorDiagno
         const experimentPath = resolve(root, entry.name);
         if (!isContained(root, experimentPath) || experimentPath === root) return "unsafe";
         const experimentInfo = await lstat(experimentPath);
-        if (experimentInfo.isSymbolicLink() || !experimentInfo.isDirectory() || (experimentInfo.mode & 0o077) !== 0
+        if (experimentInfo.isSymbolicLink() || !experimentInfo.isDirectory() || !privatePathIsSafe(experimentPath)
             || await realpath(experimentPath) !== experimentPath) {
             return "unsafe";
         }
@@ -242,7 +243,7 @@ async function safeReportStore(experimentId: string): Promise<EvalReportStore> {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error("eval_report_not_found");
         throw error;
     }
-    if (directory.isSymbolicLink() || !directory.isDirectory() || (directory.mode & 0o077) !== 0
+    if (directory.isSymbolicLink() || !directory.isDirectory() || !privatePathIsSafe(experimentPath)
         || await realpath(experimentPath) !== experimentPath) {
         throw new Error("unsafe_experiment_path");
     }
@@ -254,7 +255,7 @@ async function safeReportStore(experimentId: string): Promise<EvalReportStore> {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error("eval_report_not_found");
         throw error;
     }
-    if (reportInfo.isSymbolicLink() || !reportInfo.isFile() || (reportInfo.mode & 0o077) !== 0
+    if (reportInfo.isSymbolicLink() || !reportInfo.isFile() || !privatePathIsSafe(reportPath)
         || reportInfo.size > DEFAULT_REPORT_BYTES) {
         throw new Error("unsafe_eval_report");
     }

@@ -5,6 +5,27 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- Replace the Bash npm entry point with a cross-platform Node CLI while keeping
+  the established Unix scripts as compatibility implementations.
+- Add native Windows x64 bootstrap and `.cmd`/PowerShell launchers, Claude/Pi/
+  Kimi asset synchronization, Node hook transports, diagnostics, PowerShell
+  completion, Task Scheduler registration, memory import/export plumbing, and
+  backup-first uninstall with a `revert.ps1` manifest.
+- Enforce private Windows ACLs for least-authority MCP profiles and context-pack
+  state, make pack objects read-only, retry Windows atomic replacements, and
+  terminate evaluation adapter descendant trees through `taskkill.exe /T`.
+- Add a PowerShell-only Windows CI matrix for Node 22/24/26, including native
+  lifecycle tests and a packed global npm installation under paths containing
+  spaces and Unicode.
+
+### Changed
+
+- Add PowerShell to shell completion and document Windows x64 as a supported
+  native platform. Windows ARM64 remains an x64-emulation target until the
+  storage dependency ships a native ARM64 binding.
+
 ## [2.9.0] - 2026-08-06
 
 ### Added

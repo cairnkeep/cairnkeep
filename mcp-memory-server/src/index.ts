@@ -1048,9 +1048,20 @@ async function runContextExplore(args: {
 
     // --- Execution tier: return { ok: false, ... } (runtime problems, D-04) ---
     if (!evidence) {
+        // Native Windows cannot execute a JavaScript file directly from a
+        // shebang. Treat JS helpers as Node programs while keeping compiled
+        // token_miser binaries byte-for-byte compatible on every platform.
+        const javascriptHelper = /\.(?:cjs|mjs|js)$/i.test(binaryPath);
         const result = await runCommand(
-            binaryPath,
-            ["explore", "--query", query, "--repo-root", repoRoot],
+            javascriptHelper ? process.execPath : binaryPath,
+            [
+                ...(javascriptHelper ? [binaryPath] : []),
+                "explore",
+                "--query",
+                query,
+                "--repo-root",
+                repoRoot,
+            ],
             (timeoutSeconds ?? 120) * 1000,
             { ...process.env, NO_COLOR: "1" },
         );
@@ -2127,27 +2138,15 @@ if (typedNodesEnabled) {
             }
             // Resolve containment before any database is opened or directory is created.
             const scopePath = resolveScopePath(envelope.scope, scopeOptions);
-            const existing = await openScope(envelope.scope, false, scopeOptions);
-            let plan;
-            try {
-                plan = await planMemoryImport(existing, envelope);
-            } finally {
-                await existing?.close();
-            }
-            if (envelope.dry_run) {
-                const payload = await commitMemoryImport(null, plan);
-                return {
-                    content: [{ type: "text", text: asToolText(payload) }],
-                    structuredContent: payload,
-                };
-            }
             const payload = await serializeScopeMutation(scopePath, async () => {
-                const agent = await openScope(envelope.scope, true, scopeOptions);
-                if (!agent) throw new Error(`Unable to open scope ${envelope.scope}.`);
+                const agent = await openScope(envelope.scope, !envelope.dry_run, scopeOptions);
                 try {
+                    const plan = await planMemoryImport(agent, envelope);
+                    if (envelope.dry_run) return commitMemoryImport(null, plan);
+                    if (!agent) throw new Error(`Unable to open scope ${envelope.scope}.`);
                     return await commitMemoryImport(agent, plan);
                 } finally {
-                    await agent.close();
+                    await agent?.close();
                 }
             });
             return {

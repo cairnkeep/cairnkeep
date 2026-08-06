@@ -4,6 +4,7 @@ import { chmod, mkdir, open, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 
 import { MCP_TOOL_CATALOG, MCP_TOOL_NAMES, isCairnToolName, type CairnToolName } from "./mcp-tool-catalog.js";
+import { atomicReplace, hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
 
 export type McpToolProfileMode = "full" | "read-only" | "custom";
 export type McpToolProfileConfig = {
@@ -78,7 +79,7 @@ function readProjectConfig(projectRoot: string): McpToolProfileConfig | undefine
     const dirInfo = lstatSync(directory);
     const info = lstatSync(config);
     if (!dirInfo.isDirectory() || dirInfo.isSymbolicLink() || !info.isFile() || info.isSymbolicLink()
-        || info.size > MAX_CONFIG_BYTES || (process.platform !== "win32" && (info.mode & 0o077) !== 0)) {
+        || info.size > MAX_CONFIG_BYTES || !privatePathIsSafe(config)) {
         throw new Error("MCP tool profile configuration is unsafe.");
     }
     const fd = requireNoFollow(config);
@@ -139,8 +140,9 @@ async function atomicWrite(path: string, value: McpToolProfileConfig): Promise<v
         await handle.close();
         handle = undefined;
         await chmod(temporary, 0o600);
-        await rename(temporary, path);
-        await chmod(path, 0o600);
+        hardenPrivatePath(temporary);
+        await atomicReplace(temporary, path);
+        hardenPrivatePath(path);
     } finally {
         if (handle) await handle.close().catch(() => undefined);
         await rm(temporary, { force: true });

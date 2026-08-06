@@ -52,6 +52,7 @@ expanded only after their labs are executable.
 | L19 | [Validated skill improvement](lessons/L19-validated-skill-improvement.md) | Ready | 50 min |
 | L20 | [Least-authority MCP tool profiles](lessons/L20-mcp-tool-profiles.md) | Ready | 25 min |
 | L21 | [Immutable context packs and skill approval](lessons/L21-context-packs.md) | Ready | 40 min |
+| L22 | [Operate Cairnkeep on native Windows](lessons/L22-native-windows.md) | Ready | 30 min |
 
 The [curriculum coverage map](CURRICULUM-MAP.md) records where every public
 feature is introduced, practised, and operated. It also marks design-only work

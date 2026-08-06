@@ -111,7 +111,13 @@ function executeGraphify(
     args: string[],
     timeout: number,
 ): SpawnSyncReturns<string> {
-    const result = spawnSync("graphify", args, {
+    const configuredProgram = process.env.CAIRN_GRAPHIFY_BINARY?.trim();
+    const graphifyProgram = configuredProgram || "graphify";
+    const javascriptProgram = /\.(?:cjs|mjs|js)$/i.test(graphifyProgram);
+    const result = spawnSync(javascriptProgram ? process.execPath : graphifyProgram, [
+        ...(javascriptProgram ? [graphifyProgram] : []),
+        ...args,
+    ], {
         cwd: projectRoot,
         encoding: "utf8",
         shell: false,

@@ -4,6 +4,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -32,6 +33,7 @@ assert.match(valid.digest, /^[a-f0-9]{64}$/);
 
 const installed = await Promise.all([installContextPack(source), installContextPack(source)]);
 assert.equal(installed[0].pack.digest, installed[1].pack.digest, "concurrent installs converge");
+assert.equal(installed.filter(({ existing }) => existing).length, 1, "concurrent install identifies exactly one existing object");
 await enableContextPack(valid.digest, { projectRoot: project });
 assert.equal((await visiblePackFiles({ projectRoot: project })).length, 1, "unapproved skill hidden");
 assert.equal((await listVisibleContext({ projectRoot: project })).packs[0].files.length, 1);
@@ -63,7 +65,7 @@ assert.equal((await visiblePackFiles({ projectRoot: project })).length, 2, "appr
 
 const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [new URL("../dist/index.js", import.meta.url).pathname],
+    args: [fileURLToPath(new URL("../dist/index.js", import.meta.url))],
     cwd: project,
     env: { ...process.env, CAIRN_CONTEXT_PACKS: "1", CAIRN_PACK_BASE_DIR: process.env.CAIRN_PACK_BASE_DIR },
     stderr: "pipe",
@@ -100,6 +102,17 @@ const gitSource = join(root, "git-source");
 mkdirSync(gitSource);
 writeFileSync(join(gitSource, "readme.md"), "Pinned git pack.\n");
 await initializeContextPack(gitSource, { id: "git-guide", version: "1.0.0", title: "Git guide", description: "Pinned", license: "Apache-2.0" });
+const attributes = "readme.md text eol=crlf\n";
+writeFileSync(join(gitSource, ".gitattributes"), attributes);
+const gitManifestPath = join(gitSource, "context-pack.json");
+const gitManifest = JSON.parse(readFileSync(gitManifestPath, "utf8"));
+gitManifest.files.unshift({
+    path: ".gitattributes", kind: "document", title: "Git attributes",
+    description: "Line-ending checkout fixture.", keywords: ["git"],
+    sha256: createHash("sha256").update(attributes).digest("hex"),
+});
+writeFileSync(gitManifestPath, `${JSON.stringify(gitManifest, null, 2)}\n`);
+await lockContextPack(gitSource);
 execFileSync("git", ["init", "-q", gitSource]);
 execFileSync("git", ["-C", gitSource, "add", "."]);
 execFileSync("git", ["-C", gitSource, "-c", "user.name=Cairnkeep", "-c", "user.email=cairn@example.invalid", "commit", "-qm", "fixture"]);
@@ -110,7 +123,7 @@ assert.match(gitPack.source.commit, /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/);
 // HTTP exposure requires separate consent and keeps project pointers isolated.
 await enableContextPack(gitPack.pack.digest, { projectId: "pack-alpha" });
 const token = "context-pack-http-token";
-const serverEntry = new URL("../dist/index.js", import.meta.url).pathname;
+const serverEntry = fileURLToPath(new URL("../dist/index.js", import.meta.url));
 const waitForListen = (server) => new Promise((resolveListen, reject) => {
     const timer = setTimeout(() => reject(new Error("context-pack HTTP server did not start")), 5000);
     server.stderr.on("data", (chunk) => {

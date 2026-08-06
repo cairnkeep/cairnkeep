@@ -15,7 +15,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { AgentFS } from "agentfs-sdk";
@@ -26,14 +26,19 @@ function check(name, cond) {
     if (!cond) failures += 1;
 }
 
-const fixture = resolve("scripts/fixtures/fake-tokenmiser-crossref.sh");
-chmodSync(fixture, 0o755);
+const fixture = resolve("scripts/fixtures/fake-tokenmiser.mjs");
 
 async function withClient(env, fn) {
     const transport = new StdioClientTransport({
         command: "node",
         args: ["dist/index.js"],
-        env: { ...process.env, CAIRN_EXPLORE_BINARY: fixture, CAIRN_EXPLORE_CACHE: "0", ...env },
+        env: {
+            ...process.env,
+            CAIRN_EXPLORE_BINARY: fixture,
+            CAIRN_EXPLORE_CACHE: "0",
+            FAKE_TOKENMISER_MODE: "crossref",
+            ...env,
+        },
     });
     const client = new Client({ name: "smoke-explore-crossref", version: "0" }, { capabilities: {} });
     await client.connect(transport);

@@ -1,7 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { constants } from "node:fs";
 import {
-    chmod,
     lstat,
     mkdir,
     open,
@@ -27,6 +26,7 @@ import {
     type PairedEstimate,
     type PairedRow,
 } from "./eval-statistics.js";
+import { hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
 
 export type EvalReportStore = {
     root_path: string;
@@ -94,7 +94,7 @@ async function ensureSafeDirectory(path: string, privateMode = false): Promise<v
     try {
         const info = await lstat(path);
         if (info.isSymbolicLink() || !info.isDirectory()) throw new Error("unsafe_report_directory");
-        if (privateMode) await chmod(path, 0o700);
+        if (privateMode) hardenPrivatePath(path);
         return;
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -103,7 +103,7 @@ async function ensureSafeDirectory(path: string, privateMode = false): Promise<v
     if (parent === path) throw new Error("unsafe_report_directory");
     await ensureSafeDirectory(parent, false);
     await mkdir(path, { mode: 0o700 });
-    await chmod(path, 0o700);
+    hardenPrivatePath(path);
 }
 
 function assertLimits(maxReportBytes: number, maxExperiments: number): void {
@@ -257,8 +257,9 @@ export async function checkpointEvalReport(
             await handle.close();
             handle = undefined;
             injectFault(options, "after_close");
+            hardenPrivatePath(temporary);
             await rename(temporary, store.report_path);
-            await chmod(store.report_path, 0o600);
+            hardenPrivatePath(store.report_path);
             injectFault(options, "after_rename");
         } finally {
             if (handle) await handle.close().catch(() => undefined);
@@ -286,7 +287,7 @@ export async function diagnoseEvalReport(store: EvalReportStore): Promise<EvalRe
             throw error;
         });
         if (!info) return { state: "absent", code: "report_absent" };
-        if (info.isSymbolicLink() || !info.isFile() || (info.mode & 0o077) !== 0) {
+        if (info.isSymbolicLink() || !info.isFile() || !privatePathIsSafe(store.report_path)) {
             return { state: "unsafe", code: "report_unsafe" };
         }
         const report = await readEvalReport(store);

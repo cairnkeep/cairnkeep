@@ -1,0 +1,8 @@
+#!/usr/bin/env node
+
+import { main } from "../scripts/cairn-container-cli.mjs";
+
+main(process.argv.slice(2)).catch((error) => {
+  console.error(`cairn-container: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 2;
+});

@@ -12,6 +12,7 @@
 6. [L16 - Evaluation and ablation](../lessons/L16-evaluation.md)
 7. [L20 - Least-authority MCP tool profiles](../lessons/L20-mcp-tool-profiles.md)
 8. [L21 - Immutable context packs and skill approval](../lessons/L21-context-packs.md)
+9. [L22 - Operate Cairnkeep on native Windows](../lessons/L22-native-windows.md)
 
 All modules are optional. The track is complete when the operator can add and
 remove each integration without breaking the standalone local workflow and can

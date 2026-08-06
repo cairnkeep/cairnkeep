@@ -38,6 +38,13 @@ podman run --rm -i \
 
 Pin a version instead of `latest` for managed installations.
 
+On native Windows, the installed `cairn-container.cmd` invokes the same
+argument-safe Node launcher and defaults to `podman.exe`; set
+`CONTAINER_ENGINE` to an explicit compatible engine path if needed. Podman
+Desktop must be configured for Linux containers. Named-volume modes preserve
+the container-side contract, while host paths are passed as single arguments
+so drive letters and spaces are not split by a shell.
+
 ## Authenticated HTTP
 
 Generate the bearer token into a private file and start a loopback-only
@@ -56,6 +63,9 @@ cairn-container http \
 The launcher refuses token files that are symlinks or have a mode other than
 `0400` or `0600`. It mounts the token read-only instead of putting it in the
 container environment or image.
+
+On Windows, the equivalent check rejects symlinks and any token ACL granting
+access beyond the current SID, Local System, or built-in Administrators.
 
 The listener is deliberately published only on `127.0.0.1`. For access from
 other machines, keep it on loopback behind a TLS reverse proxy or encrypted

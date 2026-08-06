@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 import { distillProject } from "../dist/note-distiller.js";
@@ -27,7 +27,9 @@ delete process.env.CAIRN_LLM_API_URL;
 delete process.env.CAIRN_NOTE_ENRICHMENT_MODEL;
 
 function session(name, projectRoot) {
-    const value = JSON.parse(JSON.stringify(fixture[name]).replaceAll("$PROJECT_ROOT", projectRoot));
+    const value = JSON.parse(JSON.stringify(fixture[name]), (_key, item) => (
+        typeof item === "string" ? item.replaceAll("$PROJECT_ROOT", projectRoot) : item
+    ));
     return trajectorySessionSchema.parse(value);
 }
 
@@ -60,7 +62,8 @@ try {
     assert.equal(first.enrichment_skipped.length, 1);
     const created = first.created[0];
     assert.equal(created.status, "unresolved");
-    assert.match(created.path, /projects\/project-a--[a-f0-9]+\/hindsight\/typeerror--[a-f0-9]+\.md$/);
+    const createdRelativePath = relative(join(storeRoot, "notes"), created.path).split(sep).join("/");
+    assert.match(createdRelativePath, /^projects\/project-a--[a-f0-9]+\/hindsight\/typeerror--[a-f0-9]+\.md$/);
 
     let markdown = readFileSync(created.path, "utf8");
     for (const field of ["id", "title", "description", "keywords", "node_type", "tags"]) {
@@ -96,7 +99,7 @@ try {
     const child = spawnSync(process.execPath, [
         "--input-type=module",
         "--eval",
-        `import { searchHindsight } from ${JSON.stringify(resolve(here, "../dist/note-store.js"))}; const value = await searchHindsight({projectRoot:${JSON.stringify(projectA)}, text:${JSON.stringify(queryText)}}); process.stdout.write(JSON.stringify(value));`,
+        `import { searchHindsight } from ${JSON.stringify(pathToFileURL(resolve(here, "../dist/note-store.js")).href)}; const value = await searchHindsight({projectRoot:${JSON.stringify(projectA)}, text:${JSON.stringify(queryText)}}); process.stdout.write(JSON.stringify(value));`,
     ], { encoding: "utf8", env: { ...process.env } });
     assert.equal(child.status, 0, child.stderr);
     const freshSearch = JSON.parse(child.stdout);
@@ -124,7 +127,7 @@ try {
     const other = await distillProject({ projectRoot: projectB, sessionId: "note-failure-001" });
     const promoted = await promoteNotes({ sourceNoteId: created.id, corroboratingNoteId: other.created[0].id, confirm: true });
     assert.equal(promoted.status, "promoted");
-    assert.ok(promoted.shared_path.includes("/shared/"));
+    assert.ok(promoted.shared_path.includes(`${sep}shared${sep}`));
     assert.equal(allFiles(join(storeRoot, "notes", "shared")).filter((path) => path.endsWith(".md")).length, 1);
     assert.match(readFileSync(created.path, "utf8"), /node_type: provenance/);
     assert.match(readFileSync(other.created[0].path, "utf8"), /node_type: provenance/);

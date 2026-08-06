@@ -32,6 +32,7 @@ import {
     type MemoryImportEnvelope,
     type MemoryImportResult,
 } from "./node-schema.js";
+import { atomicReplace } from "./platform-security.js";
 
 const MANAGED_START = "<!-- cairnkeep:managed:v1:start -->";
 const MANAGED_END = "<!-- cairnkeep:managed:v1:end -->";
@@ -848,7 +849,8 @@ export function planCreateAddressedNote(options: {
 }
 
 function historyPath(notesRoot: string, addressSpace: NoteAddressSpace, key: string): string {
-    return join(notesRoot, ".cairnkeep", "history", addressSpace, ...key.split("/"), `${new Date().toISOString()}-${randomBytes(6).toString("hex")}.json`);
+    const portableTimestamp = new Date().toISOString().replaceAll(":", "-");
+    return join(notesRoot, ".cairnkeep", "history", addressSpace, ...key.split("/"), `${portableTimestamp}-${randomBytes(6).toString("hex")}.json`);
 }
 
 export function planSupersedeAddressedNote(options: {
@@ -892,11 +894,17 @@ function pendingTransactionDirectories(notesRoot: string): string[] {
 }
 
 function syncFile(path: string): void {
-    const descriptor = openSync(path, "r");
+    // FlushFileBuffers requires a write-capable Windows handle. POSIX accepts
+    // the narrower read handle used by the historical implementation.
+    const descriptor = openSync(path, process.platform === "win32" ? "r+" : "r");
     try { fsyncSync(descriptor); } finally { closeSync(descriptor); }
 }
 
 function syncDirectory(path: string): void {
+    // Windows does not permit opening a directory as a file descriptor, so
+    // Node cannot fsync it. File contents are still fsynced before the atomic
+    // rename; POSIX additionally persists the containing directory entry.
+    if (process.platform === "win32") return;
     const descriptor = openSync(path, "r");
     try { fsyncSync(descriptor); } finally { closeSync(descriptor); }
 }
@@ -990,7 +998,7 @@ export async function commitJournaledNoteMutation(plan: NoteMutationPlan): Promi
         writeJournal(journalPath, journal);
         for (const change of journal.changes) {
             mkdirSync(dirname(change.path), { recursive: true });
-            if (change.staged) renameSync(change.staged, change.path);
+            if (change.staged) await atomicReplace(change.staged, change.path);
             else rmSync(change.path, { force: true });
             if (existsSync(change.path)) syncFile(change.path);
             syncDirectory(dirname(change.path));

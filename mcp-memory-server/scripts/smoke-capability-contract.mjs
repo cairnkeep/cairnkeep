@@ -159,7 +159,9 @@ async function configChecks() {
         const persisted = JSON.parse(readFileSync(join(projectRoot, ".ai", "capabilities.json"), "utf8"));
         assert.equal(persisted.capabilities[fixture.cases.concurrent_write.first.id], false);
         assert.equal(persisted.capabilities[fixture.cases.concurrent_write.second.id], false);
-        assert.equal(statSync(join(projectRoot, ".ai", "capabilities.json")).mode & 0o777, 0o600);
+        if (process.platform !== "win32") {
+            assert.equal(statSync(join(projectRoot, ".ai", "capabilities.json")).mode & 0o777, 0o600);
+        }
         assert.equal(readFileSync(join(projectRoot, ".ai", "capabilities.json"), "utf8").endsWith("\n"), true);
 
         await config.resetCapabilityOverride({ projectRoot, id: fixture.cases.concurrent_write.first.id });

@@ -29,6 +29,12 @@ installs. This guide covers all three in order.
 - Optional: rootless Podman for the containerized memory server and isolated
   workspace base described in [Containers](containers.md).
 
+Native Windows x64 is supported directly from PowerShell or Command Prompt;
+WSL and Git Bash are not required. The npm package installs a Node entry point,
+and bootstrap emits `.cmd` plus PowerShell launchers. See
+[Native Windows operation](native-windows.md) for the exact setup and recovery
+contract. Windows ARM64 currently uses x64 emulation.
+
 ## Shell completion
 
 Generate completion definitions directly from the CLI:
@@ -37,11 +43,18 @@ Generate completion definitions directly from the CLI:
 cairn completion bash
 cairn completion zsh
 cairn completion fish
+cairn completion powershell
 ```
 
 Distributions can install these outputs into the platform's normal completion
 directories. They can also be loaded for the current shell, for example with
 `source <(cairn completion bash)`.
+
+In PowerShell, load completion for the current session with:
+
+```powershell
+Invoke-Expression (& cairn completion powershell | Out-String)
+```
 
 ## Setup order (Claude Code)
 
@@ -217,6 +230,9 @@ so Graphify cannot re-index its own generated HTML/report/JSON. Managed builds
 do not perform Graphify's optional semantic document extraction. Prefer exact
 function, class, or file names; broad natural-language graph queries are less
 precise. Cairnkeep does not install or update Graphify automatically.
+Set `CAIRN_GRAPHIFY_BINARY` to override the `graphify` command when Graphify is
+installed at a specific path. Native executables run directly; `.js`, `.mjs`,
+and `.cjs` helpers run through the active Node runtime on every platform.
 
 Graphify also maintains an incremental `graphify-out/` work directory at the
 repository root. It is separate from Cairnkeep's published
@@ -381,6 +397,7 @@ vendor or host.
 | `CAIRN_HARNESS_STATE_DIR` | Optional absolute local root for recoverable native capability leases (default `${XDG_STATE_HOME:-~/.local/state}/cairn/harness`) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none`. See [git-providers.md](git-providers.md) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → the `route_check` tool is inert) |
+| `CAIRN_GRAPHIFY_BINARY` | Optional Graphify command/path override; JavaScript helpers run through the active Node runtime (default `graphify` from `PATH`) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws at call time) |
 | `CAIRN_EXPLORE_REPO_ROOT` | Default repo root for `context_explore` when no per-call `repo_root` is given (unset + no param → the tool throws) |
 | `CAIRN_EXPLORE_CACHE` | Caches `context_explore` results keyed on query + repo HEAD + dirty-state; default ON, set to `0` to disable |
@@ -897,8 +914,9 @@ claims.
 SIGINT or SIGTERM stops schedule admission, terminates the active adapter,
 checkpoints a `cancelled` observation, waits for bounded cleanup, and retains
 an inspectable partial report. On POSIX systems the runner targets the child
-process group with TERM then bounded KILL escalation. Windows descendant-tree
-termination is not guaranteed and is not a supported evaluation claim.
+process group with TERM then bounded KILL escalation. Native Windows targets
+the adapter and its descendant tree with `taskkill.exe /T`, escalating to `/F`
+after the bounded grace period.
 
 See [storage](storage.md#evaluation-report-and-note-snapshot-storage) for local
 retention/removal and [privacy](privacy-and-data-flow.md#evaluation-adapter-and-report-flow)

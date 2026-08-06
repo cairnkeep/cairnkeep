@@ -142,7 +142,7 @@ run_baseline() {
   run_baseline_check "$ROOT/scripts/test-completion.sh"
   run_baseline_check "$ROOT/scripts/test-package-install.sh"
   run_baseline_check "$ROOT/scripts/test-uninstall.sh"
-  run_baseline_check bash -n "$ROOT/bin/cairn"
+  run_baseline_check node --check "$ROOT/bin/cairn"
   run_master_off_identity
   echo "PASS: Phase 18 master-off CLI/package/lifecycle identity baseline"
 }

@@ -5,7 +5,7 @@
 // from the payload. Mirrors verify-token-savings-ab.sh's wrapper-binary
 // technique. Run: node scripts/smoke-explore-cache.mjs   (after `npm run build`)
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -15,8 +15,7 @@ function check(name, cond) {
     if (!cond) failures += 1;
 }
 
-const binary = resolve("scripts/fixtures/fake-tokenmiser-logging.sh");
-chmodSync(binary, 0o755);
+const binary = resolve("scripts/fixtures/fake-tokenmiser.mjs");
 
 const xdgCacheHome = mkdtempSync(join(tmpdir(), "explore-cache-smoke-xdg-"));
 const repoRoot = mkdtempSync(join(tmpdir(), "explore-cache-smoke-repo-"));
@@ -39,6 +38,7 @@ function baseEnv() {
         CAIRN_EXPLORE_BINARY: binary,
         CAIRN_EXPLORE_REPO_ROOT: repoRoot,
         EXPLORE_HIT_LOG: hitLog,
+        FAKE_TOKENMISER_MODE: "logging",
     };
 }
 

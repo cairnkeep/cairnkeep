@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart
 **Time:** 25 minutes
-**Tested with:** Cairnkeep 2.9.0 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.10.0 and Node.js 22 or newer
 
 ## Outcome
 
@@ -41,7 +41,7 @@ machine-level steps.
 2. Install Cairnkeep:
 
    ```bash
-   npm install --global @cairnkeep/cli@2.9.0
+   npm install --global @cairnkeep/cli@2.10.0
    cairn --version
    ```
 
@@ -71,6 +71,15 @@ machine-level steps.
 
    Use `cairn completion zsh` or `cairn completion fish` for those shells.
    Completion is a convenience and is not another runtime component.
+
+   On native Windows PowerShell, use:
+
+   ```powershell
+   Invoke-Expression (& cairn completion powershell | Out-String)
+   ```
+
+   Bootstrap emits `.cmd` launchers on Windows; use
+   `.\.ai\start-claude.cmd` instead of the Unix `.sh` launcher.
 
 ## Verify
 

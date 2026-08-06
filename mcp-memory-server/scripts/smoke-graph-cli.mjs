@@ -29,7 +29,7 @@ try {
     const fakeBin = join(temporaryRoot, "bin");
     const invocationLog = join(temporaryRoot, "graphify-args.jsonl");
     mkdirSync(fakeBin, { recursive: true });
-    const fakeGraphify = join(fakeBin, "graphify");
+    const fakeGraphify = join(fakeBin, "graphify.mjs");
     writeFileSync(fakeGraphify, `#!/usr/bin/env node
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -60,6 +60,7 @@ process.stdout.write("graphify-result\\n");
     chmodSync(fakeGraphify, 0o755);
     const fakeEnvironment = {
         PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,
+        CAIRN_GRAPHIFY_BINARY: fakeGraphify,
         OPENAI_API_KEY: "must-not-reach-graphify",
         OPENROUTER_API_KEY: "must-not-reach-graphify",
     };

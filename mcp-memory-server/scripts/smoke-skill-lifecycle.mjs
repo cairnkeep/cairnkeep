@@ -36,7 +36,9 @@ process.env.CAIRN_AGENTFS_BASE_DIR = store;
 process.env.CAIRN_NOTE_DISTILLATION = "1";
 
 function session(name) {
-    return trajectorySessionSchema.parse(JSON.parse(JSON.stringify(fixture[name]).replaceAll("$PROJECT_ROOT", project)));
+    return trajectorySessionSchema.parse(JSON.parse(JSON.stringify(fixture[name]), (_key, item) => (
+        typeof item === "string" ? item.replaceAll("$PROJECT_ROOT", project) : item
+    )));
 }
 
 async function addSession(name, id) {

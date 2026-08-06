@@ -13,7 +13,7 @@ import {
     writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { AgentFS } from "agentfs-sdk";
@@ -78,7 +78,11 @@ function isOnlyMissingCoordinator(error) {
 }
 
 async function loadCoordinator() {
-    return import(pathToFileURL(coordinatorPath).href);
+    const [coordinator, security] = await Promise.all([
+        import(pathToFileURL(coordinatorPath).href),
+        import(pathToFileURL(join(serverRoot, "dist", "platform-security.js")).href),
+    ]);
+    return { ...coordinator, privatePathIsSafe: security.privatePathIsSafe };
 }
 
 function assertCoordinatorSurface(coordinator) {
@@ -180,6 +184,15 @@ function allFiles(root) {
     return found;
 }
 
+function removeFixture(root, allowLockedEmptyRoot = false) {
+    try {
+        rmSync(root, { recursive: true, force: true, maxRetries: 12, retryDelay: 50 });
+    } catch (error) {
+        if (process.platform === "win32" && error?.code === "EPERM" && allowLockedEmptyRoot) return;
+        throw error;
+    }
+}
+
 function rawBytes(root, stateRoot) {
     const dbDir = join(root, ".agentfs");
     const files = [
@@ -211,12 +224,28 @@ async function assertSettledOnce(root, stateRoot, outcome) {
 
 function assertLeasePolicy(coordinator, project, stateRoot) {
     const leaseDir = coordinator.getHarnessCapabilityLeaseDirectory({ state_root: stateRoot });
-    assert.equal(resolve(leaseDir).startsWith(`${resolve(stateRoot)}/`) || resolve(leaseDir) === resolve(stateRoot), true);
+    const child = relative(resolve(stateRoot), resolve(leaseDir));
+    assert.equal(child === "" || (!child.startsWith("..") && !isAbsolute(child)), true);
     for (const path of allFiles(leaseDir)) {
-        assert.equal(statSync(path).mode & 0o077, 0, "lease is not mode restricted");
+        if (process.platform === "win32") {
+            assert.equal(coordinator.privatePathIsSafe(path), true, "lease ACL is not restricted");
+        } else {
+            assert.equal(statSync(path).mode & 0o077, 0, "lease is not mode restricted");
+        }
         assert.equal(statSync(path).size <= 4096, true, "lease is not bounded");
         const bytes = readFileSync(path, "utf8");
-        assert.equal(bytes.includes(realpathSync(project)), true, "lease omitted its validated project locator");
+        const lease = JSON.parse(bytes);
+        const expectedProject = realpathSync(project);
+        const actualProject = realpathSync(lease.project_root);
+        const expectedIdentity = statSync(expectedProject);
+        const actualIdentity = statSync(actualProject);
+        assert.equal(
+            process.platform === "win32"
+                ? actualIdentity.dev === expectedIdentity.dev && actualIdentity.ino === expectedIdentity.ino
+                : actualProject === expectedProject,
+            true,
+            "lease omitted its validated project locator",
+        );
         for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `lease leaked ${sentinel}`);
     }
 }
@@ -252,7 +281,7 @@ async function coreChecks(coordinator) {
         assert.equal(coordinatorCalls, 0, "master-off path invoked the coordinator");
         await assertNoState(masterOff.original, masterOff.state, "master off");
     } finally {
-        rmSync(masterOff.base, { recursive: true, force: true });
+        removeFixture(masterOff.base);
     }
 
     for (const [label, consentEnv] of [
@@ -266,7 +295,7 @@ async function coreChecks(coordinator) {
             assert.deepEqual(result, { schema_version: 1, decision: "block", reason: "capability-disabled" });
             await assertNoState(disabled.original, disabled.state, `disabled ${label}`);
         } finally {
-            rmSync(disabled.base, { recursive: true, force: true });
+            removeFixture(disabled.base);
         }
     }
 
@@ -285,7 +314,7 @@ async function coreChecks(coordinator) {
         assert.equal(finals.every(({ correlation_id }) => correlation_id === session), true,
             "schema-identical disabled admissions changed the shared session correlation");
     } finally {
-        rmSync(disabledMeasured.base, { recursive: true, force: true });
+        removeFixture(disabledMeasured.base);
     }
 
     for (const [label, consentEnv] of [
@@ -301,7 +330,7 @@ async function coreChecks(coordinator) {
             assert.equal((() => ownerResult)(), ownerResult, `${label} changed owner identity`);
             await assertNoState(enabled.original, enabled.state, `enabled ${label}`);
         } finally {
-            rmSync(enabled.base, { recursive: true, force: true });
+            removeFixture(enabled.base);
         }
     }
 
@@ -317,7 +346,7 @@ async function coreChecks(coordinator) {
             await withEnvironment(env, () => coordinator.abandonHarnessCapability({ schema_version: 1, harness: "claude-code", session_id: "session-18-17" }));
             await assertSettledOnce(enabled.original, enabled.state, outcome);
         } finally {
-            rmSync(enabled.base, { recursive: true, force: true });
+            removeFixture(enabled.base);
         }
     }
 }
@@ -340,7 +369,7 @@ async function crashAndCwdChecks(coordinator) {
             await withEnvironment(env, () => coordinator.recoverHarnessCapabilities({ state_root: fixture.state }));
             await assertSettledOnce(fixture.original, fixture.state, "success");
         } finally {
-            rmSync(fixture.base, { recursive: true, force: true });
+            removeFixture(fixture.base);
         }
     }
 
@@ -364,7 +393,7 @@ async function crashAndCwdChecks(coordinator) {
         process.chdir(previousCwd);
         const bytes = rawBytes(drift.original, drift.state).toString("utf8");
         for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `state leaked ${sentinel}`);
-        rmSync(drift.base, { recursive: true, force: true });
+        removeFixture(drift.base);
     }
 
     const stale = fixtureRoot("stale");
@@ -379,7 +408,7 @@ async function crashAndCwdChecks(coordinator) {
         await withEnvironment(env, () => coordinator.recoverHarnessCapabilities({ state_root: stale.state }));
         await assertSettledOnce(stale.original, stale.state, "timeout");
     } finally {
-        rmSync(stale.base, { recursive: true, force: true });
+        removeFixture(stale.base);
     }
 
     const unsafe = fixtureRoot("unsafe");
@@ -391,7 +420,7 @@ async function crashAndCwdChecks(coordinator) {
         await coordinator.recoverHarnessCapabilities({ state_root: unsafe.state });
         assert.deepEqual(allFiles(unsafe.state), [], "malformed lease was not pruned");
     } finally {
-        rmSync(unsafe.base, { recursive: true, force: true });
+        removeFixture(unsafe.base, true);
     }
 
     const mismatch = fixtureRoot("identity-mismatch");
@@ -407,7 +436,7 @@ async function crashAndCwdChecks(coordinator) {
         assert.deepEqual(allFiles(mismatch.state), [], "identity-mismatched lease was not pruned");
         assert.equal((await rows(mismatch.decoy, FINAL_PREFIX)).length, 0, "identity mismatch redirected settlement");
     } finally {
-        rmSync(mismatch.base, { recursive: true, force: true });
+        removeFixture(mismatch.base);
     }
 }
 
@@ -428,7 +457,7 @@ async function sessionIsolationChecks(coordinator) {
             const bytes = rawBytes(fixture.original, fixture.state).toString("utf8");
             for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `${label} leaked ${sentinel}`);
         } finally {
-            rmSync(fixture.base, { recursive: true, force: true });
+            removeFixture(fixture.base);
         }
     }
 
@@ -483,7 +512,7 @@ async function sessionIsolationChecks(coordinator) {
         const bytes = rawBytes(collision.original, collision.state).toString("utf8");
         for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `collision state leaked ${sentinel}`);
     } finally {
-        rmSync(collision.base, { recursive: true, force: true });
+        removeFixture(collision.base);
     }
 
     for (const [label, command, overrides, expectedDecision, expectedOutcome] of [
@@ -527,7 +556,7 @@ async function sessionIsolationChecks(coordinator) {
             const bytes = rawBytes(fixture.original, fixture.state).toString("utf8");
             for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `${label} sequential state leaked ${sentinel}`);
         } finally {
-            rmSync(fixture.base, { recursive: true, force: true });
+            removeFixture(fixture.base);
         }
     }
 
@@ -603,7 +632,7 @@ async function cliChecks() {
         assertSuccess(pruned, "hidden harness prune");
         assert.deepEqual(JSON.parse(pruned.stdout), JSON.parse(recovered.stdout));
     } finally {
-        rmSync(fixture.base, { recursive: true, force: true });
+        removeFixture(fixture.base);
     }
 }
 

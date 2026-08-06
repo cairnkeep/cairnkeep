@@ -652,6 +652,27 @@ async function testRedactionAndBounds(schemaModule, storeModule) {
 }
 
 async function openRawStore(projectRoot) {
+    if (process.platform === "win32" || process.env.CAIRN_TEST_WINDOWS_ARTIFACT_WORKER === "1") {
+        const invoke = (action, details = {}) => {
+            const result = spawnSync(process.execPath, [join(serverRoot, "dist", "artifact-store-windows-worker.js")], {
+                input: JSON.stringify({ operation: "raw", projectRoot, action, ...details }),
+                encoding: "utf8",
+                env: process.env,
+                windowsHide: true,
+            });
+            assert.equal(result.status, 0, `raw artifact worker failed:\n${result.stdout}${result.stderr}`);
+            return JSON.parse(result.stdout).result;
+        };
+        return {
+            kv: {
+                list: async (prefix = "") => invoke("list", { prefix }),
+                get: async (key) => invoke("get", { key }),
+                set: async (key, value) => invoke("set", { key, value }),
+                delete: async (key) => invoke("delete", { key }),
+            },
+            close: async () => undefined,
+        };
+    }
     return AgentFS.open({ id: "artifacts", path: join(projectRoot, ".agentfs", "artifacts.db") });
 }
 
@@ -1211,7 +1232,9 @@ async function testLifecycleStore(schemaModule, storeModule) {
         assert.equal(sqliteFailed.repaired, false);
         assert.equal(sqliteFailed.integrity, "failed");
         assert.deepEqual(readFileSync(sqlitePath), sqliteBytes, "doctor modified authoritative SQLite corruption");
-        assert.equal(statSync(getArtifactDbPath(scratch)).mode & 0o777, 0o600);
+        if (process.platform !== "win32") {
+            assert.equal(statSync(getArtifactDbPath(scratch)).mode & 0o777, 0o600);
+        }
     } finally {
         rmSync(scratch, { recursive: true, force: true });
     }

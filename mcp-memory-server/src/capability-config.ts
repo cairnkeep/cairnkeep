@@ -1,7 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { constants } from "node:fs";
 import {
-    chmod,
     lstat,
     mkdir,
     open,
@@ -9,6 +8,8 @@ import {
     rm,
 } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
+
+import { hardenPrivatePath } from "./platform-security.js";
 
 import { CAPABILITY_REGISTRY } from "./capability-registry.js";
 import {
@@ -337,9 +338,9 @@ async function atomicWriteConfig(path: string, config: ReadConfig): Promise<void
         await handle.sync();
         await handle.close();
         handle = undefined;
-        await chmod(temporary, 0o600);
+        hardenPrivatePath(temporary);
         await rename(temporary, path);
-        await chmod(path, 0o600);
+        hardenPrivatePath(path);
     } finally {
         if (handle) await handle.close().catch(() => undefined);
         await rm(temporary, { force: true });

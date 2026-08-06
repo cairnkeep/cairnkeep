@@ -10,6 +10,7 @@ import { promisify } from "node:util";
 
 import { z } from "zod";
 import { EmbeddingCache, cosineSimilarity, embedTexts, getEmbeddingConfig, hashText } from "./embeddings.js";
+import { atomicReplace, hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
 
 const execFileAsync = promisify(execFile);
 export const CONTEXT_PACK_MANIFEST = "context-pack.json";
@@ -101,7 +102,7 @@ function readPackSource(digest: string): PackSource | undefined {
     const directoryInfo = lstatSync(directory);
     const info = lstatSync(path);
     if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || !info.isFile() || info.isSymbolicLink()
-        || info.size > 64 * 1024 || (process.platform !== "win32" && (info.mode & 0o077) !== 0)) {
+        || info.size > 64 * 1024 || !privatePathIsSafe(path)) {
         throw new Error(`Context pack source record is unsafe: ${digest}`);
     }
     const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
@@ -205,8 +206,9 @@ async function atomicJson(path: string, value: unknown): Promise<void> {
         await handle.close();
         handle = undefined;
         await chmod(temporary, 0o600);
-        await rename(temporary, path);
-        await chmod(path, 0o600);
+        hardenPrivatePath(temporary);
+        await atomicReplace(temporary, path);
+        hardenPrivatePath(path);
     } finally {
         if (handle) await handle.close().catch(() => undefined);
         await rm(temporary, { force: true });
@@ -220,11 +222,28 @@ async function makeImmutable(root: string): Promise<void> {
         for (const entry of await readdir(directory, { withFileTypes: true })) {
             const path = join(directory, entry.name);
             if (entry.isDirectory()) await walk(path);
-            else await chmod(path, 0o400);
+            else if (process.platform === "win32") {
+                hardenPrivatePath(path);
+                await execFileAsync("attrib.exe", ["+R", path]);
+            } else await chmod(path, 0o400);
         }
     };
     await walk(root);
-    for (const directory of directories.reverse()) await chmod(directory, 0o500);
+    for (const directory of directories.reverse()) {
+        if (process.platform === "win32") hardenPrivatePath(directory);
+        else await chmod(directory, 0o500);
+    }
+}
+
+async function makeWritable(root: string): Promise<void> {
+    if (!existsSync(root)) return;
+    await chmod(root, 0o700);
+    for (const entry of await readdir(root, { withFileTypes: true })) {
+        const path = join(root, entry.name);
+        if (entry.isDirectory()) await makeWritable(path);
+        else if (process.platform === "win32") await execFileAsync("attrib.exe", ["-R", path]);
+        else await chmod(path, 0o600);
+    }
 }
 
 function rejectCredentialUrl(source: string): void {
@@ -236,6 +255,52 @@ function rejectCredentialUrl(source: string): void {
     }
     if (/^[^/@:\s]+:[^@\s]+@/.test(source) || /[?&](?:token|password|access_token)=/i.test(source)) {
         throw new Error("Git source URLs may not contain credentials.");
+    }
+}
+
+function execFileBuffer(program: string, args: string[], options: { timeout: number; maxBuffer: number }): Promise<Buffer> {
+    return new Promise((resolvePromise, rejectPromise) => {
+        execFile(program, args, { ...options, encoding: null, windowsHide: true }, (error, stdout) => {
+            if (error) rejectPromise(error);
+            else resolvePromise(Buffer.from(stdout));
+        });
+    });
+}
+
+async function materializeGitTree(repository: string, destination: string, commit: string): Promise<void> {
+    const listing = await execFileBuffer(
+        "git",
+        ["-C", repository, "ls-tree", "-r", "-z", commit],
+        { timeout: 30_000, maxBuffer: 4 * 1024 * 1024 },
+    );
+    const records = new TextDecoder("utf-8", { fatal: true }).decode(listing).split("\0").filter(Boolean);
+    if (records.length > CONTEXT_PACK_MAX_ENTRIES + 1) throw new Error("Git context pack exceeds the entry limit.");
+    let totalBytes = 0;
+    for (const record of records) {
+        const match = /^(100644|100755|120000) blob ([a-f0-9]{40}|[a-f0-9]{64})\t([\s\S]+)$/.exec(record);
+        if (!match || match[1] === "120000") throw new Error("Git context packs may contain only regular files.");
+        const path = normalizePackPath(match[3]);
+        const { stdout: rawSize } = await execFileAsync(
+            "git",
+            ["-C", repository, "cat-file", "-s", match[2]],
+            { encoding: "utf8", timeout: 30_000, maxBuffer: 1024 },
+        );
+        const size = Number(rawSize.trim());
+        if (!Number.isSafeInteger(size) || size < 0 || size > CONTEXT_PACK_MAX_FILE_BYTES) {
+            throw new Error(`Git context pack file is unsafe or too large: ${path}`);
+        }
+        totalBytes += size;
+        if (totalBytes > CONTEXT_PACK_MAX_TOTAL_BYTES) throw new Error("Git context pack exceeds the total size limit.");
+        const target = resolve(destination, ...path.split("/"));
+        if (!contained(destination, target)) throw new Error(`Unsafe Git context pack path: ${path}`);
+        await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+        const bytes = await execFileBuffer(
+            "git",
+            ["-C", repository, "cat-file", "blob", match[2]],
+            { timeout: 30_000, maxBuffer: CONTEXT_PACK_MAX_FILE_BYTES + 1 },
+        );
+        if (bytes.byteLength !== size) throw new Error(`Git context pack blob changed while reading: ${path}`);
+        await writeFile(target, bytes, { mode: match[1] === "100755" ? 0o700 : 0o600 });
     }
 }
 
@@ -255,9 +320,10 @@ async function materializeSource(source: string, ref?: string): Promise<{ root: 
         const { stdout } = await execFileAsync("git", ["-C", checkout, "rev-parse", "--verify", `${ref}^{commit}`], { timeout: 30_000, maxBuffer: 1024 * 1024 });
         const commit = stdout.trim();
         if (!GIT_COMMIT.test(commit)) throw new Error("Git did not resolve the requested ref to a full commit.");
-        await execFileAsync("git", ["-C", checkout, "checkout", "--quiet", "--detach", commit], { timeout: 60_000, maxBuffer: 1024 * 1024 });
-        await rm(join(checkout, ".git"), { recursive: true, force: true });
-        return { root: checkout, cleanup: checkout, source: { kind: "git", url: gitSource, ref, commit } };
+        const root = join(checkout, "pack");
+        await mkdir(root, { mode: 0o700 });
+        await materializeGitTree(checkout, root, commit);
+        return { root, cleanup: checkout, source: { kind: "git", url: gitSource, ref, commit } };
     } catch (error) {
         await rm(checkout, { recursive: true, force: true });
         throw new Error(`Unable to materialize Git context pack: ${error instanceof Error ? error.message : String(error)}`);
@@ -279,6 +345,7 @@ export async function installContextPack(sourcePath: string, options: { ref?: st
         const objects = dirname(destination);
         await mkdir(objects, { recursive: true, mode: 0o700 });
         const temporary = join(objects, `.${pack.digest}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
+        let published = true;
         try {
             await cp(pack.root, temporary, { recursive: true, errorOnExist: true, force: false });
             const copied = await validateContextPack(temporary);
@@ -287,16 +354,20 @@ export async function installContextPack(sourcePath: string, options: { ref?: st
             try {
                 await rename(temporary, destination);
             } catch (error) {
-                if (!["EEXIST", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code ?? "") || !existsSync(destination)) throw error;
+                const code = (error as NodeJS.ErrnoException).code ?? "";
+                const converged = existsSync(destination)
+                    && (["EEXIST", "ENOTEMPTY"].includes(code) || (process.platform === "win32" && code === "EPERM"));
+                if (!converged) throw error;
                 const concurrent = await validateContextPack(destination);
                 if (concurrent.digest !== pack.digest) throw new Error("Concurrent context pack installation produced a conflicting object.");
+                published = false;
             }
         } finally {
-            await chmod(temporary, 0o700).catch(() => undefined);
+            await makeWritable(temporary).catch(() => undefined);
             await rm(temporary, { recursive: true, force: true }).catch(() => undefined);
         }
         await atomicJson(join(packBaseDir(), "sources", `${pack.digest}.json`), { schema_version: 1, source: materialized.source });
-        return { pack: await validateContextPack(destination), source: materialized.source, existing: false };
+        return { pack: await validateContextPack(destination), source: materialized.source, existing: !published };
     } finally {
         if (materialized.cleanup) await rm(materialized.cleanup, { recursive: true, force: true });
     }
@@ -387,7 +458,7 @@ export function readProjectPointer(options: ProjectOptions): ProjectPointer {
     if (!existsSync(identity.path)) return emptyPointer(identity.id);
     const info = lstatSync(identity.path);
     if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024
-        || (process.platform !== "win32" && (info.mode & 0o077) !== 0)) throw new Error("Context pack project pointer is unsafe.");
+        || !privatePathIsSafe(identity.path)) throw new Error("Context pack project pointer is unsafe.");
     return parseProjectPointer(JSON.parse(readFileSync(identity.path, "utf8")) as unknown, identity.id);
 }
 
@@ -457,7 +528,7 @@ async function allPointers(): Promise<Array<{ path: string; pointer: ProjectPoin
         const path = join(directory, entry.name);
         const info = lstatSync(path);
         if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024
-            || (process.platform !== "win32" && (info.mode & 0o077) !== 0)) {
+            || !privatePathIsSafe(path)) {
             throw new Error(`Context pack project pointer is unsafe: ${path}`);
         }
         const raw = JSON.parse(await readFile(path, "utf8")) as unknown;
@@ -475,14 +546,7 @@ export async function removeContextPack(selector: string): Promise<string> {
         if (pointer.enabled.some(({ digest }) => digest === pack.digest)) throw new Error("Context pack is enabled by a project and cannot be removed.");
     }
     const root = objectRoot(pack.digest);
-    const unlock = async (directory: string): Promise<void> => {
-        await chmod(directory, 0o700);
-        for (const entry of await readdir(directory, { withFileTypes: true })) {
-            const path = join(directory, entry.name);
-            if (entry.isDirectory()) await unlock(path); else await chmod(path, 0o600);
-        }
-    };
-    await unlock(root);
+    await makeWritable(root);
     await rm(root, { recursive: true, force: true });
     await rm(join(packBaseDir(), "sources", `${pack.digest}.json`), { force: true });
     return pack.digest;

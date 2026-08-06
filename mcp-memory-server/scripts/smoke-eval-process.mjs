@@ -143,8 +143,11 @@ async function processChecks() {
             kill_grace_ms: 50,
             max_stdout_bytes: 0,
         }),
-        (error) => error?.code === "timeout" && error?.cleanup === "killed" && error?.signal === "SIGKILL",
-        "timeout did not escalate TERM through grace to KILL and close",
+        (error) => error?.code === "timeout"
+            && (process.platform === "win32"
+                ? error?.cleanup === "terminated" && error?.signal === "SIGTERM" && error?.termination_scope === "process-tree"
+                : error?.cleanup === "killed" && error?.signal === "SIGKILL" && error?.termination_scope === "process-group"),
+        "timeout did not close the platform termination scope with the expected signal outcome",
     );
 
     const controller = new AbortController();
@@ -199,14 +202,18 @@ async function checkpointChecks() {
         assert.deepEqual(await reportApi.readEvalReport(store), report);
         const reportPath = store.report_path ?? join(root, "fixture-experiment", "report.json");
         assert.equal(existsSync(reportPath), true);
-        assert.equal(statSync(reportPath).mode & 0o777, 0o600);
+        if (process.platform !== "win32") {
+            assert.equal(statSync(reportPath).mode & 0o777, 0o600);
+        }
         const bytes = readFileSync(reportPath, "utf8");
         for (const sentinel of ["prompt-sentinel", "model-output-sentinel", "adapter-stderr-sentinel", "environment-sentinel"]) {
             assert.equal(bytes.includes(sentinel), false);
         }
         const diagnosis = await reportApi.diagnoseEvalReport(store);
         assert.equal(["ok", "partial"].includes(diagnosis.state ?? diagnosis.status), true);
-        assert.equal(statSync(store.experiment_path).mode & 0o777, 0o700);
+        if (process.platform !== "win32") {
+            assert.equal(statSync(store.experiment_path).mode & 0o777, 0o700);
+        }
 
         for (const fault of ["after_open", "after_write", "after_sync", "after_close", "after_rename"]) {
             const faultStore = await reportApi.createEvalReportStore({ root, experiment_id: `fault-${fault}` });

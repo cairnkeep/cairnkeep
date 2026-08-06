@@ -1,11 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
 import { constants, existsSync, lstatSync, mkdirSync, openSync, closeSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync, chmodSync } from "node:fs";
-import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { delimiter, dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 
 import { canonicalDigest } from "./eval-schema.js";
 import { EvalProcessError, runBoundedJsonProcess } from "./eval-process.js";
 import { noteNodeSchema } from "./node-schema.js";
 import { getNoteLayout, listAddressedNotes } from "./note-store.js";
+import { hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
 import {
     MAX_SKILL_BYTES,
     SKILL_SCHEMA_VERSION,
@@ -70,10 +71,21 @@ function isContained(root: string, candidate: string): boolean {
     return path === "" || (!path.startsWith(`..${sep}`) && path !== ".." && !isAbsolute(path));
 }
 
+function pathCrossesSymlink(path: string): boolean {
+    const absolute = resolve(path);
+    const root = parse(absolute).root;
+    let cursor = root;
+    for (const segment of absolute.slice(root.length).split(sep).filter(Boolean)) {
+        cursor = join(cursor, segment);
+        if (lstatSync(cursor).isSymbolicLink()) return true;
+    }
+    return false;
+}
+
 function requireProjectRoot(projectRoot: string): string {
     const absolute = resolve(projectRoot);
     const info = lstatSync(absolute);
-    if (info.isSymbolicLink() || !info.isDirectory() || realpathSync(absolute) !== absolute) {
+    if (!info.isDirectory() || pathCrossesSymlink(absolute)) {
         throw new Error("Project root must be a real, non-symlink directory.");
     }
     return absolute;
@@ -82,10 +94,10 @@ function requireProjectRoot(projectRoot: string): string {
 function privateDirectory(path: string): void {
     mkdirSync(path, { recursive: true, mode: 0o700 });
     const info = lstatSync(path);
-    if (info.isSymbolicLink() || !info.isDirectory() || realpathSync(path) !== path) {
+    if (!info.isDirectory() || pathCrossesSymlink(path)) {
         throw new Error(`Unsafe skill state directory: ${path}`);
     }
-    chmodSync(path, 0o700);
+    hardenPrivatePath(path);
 }
 
 export function getSkillStore(projectRoot = process.cwd(), create = true): SkillStore {
@@ -127,13 +139,14 @@ function atomicWrite(path: string, value: unknown): void {
     } finally {
         closeSync(descriptor);
     }
-    chmodSync(temporary, 0o600);
+    hardenPrivatePath(temporary);
     renameSync(temporary, path);
+    hardenPrivatePath(path);
 }
 
 function readJson(path: string): unknown {
     const info = lstatSync(path);
-    if (info.isSymbolicLink() || !info.isFile() || info.size > MAX_ARTIFACT_BYTES || (info.mode & 0o077) !== 0) {
+    if (info.isSymbolicLink() || !info.isFile() || info.size > MAX_ARTIFACT_BYTES || !privatePathIsSafe(path)) {
         throw new Error(`Unsafe skill artifact: ${path}`);
     }
     const descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
@@ -147,7 +160,7 @@ function readJson(path: string): unknown {
 function listJson<T>(directory: string, parse: (value: unknown) => T): T[] {
     if (!existsSync(directory)) return [];
     const info = lstatSync(directory);
-    if (info.isSymbolicLink() || !info.isDirectory() || (info.mode & 0o077) !== 0) throw new Error("Unsafe skill artifact directory.");
+    if (info.isSymbolicLink() || !info.isDirectory() || !privatePathIsSafe(directory)) throw new Error("Unsafe skill artifact directory.");
     return [...new Set(readdirSync(directory))]
         .filter((name) => /^[a-z0-9][a-z0-9._-]{0,127}\.json$/.test(name))
         .sort()
@@ -346,8 +359,10 @@ function loadAdapterConfig(path: string): { config: SkillAdapterConfig; digest: 
     }
     if (!isAbsolute(config.command.program)) throw new Error("Skill adapter program must be an absolute path.");
     const programInfo = lstatSync(config.command.program);
-    if (programInfo.isSymbolicLink() || !programInfo.isFile() || (programInfo.mode & 0o111) === 0
-        || realpathSync(config.command.program) !== config.command.program) {
+    const windowsRunnable = /\.(?:cjs|mjs|js|exe|com)$/i.test(config.command.program);
+    if (!programInfo.isFile()
+        || pathCrossesSymlink(config.command.program)
+        || (process.platform === "win32" ? !windowsRunnable : (programInfo.mode & 0o111) === 0)) {
         throw new Error("Skill adapter program must be a real executable file.");
     }
     return { config, digest: canonicalDigest(config), program_digest: sha256File(config.command.program) };
@@ -542,7 +557,7 @@ export function applySkillProposal(options: {
         rolled_back_at: null,
     });
     writeFileSync(backupPath, target.content, { encoding: "utf8", mode: 0o600, flag: "wx" });
-    chmodSync(backupPath, 0o600);
+    hardenPrivatePath(backupPath);
     try {
         atomicWriteTarget(target.path, proposal.candidate_content, proposal.target_mode);
         if (sha256(readFileSync(target.path)) !== proposal.candidate_content_digest) {
@@ -598,7 +613,7 @@ export function rollbackSkillApplication(options: { projectRoot: string; applica
     const backup = resolve(store.project_root, application.backup_path);
     const backupInfo = lstatSync(backup);
     if (!isContained(store.backups, backup) || backupInfo.isSymbolicLink() || !backupInfo.isFile()
-        || backupInfo.size > MAX_SKILL_BYTES || (backupInfo.mode & 0o077) !== 0) {
+        || backupInfo.size > MAX_SKILL_BYTES || !privatePathIsSafe(backup)) {
         throw new Error("Skill backup is missing or unsafe.");
     }
     const original = readFileSync(backup, "utf8");

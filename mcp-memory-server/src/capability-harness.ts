@@ -2,7 +2,6 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { homedir } from "node:os";
 import {
-    chmod,
     lstat,
     mkdir,
     open,
@@ -35,6 +34,7 @@ import {
 } from "./capability-store.js";
 import { isTrajectoryCaptureEnabled } from "./trajectory-schema.js";
 import type { CapabilityId, CapabilityStatus } from "./capability-schema.js";
+import { hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
 
 const LEASE_DIRECTORY_NAME = "capability-leases-v1";
 const LEASE_SCHEMA_VERSION = 1 as const;
@@ -185,11 +185,12 @@ async function ensureLeaseDirectory(options: HarnessCapabilityStateOptions = {})
     await mkdir(root, { recursive: true, mode: 0o700 });
     const rootInfo = await lstat(root);
     if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()) throw new Error("Harness state root is unsafe.");
+    hardenPrivatePath(root);
     const directory = getHarnessCapabilityLeaseDirectory(options);
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const info = await lstat(directory);
     if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("Harness lease directory is unsafe.");
-    await chmod(directory, 0o700);
+    hardenPrivatePath(directory);
     return directory;
 }
 
@@ -245,9 +246,9 @@ async function writeLease(lease: HarnessCapabilityLease, options: HarnessCapabil
         await handle.sync();
         await handle.close();
         handle = undefined;
-        await chmod(temporary, 0o600);
+        hardenPrivatePath(temporary);
         await rename(temporary, path);
-        await chmod(path, 0o600);
+        hardenPrivatePath(path);
     } finally {
         if (handle) await handle.close().catch(() => undefined);
         await rm(temporary, { force: true });
@@ -259,7 +260,7 @@ async function readLease(path: string): Promise<HarnessCapabilityLease | undefin
     try {
         handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
         const info = await handle.stat();
-        if (!info.isFile() || info.size > MAX_LEASE_BYTES || (info.mode & 0o077) !== 0) return undefined;
+        if (!info.isFile() || info.size > MAX_LEASE_BYTES || !privatePathIsSafe(path)) return undefined;
         const bytes = await handle.readFile();
         if (bytes.byteLength > MAX_LEASE_BYTES) return undefined;
         return harnessCapabilityLeaseSchema.parse(JSON.parse(bytes.toString("utf8")) as unknown);
@@ -271,7 +272,27 @@ async function readLease(path: string): Promise<HarnessCapabilityLease | undefin
 }
 
 async function removeLease(path: string): Promise<void> {
-    await rm(path, { force: true });
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+        try {
+            await rm(path, { force: true });
+            return;
+        } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code !== "EPERM" && code !== "EBUSY") throw error;
+            lastError = error;
+            if (process.platform === "win32" && attempt === 0) {
+                try {
+                    const info = await lstat(path);
+                    if (info.isFile() && !info.isSymbolicLink()) hardenPrivatePath(path);
+                } catch (aclError) {
+                    if ((aclError as NodeJS.ErrnoException).code === "ENOENT") return;
+                }
+            }
+            await new Promise((resolveDelay) => setTimeout(resolveDelay, 25 * (attempt + 1)));
+        }
+    }
+    throw lastError;
 }
 
 function capabilityState(snapshot: CapabilityStatus, id: CapabilityId): CapabilityStatus["capabilities"][number] {
@@ -359,7 +380,7 @@ async function matchingLeases(
     let entries;
     try {
         const info = await lstat(directory);
-        if (!info.isDirectory() || info.isSymbolicLink() || (info.mode & 0o077) !== 0) return [];
+        if (!info.isDirectory() || info.isSymbolicLink() || !privatePathIsSafe(directory)) return [];
         entries = (await readdir(directory, { withFileTypes: true }))
             .sort((left, right) => left.name.localeCompare(right.name))
             .slice(0, MAX_LEASES);
