@@ -27,7 +27,9 @@ delete process.env.CAIRN_LLM_API_URL;
 delete process.env.CAIRN_NOTE_ENRICHMENT_MODEL;
 
 function session(name, projectRoot) {
-    const value = JSON.parse(JSON.stringify(fixture[name]).replaceAll("$PROJECT_ROOT", projectRoot));
+    const value = JSON.parse(JSON.stringify(fixture[name]), (_key, item) => (
+        typeof item === "string" ? item.replaceAll("$PROJECT_ROOT", projectRoot) : item
+    ));
     return trajectorySessionSchema.parse(value);
 }
 

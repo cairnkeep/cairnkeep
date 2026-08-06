@@ -95,7 +95,9 @@ try {
     mkdirSync(projectRoot, { recursive: true });
     process.env.CAIRN_AGENTFS_BASE_DIR = join(scratch, "store");
     const fixtures = JSON.parse(readFileSync(join(here, "fixtures", "notes", "lifecycle-sessions.json"), "utf8"));
-    const session = trajectorySessionSchema.parse(JSON.parse(JSON.stringify(fixtures.failure).replaceAll("$PROJECT_ROOT", projectRoot)));
+    const session = trajectorySessionSchema.parse(JSON.parse(JSON.stringify(fixtures.failure), (_key, item) => (
+        typeof item === "string" ? item.replaceAll("$PROJECT_ROOT", projectRoot) : item
+    )));
     await putTrajectory(projectRoot, session, getTrajectoryLimits());
     const integrated = await distillProject({ projectRoot, sessionId: session.session_id });
     assert.equal(integrated.created.length, 1);
