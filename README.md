@@ -15,7 +15,7 @@ Qwen Code, Pi, and other MCP clients).
 ## Status
 
 Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync`, `sync-pi`, `sync-kimi`,
-`doctor`, `trajectory`, `artifact`, `notes`, `memory`, `eval`, `audit-timer`, `completion`, `uninstall`) installable via
+`doctor`, `trajectory`, `artifact`, `mcp-tools`, `pack`, `notes`, `memory`, `eval`, `audit-timer`, `completion`, `uninstall`) installable via
 `npm i -g @cairnkeep/cli`, and the
 operating layer (commands,
 agents, hooks) installed on Claude Code and OpenCode, plus a native Pi
@@ -41,7 +41,7 @@ and 20 are end-of-life upstream.
 | Qwen Code on Linux/macOS | Memory MCP server plus project launcher; no Cairnkeep operating-layer assets yet |
 | Pi on Linux/macOS | Native opt-in trajectory extension, launcher, and `/graphify` prompt; no bundled MCP bridge |
 | Codex CLI | Memory MCP server; no Cairnkeep operating-layer assets |
-| Other MCP clients | Memory and optional domain-knowledge MCP tools |
+| Other MCP clients | Memory plus optional domain-knowledge and context-pack MCP tools |
 | Native Windows | Not supported by the Bash-based installer; use WSL (not yet CI-verified) |
 
 The `cairn graph` CLI is harness-independent and can be run from a project
@@ -82,6 +82,9 @@ storage paths, secrets, and private derived images, see
   `.ai/` launchers + env; `cairn doctor` health-checks the configured pieces;
   `cairn trajectory list|show|prune` manages opt-in local session trajectories;
   `cairn artifact list|show|delete|prune` manages opt-in local artifacts;
+  `cairn mcp-tools list|status|set|reset` applies least-authority discovery
+  profiles; `cairn pack` validates, installs, pins, updates, and approves
+  immutable external context;
   `cairn eval validate|run|ablate|report|prune|delete` coordinates explicit
   local two-pass and one-capability-at-a-time measurements;
   `cairn skill harvest|list|show|review|propose|evaluate|apply|rollback`
@@ -262,6 +265,11 @@ search):
 | `CAIRN_MEMORY_EMBEDDING_MODEL` | Embedding model name (required for semantic search) |
 | `CAIRN_MEMORY_EMBEDDING_TIMEOUT_MS` | Embedding request timeout before substring fallback (default `15000`) |
 | `CAIRN_AGENTFS_BASE_DIR` | Base dir for global memory scopes (default `~/.cairnkeep`) |
+| `CAIRN_MCP_TOOL_PROFILE` | Process override for MCP exposure: `full`, `read-only`, or `custom` |
+| `CAIRN_MCP_ALLOWED_TOOLS` | Comma-separated exact allowlist required by a custom process profile |
+| `CAIRN_CONTEXT_PACKS` | Opt in to local context-pack list/search/read tools (default off) |
+| `CAIRN_CONTEXT_PACK_HTTP` | Separately consent to context-pack tools over authenticated HTTP (default off) |
+| `CAIRN_PACK_BASE_DIR` | Immutable pack objects, source records, pointers, and retrieval cache (default `~/.cairnkeep/packs`) |
 | `CAIRN_TRAJECTORY_CAPTURE` | Opt in to local structured session capture (`1`, `true`, `yes`, or `on`; default off) |
 | `CAIRN_TRAJECTORY_SESSION_MAX_BYTES` | Maximum serialized bytes per captured session (default `5242880`, 5 MiB) |
 | `CAIRN_TRAJECTORY_STORE_MAX_BYTES` | Maximum logical bytes across local trajectories (default `268435456`, 256 MiB) |
@@ -307,6 +315,22 @@ There is no Cairnkeep telemetry. Optional extraction, embeddings, document RAG,
 remote memory, and delegated exploration can send content to endpoints you
 configure. Review [Privacy and data flow](docs/privacy-and-data-flow.md) before
 enabling them.
+
+### MCP authority and context packs
+
+Every tool publishes a stable title and all four MCP annotation hints. Use
+`cairn mcp-tools set read-only` for observation-only clients, or an exact custom
+allowlist when a workflow needs fewer tools. Process settings override the
+strict project file; the default remains `full`. Profiles only remove tools and
+cannot bypass capability or feature gates. See
+[MCP tool profiles](docs/mcp-tool-profiles.md).
+
+Context packs are immutable, digest-addressed local document/skill bundles.
+They are installed and project-pinned manually; no background Git sync occurs.
+With `CAIRN_CONTEXT_PACKS=1`, enabled documents are searchable through three
+read-only MCP tools. Skills remain invisible until their exact file digest is
+approved, and are never copied or executed. See
+[Immutable context packs](docs/context-packs.md).
 
 ### Managed capability contract (opt-in)
 
@@ -482,6 +506,8 @@ exposes trajectory data. See the [operating guide](docs/operating.md#compaction-
 - **Memory storage and deployment** — [docs/storage.md](docs/storage.md)
 - **Podman and OCI containers** — [docs/containers.md](docs/containers.md)
 - **Privacy and data flow** — [docs/privacy-and-data-flow.md](docs/privacy-and-data-flow.md)
+- **MCP tool profiles** — [docs/mcp-tool-profiles.md](docs/mcp-tool-profiles.md)
+- **Immutable context packs** — [docs/context-packs.md](docs/context-packs.md)
 - **Validated skill improvement** — [docs/skill-improvement.md](docs/skill-improvement.md)
 - **Git providers** — [docs/git-providers.md](docs/git-providers.md)
 - **Support** — [SUPPORT.md](SUPPORT.md)

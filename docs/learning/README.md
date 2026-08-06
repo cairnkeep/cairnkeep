@@ -50,6 +50,8 @@ expanded only after their labs are executable.
 | L17 | [The agent boundary](lessons/L17-agent-boundary.md) | Brief | 25 min |
 | L18 | [Local code graph](lessons/L18-local-code-graph.md) | Brief | 35 min |
 | L19 | [Validated skill improvement](lessons/L19-validated-skill-improvement.md) | Ready | 50 min |
+| L20 | [Least-authority MCP tool profiles](lessons/L20-mcp-tool-profiles.md) | Ready | 25 min |
+| L21 | [Immutable context packs and skill approval](lessons/L21-context-packs.md) | Ready | 40 min |
 
 The [curriculum coverage map](CURRICULUM-MAP.md) records where every public
 feature is introduced, practised, and operated. It also marks design-only work
@@ -68,7 +70,9 @@ Every complete lesson contains:
 
 The learner should never need optional infrastructure to complete L00-L06.
 Remote memory, RAG, routing, containers, graph indexing, structured capture,
-typed nodes, capability governance, and evaluation are separate opt-in modules.
+typed nodes, capability governance, evaluation, and context packs are separate
+opt-in modules. MCP profiles are restrictive and never activate an optional
+feature.
 
 ## For contributors
 

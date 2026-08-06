@@ -14,12 +14,18 @@ commands, hooks, plugins, or trajectory adapters.
 | Qwen Code | Memory MCP, launcher | Launcher tested; stdio and remote MCP tested with Qwen Code 0.21.1 |
 | Pi | Native opt-in trajectory extension, launcher, and graph prompt | Exercised by Cairnkeep tests; no bundled MCP bridge |
 | Codex CLI | Memory MCP | Configuration supported; no Cairnkeep operating-layer assets or launcher |
-| Other MCP clients | Memory and optional domain-knowledge tools | Protocol-compatible; not automatically runtime-tested |
+| Other MCP clients | Memory plus optional domain-knowledge and context-pack tools | Protocol-compatible; not automatically runtime-tested |
 
 Only Claude Code and OpenCode currently receive the complete operating layer.
 Kimi receives one narrow graph Skill, while Pi receives one narrow graph prompt;
 neither is equivalent to the full commands, agents, hooks, and plugins surface.
 Qwen skills and hooks still require harness-specific adaptation and validation.
+
+Every MCP client receives complete tool annotations and may use a Cairnkeep
+least-authority profile independent of harness assets. Context-pack tools are
+ordinary read-only MCP tools and require the pack feature gate; authenticated
+HTTP additionally requires separate pack-HTTP consent. Approved pack skills
+remain context documents, not native harness Skills or automatic instructions.
 
 `cairn graph` is a separate, harness-independent project-shell CLI. Kimi Code,
 Pi, Qwen Code, Codex, and other shell-capable clients can invoke

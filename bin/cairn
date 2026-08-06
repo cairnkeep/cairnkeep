@@ -52,6 +52,12 @@ Usage:
                            Inspect and manage project capability state. MCP changes
                            require a memory-server restart; operating changes apply
                            on the next invocation.
+  cairn mcp-tools <list|status|set|reset>
+                           Inspect and restrict MCP tool exposure with full,
+                           read-only, or exact custom project profiles.
+  cairn pack <init|lock|validate|install|list|show|remove|enable|disable|update|skills|approve-skill|revoke-skill>
+                           Build, verify, install, pin, and retrieve immutable
+                           context packs. Packs stay local and disabled by default.
   cairn notes <distill|search-error|promote|doctor>
                            Compile closed trajectories into local hindsight notes,
                            search exact failure signatures, promote corroborated
@@ -72,7 +78,7 @@ Usage:
   cairn audit-timer [--on-calendar SPEC] [--para-root PATH] [--render-only DIR]
                            Install (opt-in) a systemd user timer that runs the
                            memory+wiki audit on a schedule; prints a cron alternative.
-  cairn uninstall [--dry-run] [--yes] [--purge-memory] [--live-root DIR]
+  cairn uninstall [--dry-run] [--yes] [--purge-memory] [--purge-packs] [--live-root DIR]
                   [--pi-live-root DIR] [--kimi-live-root DIR] [PROJECT ...]
                            Reverse what cairnkeep installed/modified (operating
                            layer, hook registrations, MCP registration, audit
@@ -112,6 +118,12 @@ case "$cmd" in
     ;;
   capabilities)
     exec node "$CAIRN_ROOT/mcp-memory-server/dist/capability-cli.js" "$@"
+    ;;
+  mcp-tools)
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/mcp-tool-cli.js" "$@"
+    ;;
+  pack)
+    exec node "$CAIRN_ROOT/mcp-memory-server/dist/context-pack-cli.js" "$@"
     ;;
   notes)
     exec node "$CAIRN_ROOT/mcp-memory-server/dist/note-cli.js" "$@"

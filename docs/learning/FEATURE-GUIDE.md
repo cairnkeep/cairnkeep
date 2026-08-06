@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.8.0
+**Baseline:** Cairnkeep 2.9.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -33,6 +33,8 @@ Run setup in that order, then confirm `cairn doctor`, `cairn sync --check`, and
 | 6 | Typed nodes and capability governance | Filtering and centrally inspectable feature state are needed |
 | 7 | Evaluation and ablation | A concrete change needs bounded measurement |
 | 8 | Validated skill improvement | Repeated resolved hindsight warrants a measured skill change |
+| 9 | Least-authority MCP profiles | A client should receive fewer tools than the default catalog |
+| 10 | Immutable context packs | Reviewed external context should be pinned without becoming memory |
 
 Every stage is independently useful. Stages 4-8 are opt-in and are not
 prerequisites for ordinary memory.
@@ -58,6 +60,8 @@ prerequisites for ordinary memory.
 | Context exploration | Configure an operator-owned exploration binary or route endpoint | Source/context goes only to the selected local or remote component | Check citations/cache; remove variables and relaunch | `course-04-operation` |
 | Containers | Rootless memory or workspace launcher | Named volumes persist; shared checkout mode is read/write, sandbox mode copies into a volume | Inspect mounts/volumes; remove only explicitly named disposable resources | `course-04-operation` |
 | Managed overlays | Separate distribution manifest, wrapper, profile lock, fleet and rollback gates | Policy and secrets belong in the private distribution/machine config, never core | `overlay info`, doctor, fleet dry run/current state, rollback | `course-04-operation` |
+| MCP tool profiles | `cairn mcp-tools set full|read-only|custom` | Strict mode-`0600` project config; process overrides take precedence; profile only removes tools | Inspect catalog/status digest; reset and restart MCP | `course-10-trust-context` |
+| Context packs | Manual local or commit-pinned Git install plus project enablement | Immutable objects and atomic pointers under `CAIRN_PACK_BASE_DIR`; no background sync | Validate, inspect digest, check/apply update, disable/remove | `course-10-trust-context` |
 
 ## Evidence, governance, and measurement
 
@@ -73,6 +77,7 @@ prerequisites for ordinary memory.
 | Evaluation | `CAIRN_EVAL=1` for the coordinator process | No harness chosen by Cairnkeep | `validate` before `run`; inspect report, missingness and evidence scope; dry-run prune/delete | `course-07-evaluation` |
 | Validated skill improvement | Reviewed recurring hindsight; proposal adapter; `CAIRN_EVAL=1` for evaluation | No server restart; explicit subprocesses only | `cairn skill list|show`; exact-digest apply; concurrent-edit-safe rollback | `course-09-skill` |
 | General meta-agent loop | Not shipped | Not applicable | Skill-file lifecycle only; no generic configuration loop or scheduler | `course-07-evaluation` |
+| Pack retrieval and skills | `CAIRN_CONTEXT_PACKS=1`; HTTP needs separate consent; skills need exact-digest approval | Restart MCP server | `cairn pack skills`; revoke approval or disable pack; no automatic execution | `course-10-trust-context` |
 
 ## Harness and maintenance checks
 

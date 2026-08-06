@@ -400,6 +400,45 @@ case "$eval_state" in
   unsafe) warn "evaluation report storage is unsafe" ;;
 esac
 
+# 12. MCP least-authority profile. Invalid or unknown custom tool names are a
+# startup failure, so doctor treats them as an actionable configuration error.
+mcp_profile_cli="$CAIRN_ROOT/mcp-memory-server/dist/mcp-tool-cli.js"
+if [[ ! -f "$mcp_profile_cli" ]]; then
+  fail "MCP tool profile checker is missing from the installed package"
+elif mcp_profile_json=$(node "$mcp_profile_cli" status --project "$PWD" --json 2>/dev/null); then
+  if mcp_profile_summary=$(node - "$mcp_profile_json" <<'NODE'
+try {
+  const value = JSON.parse(process.argv[2]);
+  if (value.schema_version !== 1 || !["full", "read-only", "custom"].includes(value.mode)
+      || !/^[a-f0-9]{64}$/.test(value.profile_digest) || !Array.isArray(value.allowed_tools)) process.exit(1);
+  process.stdout.write(`${value.mode}\t${value.profile_digest}`);
+} catch { process.exit(1); }
+NODE
+  ); then
+    pass "MCP tool profile $(printf '%s' "$mcp_profile_summary" | cut -f1) ($(printf '%s' "$mcp_profile_summary" | cut -f2))"
+  else
+    fail "MCP tool profile status returned invalid data"
+  fi
+else
+  fail "MCP tool profile is invalid (check .ai/mcp-tools.json and CAIRN_MCP_TOOL_PROFILE)"
+fi
+
+# 13. Context-pack objects and project pointers are verified even when MCP pack
+# retrieval is disabled. The feature gate controls reads, not integrity checks.
+pack_cli="$CAIRN_ROOT/mcp-memory-server/dist/context-pack-cli.js"
+pack_base="${CAIRN_PACK_BASE_DIR:-$HOME/.cairnkeep/packs}"
+pack_base="${pack_base/#\~/$HOME}"
+if [[ ! -e "$pack_base" ]]; then
+  skip "context packs (not installed)"
+elif [[ ! -f "$pack_cli" ]]; then
+  fail "context-pack checker is missing from the installed package"
+elif pack_json=$(node "$pack_cli" doctor --json 2>/dev/null) && node -e 'const v=JSON.parse(process.argv[1]); if(v.ok!==true)process.exit(1)' "$pack_json"; then
+  pack_counts=$(node -e 'const v=JSON.parse(process.argv[1]); process.stdout.write(`${v.objects} object(s), ${v.projects} project pointer(s)`)' "$pack_json")
+  pass "context packs healthy ($pack_counts)"
+else
+  fail "context-pack objects or project pointers failed integrity checks"
+fi
+
 echo
 if [[ "$fails" -gt 0 ]]; then
   echo "cairn doctor: $fails configured dependency check(s) failed."

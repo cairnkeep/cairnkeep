@@ -174,7 +174,9 @@ function assertLegacyTools(tools) {
     assert.deepEqual(tools.map(({ name }) => name), LEGACY_TOOL_NAMES, "master-off tool order changed");
     const definitions = byName(tools);
     for (const [name, expected] of Object.entries(EXPECTED_MAPPED_DEFINITIONS)) {
-        assert.deepEqual(definitions[name], expected, `${name} public definition changed from the pre-Phase-18 baseline`);
+        const { title: _title, annotations: _annotations, ...legacyDefinition } = definitions[name];
+        const { title: _expectedTitle, annotations: _expectedAnnotations, ...legacyExpected } = expected;
+        assert.deepEqual(legacyDefinition, legacyExpected, `${name} public definition changed from the pre-Phase-18 baseline`);
     }
 }
 

@@ -412,6 +412,7 @@
         "package_version": { "type": "string", "minLength": 1, "maxLength": 128 },
         "runtime_id": { "$ref": "#/$defs/identifier" },
         "task_set_digest": { "$ref": "#/$defs/digest" },
+        "mcp_tool_profile_digest": { "$ref": "#/$defs/digest" },
         "report_digest": { "$ref": "#/$defs/digest" },
         "schema_digests": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "$ref": "#/$defs/digest" } },
         "note_snapshot_digests": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/digest" } },

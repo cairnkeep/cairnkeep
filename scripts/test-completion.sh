@@ -43,6 +43,11 @@ for shell in bash zsh fish; do
   for skill_flag in --candidate --exploration-task-set --confirmation-task-set --evaluation --application --confirm; do
     grep -q -- "$skill_flag\|-l ${skill_flag#--}" "$tmp/$shell"
   done
+  grep -q 'mcp-tools' "$tmp/$shell"
+  grep -q 'full.*read-only.*custom\|full read-only custom' "$tmp/$shell"
+  grep -q 'pack' "$tmp/$shell"
+  grep -q 'init.*lock.*validate.*install.*list.*show.*remove.*enable.*disable.*update.*skills.*approve-skill.*revoke-skill\|init lock validate install list show remove enable disable update skills approve-skill revoke-skill' "$tmp/$shell"
+  grep -q -- '--purge-packs\|-l purge-packs' "$tmp/$shell"
 done
 
 "$ROOT/bin/cairn" help >"$tmp/root-help"

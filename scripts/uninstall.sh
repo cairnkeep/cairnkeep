@@ -25,9 +25,12 @@ PI_LIVE_ROOT="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 KIMI_LIVE_ROOT="${KIMI_CODE_HOME:-$HOME/.kimi-code}"
 STORE_DIR="${CAIRN_AGENTFS_BASE_DIR:-$HOME/.cairnkeep}"
 STORE_DIR="${STORE_DIR/#\~/$HOME}"
+PACK_DIR="${CAIRN_PACK_BASE_DIR:-$HOME/.cairnkeep/packs}"
+PACK_DIR="${PACK_DIR/#\~/$HOME}"
 DRY_RUN=0
 ASSUME_YES=0
 PURGE_MEMORY=0
+PURGE_PACKS=0
 PROJECTS=()
 
 # The hooks cairnkeep registers (basename is the settings.json match token).
@@ -49,7 +52,7 @@ PROJECT_AI_FILES=(
 
 usage() {
   cat <<'EOF'
-Usage: uninstall.sh [--dry-run] [--yes] [--purge-memory] [--live-root PATH]
+Usage: uninstall.sh [--dry-run] [--yes] [--purge-memory] [--purge-packs] [--live-root PATH]
                     [--pi-live-root PATH] [--kimi-live-root PATH] [PROJECT ...]
 
 Reverse cairnkeep's install. Everything removed/edited is backed up into
@@ -59,6 +62,8 @@ $HOME/.cairnkeep-uninstall-<ts>/ with a revert.sh before any change.
   --yes            Do not prompt for confirmation.
   --purge-memory   Also remove the global memory store and .agentfs/ memory and
                    trajectories in each PROJECT. Backed up first; off by default.
+  --purge-packs    Also remove immutable context-pack objects and project
+                   pointers. Backed up first; off by default.
   --live-root PATH Claude root to clean (default: $CLAUDE_CONFIG_DIR or ~/.claude).
   --pi-live-root PATH Pi agent root to clean (default: $PI_CODING_AGENT_DIR or ~/.pi/agent).
   --kimi-live-root PATH Kimi Code root to clean (default: $KIMI_CODE_HOME or ~/.kimi-code).
@@ -73,6 +78,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1; shift ;;
     --yes) ASSUME_YES=1; shift ;;
     --purge-memory) PURGE_MEMORY=1; shift ;;
+    --purge-packs) PURGE_PACKS=1; shift ;;
     --live-root) LIVE_ROOT="$2"; shift 2 ;;
     --pi-live-root) PI_LIVE_ROOT="$2"; shift 2 ;;
     --kimi-live-root) KIMI_LIVE_ROOT="$2"; shift 2 ;;
@@ -142,6 +148,7 @@ echo "  live root:    $LIVE_ROOT"
 echo "  Pi live root: $PI_LIVE_ROOT"
 echo "  Kimi root:    $KIMI_LIVE_ROOT"
 echo "  memory store: $STORE_DIR ($([[ $PURGE_MEMORY -eq 1 ]] && echo 'WILL be purged' || echo 'kept'))"
+echo "  context packs: $PACK_DIR ($([[ $PURGE_PACKS -eq 1 ]] && echo 'WILL be purged' || echo 'kept'))"
 [[ ${#PROJECTS[@]} -gt 0 ]] && echo "  projects:     ${PROJECTS[*]}"
 
 if [[ $DRY_RUN -eq 0 && $ASSUME_YES -eq 0 ]]; then
@@ -231,6 +238,24 @@ fi
 if [[ $PURGE_MEMORY -eq 1 ]]; then
   echo "Memory store:"
   remove_path "$STORE_DIR"
+  if [[ $PURGE_PACKS -eq 0 && "$PACK_DIR" == "$STORE_DIR"/* && $DRY_RUN -eq 0 ]]; then
+    pack_backup="$BACKUP_DIR/files/${PACK_DIR#/}"
+    if [[ -d "$pack_backup" ]]; then
+      mkdir -p "$(dirname "$PACK_DIR")"
+      cp -a "$pack_backup" "$PACK_DIR"
+      echo "  retained context packs: $PACK_DIR"
+    fi
+  fi
+fi
+
+if [[ $PURGE_MEMORY -eq 0 && $PURGE_PACKS -eq 0 && -d "$PACK_DIR" ]]; then
+  echo "Context packs:"
+  echo "  kept context packs: $PACK_DIR (use --purge-packs to remove)"
+fi
+
+if [[ $PURGE_PACKS -eq 1 && ! ( $PURGE_MEMORY -eq 1 && "$PACK_DIR" == "$STORE_DIR"/* ) ]]; then
+  echo "Context packs:"
+  remove_path "$PACK_DIR"
 fi
 
 # 6. Per-project bootstrap scaffold.

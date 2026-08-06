@@ -52,6 +52,7 @@ import {
     type EvalWorkspace,
     type EvalWorkspaceOverlay,
 } from "./eval-workspace.js";
+import { resolveMcpToolProfile } from "./mcp-tool-profile.js";
 
 export type NoteSnapshotOutcome = "success" | "no_notes" | "failed" | "skipped";
 
@@ -873,6 +874,7 @@ function initialReport(
             package_version: plan.source.kind === "bundled_fake" ? plan.source.package_version : "0.1.0",
             runtime_id: "node-local",
             task_set_digest: plan.task_set_digest,
+            mcp_tool_profile_digest: resolveMcpToolProfile({ projectRoot: process.cwd() }).profile_digest,
             report_digest: canonicalDigest({ experiment_id: experimentId, plan_digest: plan.plan_digest }),
             schema_digests: [...evalReportSchemaDigests()],
             note_snapshot_digests: [],

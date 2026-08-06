@@ -1,7 +1,7 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.8.0
-**Last reviewed:** 2026-08-03
+**Baseline:** Cairnkeep 2.9.0
+**Last reviewed:** 2026-08-06
 
 This map prevents the course from drifting behind the product. It assigns each
 user-facing surface to a lesson and records whether the lesson is complete or
@@ -32,6 +32,8 @@ been rehearsed.
 | Shell completion | L02 | L02 | Ready; optional convenience |
 | Bounded meta-agent configuration loop | L17 | None | Design-only; not shipped |
 | Reviewed, evaluated, reversible skill-file improvement | L19 | L19 | Ready; explicit and default off |
+| Complete MCP annotations and least-authority tool profiles | L20 | L20 | Ready; default profile remains full |
+| Immutable context packs and exact-digest skill approval | L21 | L21 | Ready; default off |
 
 ## Release Review
 
@@ -62,6 +64,7 @@ repository remains the canonical source for explanations and scripts.
 | `course-07-evaluation` | L16-L17 | Package-owned offline fixture and design boundary |
 | `course-08-graph` | L18 | Optional local structural graph workflow |
 | `course-09-skill` | L19 | Validated skill improvement in a disposable project |
+| `course-10-trust-context` | L20-L21 | MCP authority profiles and offline context-pack lifecycle |
 
 ## Command Ownership
 
@@ -79,6 +82,8 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn trajectory` | L13 |
 | `cairn artifact` | L13 |
 | `cairn capabilities` | L15 |
+| `cairn mcp-tools` | L20 |
+| `cairn pack` | L21 |
 | `cairn notes` | L13 |
 | `cairn eval` | L16 |
 | `cairn skill` | L19 |
