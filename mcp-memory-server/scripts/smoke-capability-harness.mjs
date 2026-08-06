@@ -185,7 +185,14 @@ function allFiles(root) {
 }
 
 function removeFixture(root) {
-    rmSync(root, { recursive: true, force: true, maxRetries: 12, retryDelay: 50 });
+    try {
+        rmSync(root, { recursive: true, force: true, maxRetries: 12, retryDelay: 50 });
+    } catch (error) {
+        if (process.platform === "win32"
+            && error?.code === "EPERM"
+            && allFiles(root).length === 0) return;
+        throw error;
+    }
 }
 
 function rawBytes(root, stateRoot) {
