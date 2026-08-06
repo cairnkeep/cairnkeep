@@ -1,6 +1,7 @@
-import { chmodSync, existsSync, lstatSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, rmSync } from "node:fs";
 import { rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 
 function currentWindowsSid(): string {
     const result = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
@@ -69,9 +70,10 @@ export async function atomicReplace(source: string, destination: string): Promis
                     lastError = error instanceof Error ? error.message : String(error);
                 }
             } else {
+                const backup = `${destination}.replace-backup-${randomUUID()}`;
                 const result = spawnSync("powershell.exe", [
                     "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
-                    "[IO.File]::Replace($env:CK_INTERNAL_ATOMIC_SOURCE,$env:CK_INTERNAL_ATOMIC_DESTINATION,$null,$true)",
+                    "[IO.File]::Replace($env:CK_INTERNAL_ATOMIC_SOURCE,$env:CK_INTERNAL_ATOMIC_DESTINATION,$env:CK_INTERNAL_ATOMIC_BACKUP,$true)",
                 ], {
                     encoding: "utf8",
                     windowsHide: true,
@@ -79,9 +81,14 @@ export async function atomicReplace(source: string, destination: string): Promis
                         ...process.env,
                         CK_INTERNAL_ATOMIC_SOURCE: source,
                         CK_INTERNAL_ATOMIC_DESTINATION: destination,
+                        CK_INTERNAL_ATOMIC_BACKUP: backup,
                     },
                 });
-                if (result.status === 0) return;
+                if (result.status === 0) {
+                    rmSync(backup, { force: true });
+                    return;
+                }
+                rmSync(backup, { force: true });
                 lastError = result.stderr.trim() || result.stdout.trim() || lastError;
             }
             await delay(25 * (attempt + 1));
