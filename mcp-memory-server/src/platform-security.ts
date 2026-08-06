@@ -33,7 +33,7 @@ export function privatePathIsSafe(path: string): boolean {
     if (info.isSymbolicLink()) return false;
     if (process.platform !== "win32") return (info.mode & 0o077) === 0;
     const script = [
-        "$p=$args[0]",
+        "$p=$env:CK_INTERNAL_PRIVATE_PATH",
         "$me=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value",
         "$ok=@($me,'S-1-5-18','S-1-5-32-544')",
         "$acl=Get-Acl -LiteralPath $p",
@@ -45,9 +45,10 @@ export function privatePathIsSafe(path: string): boolean {
         "}",
         "exit 0",
     ].join(";");
-    const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script, path], {
+    const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
         encoding: "utf8",
         windowsHide: true,
+        env: { ...process.env, CK_INTERNAL_PRIVATE_PATH: path },
     });
     return result.status === 0;
 }
@@ -70,10 +71,16 @@ export async function atomicReplace(source: string, destination: string): Promis
             } else {
                 const result = spawnSync("powershell.exe", [
                     "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
-                    "[IO.File]::Replace($args[0],$args[1],$null,$true)",
-                    source,
-                    destination,
-                ], { encoding: "utf8", windowsHide: true });
+                    "[IO.File]::Replace($env:CK_INTERNAL_ATOMIC_SOURCE,$env:CK_INTERNAL_ATOMIC_DESTINATION,$null,$true)",
+                ], {
+                    encoding: "utf8",
+                    windowsHide: true,
+                    env: {
+                        ...process.env,
+                        CK_INTERNAL_ATOMIC_SOURCE: source,
+                        CK_INTERNAL_ATOMIC_DESTINATION: destination,
+                    },
+                });
                 if (result.status === 0) return;
                 lastError = result.stderr.trim() || result.stdout.trim() || lastError;
             }
