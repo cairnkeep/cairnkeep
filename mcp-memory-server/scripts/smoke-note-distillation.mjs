@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
@@ -126,7 +126,7 @@ try {
     const other = await distillProject({ projectRoot: projectB, sessionId: "note-failure-001" });
     const promoted = await promoteNotes({ sourceNoteId: created.id, corroboratingNoteId: other.created[0].id, confirm: true });
     assert.equal(promoted.status, "promoted");
-    assert.ok(promoted.shared_path.includes("/shared/"));
+    assert.ok(promoted.shared_path.includes(`${sep}shared${sep}`));
     assert.equal(allFiles(join(storeRoot, "notes", "shared")).filter((path) => path.endsWith(".md")).length, 1);
     assert.match(readFileSync(created.path, "utf8"), /node_type: provenance/);
     assert.match(readFileSync(other.created[0].path, "utf8"), /node_type: provenance/);

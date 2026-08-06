@@ -3,7 +3,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { createServer, request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -745,9 +745,9 @@ async function doubleConsentContract() {
             join("project-alpha", ".agentfs", "artifacts.db"),
             join("project-beta", ".agentfs", "artifacts.db"),
         ], `remote artifact database paths drifted: ${relativeDatabases.join(", ")}`);
-        assert.equal(artifactDatabases.every((path) => resolve(path).startsWith(`${resolve(baseDir)}/`)), true);
-        assert.equal(artifactDatabases.some((path) => resolve(path).startsWith(`${resolve(cwd)}/`)), false, "remote artifact store resolved under server cwd");
-        assert.equal(artifactDatabases.some((path) => resolve(path).startsWith(`${resolve(clientSelectedRoot)}/`)), false, "remote artifact store used a client-selected path");
+        assert.equal(artifactDatabases.every((path) => resolve(path).startsWith(`${resolve(baseDir)}${sep}`)), true);
+        assert.equal(artifactDatabases.some((path) => resolve(path).startsWith(`${resolve(cwd)}${sep}`)), false, "remote artifact store resolved under server cwd");
+        assert.equal(artifactDatabases.some((path) => resolve(path).startsWith(`${resolve(clientSelectedRoot)}${sep}`)), false, "remote artifact store used a client-selected path");
         assert.equal(artifactDatabases.some((path) => path.includes("project-alpha")), true);
         assert.equal(artifactDatabases.some((path) => path.includes("project-beta")), true);
     } finally {
