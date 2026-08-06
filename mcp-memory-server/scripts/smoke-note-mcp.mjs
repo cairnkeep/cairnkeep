@@ -81,7 +81,7 @@ async function addressedCapability(client) {
 async function crudChecks(client, storeRoot) {
     const record = baseRecord();
     const created = await call(client, "memory_write", noteArgs(record));
-    assert.notEqual(created.isError, true);
+    assert.notEqual(created.isError, true, JSON.stringify(created));
     const read = await call(client, "memory_read", { scope: "project", address_space: "project-notes", key: `knowledge/${record.id}` });
     assert.deepEqual(JSON.parse(read.structuredContent?.results?.[0]?.value), record);
     assert.deepEqual({ node_type: read.structuredContent.results[0].node_type, tags: read.structuredContent.results[0].tags }, { node_type: record.node_type, tags: record.tags });
