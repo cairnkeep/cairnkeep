@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -12,7 +13,7 @@ import { hardenPrivatePath, privatePathIsSafe } from "../dist/platform-security.
 const root = mkdtempSync(join(tmpdir(), "cairn-mcp-trust-"));
 const project = join(root, "project");
 mkdirSync(project);
-const serverEntry = new URL("../dist/index.js", import.meta.url).pathname;
+const serverEntry = fileURLToPath(new URL("../dist/index.js", import.meta.url));
 
 function environment(extra = {}) {
     const env = { ...process.env };
@@ -68,7 +69,7 @@ if (process.platform === "win32") {
     assert.equal(statSync(join(project, ".ai", "mcp-tools.json")).mode & 0o777, 0o600);
 }
 
-const statusCli = new URL("../dist/mcp-tool-cli.js", import.meta.url).pathname;
+const statusCli = fileURLToPath(new URL("../dist/mcp-tool-cli.js", import.meta.url));
 const { spawnSync } = await import("node:child_process");
 const status = spawnSync(process.execPath, [statusCli, "status", "--project", project, "--json"], { encoding: "utf8", env: environment() });
 assert.equal(status.status, 0, status.stderr);

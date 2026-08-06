@@ -4,6 +4,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -63,7 +64,7 @@ assert.equal((await visiblePackFiles({ projectRoot: project })).length, 2, "appr
 
 const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [new URL("../dist/index.js", import.meta.url).pathname],
+    args: [fileURLToPath(new URL("../dist/index.js", import.meta.url))],
     cwd: project,
     env: { ...process.env, CAIRN_CONTEXT_PACKS: "1", CAIRN_PACK_BASE_DIR: process.env.CAIRN_PACK_BASE_DIR },
     stderr: "pipe",
@@ -110,7 +111,7 @@ assert.match(gitPack.source.commit, /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/);
 // HTTP exposure requires separate consent and keeps project pointers isolated.
 await enableContextPack(gitPack.pack.digest, { projectId: "pack-alpha" });
 const token = "context-pack-http-token";
-const serverEntry = new URL("../dist/index.js", import.meta.url).pathname;
+const serverEntry = fileURLToPath(new URL("../dist/index.js", import.meta.url));
 const waitForListen = (server) => new Promise((resolveListen, reject) => {
     const timer = setTimeout(() => reject(new Error("context-pack HTTP server did not start")), 5000);
     server.stderr.on("data", (chunk) => {
