@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 import { distillProject } from "../dist/note-distiller.js";
@@ -99,7 +99,7 @@ try {
     const child = spawnSync(process.execPath, [
         "--input-type=module",
         "--eval",
-        `import { searchHindsight } from ${JSON.stringify(resolve(here, "../dist/note-store.js"))}; const value = await searchHindsight({projectRoot:${JSON.stringify(projectA)}, text:${JSON.stringify(queryText)}}); process.stdout.write(JSON.stringify(value));`,
+        `import { searchHindsight } from ${JSON.stringify(pathToFileURL(resolve(here, "../dist/note-store.js")).href)}; const value = await searchHindsight({projectRoot:${JSON.stringify(projectA)}, text:${JSON.stringify(queryText)}}); process.stdout.write(JSON.stringify(value));`,
     ], { encoding: "utf8", env: { ...process.env } });
     assert.equal(child.status, 0, child.stderr);
     const freshSearch = JSON.parse(child.stdout);

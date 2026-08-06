@@ -307,6 +307,7 @@ search):
 | `CAIRN_EVAL` | Opt in to the local evaluation coordinator (default off; does not select a harness, model, endpoint, credential, or network) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none` ([docs/git-providers.md](docs/git-providers.md)) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → `route_check` is inert) |
+| `CAIRN_GRAPHIFY_BINARY` | Optional Graphify command/path override (default `graphify` from `PATH`; JavaScript helpers run through Node) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws) |
 | `CAIRN_EXPLORE_REPO_ROOT` | Default repo root for `context_explore` when no per-call `repo_root` is given |
 | `CAIRN_EXTRA_SETTINGS` | Optional settings/config file the launcher layers onto the harness (wrapper seam) |

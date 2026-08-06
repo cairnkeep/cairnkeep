@@ -230,6 +230,9 @@ so Graphify cannot re-index its own generated HTML/report/JSON. Managed builds
 do not perform Graphify's optional semantic document extraction. Prefer exact
 function, class, or file names; broad natural-language graph queries are less
 precise. Cairnkeep does not install or update Graphify automatically.
+Set `CAIRN_GRAPHIFY_BINARY` to override the `graphify` command when Graphify is
+installed at a specific path. Native executables run directly; `.js`, `.mjs`,
+and `.cjs` helpers run through the active Node runtime on every platform.
 
 Graphify also maintains an incremental `graphify-out/` work directory at the
 repository root. It is separate from Cairnkeep's published
@@ -394,6 +397,7 @@ vendor or host.
 | `CAIRN_HARNESS_STATE_DIR` | Optional absolute local root for recoverable native capability leases (default `${XDG_STATE_HOME:-~/.local/state}/cairn/harness`) |
 | `CAIRN_GIT_PROVIDER` | Git host for collaboration commands: `github`\|`gitlab`\|`codeberg`\|`forgejo`\|`none`. See [git-providers.md](git-providers.md) |
 | `CAIRN_ROUTE_ENDPOINT` | Base URL of an already-running token-miser routing/tiering proxy (unset → the `route_check` tool is inert) |
+| `CAIRN_GRAPHIFY_BINARY` | Optional Graphify command/path override; JavaScript helpers run through the active Node runtime (default `graphify` from `PATH`) |
 | `CAIRN_EXPLORE_BINARY` | Absolute path to the `token_miser` binary used by `context_explore` (unset → the tool throws at call time) |
 | `CAIRN_EXPLORE_REPO_ROOT` | Default repo root for `context_explore` when no per-call `repo_root` is given (unset + no param → the tool throws) |
 | `CAIRN_EXPLORE_CACHE` | Caches `context_explore` results keyed on query + repo HEAD + dirty-state; default ON, set to `0` to disable |
