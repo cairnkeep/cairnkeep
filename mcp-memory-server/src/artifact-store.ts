@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 import { AgentFS } from "agentfs-sdk";
@@ -20,6 +20,7 @@ import {
     type ArtifactWriteInput,
 } from "./artifact-schema.js";
 import { redactLocalValue } from "./trajectory-redaction.js";
+import { atomicReplace } from "./platform-security.js";
 
 const META_KEY = "artifact/meta/schema-version";
 const FULL_PREFIX = "artifact/full/";
@@ -373,7 +374,7 @@ async function rewriteArtifactDatabase(projectRoot: string, rows: Array<{ key: s
         rmSync(`${rewritePath}${suffix}`, { force: true });
         rmSync(`${dbPath}${suffix}`, { force: true });
     }
-    renameSync(rewritePath, dbPath);
+    await atomicReplace(rewritePath, dbPath);
 }
 
 function planPrune(artifacts: ArtifactEnvelope[], limits: ArtifactLimits, options: Required<PruneOptions>): ArtifactPruneResult["removed"] {
