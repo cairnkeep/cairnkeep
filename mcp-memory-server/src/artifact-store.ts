@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { AgentFS } from "agentfs-sdk";
 
@@ -33,6 +35,43 @@ const DIAGNOSTIC_PREFIX = "artifact/meta/unsupported-adapter/";
 const MAX_DIAGNOSTICS = 32;
 
 const mutationQueues = new Map<string, Promise<void>>();
+const artifactWorkerPath = fileURLToPath(new URL("./artifact-store-windows-worker.js", import.meta.url));
+
+function useWindowsArtifactWorker(): boolean {
+    return (process.platform === "win32" || process.env.CAIRN_TEST_WINDOWS_ARTIFACT_WORKER === "1")
+        && resolve(process.argv[1] ?? "") !== resolve(artifactWorkerPath);
+}
+
+type ArtifactWorkerResponse<T> = { result: T; rewritePath?: string };
+
+async function runArtifactWorker<T>(request: Record<string, unknown>): Promise<ArtifactWorkerResponse<T>> {
+    return new Promise((resolvePromise, rejectPromise) => {
+        const child = spawn(process.execPath, [artifactWorkerPath], {
+            env: process.env,
+            stdio: ["pipe", "pipe", "pipe"],
+            windowsHide: true,
+        });
+        let stdout = "";
+        let stderr = "";
+        child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString("utf8"); });
+        child.stderr.on("data", (chunk: Buffer) => {
+            stderr = `${stderr}${chunk.toString("utf8")}`.slice(-1024 * 1024);
+        });
+        child.once("error", rejectPromise);
+        child.once("close", (code) => {
+            if (code !== 0) {
+                rejectPromise(new Error(stderr.trim() || "Windows artifact worker failed."));
+                return;
+            }
+            try {
+                resolvePromise(JSON.parse(stdout) as ArtifactWorkerResponse<T>);
+            } catch (error) {
+                rejectPromise(error);
+            }
+        });
+        child.stdin.end(JSON.stringify(request));
+    });
+}
 
 type ArtifactIndex = {
     schema_version: 1;
@@ -357,7 +396,11 @@ async function rebuildPointers(agent: AgentFS): Promise<void> {
     if (latest) await agent.kv.set(PROJECT_LATEST_KEY, latest.artifact_id);
 }
 
-async function rewriteArtifactDatabase(projectRoot: string, rows: Array<{ key: string; value: unknown }>): Promise<void> {
+async function rewriteArtifactDatabase(
+    projectRoot: string,
+    rows: Array<{ key: string; value: unknown }>,
+    deferReplacement = false,
+): Promise<string | undefined> {
     const dbPath = getArtifactDbPath(projectRoot);
     const rewritePath = `${dbPath}.rewrite-${randomUUID()}`;
     const rewrite = await AgentFS.open({ id: "artifacts", path: rewritePath });
@@ -370,11 +413,30 @@ async function rewriteArtifactDatabase(projectRoot: string, rows: Array<{ key: s
         await rewrite.close();
     }
     chmodSync(rewritePath, 0o600);
+    if (deferReplacement) return rewritePath;
     for (const suffix of ["-wal", "-shm"]) {
         rmSync(`${rewritePath}${suffix}`, { force: true });
         rmSync(`${dbPath}${suffix}`, { force: true });
     }
     await atomicReplace(rewritePath, dbPath);
+    return undefined;
+}
+
+async function installArtifactWorkerRewrite(projectRoot: string, rewritePath: string | undefined): Promise<void> {
+    if (!rewritePath) throw new Error("Windows artifact worker did not produce a replacement database.");
+    const dbPath = getArtifactDbPath(projectRoot);
+    if (!rewritePath.startsWith(`${dbPath}.rewrite-`) || dirname(rewritePath) !== dirname(dbPath)) {
+        throw new Error("Windows artifact worker returned an invalid replacement path.");
+    }
+    try {
+        for (const suffix of ["-wal", "-shm"]) {
+            rmSync(`${rewritePath}${suffix}`, { force: true });
+            rmSync(`${dbPath}${suffix}`, { force: true });
+        }
+        await atomicReplace(rewritePath, dbPath);
+    } finally {
+        for (const suffix of ["", "-wal", "-shm"]) rmSync(`${rewritePath}${suffix}`, { force: true });
+    }
 }
 
 function planPrune(artifacts: ArtifactEnvelope[], limits: ArtifactLimits, options: Required<PruneOptions>): ArtifactPruneResult["removed"] {
@@ -452,6 +514,15 @@ export async function putArtifact(
 ): Promise<{ schema_version: 1; artifact: ArtifactEnvelope; idempotent: boolean }> {
     const prepared = prepareInput(projectRoot, candidate, limits);
     return withMutationLock(projectRoot, async () => {
+        if (useWindowsArtifactWorker()) {
+            return (await runArtifactWorker<Awaited<ReturnType<typeof putArtifact>>>({
+                operation: "put",
+                projectRoot: resolve(projectRoot),
+                candidate,
+                limits,
+                options,
+            })).result;
+        }
         const agent = await openArtifactStore(projectRoot, true);
         if (!agent) throw new Error("Unable to open the local artifact store.");
         try {
@@ -522,6 +593,13 @@ export async function putCompactionArtifact(projectRoot: string, candidate: unkn
 }
 
 export async function readArtifact(identifier: string, projectRoot = process.cwd()): Promise<ArtifactEnvelope> {
+    if (useWindowsArtifactWorker()) {
+        return (await runArtifactWorker<ArtifactEnvelope>({
+            operation: "read",
+            identifier,
+            projectRoot: resolve(projectRoot),
+        })).result;
+    }
     const agent = await openArtifactStore(projectRoot, false);
     if (!agent) throw new Error("Artifact not found.");
     try {
@@ -539,6 +617,13 @@ export async function listArtifacts(projectRoot = process.cwd(), filters: {
     limit?: number;
     cursor?: string;
 } = {}): Promise<ArtifactList> {
+    if (useWindowsArtifactWorker()) {
+        return (await runArtifactWorker<ArtifactList>({
+            operation: "list",
+            projectRoot: resolve(projectRoot),
+            filters,
+        })).result;
+    }
     const agent = await openArtifactStore(projectRoot, false);
     if (!agent) return { schema_version: ARTIFACT_SCHEMA_VERSION, artifacts: [], logical_bytes: 0 };
     try {
@@ -564,6 +649,13 @@ export async function listArtifacts(projectRoot = process.cwd(), filters: {
 }
 
 export async function readLatestCompaction(projectRoot = process.cwd(), sessionRef?: string): Promise<ArtifactEnvelope | null> {
+    if (useWindowsArtifactWorker()) {
+        return (await runArtifactWorker<ArtifactEnvelope | null>({
+            operation: "latest",
+            projectRoot: resolve(projectRoot),
+            sessionRef,
+        })).result;
+    }
     const agent = await openArtifactStore(projectRoot, false);
     if (!agent) return null;
     try {
@@ -582,70 +674,120 @@ export async function readLatestCompaction(projectRoot = process.cwd(), sessionR
 
 export const selectRecoveryArtifact = readLatestCompaction;
 
+async function deleteArtifactLocally(
+    identifier: string,
+    projectRoot: string,
+    options: { dryRun?: boolean },
+    deferReplacement: boolean,
+) {
+    const agent = await openArtifactStore(projectRoot, false);
+    if (!agent) throw new Error("Artifact not found.");
+    let retainedRows: Array<{ key: string; value: unknown }> | undefined;
+    let result;
+    try {
+        await assertCompatibleSchema(agent, false);
+        const artifact = await findByIdentifier(agent, identifier);
+        if (!options.dryRun) {
+            await inImmediateTransaction(agent, async () => {
+                await deleteArtifactRows(agent, artifact);
+                await rebuildPointers(agent);
+            });
+            await agent.getDatabase().exec("PRAGMA wal_checkpoint(TRUNCATE)");
+            retainedRows = await agent.kv.list("");
+        }
+        result = {
+            schema_version: ARTIFACT_SCHEMA_VERSION,
+            artifact_id: artifact.artifact_id,
+            deleted: !options.dryRun,
+            dry_run: Boolean(options.dryRun),
+        };
+    } finally {
+        await agent.close();
+    }
+    const rewritePath = retainedRows
+        ? await rewriteArtifactDatabase(projectRoot, retainedRows, deferReplacement)
+        : undefined;
+    return { result, rewritePath };
+}
+
+export async function deleteArtifactForWindowsWorker(
+    identifier: string,
+    projectRoot: string,
+    options: { dryRun?: boolean } = {},
+): Promise<ArtifactWorkerResponse<Awaited<ReturnType<typeof deleteArtifactLocally>>["result"]>> {
+    return deleteArtifactLocally(identifier, projectRoot, options, !options.dryRun);
+}
+
 export async function deleteArtifact(identifier: string, projectRoot = process.cwd(), options: { dryRun?: boolean } = {}) {
     return withMutationLock(projectRoot, async () => {
-        const agent = await openArtifactStore(projectRoot, false);
-        if (!agent) throw new Error("Artifact not found.");
-        let retainedRows: Array<{ key: string; value: unknown }> | undefined;
-        let result;
-        try {
-            await assertCompatibleSchema(agent, false);
-            const artifact = await findByIdentifier(agent, identifier);
-            if (!options.dryRun) {
-                await inImmediateTransaction(agent, async () => {
-                    await deleteArtifactRows(agent, artifact);
-                    await rebuildPointers(agent);
-                });
-                await agent.getDatabase().exec("PRAGMA wal_checkpoint(TRUNCATE)");
-                if (process.platform === "win32") {
-                    await agent.getDatabase().exec("VACUUM");
-                } else {
-                    retainedRows = await agent.kv.list("");
-                }
-            }
-            result = {
-                schema_version: ARTIFACT_SCHEMA_VERSION,
-                artifact_id: artifact.artifact_id,
-                deleted: !options.dryRun,
-                dry_run: Boolean(options.dryRun),
-            };
-        } finally {
-            await agent.close();
+        if (useWindowsArtifactWorker()) {
+            const response = await runArtifactWorker<Awaited<ReturnType<typeof deleteArtifactLocally>>["result"]>({
+                operation: "delete",
+                identifier,
+                projectRoot: resolve(projectRoot),
+                options,
+            });
+            if (!options.dryRun) await installArtifactWorkerRewrite(projectRoot, response.rewritePath);
+            return response.result;
         }
-        if (retainedRows) await rewriteArtifactDatabase(projectRoot, retainedRows);
-        return result;
+        return (await deleteArtifactLocally(identifier, projectRoot, options, false)).result;
     });
+}
+
+async function pruneArtifactsLocally(
+    projectRoot: string,
+    limits: ArtifactLimits,
+    options: PruneOptions,
+    deferReplacement: boolean,
+): Promise<ArtifactWorkerResponse<ArtifactPruneResult>> {
+    const agent = await openArtifactStore(projectRoot, false);
+    if (!agent) {
+        return { result: { schema_version: 1, dry_run: Boolean(options.dryRun), removed: [], remaining_artifacts: 0, logical_bytes: 0 } };
+    }
+    let retainedRows: Array<{ key: string; value: unknown }> | undefined;
+    let result: ArtifactPruneResult;
+    try {
+        await assertCompatibleSchema(agent, false);
+        const resolved = {
+            dryRun: options.dryRun ?? false,
+            includeProtected: options.includeProtected ?? false,
+            now: options.now ?? new Date(),
+        };
+        result = await inImmediateTransaction(agent, () => pruneInTransaction(agent, limits, resolved));
+        if (!resolved.dryRun && result.removed.length > 0) {
+            await agent.getDatabase().exec("PRAGMA wal_checkpoint(TRUNCATE)");
+            retainedRows = await agent.kv.list("");
+        }
+    } finally {
+        await agent.close();
+    }
+    const rewritePath = retainedRows
+        ? await rewriteArtifactDatabase(projectRoot, retainedRows, deferReplacement)
+        : undefined;
+    return { result, ...(rewritePath ? { rewritePath } : {}) };
+}
+
+export async function pruneArtifactsForWindowsWorker(
+    projectRoot: string,
+    limits = getArtifactLimits(),
+    options: PruneOptions = {},
+): Promise<ArtifactWorkerResponse<ArtifactPruneResult>> {
+    return pruneArtifactsLocally(projectRoot, limits, options, !options.dryRun);
 }
 
 export async function pruneArtifacts(projectRoot: string, limits = getArtifactLimits(), options: PruneOptions = {}): Promise<ArtifactPruneResult> {
     return withMutationLock(projectRoot, async () => {
-        const agent = await openArtifactStore(projectRoot, false);
-        if (!agent) {
-            return { schema_version: 1, dry_run: Boolean(options.dryRun), removed: [], remaining_artifacts: 0, logical_bytes: 0 };
+        if (useWindowsArtifactWorker()) {
+            const response = await runArtifactWorker<ArtifactPruneResult>({
+                operation: "prune",
+                projectRoot: resolve(projectRoot),
+                limits,
+                options,
+            });
+            if (!options.dryRun && response.rewritePath) await installArtifactWorkerRewrite(projectRoot, response.rewritePath);
+            return response.result;
         }
-        let retainedRows: Array<{ key: string; value: unknown }> | undefined;
-        let result: ArtifactPruneResult;
-        try {
-            await assertCompatibleSchema(agent, false);
-            const resolved = {
-                dryRun: options.dryRun ?? false,
-                includeProtected: options.includeProtected ?? false,
-                now: options.now ?? new Date(),
-            };
-            result = await inImmediateTransaction(agent, () => pruneInTransaction(agent, limits, resolved));
-            if (!resolved.dryRun && result.removed.length > 0) {
-                await agent.getDatabase().exec("PRAGMA wal_checkpoint(TRUNCATE)");
-                if (process.platform === "win32") {
-                    await agent.getDatabase().exec("VACUUM");
-                } else {
-                    retainedRows = await agent.kv.list("");
-                }
-            }
-        } finally {
-            await agent.close();
-        }
-        if (retainedRows) await rewriteArtifactDatabase(projectRoot, retainedRows);
-        return result;
+        return (await pruneArtifactsLocally(projectRoot, limits, options, false)).result;
     });
 }
 
@@ -654,6 +796,14 @@ export async function recordUnsupportedCompactionAdapter(
     diagnostic: { harness?: string; harness_version?: string; reason?: string } = {},
 ): Promise<void> {
     await withMutationLock(projectRoot, async () => {
+        if (useWindowsArtifactWorker()) {
+            await runArtifactWorker<null>({
+                operation: "record-unsupported",
+                projectRoot: resolve(projectRoot),
+                diagnostic,
+            });
+            return;
+        }
         const agent = await openArtifactStore(projectRoot, true);
         if (!agent) return;
         try {
@@ -824,6 +974,14 @@ function inspectRetentionState(artifacts: ArtifactEnvelope[], limits: ArtifactLi
 }
 
 export async function doctorArtifactStore(projectRoot = process.cwd(), repair = false, limits = getArtifactLimits()): Promise<ArtifactDoctorResult> {
+    if (useWindowsArtifactWorker()) {
+        return (await runArtifactWorker<ArtifactDoctorResult>({
+            operation: "doctor",
+            projectRoot: resolve(projectRoot),
+            repair,
+            limits,
+        })).result;
+    }
     const dbPath = getArtifactDbPath(projectRoot);
     if (!existsSync(dbPath)) {
         return { schema_version: 1, exists: false, ok: true, repaired: false, integrity: "not_present", valid_artifacts: 0, indexed_artifacts: 0, issues: [] };

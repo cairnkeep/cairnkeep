@@ -62,6 +62,13 @@ Unix mode bits: Cairnkeep removes inherited ACLs and grants access only to the
 current SID, Local System, and built-in Administrators. Context-pack content is
 digest-verified before receiving restricted ACLs and a read-only attribute.
 
+The embedded AgentFS database driver retains Windows file handles until its
+Node process exits. Cairnkeep therefore runs artifact-store operations in
+short-lived local Node helpers on Windows. Hard deletion and pruning build a
+compacted replacement, release all handles when the helper exits, and only then
+atomically replace the live database. This does not add a daemon, network
+access, or background synchronization.
+
 `cairn memory import` uses an internal path-validating tar/gzip reader. Export
 uses `sqlite3.exe` `.backup` for a consistent snapshot of each live WAL database
 and then writes the same portable `.tgz` format used on Unix.
