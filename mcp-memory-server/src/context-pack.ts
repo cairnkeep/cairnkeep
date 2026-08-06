@@ -10,6 +10,7 @@ import { promisify } from "node:util";
 
 import { z } from "zod";
 import { EmbeddingCache, cosineSimilarity, embedTexts, getEmbeddingConfig, hashText } from "./embeddings.js";
+import { atomicReplace, hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
 
 const execFileAsync = promisify(execFile);
 export const CONTEXT_PACK_MANIFEST = "context-pack.json";
@@ -101,7 +102,7 @@ function readPackSource(digest: string): PackSource | undefined {
     const directoryInfo = lstatSync(directory);
     const info = lstatSync(path);
     if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || !info.isFile() || info.isSymbolicLink()
-        || info.size > 64 * 1024 || (process.platform !== "win32" && (info.mode & 0o077) !== 0)) {
+        || info.size > 64 * 1024 || !privatePathIsSafe(path)) {
         throw new Error(`Context pack source record is unsafe: ${digest}`);
     }
     const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
@@ -205,8 +206,9 @@ async function atomicJson(path: string, value: unknown): Promise<void> {
         await handle.close();
         handle = undefined;
         await chmod(temporary, 0o600);
-        await rename(temporary, path);
-        await chmod(path, 0o600);
+        hardenPrivatePath(temporary);
+        await atomicReplace(temporary, path);
+        hardenPrivatePath(path);
     } finally {
         if (handle) await handle.close().catch(() => undefined);
         await rm(temporary, { force: true });
@@ -220,11 +222,17 @@ async function makeImmutable(root: string): Promise<void> {
         for (const entry of await readdir(directory, { withFileTypes: true })) {
             const path = join(directory, entry.name);
             if (entry.isDirectory()) await walk(path);
-            else await chmod(path, 0o400);
+            else if (process.platform === "win32") {
+                hardenPrivatePath(path);
+                await execFileAsync("attrib.exe", ["+R", path]);
+            } else await chmod(path, 0o400);
         }
     };
     await walk(root);
-    for (const directory of directories.reverse()) await chmod(directory, 0o500);
+    for (const directory of directories.reverse()) {
+        if (process.platform === "win32") hardenPrivatePath(directory);
+        else await chmod(directory, 0o500);
+    }
 }
 
 function rejectCredentialUrl(source: string): void {
@@ -387,7 +395,7 @@ export function readProjectPointer(options: ProjectOptions): ProjectPointer {
     if (!existsSync(identity.path)) return emptyPointer(identity.id);
     const info = lstatSync(identity.path);
     if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024
-        || (process.platform !== "win32" && (info.mode & 0o077) !== 0)) throw new Error("Context pack project pointer is unsafe.");
+        || !privatePathIsSafe(identity.path)) throw new Error("Context pack project pointer is unsafe.");
     return parseProjectPointer(JSON.parse(readFileSync(identity.path, "utf8")) as unknown, identity.id);
 }
 
@@ -457,7 +465,7 @@ async function allPointers(): Promise<Array<{ path: string; pointer: ProjectPoin
         const path = join(directory, entry.name);
         const info = lstatSync(path);
         if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024
-            || (process.platform !== "win32" && (info.mode & 0o077) !== 0)) {
+            || !privatePathIsSafe(path)) {
             throw new Error(`Context pack project pointer is unsafe: ${path}`);
         }
         const raw = JSON.parse(await readFile(path, "utf8")) as unknown;

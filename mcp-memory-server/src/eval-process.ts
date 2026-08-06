@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 
 import type { ZodType } from "zod";
 
@@ -27,7 +27,7 @@ export const EVAL_PROCESS_ERROR_CODES = [
 
 export type EvalProcessErrorCode = (typeof EVAL_PROCESS_ERROR_CODES)[number];
 export type EvalCleanupOutcome = "closed" | "terminated" | "killed" | "failed";
-export type EvalTerminationScope = "process-group" | "child";
+export type EvalTerminationScope = "process-group" | "process-tree";
 
 type SharedCommandOptions = {
     command: EvalCommand;
@@ -103,7 +103,7 @@ const DEFAULT_KILL_GRACE_MS = 1_000;
 const MAX_TIMER_MS = 2_147_483_647;
 
 function terminationScope(): EvalTerminationScope {
-    return process.platform === "win32" ? "child" : "process-group";
+    return process.platform === "win32" ? "process-tree" : "process-group";
 }
 
 function assertOptions(options: SharedCommandOptions): void {
@@ -130,7 +130,9 @@ function signalChild(child: ChildProcess, signal: NodeJS.Signals): boolean {
             process.kill(-child.pid, signal);
             return true;
         }
-        return child.kill(signal);
+        const args = ["/PID", String(child.pid), "/T", ...(signal === "SIGKILL" ? ["/F"] : [])];
+        const result = spawnSync("taskkill.exe", args, { stdio: "ignore", windowsHide: true });
+        return result.status === 0 || child.kill(signal);
     } catch {
         try {
             return child.kill(signal);

@@ -169,7 +169,9 @@ network-free, and permanently scoped as framework-only evidence.
 SIGINT/SIGTERM stops new schedule admission, terminates the active adapter,
 checkpoints cancellation, performs bounded cleanup, and retains a partial
 report. POSIX process groups receive TERM followed by bounded KILL escalation.
-There is no Windows descendant-process-tree termination guarantee.
+Native Windows uses `taskkill.exe /T` for the exact child tree and `/F` for
+bounded force escalation; it does not enumerate or terminate unrelated
+processes.
 
 Turns aggregate only under exact matching compatibility IDs. Missing token
 components/totals, unknown verifier outcomes, incompatible turn semantics, and

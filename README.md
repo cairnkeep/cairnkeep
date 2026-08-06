@@ -20,8 +20,8 @@ Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync
 operating layer (commands,
 agents, hooks) installed on Claude Code and OpenCode, plus a native Pi
 trajectory extension and thin Pi/Kimi graph adapters. The generic launchers
-expose wrapper seams (`.ai/pre-launch.sh`, `CAIRN_EXTRA_SETTINGS`,
-`.ai/post-exit.sh`) so an enterprise wrapper can add provider/credential setup
+expose wrapper seams (`.ai/pre-launch.sh`/`.ai/pre-launch.ps1`,
+`CAIRN_EXTRA_SETTINGS`, `.ai/post-exit.sh`/`.ai/post-exit.ps1`) so an enterprise wrapper can add provider/credential setup
 without forking them. Also shipped: context exploration (`/context-explore`) and
 a thin routing seam (`route_check`), both of which delegate to
 [token-miser](https://github.com/cairnkeep/token-miser), a public
@@ -42,15 +42,19 @@ and 20 are end-of-life upstream.
 | Pi on Linux/macOS | Native opt-in trajectory extension, launcher, and `/graphify` prompt; no bundled MCP bridge |
 | Codex CLI | Memory MCP server; no Cairnkeep operating-layer assets |
 | Other MCP clients | Memory plus optional domain-knowledge and context-pack MCP tools |
-| Native Windows | Not supported by the Bash-based installer; use WSL (not yet CI-verified) |
+| Native Windows x64 | Node-native CLI, memory server, bootstrap, PowerShell/Command Prompt launchers, sync, hooks, doctor, storage lifecycle, Task Scheduler, completion, and uninstall |
+| Windows ARM64 | Supported through Windows x64 emulation only; a native database binding is not currently shipped |
+| WSL | Uses the normal Linux workflow; distinct from native Windows and Git Bash |
 
 The `cairn graph` CLI is harness-independent and can be run from a project
 shell used by Kimi Code, Pi, Qwen Code, Codex, or another client. Claude Code,
 OpenCode, Pi, and Kimi can receive thin `/graphify` adapters; those adapters do
 not imply equivalent hooks, agents, or MCP support.
 
-Linux, macOS, Bash 3.2 portability, and clean Node 22/24/26 runtime checks
-are exercised in CI.
+Linux, macOS, Bash 3.2 portability, native PowerShell on Windows x64, global npm
+installation, and clean Node 22/24/26 runtime checks are exercised in CI. See
+[Native Windows operation](docs/native-windows.md) for platform-specific setup,
+ACL, scheduling, process-tree, and recovery details.
 
 See [Harness compatibility](docs/harness-compatibility.md) for exact support
 levels, Kimi and Qwen configuration, and candidates that are not yet runtime-tested.
@@ -412,8 +416,8 @@ is neither a Cairnkeep result nor an acceptance target.
 Reports and note snapshots stay under
 `.agentfs/eval/experiments/<experiment-id>/`; default uninstall retains them,
 while explicit purge is backup-first and revertible. Cancellation retains an
-inspectable partial report. POSIX process-group cleanup is tested; Windows
-descendant-process-tree termination is not guaranteed. See the
+inspectable partial report. POSIX process-group cleanup and Windows descendant-
+tree cleanup through `taskkill.exe /T` are tested by their platform contracts. See the
 [operating guide](docs/operating.md#evaluation-harness-opt-in),
 [storage contract](docs/storage.md#evaluation-report-and-note-snapshot-storage),
 and [privacy flow](docs/privacy-and-data-flow.md#evaluation-adapter-and-report-flow).

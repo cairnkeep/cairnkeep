@@ -29,6 +29,12 @@ installs. This guide covers all three in order.
 - Optional: rootless Podman for the containerized memory server and isolated
   workspace base described in [Containers](containers.md).
 
+Native Windows x64 is supported directly from PowerShell or Command Prompt;
+WSL and Git Bash are not required. The npm package installs a Node entry point,
+and bootstrap emits `.cmd` plus PowerShell launchers. See
+[Native Windows operation](native-windows.md) for the exact setup and recovery
+contract. Windows ARM64 currently uses x64 emulation.
+
 ## Shell completion
 
 Generate completion definitions directly from the CLI:
@@ -37,11 +43,18 @@ Generate completion definitions directly from the CLI:
 cairn completion bash
 cairn completion zsh
 cairn completion fish
+cairn completion powershell
 ```
 
 Distributions can install these outputs into the platform's normal completion
 directories. They can also be loaded for the current shell, for example with
 `source <(cairn completion bash)`.
+
+In PowerShell, load completion for the current session with:
+
+```powershell
+Invoke-Expression (& cairn completion powershell | Out-String)
+```
 
 ## Setup order (Claude Code)
 
@@ -897,8 +910,9 @@ claims.
 SIGINT or SIGTERM stops schedule admission, terminates the active adapter,
 checkpoints a `cancelled` observation, waits for bounded cleanup, and retains
 an inspectable partial report. On POSIX systems the runner targets the child
-process group with TERM then bounded KILL escalation. Windows descendant-tree
-termination is not guaranteed and is not a supported evaluation claim.
+process group with TERM then bounded KILL escalation. Native Windows targets
+the adapter and its descendant tree with `taskkill.exe /T`, escalating to `/F`
+after the bounded grace period.
 
 See [storage](storage.md#evaluation-report-and-note-snapshot-storage) for local
 retention/removal and [privacy](privacy-and-data-flow.md#evaluation-adapter-and-report-flow)

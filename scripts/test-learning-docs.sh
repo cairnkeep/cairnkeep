@@ -16,13 +16,13 @@ grep -qF "**Baseline:** Cairnkeep $version" "$feature_guide"
 grep -qF 'https://github.com/cairnkeep/cairnkeep-course-labs' "$landing"
 for checkpoint in course-00-app course-01-bootstrap course-02-memory course-03-quality \
   course-04-operation course-05-evidence course-06-governance course-07-evaluation \
-  course-08-graph course-09-skill course-10-trust-context; do
+  course-08-graph course-09-skill course-10-trust-context course-11-windows; do
   grep -qF "\`$checkpoint\`" "$coverage"
 done
 
 ready=0
 brief=0
-for number in $(seq -w 0 21); do
+for number in $(seq -w 0 22); do
   matches=(docs/learning/lessons/L"$number"-*.md)
   [[ ${#matches[@]} -eq 1 && -f ${matches[0]} ]] || {
     echo "learning path must contain exactly one L$number lesson" >&2
@@ -53,7 +53,7 @@ grep -qF '`cairn sync-kimi --apply`' "$graph_lesson"
 grep -qF '`cairn sync-pi --apply`' "$graph_lesson"
 grep -qF '`graphify-out/`' "$graph_lesson"
 
-[[ $ready -eq 7 && $brief -eq 15 ]] || {
+[[ $ready -eq 8 && $brief -eq 15 ]] || {
   echo "unexpected learning status totals: ready=$ready brief=$brief" >&2
   exit 1
 }

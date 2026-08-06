@@ -31,6 +31,17 @@ For the local launchers, the server working directory is normally the project
 root. Bootstrap installs `.agentfs/.gitignore` so private project memory is not
 accidentally committed. SQLite may also create `-wal` and `-shm` sidecar files.
 
+Private-file protection is platform-equivalent rather than mode-identical.
+Linux and macOS use `0600` files and `0700` directories. Native Windows removes
+inherited ACLs and grants access only to the current SID, Local System, and the
+built-in Administrators group. `cairn doctor` fails closed when a managed MCP
+profile or context-pack pointer has broader access. Context-pack objects also
+receive a read-only attribute after their content digest is verified.
+
+Where this document names a generated `revert.sh`, native Windows produces the
+equivalent backup manifest and `revert.ps1`; it restores exact bytes and the
+Windows ACL contract rather than emulating POSIX mode bits.
+
 `CAIRN_LLM_API_URL` and `CAIRN_MEMORY_EMBEDDING_URL` select optional model
 services used to process/search memory. They do not change where the SQLite
 databases are stored. Git-provider and routing configuration do not change
@@ -502,8 +513,9 @@ bearer_token_env_var = "CAIRN_MEMORY_HTTP_TOKEN"
 Context-pack objects are content-addressed, immutable directories. Installation
 copies verified content through a temporary directory and atomically publishes
 the digest; a failed or concurrent install never changes project enablement.
-Project pointers are separate atomic mode-`0600` files keyed by canonical local
-project identity or a validated remote project ID. Updates retain old objects
+Project pointers are separate atomic private files (`0600` on POSIX, restricted
+ACLs on Windows) keyed by canonical local project identity or a validated
+remote project ID. Updates retain old objects
 and switch only the named project after exact-digest confirmation.
 
 `cairn doctor` verifies objects, pointers, and interrupted-install remnants.

@@ -1,6 +1,6 @@
 {
   "name": "@cairnkeep/cli",
-  "version": "2.9.0",
+  "version": "2.10.0",
   "description": "A durable, harness-agnostic memory + context layer for coding agents and MCP clients.",
   "license": "Apache-2.0",
   "type": "module",
@@ -9,7 +9,7 @@
   },
   "bin": {
     "cairn": "bin/cairn",
-    "cairn-container": "scripts/cairn-container"
+    "cairn-container": "bin/cairn-container"
   },
   "files": [
     "bin/",
@@ -43,9 +43,10 @@
   },
   "scripts": {
     "build:server": "npm --prefix mcp-memory-server ci --include=dev --global=false --dry-run=false && npm --prefix mcp-memory-server run build --global=false --dry-run=false",
-    "fix:perms": "git ls-files -s | awk '$1==\"100755\"{print $4}' | xargs chmod 755",
+    "fix:perms": "node scripts/fix-permissions.mjs",
     "prepack": "npm run build:server && npm run fix:perms",
-    "test": "for test in scripts/test-*.sh; do \"$test\" || exit 1; done",
+    "test": "node scripts/run-repository-tests.mjs",
+    "test:windows": "node scripts/test-windows-native.mjs",
     "audit:runtime": "node scripts/verify-dependency-security.mjs && npm audit --omit=dev --audit-level=high && npm --prefix mcp-memory-server audit --omit=dev --audit-level=high",
     "check:public": "scripts/verify-no-private-references.sh && scripts/verify-docs-parity.sh && npm run audit:runtime && npm run build:server && npm test",
     "prepublishOnly": "npm run check:public && npm --prefix mcp-memory-server test --global=false --dry-run=false"

@@ -1,6 +1,6 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.9.0
+**Baseline:** Cairnkeep 2.10.0
 **Last reviewed:** 2026-08-06
 
 This map prevents the course from drifting behind the product. It assigns each
@@ -34,6 +34,7 @@ been rehearsed.
 | Reviewed, evaluated, reversible skill-file improvement | L19 | L19 | Ready; explicit and default off |
 | Complete MCP annotations and least-authority tool profiles | L20 | L20 | Ready; default profile remains full |
 | Immutable context packs and exact-digest skill approval | L21 | L21 | Ready; default off |
+| Native Windows x64 CLI, hooks, ACLs, scheduling, and recovery | L22 | L22 | Ready; PowerShell-native |
 
 ## Release Review
 
@@ -65,6 +66,7 @@ repository remains the canonical source for explanations and scripts.
 | `course-08-graph` | L18 | Optional local structural graph workflow |
 | `course-09-skill` | L19 | Validated skill improvement in a disposable project |
 | `course-10-trust-context` | L20-L21 | MCP authority profiles and offline context-pack lifecycle |
+| `course-11-windows` | L22 | Native PowerShell lifecycle, ACL inspection, and reversible uninstall |
 
 ## Command Ownership
 

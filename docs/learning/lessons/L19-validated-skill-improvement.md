@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Evidence and Evaluation
 **Time:** 50 minutes
-**Tested with:** Cairnkeep 2.9.0
+**Tested with:** Cairnkeep 2.10.0
 
 ## Outcome
 

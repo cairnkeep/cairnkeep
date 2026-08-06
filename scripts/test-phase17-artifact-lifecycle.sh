@@ -48,7 +48,7 @@ run_shell_syntax_baseline() {
   local script
   while IFS= read -r script; do
     bash -n "$script" || return 1
-  done < <(find "$ROOT/bin" "$ROOT/scripts" -type f \( -name '*.sh' -o -name 'cairn' \) | sort)
+  done < <(find "$ROOT/bin" "$ROOT/scripts" -type f -name '*.sh' | sort)
 }
 
 run_baseline() {
