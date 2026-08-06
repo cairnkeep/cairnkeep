@@ -566,7 +566,9 @@ async function storeChecks() {
         const afterRows = await rawRows(root);
         assert.deepEqual(trajectoryRows(afterRows), beforeTrajectoryRows, "callback writes changed existing trajectory rows");
         assert.equal(callbackRows(afterRows).filter(({ key }) => key.startsWith(RECORD_PREFIX)).length, records.length);
-        assert.equal(statSync(dbPath).mode & 0o777, 0o600);
+        if (process.platform !== "win32") {
+            assert.equal(statSync(dbPath).mode & 0o777, 0o600);
+        }
 
         const old = finalRecord({
             invocation_id: `cap:${randomUUID()}`,

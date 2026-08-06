@@ -7,6 +7,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 import { MCP_TOOL_CATALOG, MCP_TOOL_NAMES } from "../dist/mcp-tool-catalog.js";
+import { hardenPrivatePath, privatePathIsSafe } from "../dist/platform-security.js";
 
 const root = mkdtempSync(join(tmpdir(), "cairn-mcp-trust-"));
 const project = join(root, "project");
@@ -58,9 +59,14 @@ assert.deepEqual(custom.map(({ name }) => name), ["memory_read", "context_pack_r
 
 mkdirSync(join(project, ".ai"));
 writeFileSync(join(project, ".ai", "mcp-tools.json"), `${JSON.stringify({ schema_version: 1, mode: "custom", allowed_tools: ["memory_history"] }, null, 2)}\n`, { mode: 0o600 });
+hardenPrivatePath(join(project, ".ai", "mcp-tools.json"));
 const configured = await tools(environment());
 assert.deepEqual(configured.map(({ name }) => name), ["memory_history"]);
-assert.equal(statSync(join(project, ".ai", "mcp-tools.json")).mode & 0o777, 0o600);
+if (process.platform === "win32") {
+    assert.equal(privatePathIsSafe(join(project, ".ai", "mcp-tools.json")), true);
+} else {
+    assert.equal(statSync(join(project, ".ai", "mcp-tools.json")).mode & 0o777, 0o600);
+}
 
 const statusCli = new URL("../dist/mcp-tool-cli.js", import.meta.url).pathname;
 const { spawnSync } = await import("node:child_process");

@@ -199,14 +199,18 @@ async function checkpointChecks() {
         assert.deepEqual(await reportApi.readEvalReport(store), report);
         const reportPath = store.report_path ?? join(root, "fixture-experiment", "report.json");
         assert.equal(existsSync(reportPath), true);
-        assert.equal(statSync(reportPath).mode & 0o777, 0o600);
+        if (process.platform !== "win32") {
+            assert.equal(statSync(reportPath).mode & 0o777, 0o600);
+        }
         const bytes = readFileSync(reportPath, "utf8");
         for (const sentinel of ["prompt-sentinel", "model-output-sentinel", "adapter-stderr-sentinel", "environment-sentinel"]) {
             assert.equal(bytes.includes(sentinel), false);
         }
         const diagnosis = await reportApi.diagnoseEvalReport(store);
         assert.equal(["ok", "partial"].includes(diagnosis.state ?? diagnosis.status), true);
-        assert.equal(statSync(store.experiment_path).mode & 0o777, 0o700);
+        if (process.platform !== "win32") {
+            assert.equal(statSync(store.experiment_path).mode & 0o777, 0o700);
+        }
 
         for (const fault of ["after_open", "after_write", "after_sync", "after_close", "after_rename"]) {
             const faultStore = await reportApi.createEvalReportStore({ root, experiment_id: `fault-${fault}` });

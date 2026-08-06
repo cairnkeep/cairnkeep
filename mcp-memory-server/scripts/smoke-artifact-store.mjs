@@ -1211,7 +1211,9 @@ async function testLifecycleStore(schemaModule, storeModule) {
         assert.equal(sqliteFailed.repaired, false);
         assert.equal(sqliteFailed.integrity, "failed");
         assert.deepEqual(readFileSync(sqlitePath), sqliteBytes, "doctor modified authoritative SQLite corruption");
-        assert.equal(statSync(getArtifactDbPath(scratch)).mode & 0o777, 0o600);
+        if (process.platform !== "win32") {
+            assert.equal(statSync(getArtifactDbPath(scratch)).mode & 0o777, 0o600);
+        }
     } finally {
         rmSync(scratch, { recursive: true, force: true });
     }
