@@ -13,7 +13,7 @@ import {
     writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { AgentFS } from "agentfs-sdk";
@@ -78,7 +78,11 @@ function isOnlyMissingCoordinator(error) {
 }
 
 async function loadCoordinator() {
-    return import(pathToFileURL(coordinatorPath).href);
+    const [coordinator, security] = await Promise.all([
+        import(pathToFileURL(coordinatorPath).href),
+        import(pathToFileURL(join(serverRoot, "dist", "platform-security.js")).href),
+    ]);
+    return { ...coordinator, privatePathIsSafe: security.privatePathIsSafe };
 }
 
 function assertCoordinatorSurface(coordinator) {
@@ -211,9 +215,14 @@ async function assertSettledOnce(root, stateRoot, outcome) {
 
 function assertLeasePolicy(coordinator, project, stateRoot) {
     const leaseDir = coordinator.getHarnessCapabilityLeaseDirectory({ state_root: stateRoot });
-    assert.equal(resolve(leaseDir).startsWith(`${resolve(stateRoot)}/`) || resolve(leaseDir) === resolve(stateRoot), true);
+    const child = relative(resolve(stateRoot), resolve(leaseDir));
+    assert.equal(child === "" || (!child.startsWith("..") && !isAbsolute(child)), true);
     for (const path of allFiles(leaseDir)) {
-        assert.equal(statSync(path).mode & 0o077, 0, "lease is not mode restricted");
+        if (process.platform === "win32") {
+            assert.equal(coordinator.privatePathIsSafe(path), true, "lease ACL is not restricted");
+        } else {
+            assert.equal(statSync(path).mode & 0o077, 0, "lease is not mode restricted");
+        }
         assert.equal(statSync(path).size <= 4096, true, "lease is not bounded");
         const bytes = readFileSync(path, "utf8");
         assert.equal(bytes.includes(realpathSync(project)), true, "lease omitted its validated project locator");
