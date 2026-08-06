@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { constants, existsSync, lstatSync, mkdirSync, openSync, closeSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync, chmodSync } from "node:fs";
-import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { delimiter, dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 
 import { canonicalDigest } from "./eval-schema.js";
 import { EvalProcessError, runBoundedJsonProcess } from "./eval-process.js";
@@ -71,10 +71,21 @@ function isContained(root: string, candidate: string): boolean {
     return path === "" || (!path.startsWith(`..${sep}`) && path !== ".." && !isAbsolute(path));
 }
 
+function pathCrossesSymlink(path: string): boolean {
+    const absolute = resolve(path);
+    const root = parse(absolute).root;
+    let cursor = root;
+    for (const segment of absolute.slice(root.length).split(sep).filter(Boolean)) {
+        cursor = join(cursor, segment);
+        if (lstatSync(cursor).isSymbolicLink()) return true;
+    }
+    return false;
+}
+
 function requireProjectRoot(projectRoot: string): string {
     const absolute = resolve(projectRoot);
     const info = lstatSync(absolute);
-    if (info.isSymbolicLink() || !info.isDirectory() || realpathSync(absolute) !== absolute) {
+    if (!info.isDirectory() || pathCrossesSymlink(absolute)) {
         throw new Error("Project root must be a real, non-symlink directory.");
     }
     return absolute;
@@ -83,7 +94,7 @@ function requireProjectRoot(projectRoot: string): string {
 function privateDirectory(path: string): void {
     mkdirSync(path, { recursive: true, mode: 0o700 });
     const info = lstatSync(path);
-    if (info.isSymbolicLink() || !info.isDirectory() || realpathSync(path) !== path) {
+    if (!info.isDirectory() || pathCrossesSymlink(path)) {
         throw new Error(`Unsafe skill state directory: ${path}`);
     }
     hardenPrivatePath(path);
@@ -348,8 +359,10 @@ function loadAdapterConfig(path: string): { config: SkillAdapterConfig; digest: 
     }
     if (!isAbsolute(config.command.program)) throw new Error("Skill adapter program must be an absolute path.");
     const programInfo = lstatSync(config.command.program);
-    if (programInfo.isSymbolicLink() || !programInfo.isFile() || (programInfo.mode & 0o111) === 0
-        || realpathSync(config.command.program) !== config.command.program) {
+    const windowsRunnable = /\.(?:cjs|mjs|js|exe|com)$/i.test(config.command.program);
+    if (!programInfo.isFile()
+        || pathCrossesSymlink(config.command.program)
+        || (process.platform === "win32" ? !windowsRunnable : (programInfo.mode & 0o111) === 0)) {
         throw new Error("Skill adapter program must be a real executable file.");
     }
     return { config, digest: canonicalDigest(config), program_digest: sha256File(config.command.program) };
