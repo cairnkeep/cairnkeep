@@ -227,10 +227,13 @@ function assertLeasePolicy(coordinator, project, stateRoot) {
         const bytes = readFileSync(path, "utf8");
         const lease = JSON.parse(bytes);
         const expectedProject = realpathSync(project);
+        const actualProject = realpathSync(lease.project_root);
+        const expectedIdentity = statSync(expectedProject);
+        const actualIdentity = statSync(actualProject);
         assert.equal(
             process.platform === "win32"
-                ? resolve(lease.project_root).toLowerCase() === resolve(expectedProject).toLowerCase()
-                : lease.project_root === expectedProject,
+                ? actualIdentity.dev === expectedIdentity.dev && actualIdentity.ino === expectedIdentity.ino
+                : actualProject === expectedProject,
             true,
             "lease omitted its validated project locator",
         );
