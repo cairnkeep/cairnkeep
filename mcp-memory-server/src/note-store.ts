@@ -897,6 +897,10 @@ function syncFile(path: string): void {
 }
 
 function syncDirectory(path: string): void {
+    // Windows does not permit opening a directory as a file descriptor, so
+    // Node cannot fsync it. File contents are still fsynced before the atomic
+    // rename; POSIX additionally persists the containing directory entry.
+    if (process.platform === "win32") return;
     const descriptor = openSync(path, "r");
     try { fsyncSync(descriptor); } finally { closeSync(descriptor); }
 }
