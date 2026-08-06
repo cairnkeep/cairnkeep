@@ -7,7 +7,7 @@
 // Run: node scripts/smoke-explore-guard.mjs   (after `npm run build`)
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { chmodSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 let failures = 0;
@@ -16,15 +16,8 @@ function check(name, cond) {
     if (!cond) failures += 1;
 }
 
-const fixture = (name) => resolve("scripts/fixtures", name);
-for (const name of [
-    "fake-tokenmiser-exit1.sh",
-    "fake-tokenmiser-garbage.sh",
-    "fake-tokenmiser-empty.sh",
-    "fake-tokenmiser-cited.sh",
-]) {
-    chmodSync(fixture(name), 0o755);
-}
+const fixture = resolve("scripts/fixtures/fake-tokenmiser.mjs");
+const repoRoot = tmpdir();
 
 // Opens a fresh client/server pair with the given env, runs `fn(client)`,
 // always closes the client afterward.
@@ -71,14 +64,14 @@ await withClient({ CAIRN_EXPLORE_BINARY: "/nonexistent/path/to/token_miser" }, a
 });
 
 // 4. Repo-root unresolvable: no repo_root arg, no CAIRN_EXPLORE_REPO_ROOT env.
-await withClient({ CAIRN_EXPLORE_BINARY: fixture("fake-tokenmiser-empty.sh") }, async (client) => {
+await withClient({ CAIRN_EXPLORE_BINARY: fixture, FAKE_TOKENMISER_MODE: "empty" }, async (client) => {
     const { isError } = await callExplore(client, { query: "anything" });
     check("repo_root unresolvable fails closed", isError);
 });
 
 // 5. Non-zero exit: execution-tier failure, never a silent empty-success.
-await withClient({ CAIRN_EXPLORE_BINARY: fixture("fake-tokenmiser-exit1.sh") }, async (client) => {
-    const { isError, res } = await callExplore(client, { query: "anything", repo_root: "/tmp" });
+await withClient({ CAIRN_EXPLORE_BINARY: fixture, FAKE_TOKENMISER_MODE: "exit1" }, async (client) => {
+    const { isError, res } = await callExplore(client, { query: "anything", repo_root: repoRoot });
     check(
         "non-zero exit returns structured ok:false (not a throw)",
         !isError && res?.structuredContent?.ok === false,
@@ -86,14 +79,14 @@ await withClient({ CAIRN_EXPLORE_BINARY: fixture("fake-tokenmiser-exit1.sh") }, 
 });
 
 // 6. Malformed stdout: JSON.parse failure surfaces as ok:false.
-await withClient({ CAIRN_EXPLORE_BINARY: fixture("fake-tokenmiser-garbage.sh") }, async (client) => {
-    const { res } = await callExplore(client, { query: "anything", repo_root: "/tmp" });
+await withClient({ CAIRN_EXPLORE_BINARY: fixture, FAKE_TOKENMISER_MODE: "garbage" }, async (client) => {
+    const { res } = await callExplore(client, { query: "anything", repo_root: repoRoot });
     check("malformed stdout returns structured ok:false", res?.structuredContent?.ok === false);
 });
 
 // 7. Empty success: an empty citation list is a first-class success, not an error.
-await withClient({ CAIRN_EXPLORE_BINARY: fixture("fake-tokenmiser-empty.sh") }, async (client) => {
-    const { res } = await callExplore(client, { query: "anything", repo_root: "/tmp" });
+await withClient({ CAIRN_EXPLORE_BINARY: fixture, FAKE_TOKENMISER_MODE: "empty" }, async (client) => {
+    const { res } = await callExplore(client, { query: "anything", repo_root: repoRoot });
     const sc = res?.structuredContent;
     const text = res?.content?.[0]?.text ?? "";
     check(
@@ -107,8 +100,8 @@ await withClient({ CAIRN_EXPLORE_BINARY: fixture("fake-tokenmiser-empty.sh") }, 
 });
 
 // 8. Populated citations: compact path:line-range rendering (CTX-01/D-02).
-await withClient({ CAIRN_EXPLORE_BINARY: fixture("fake-tokenmiser-cited.sh") }, async (client) => {
-    const { res } = await callExplore(client, { query: "anything", repo_root: "/tmp" });
+await withClient({ CAIRN_EXPLORE_BINARY: fixture, FAKE_TOKENMISER_MODE: "cited" }, async (client) => {
+    const { res } = await callExplore(client, { query: "anything", repo_root: repoRoot });
     const sc = res?.structuredContent;
     const text = res?.content?.[0]?.text ?? "";
     check(

@@ -1048,9 +1048,20 @@ async function runContextExplore(args: {
 
     // --- Execution tier: return { ok: false, ... } (runtime problems, D-04) ---
     if (!evidence) {
+        // Native Windows cannot execute a JavaScript file directly from a
+        // shebang. Treat JS helpers as Node programs while keeping compiled
+        // token_miser binaries byte-for-byte compatible on every platform.
+        const javascriptHelper = /\.(?:cjs|mjs|js)$/i.test(binaryPath);
         const result = await runCommand(
-            binaryPath,
-            ["explore", "--query", query, "--repo-root", repoRoot],
+            javascriptHelper ? process.execPath : binaryPath,
+            [
+                ...(javascriptHelper ? [binaryPath] : []),
+                "explore",
+                "--query",
+                query,
+                "--repo-root",
+                repoRoot,
+            ],
             (timeoutSeconds ?? 120) * 1000,
             { ...process.env, NO_COLOR: "1" },
         );
