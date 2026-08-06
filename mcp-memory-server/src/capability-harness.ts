@@ -272,7 +272,19 @@ async function readLease(path: string): Promise<HarnessCapabilityLease | undefin
 }
 
 async function removeLease(path: string): Promise<void> {
-    await rm(path, { force: true });
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+        try {
+            await rm(path, { force: true });
+            return;
+        } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code !== "EPERM" && code !== "EBUSY") throw error;
+            lastError = error;
+            await new Promise((resolveDelay) => setTimeout(resolveDelay, 25 * (attempt + 1)));
+        }
+    }
+    throw lastError;
 }
 
 function capabilityState(snapshot: CapabilityStatus, id: CapabilityId): CapabilityStatus["capabilities"][number] {
