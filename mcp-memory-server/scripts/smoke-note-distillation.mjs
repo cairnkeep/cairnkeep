@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
@@ -62,7 +62,8 @@ try {
     assert.equal(first.enrichment_skipped.length, 1);
     const created = first.created[0];
     assert.equal(created.status, "unresolved");
-    assert.match(created.path, /projects\/project-a--[a-f0-9]+\/hindsight\/typeerror--[a-f0-9]+\.md$/);
+    const createdRelativePath = relative(join(storeRoot, "notes"), created.path).split(sep).join("/");
+    assert.match(createdRelativePath, /^projects\/project-a--[a-f0-9]+\/hindsight\/typeerror--[a-f0-9]+\.md$/);
 
     let markdown = readFileSync(created.path, "utf8");
     for (const field of ["id", "title", "description", "keywords", "node_type", "tags"]) {
