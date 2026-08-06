@@ -849,7 +849,8 @@ export function planCreateAddressedNote(options: {
 }
 
 function historyPath(notesRoot: string, addressSpace: NoteAddressSpace, key: string): string {
-    return join(notesRoot, ".cairnkeep", "history", addressSpace, ...key.split("/"), `${new Date().toISOString()}-${randomBytes(6).toString("hex")}.json`);
+    const portableTimestamp = new Date().toISOString().replaceAll(":", "-");
+    return join(notesRoot, ".cairnkeep", "history", addressSpace, ...key.split("/"), `${portableTimestamp}-${randomBytes(6).toString("hex")}.json`);
 }
 
 export function planSupersedeAddressedNote(options: {
