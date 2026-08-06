@@ -143,8 +143,11 @@ async function processChecks() {
             kill_grace_ms: 50,
             max_stdout_bytes: 0,
         }),
-        (error) => error?.code === "timeout" && error?.cleanup === "killed" && error?.signal === "SIGKILL",
-        "timeout did not escalate TERM through grace to KILL and close",
+        (error) => error?.code === "timeout"
+            && (process.platform === "win32"
+                ? error?.cleanup === "terminated" && error?.signal === "SIGTERM" && error?.termination_scope === "process-tree"
+                : error?.cleanup === "killed" && error?.signal === "SIGKILL" && error?.termination_scope === "process-group"),
+        "timeout did not close the platform termination scope with the expected signal outcome",
     );
 
     const controller = new AbortController();
