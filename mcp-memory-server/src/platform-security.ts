@@ -1,5 +1,5 @@
 import { chmodSync, existsSync, lstatSync } from "node:fs";
-import { rename, rm } from "node:fs/promises";
+import { rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 
 function currentWindowsSid(): string {
@@ -57,15 +57,29 @@ function delay(milliseconds: number): Promise<void> {
 }
 
 export async function atomicReplace(source: string, destination: string): Promise<void> {
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-        try {
-            await rename(source, destination);
-            return;
-        } catch (error) {
-            const code = (error as NodeJS.ErrnoException).code;
-            if (process.platform !== "win32" || !["EACCES", "EPERM", "EEXIST"].includes(code ?? "") || attempt === 5) throw error;
-            if (code === "EEXIST") await rm(destination, { force: true });
-            await delay(20 * (attempt + 1));
+    if (process.platform === "win32") {
+        let lastError = "Windows atomic replacement failed.";
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+            if (!existsSync(destination)) {
+                try {
+                    await rename(source, destination);
+                    return;
+                } catch (error) {
+                    lastError = error instanceof Error ? error.message : String(error);
+                }
+            } else {
+                const result = spawnSync("powershell.exe", [
+                    "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+                    "[IO.File]::Replace($args[0],$args[1],$null,$true)",
+                    source,
+                    destination,
+                ], { encoding: "utf8", windowsHide: true });
+                if (result.status === 0) return;
+                lastError = result.stderr.trim() || result.stdout.trim() || lastError;
+            }
+            await delay(25 * (attempt + 1));
         }
+        throw new Error(lastError);
     }
+    await rename(source, destination);
 }
