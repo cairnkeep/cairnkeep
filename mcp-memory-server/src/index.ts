@@ -2138,27 +2138,15 @@ if (typedNodesEnabled) {
             }
             // Resolve containment before any database is opened or directory is created.
             const scopePath = resolveScopePath(envelope.scope, scopeOptions);
-            const existing = await openScope(envelope.scope, false, scopeOptions);
-            let plan;
-            try {
-                plan = await planMemoryImport(existing, envelope);
-            } finally {
-                await existing?.close();
-            }
-            if (envelope.dry_run) {
-                const payload = await commitMemoryImport(null, plan);
-                return {
-                    content: [{ type: "text", text: asToolText(payload) }],
-                    structuredContent: payload,
-                };
-            }
             const payload = await serializeScopeMutation(scopePath, async () => {
-                const agent = await openScope(envelope.scope, true, scopeOptions);
-                if (!agent) throw new Error(`Unable to open scope ${envelope.scope}.`);
+                const agent = await openScope(envelope.scope, !envelope.dry_run, scopeOptions);
                 try {
+                    const plan = await planMemoryImport(agent, envelope);
+                    if (envelope.dry_run) return commitMemoryImport(null, plan);
+                    if (!agent) throw new Error(`Unable to open scope ${envelope.scope}.`);
                     return await commitMemoryImport(agent, plan);
                 } finally {
-                    await agent.close();
+                    await agent?.close();
                 }
             });
             return {
