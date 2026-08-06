@@ -5,6 +5,27 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-08-06
+
+### Added
+
+- Publish complete, centralized MCP tool annotations and add project-scoped
+  `full`, derived `read-only`, and exact custom tool profiles with strict
+  environment precedence and canonical provenance digests.
+- Add immutable context-pack manifests, local and commit-pinned Git installs,
+  atomic project enablement and confirmed updates, retained object storage,
+  integrity diagnostics, and explicit uninstall purge consent.
+- Add read-only context-pack list/search/read tools behind separate local and
+  authenticated-HTTP consent gates. Documents include full provenance; skills
+  remain invisible until their exact project/pack/path/file digest is approved.
+- Add deterministic Markdown chunking, optional embedding-ranked retrieval with
+  offline substring fallback, shell completion, lifecycle tests, operator docs,
+  and learning-path exercises.
+
+Context packs add no runtime dependency, telemetry, background synchronization,
+publisher-authenticity claim, ACL system, automatic skill activation, or
+  provider-specific runtime integration.
+
 ## [2.8.0] - 2026-08-03
 
 ### Added
@@ -252,7 +273,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.8.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.9.0...HEAD
+[2.9.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.5.0...v2.6.0

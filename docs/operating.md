@@ -1099,3 +1099,41 @@ truthy it launches exactly one separate `cairn notes distill --all-projects`
 process after the wiki scan and reports its bounded status. With the flag unset
 it performs no note work. Note failure does not replace wiki findings or change
 their actionable exit status; no credentials are embedded in rendered units.
+
+## Least-authority MCP profiles
+
+Inspect the annotation-derived catalog and then choose the smallest profile the
+client needs:
+
+```bash
+cairn mcp-tools list
+cairn mcp-tools set read-only --project .
+cairn mcp-tools set custom --tool memory_read --tool memory_search --project .
+cairn mcp-tools status --project . --json
+```
+
+Restart the memory server after `set` or `reset`. Environment overrides win over
+the mode-`0600` project file. A profile can only remove tools; feature and
+capability gates still apply. Invalid names make both startup and doctor fail.
+See [MCP tool profiles](mcp-tool-profiles.md).
+
+## Context packs (opt-in)
+
+Build and validate a local pack before installing it, then enable the immutable
+digest for exactly one project:
+
+```bash
+cairn pack init ./reference --id reference --version 1.0.0 \
+  --title Reference --description "Reviewed project context" --license Apache-2.0
+cairn pack lock ./reference
+cairn pack validate ./reference
+cairn pack install ./reference
+cairn pack enable PACK-DIGEST --project .
+CAIRN_CONTEXT_PACKS=1 cairn memory-server
+```
+
+Git sources additionally require `--ref`. Updates are a manual `--check`, then
+an `--apply --confirm CANDIDATE-DIGEST`. Use `cairn pack skills` and exact-digest
+approval before a bundled skill can be read through MCP. HTTP needs the separate
+`CAIRN_CONTEXT_PACK_HTTP=1` flag and all existing authentication/Host/CORS
+controls. See [Immutable context packs](context-packs.md).

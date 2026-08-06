@@ -16,6 +16,9 @@ request unless the corresponding endpoint and credential are configured.
 | `domain_knowledge_sync` | Files selected by the sync configuration | `ANYTHINGLLM_BASE_URL` |
 | `route_check` | A health request, with no memory or prompt content | `CAIRN_ROUTE_ENDPOINT` |
 | `context_explore` | Repository path and query are passed to the configured local executable | `CAIRN_EXPLORE_BINARY`; any further data flow is controlled by that tool |
+| Local context-pack install/list/read/substring search | None | Verified immutable files and project pointers under `CAIRN_PACK_BASE_DIR` |
+| Embedding-ranked context-pack search | Enabled file chunks not already cached, plus the query | The explicitly configured embedding endpoint; failure falls back locally |
+| Authenticated HTTP context-pack retrieval | MCP requests and enabled document/approved-skill content | The explicit Cairnkeep HTTP server; requires separate pack HTTP consent |
 | Optional Graphify workflow | The repository path, exact query/symbol names, root `graphify-out/` work directory, and local `.planning/graphs/` publication are passed to or produced by the operator-installed `graphify` executable | Local Graphify subprocess with a minimal environment and no provider credentials; managed build uses code-only `update`, never semantic document extraction |
 | Remote HTTP memory | MCP requests and responses, including memory content | The explicitly registered Cairnkeep HTTP server |
 | Opt-in trajectory capture | None | Local `<project>/.agentfs/trajectory.db` only; no model or HTTP path exists |
@@ -512,3 +515,17 @@ provide tenant isolation or per-scope authorization.
 Before sharing diagnostics, remove credentials, private endpoints, database
 files, memory values, local paths, and project names. Report vulnerabilities
 through the private channel in [SECURITY.md](../SECURITY.md).
+
+## Context-pack trust boundary
+
+Pack validation proves that installed bytes match the manifest and immutable
+digest. It does not authenticate a publisher. Review the source, commit, license,
+and content before enabling a digest; signatures are not yet supported. Local
+directory installation, listing, reading, and substring search make no network
+request. Git installation/update contacts only the operator-supplied source and
+is never scheduled in the background.
+
+All enabled documents carry pack and file provenance in MCP results. Skill files
+are excluded until the current project approves the exact pack digest, path, and
+file digest. Updating the pack invalidates that approval. Approval only makes a
+skill readable; Cairnkeep never copies it into a harness or executes it.

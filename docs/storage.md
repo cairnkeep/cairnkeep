@@ -21,6 +21,9 @@ registration, memory remains on that computer.
 | Opt-in session trajectories and capability callback state | `<harness project root>/.agentfs/trajectory.db` |
 | Opt-in local artifacts and compaction revisions | `<project root>/.agentfs/artifacts.db` |
 | Opt-in evaluation reports and note snapshots | `<project root>/.agentfs/eval/experiments/<experiment-id>/` |
+| Immutable context-pack objects and source records | `${CAIRN_PACK_BASE_DIR:-~/.cairnkeep/packs}/objects/` and `sources/` |
+| Digest-pinned context-pack project pointers and approvals | `${CAIRN_PACK_BASE_DIR:-~/.cairnkeep/packs}/projects/` |
+| Optional context-pack embedding cache | `${CAIRN_PACK_BASE_DIR:-~/.cairnkeep/packs}/cache/` (outside immutable objects) |
 | Opt-in derived hindsight notes | `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/notes/` |
 | Any named/global scope, such as `identity` or `work` | `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/<scope>.db` |
 
@@ -493,3 +496,17 @@ bearer_token_env_var = "CAIRN_MEMORY_HTTP_TOKEN"
 "X-Cairn-Scopes" = "identity,personal,project"
 "X-Cairn-AnythingLLM-Workspaces" = "engineering-patterns"
 ```
+
+## Context-pack storage
+
+Context-pack objects are content-addressed, immutable directories. Installation
+copies verified content through a temporary directory and atomically publishes
+the digest; a failed or concurrent install never changes project enablement.
+Project pointers are separate atomic mode-`0600` files keyed by canonical local
+project identity or a validated remote project ID. Updates retain old objects
+and switch only the named project after exact-digest confirmation.
+
+`cairn doctor` verifies objects, pointers, and interrupted-install remnants.
+It never chooses a pack version or grants a skill approval. `cairn pack remove`
+refuses any referenced digest. Ordinary uninstall retains this directory even
+when memory is removed; `--purge-packs` is the separate backup-first consent.

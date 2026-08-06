@@ -1,6 +1,6 @@
 {
   "name": "@cairnkeep/cli",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "description": "A durable, harness-agnostic memory + context layer for coding agents and MCP clients.",
   "license": "Apache-2.0",
   "type": "module",

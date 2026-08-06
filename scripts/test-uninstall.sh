@@ -303,6 +303,27 @@ check "memory store restored"     "$(cat "$SB/home/.cairnkeep/db" 2>/dev/null)" 
 check "note store restored exactly" "$(sha256sum "$SB/home/.cairnkeep/notes/projects/example/hindsight/failure.md" | cut -d' ' -f1)" "$purge_note_before"
 check "typed and journal state restored exactly" "$(tree_hash "$SB/home/.cairnkeep")" "$purge_store_before"
 
+# --- context-pack data requires its own explicit purge consent ---------------
+PACK_HOME="$SB/pack-home"
+PACK_STORE="$PACK_HOME/.cairnkeep/packs"
+mkdir -p "$PACK_STORE/objects/example" "$PACK_HOME/.cairnkeep/memory"
+printf 'immutable pack\n' >"$PACK_STORE/objects/example/marker"
+printf 'memory\n' >"$PACK_HOME/.cairnkeep/memory/marker"
+pack_output=$(HOME="$PACK_HOME" XDG_CONFIG_HOME="$PACK_HOME/.config" \
+  CAIRN_AGENTFS_BASE_DIR="$PACK_HOME/.cairnkeep" CAIRN_PACK_BASE_DIR="$PACK_STORE" \
+  "$ROOT_DIR/scripts/uninstall.sh" --yes --live-root "$SB/pack-live" --pi-live-root "$SB/pack-pi" --kimi-live-root "$SB/pack-kimi" 2>&1)
+check "ordinary uninstall reports retained context packs" "$(grep -q 'kept context packs' <<<"$pack_output" && echo yes || echo no)" "yes"
+check "ordinary uninstall retains context packs" "$([[ -f "$PACK_STORE/objects/example/marker" ]] && echo yes || echo no)" "yes"
+HOME="$PACK_HOME" XDG_CONFIG_HOME="$PACK_HOME/.config" \
+  CAIRN_AGENTFS_BASE_DIR="$PACK_HOME/.cairnkeep" CAIRN_PACK_BASE_DIR="$PACK_STORE" \
+  "$ROOT_DIR/scripts/uninstall.sh" --yes --purge-memory --live-root "$SB/pack-live" --pi-live-root "$SB/pack-pi" --kimi-live-root "$SB/pack-kimi" >/dev/null 2>&1
+check "memory purge retains context packs" "$([[ -f "$PACK_STORE/objects/example/marker" ]] && echo yes || echo no)" "yes"
+check "memory purge removes non-pack memory" "$([[ -e "$PACK_HOME/.cairnkeep/memory" ]] && echo no || echo yes)" "yes"
+HOME="$PACK_HOME" XDG_CONFIG_HOME="$PACK_HOME/.config" \
+  CAIRN_AGENTFS_BASE_DIR="$PACK_HOME/.cairnkeep" CAIRN_PACK_BASE_DIR="$PACK_STORE" \
+  "$ROOT_DIR/scripts/uninstall.sh" --yes --purge-packs --live-root "$SB/pack-live" --pi-live-root "$SB/pack-pi" --kimi-live-root "$SB/pack-kimi" >/dev/null 2>&1
+check "explicit pack purge removes context packs" "$([[ -e "$PACK_STORE" ]] && echo no || echo yes)" "yes"
+
 echo
 if [[ "$fails" -gt 0 ]]; then echo "test-uninstall: $fails check(s) failed."; exit 1; fi
 echo "test-uninstall: OK"

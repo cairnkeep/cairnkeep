@@ -87,6 +87,23 @@ do
 done
 
 for required in \
+  schemas/context-pack.schema.json \
+  mcp-memory-server/dist/mcp-tool-catalog.js \
+  mcp-memory-server/dist/mcp-tool-profile.js \
+  mcp-memory-server/dist/mcp-tool-cli.js \
+  mcp-memory-server/dist/context-pack.js \
+  mcp-memory-server/dist/context-pack-cli.js \
+  docs/mcp-tool-profiles.md \
+  docs/context-packs.md
+do
+  [[ -f "$installed_root/$required" ]] || fail "npm tarball omitted $required"
+done
+CAIRN_PACK_BASE_DIR="$tmp/installed-packs" cairn pack list --json >"$tmp/installed-pack-list.json" || \
+  fail "installed package pack CLI failed"
+cairn mcp-tools list --json >"$tmp/installed-mcp-tools.json" || \
+  fail "installed package mcp-tools CLI failed"
+
+for required in \
   schemas/skill-adapter.schema.json \
   schemas/skill-proposal-protocol.schema.json \
   mcp-memory-server/dist/skill-schema.js \

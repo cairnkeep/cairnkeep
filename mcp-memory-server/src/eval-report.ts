@@ -666,6 +666,7 @@ export function renderEvalReport(value: EvalReport): string {
         `Cairn evaluation report: ${report.experiment_id}`,
         `status: ${report.status}`,
         `evidence: ${report.evidence.evidence_scope === "offline-framework" ? "framework-only" : "live-evaluation"}`,
+        `MCP tool profile digest: ${report.evidence.mcp_tool_profile_digest ?? "not-recorded"}`,
         "All effects are estimates; small samples, missing intervals, and intervals crossing zero are inconclusive.",
         "",
         "Aggregates",

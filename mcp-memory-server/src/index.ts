@@ -70,6 +70,9 @@ import {
     supersedeTypedNode,
 } from "./node-store.js";
 import type { NoteAddressSpace } from "./note-store.js";
+import { contextPackHttpEnabled, contextPacksEnabled, listVisibleContext, readVisibleContext, searchVisibleContext } from "./context-pack.js";
+import { metadataForTool } from "./mcp-tool-catalog.js";
+import { profileAllowsTool, resolveMcpToolProfile, type McpToolProfileStatus } from "./mcp-tool-profile.js";
 
 type CapabilityWrapper = typeof import("./capability-adapter.js").withCapability;
 type AsyncToolCallback<Args extends AnySchema> = (
@@ -1125,8 +1128,22 @@ function buildMemoryServer(
     context: ServerContext,
     capabilitySnapshot?: CapabilityStatus,
     withCapability?: CapabilityWrapper,
+    toolProfile: McpToolProfileStatus = resolveMcpToolProfile({ projectRoot: process.cwd() }),
 ): McpServer {
     const server = new McpServer({ name: "cairn-memory", version: "0.1.0" });
+    const registerTool = <Args extends AnySchema>(
+        name: string,
+        config: CapabilityToolConfig<Args>,
+        callback: AsyncToolCallback<Args>,
+    ): void => {
+        const metadata = metadataForTool(name);
+        if (!profileAllowsTool(toolProfile, name)) return;
+        server.registerTool(name, {
+            ...config,
+            title: metadata.title,
+            annotations: metadata.annotations,
+        }, callback as unknown as ToolCallback<Args>);
+    };
     const capabilityEnabled = (id: CapabilityId): boolean =>
         capabilitySnapshot?.capabilities.find((state) => state.id === id)?.enabled ?? true;
     const registerCapabilityTool = <Args extends AnySchema>(
@@ -1148,15 +1165,22 @@ function buildMemoryServer(
                 },
             }, callback)
             : callback;
-        server.registerTool(name, config, handler as unknown as ToolCallback<Args>);
+        registerTool(name, config, handler);
     };
     const memoryConfig = (): MemoryConfig => context.memoryConfig ?? getMemoryConfig();
     const scopeOptions = { projectId: context.projectId };
     const typedNodesEnabled = isTypedMemoryNodesEnabled();
     const artifactToolsEnabled = isArtifactStoreEnabled() && (!context.remote || isArtifactHttpEnabled());
+    const contextPackToolsEnabled = contextPacksEnabled() && (!context.remote || contextPackHttpEnabled());
     if (artifactToolsEnabled && context.remote && !context.projectId) {
         throw new ClientContextError("Remote artifact access requires X-Cairn-Project.");
     }
+    if (contextPackToolsEnabled && context.remote && !context.projectId) {
+        throw new ClientContextError("Remote context pack access requires X-Cairn-Project.");
+    }
+    const contextPackProject = context.remote
+        ? { projectId: context.projectId }
+        : { projectRoot: process.cwd() };
     let fallbackArtifactSessionRef: string | undefined;
     const resolveArtifactSessionRef = (sessionRef?: string): string => {
         if (sessionRef) return sessionRef;
@@ -1199,7 +1223,7 @@ if (artifactToolsEnabled) {
         ]),
     }).strict();
 
-    server.registerTool(
+    registerTool(
         "artifact_write",
         {
             description: "Write one bounded inline artifact to the immutable project artifact store.",
@@ -1232,7 +1256,7 @@ if (artifactToolsEnabled) {
         },
     );
 
-    server.registerTool(
+    registerTool(
         "artifact_read",
         {
             description: "Read one artifact by exact ID or an unambiguous ID prefix.",
@@ -1253,7 +1277,7 @@ if (artifactToolsEnabled) {
         },
     );
 
-    server.registerTool(
+    registerTool(
         "artifact_list",
         {
             description: "List artifact metadata newest first with exact filters and opaque pagination.",
@@ -1298,7 +1322,7 @@ if (artifactToolsEnabled) {
         },
     );
 
-    server.registerTool(
+    registerTool(
         "artifact_delete",
         {
             description: "Hard-delete one artifact by exact ID or an unambiguous ID prefix.",
@@ -1338,7 +1362,7 @@ if (artifactToolsEnabled) {
     );
 }
 
-server.registerTool(
+registerTool(
     "memory_read",
     {
         description: "Read an exact key or search memory entries across AgentFS scopes.",
@@ -1491,7 +1515,7 @@ registerCapabilityTool(
     },
 );
 
-server.registerTool(
+registerTool(
     "memory_list",
     {
         description: "List keys from a scoped AgentFS database.",
@@ -1538,7 +1562,7 @@ server.registerTool(
     },
 );
 
-server.registerTool(
+registerTool(
     "memory_delete",
     {
         description: "Delete a key from a scoped AgentFS database.",
@@ -1640,7 +1664,7 @@ registerCapabilityTool(
     },
 );
 
-server.registerTool(
+registerTool(
     "memory_extract",
     {
         description: "Extract durable memory candidates from a session summary or selected text. Review the returned candidates before writing them.",
@@ -1667,7 +1691,7 @@ server.registerTool(
     },
 );
 
-server.registerTool(
+registerTool(
     "memory_supersede",
     {
         description: "Preserve the current value of a memory entry in hidden history, then write a new live value to the base key.",
@@ -1760,7 +1784,7 @@ server.registerTool(
     },
 );
 
-server.registerTool(
+registerTool(
     "memory_apply_reviewed",
     {
         description: "Idempotently apply a human-reviewed memory revision with durable provenance.",
@@ -1872,7 +1896,7 @@ server.registerTool(
     },
 );
 
-server.registerTool(
+registerTool(
     "memory_invalidate_reviewed",
     {
         description: "Invalidate a reviewed revision, removing it only when the live value still matches.",
@@ -2005,7 +2029,7 @@ server.registerTool(
     },
 );
 
-server.registerTool(
+registerTool(
     "memory_history",
     {
         description: "Read prior versions of a memory entry from the hidden history namespace.",
@@ -2080,7 +2104,7 @@ server.registerTool(
 );
 
 if (typedNodesEnabled) {
-    server.registerTool(
+    registerTool(
         "memory_import",
         {
             description: "Validate, plan, and atomically import a bounded batch of typed memory nodes.",
@@ -2134,7 +2158,7 @@ if (typedNodesEnabled) {
     );
 }
 
-server.registerTool(
+registerTool(
     "domain_knowledge_query",
     {
         description: "Query an AnythingLLM workspace in query mode for domain knowledge.",
@@ -2160,7 +2184,7 @@ server.registerTool(
     },
 );
 
-server.registerTool(
+registerTool(
     "domain_knowledge_sync",
     {
         description: "Upload and embed configured project documentation into an AnythingLLM workspace. Uses anythingllm-projects.json so include/exclude rules are honored. Use mode='replace' with confirm_replace=true when stale workspace docs must be removed before re-embedding.",
@@ -2315,6 +2339,50 @@ registerCapabilityTool(
         return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
     },
 );
+
+if (contextPackToolsEnabled) {
+    registerTool(
+        "context_pack_list",
+        {
+            description: "List documents and explicitly approved skills from context packs enabled for this project.",
+            inputSchema: z.object({}).strict(),
+        },
+        async () => {
+            const payload = await listVisibleContext(contextPackProject);
+            return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
+        },
+    );
+    registerTool(
+        "context_pack_search",
+        {
+            description: "Search documents and explicitly approved skills in context packs enabled for this project.",
+            inputSchema: z.object({
+                query: z.string().min(1).max(4096),
+                limit: z.number().int().min(1).max(100).optional(),
+            }).strict(),
+        },
+        async ({ query, limit }) => {
+            const payload = await searchVisibleContext(query, { ...contextPackProject, limit });
+            return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
+        },
+    );
+    registerTool(
+        "context_pack_read",
+        {
+            description: "Read a bounded UTF-8 range from one enabled context-pack document or approved skill.",
+            inputSchema: z.object({
+                pack: z.string().min(1).max(128),
+                path: z.string().min(1).max(512),
+                offset: z.number().int().min(0).optional(),
+                max_bytes: z.number().int().min(1).max(8192).optional(),
+            }).strict(),
+        },
+        async ({ pack, path, offset, max_bytes }) => {
+            const payload = await readVisibleContext(pack, path, { ...contextPackProject, offset, maxBytes: max_bytes });
+            return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
+        },
+    );
+}
 
     return server;
 }

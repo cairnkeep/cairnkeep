@@ -342,6 +342,7 @@ const evidenceProvenanceSchema = z.strictObject({
     package_version: z.string().min(1).max(128),
     runtime_id: identifierSchema,
     task_set_digest: digestSchema,
+    mcp_tool_profile_digest: digestSchema.optional(),
     report_digest: digestSchema,
     schema_digests: z.array(digestSchema).length(2),
     note_snapshot_digests: z.array(digestSchema).max(MAX_TASKS),

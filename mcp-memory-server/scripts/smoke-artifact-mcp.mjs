@@ -296,8 +296,9 @@ function assertArtifactToolSchemas(tools) {
     assert.deepEqual(sorted(deleteSchema.required ?? []), ["artifact_id"]);
     assert.deepEqual(sorted(Object.keys(deleteSchema.properties)), ["artifact_id"]);
 
-    assert.deepEqual(byName.artifact_read.annotations, { readOnlyHint: true, idempotentHint: true });
-    assert.deepEqual(byName.artifact_list.annotations, { readOnlyHint: true, idempotentHint: true });
+    const readAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+    assert.deepEqual(byName.artifact_read.annotations, readAnnotations);
+    assert.deepEqual(byName.artifact_list.annotations, readAnnotations);
     assert.equal(byName.artifact_write.annotations?.readOnlyHint, false);
     assert.equal(byName.artifact_delete.annotations?.destructiveHint, true);
 }
