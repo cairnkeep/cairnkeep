@@ -597,7 +597,11 @@ export async function deleteArtifact(identifier: string, projectRoot = process.c
                     await rebuildPointers(agent);
                 });
                 await agent.getDatabase().exec("PRAGMA wal_checkpoint(TRUNCATE)");
-                retainedRows = await agent.kv.list("");
+                if (process.platform === "win32") {
+                    await agent.getDatabase().exec("VACUUM");
+                } else {
+                    retainedRows = await agent.kv.list("");
+                }
             }
             result = {
                 schema_version: ARTIFACT_SCHEMA_VERSION,
@@ -631,7 +635,11 @@ export async function pruneArtifacts(projectRoot: string, limits = getArtifactLi
             result = await inImmediateTransaction(agent, () => pruneInTransaction(agent, limits, resolved));
             if (!resolved.dryRun && result.removed.length > 0) {
                 await agent.getDatabase().exec("PRAGMA wal_checkpoint(TRUNCATE)");
-                retainedRows = await agent.kv.list("");
+                if (process.platform === "win32") {
+                    await agent.getDatabase().exec("VACUUM");
+                } else {
+                    retainedRows = await agent.kv.list("");
+                }
             }
         } finally {
             await agent.close();
