@@ -10,7 +10,7 @@ import {
     readFileSync,
     realpathSync,
 } from "node:fs";
-import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { CAPABILITY_IDS, type CapabilityId } from "./capability-schema.js";
@@ -112,6 +112,18 @@ function isContained(root: string, candidate: string): boolean {
     return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel));
 }
 
+function isExistingPathContained(root: string, candidate: string): boolean {
+    const rootInfo = lstatSync(root);
+    let current = realpathSync(candidate);
+    for (;;) {
+        const currentInfo = lstatSync(current);
+        if (currentInfo.dev === rootInfo.dev && currentInfo.ino === rootInfo.ino) return true;
+        const parent = dirname(current);
+        if (parent === current) return false;
+        current = parent;
+    }
+}
+
 function assertRealDirectory(path: string, label: string): string {
     const info = lstatSync(path);
     if (info.isSymbolicLink() || !info.isDirectory()) throw new Error(`${label} must be a real directory.`);
@@ -160,13 +172,19 @@ function resolveExactCommit(repository: string, revision: string): string {
 }
 
 function parseCommittedTaskSet(taskSetPath: string): { taskSet: EvalTaskSet; commit: string } {
+    const manifestDirectory = dirname(taskSetPath);
     const manifestRepository = assertRealDirectory(
-        git(dirname(taskSetPath), ["rev-parse", "--show-toplevel"], "Resolve task-set repository"),
+        git(manifestDirectory, ["rev-parse", "--show-toplevel"], "Resolve task-set repository"),
         "Task-set repository",
     );
-    if (!isContained(manifestRepository, taskSetPath)) throw new Error("The task-set manifest must be contained by its Git repository.");
-    const manifestPath = relative(manifestRepository, taskSetPath).split(sep).join("/");
-    if (!manifestPath || manifestPath.startsWith("../")) throw new Error("The task-set manifest path is invalid.");
+    if (!isExistingPathContained(manifestRepository, taskSetPath)) {
+        throw new Error("The task-set manifest must be contained by its Git repository.");
+    }
+    const manifestPrefix = git(manifestDirectory, ["rev-parse", "--show-prefix"], "Resolve task-set repository prefix");
+    const manifestPath = `${manifestPrefix}${basename(taskSetPath)}`.split("\\").join("/");
+    if (!manifestPath || manifestPath.startsWith("../") || isAbsolute(manifestPath)) {
+        throw new Error("The task-set manifest path is invalid.");
+    }
     git(manifestRepository, ["ls-files", "--error-unmatch", "--", manifestPath], "Require a tracked evaluation task set");
     const dirty = git(manifestRepository, ["status", "--porcelain", "--untracked-files=all", "--", manifestPath], "Check evaluation task set status");
     if (dirty !== "") throw new Error("Evaluation task set must be committed and unchanged.");
