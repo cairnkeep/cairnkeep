@@ -163,14 +163,23 @@ async function runCommandInternal(options: InternalCommandOptions): Promise<Boun
         let graceTimer: NodeJS.Timeout | undefined;
         let closeTimer: NodeJS.Timeout | undefined;
 
-        const child = spawn(options.command.program, options.command.args, {
+        // A shebang does not make a JavaScript file directly executable on
+        // Windows. Adapter contracts may point at JS programs, so launch
+        // those through the current runtime while preserving the declared
+        // command for hashing and provenance.
+        const javascriptProgram = /\.(?:cjs|mjs|js)$/i.test(options.command.program);
+        const child = spawn(
+            javascriptProgram ? process.execPath : options.command.program,
+            [...(javascriptProgram ? [options.command.program] : []), ...options.command.args],
+            {
             cwd: options.cwd,
             env: options.env,
             shell: false,
             detached: process.platform !== "win32",
             windowsHide: true,
             stdio: [options.stdin_document ? "pipe" : "ignore", captureStdout ? "pipe" : "ignore", "inherit"],
-        });
+            },
+        );
 
         const clearTimers = (): void => {
             clearTimeout(timeoutTimer);
