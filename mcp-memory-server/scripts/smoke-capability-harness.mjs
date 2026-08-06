@@ -184,6 +184,10 @@ function allFiles(root) {
     return found;
 }
 
+function removeFixture(root) {
+    rmSync(root, { recursive: true, force: true, maxRetries: 12, retryDelay: 50 });
+}
+
 function rawBytes(root, stateRoot) {
     const dbDir = join(root, ".agentfs");
     const files = [
@@ -272,7 +276,7 @@ async function coreChecks(coordinator) {
         assert.equal(coordinatorCalls, 0, "master-off path invoked the coordinator");
         await assertNoState(masterOff.original, masterOff.state, "master off");
     } finally {
-        rmSync(masterOff.base, { recursive: true, force: true });
+        removeFixture(masterOff.base);
     }
 
     for (const [label, consentEnv] of [
@@ -286,7 +290,7 @@ async function coreChecks(coordinator) {
             assert.deepEqual(result, { schema_version: 1, decision: "block", reason: "capability-disabled" });
             await assertNoState(disabled.original, disabled.state, `disabled ${label}`);
         } finally {
-            rmSync(disabled.base, { recursive: true, force: true });
+            removeFixture(disabled.base);
         }
     }
 
@@ -305,7 +309,7 @@ async function coreChecks(coordinator) {
         assert.equal(finals.every(({ correlation_id }) => correlation_id === session), true,
             "schema-identical disabled admissions changed the shared session correlation");
     } finally {
-        rmSync(disabledMeasured.base, { recursive: true, force: true });
+        removeFixture(disabledMeasured.base);
     }
 
     for (const [label, consentEnv] of [
@@ -321,7 +325,7 @@ async function coreChecks(coordinator) {
             assert.equal((() => ownerResult)(), ownerResult, `${label} changed owner identity`);
             await assertNoState(enabled.original, enabled.state, `enabled ${label}`);
         } finally {
-            rmSync(enabled.base, { recursive: true, force: true });
+            removeFixture(enabled.base);
         }
     }
 
@@ -337,7 +341,7 @@ async function coreChecks(coordinator) {
             await withEnvironment(env, () => coordinator.abandonHarnessCapability({ schema_version: 1, harness: "claude-code", session_id: "session-18-17" }));
             await assertSettledOnce(enabled.original, enabled.state, outcome);
         } finally {
-            rmSync(enabled.base, { recursive: true, force: true });
+            removeFixture(enabled.base);
         }
     }
 }
@@ -360,7 +364,7 @@ async function crashAndCwdChecks(coordinator) {
             await withEnvironment(env, () => coordinator.recoverHarnessCapabilities({ state_root: fixture.state }));
             await assertSettledOnce(fixture.original, fixture.state, "success");
         } finally {
-            rmSync(fixture.base, { recursive: true, force: true });
+            removeFixture(fixture.base);
         }
     }
 
@@ -384,7 +388,7 @@ async function crashAndCwdChecks(coordinator) {
         process.chdir(previousCwd);
         const bytes = rawBytes(drift.original, drift.state).toString("utf8");
         for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `state leaked ${sentinel}`);
-        rmSync(drift.base, { recursive: true, force: true });
+        removeFixture(drift.base);
     }
 
     const stale = fixtureRoot("stale");
@@ -399,7 +403,7 @@ async function crashAndCwdChecks(coordinator) {
         await withEnvironment(env, () => coordinator.recoverHarnessCapabilities({ state_root: stale.state }));
         await assertSettledOnce(stale.original, stale.state, "timeout");
     } finally {
-        rmSync(stale.base, { recursive: true, force: true });
+        removeFixture(stale.base);
     }
 
     const unsafe = fixtureRoot("unsafe");
@@ -411,7 +415,7 @@ async function crashAndCwdChecks(coordinator) {
         await coordinator.recoverHarnessCapabilities({ state_root: unsafe.state });
         assert.deepEqual(allFiles(unsafe.state), [], "malformed lease was not pruned");
     } finally {
-        rmSync(unsafe.base, { recursive: true, force: true });
+        removeFixture(unsafe.base);
     }
 
     const mismatch = fixtureRoot("identity-mismatch");
@@ -427,7 +431,7 @@ async function crashAndCwdChecks(coordinator) {
         assert.deepEqual(allFiles(mismatch.state), [], "identity-mismatched lease was not pruned");
         assert.equal((await rows(mismatch.decoy, FINAL_PREFIX)).length, 0, "identity mismatch redirected settlement");
     } finally {
-        rmSync(mismatch.base, { recursive: true, force: true });
+        removeFixture(mismatch.base);
     }
 }
 
@@ -448,7 +452,7 @@ async function sessionIsolationChecks(coordinator) {
             const bytes = rawBytes(fixture.original, fixture.state).toString("utf8");
             for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `${label} leaked ${sentinel}`);
         } finally {
-            rmSync(fixture.base, { recursive: true, force: true });
+            removeFixture(fixture.base);
         }
     }
 
@@ -503,7 +507,7 @@ async function sessionIsolationChecks(coordinator) {
         const bytes = rawBytes(collision.original, collision.state).toString("utf8");
         for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `collision state leaked ${sentinel}`);
     } finally {
-        rmSync(collision.base, { recursive: true, force: true });
+        removeFixture(collision.base);
     }
 
     for (const [label, command, overrides, expectedDecision, expectedOutcome] of [
@@ -547,7 +551,7 @@ async function sessionIsolationChecks(coordinator) {
             const bytes = rawBytes(fixture.original, fixture.state).toString("utf8");
             for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `${label} sequential state leaked ${sentinel}`);
         } finally {
-            rmSync(fixture.base, { recursive: true, force: true });
+            removeFixture(fixture.base);
         }
     }
 
@@ -623,7 +627,7 @@ async function cliChecks() {
         assertSuccess(pruned, "hidden harness prune");
         assert.deepEqual(JSON.parse(pruned.stdout), JSON.parse(recovered.stdout));
     } finally {
-        rmSync(fixture.base, { recursive: true, force: true });
+        removeFixture(fixture.base);
     }
 }
 
