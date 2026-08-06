@@ -258,6 +258,52 @@ function rejectCredentialUrl(source: string): void {
     }
 }
 
+function execFileBuffer(program: string, args: string[], options: { timeout: number; maxBuffer: number }): Promise<Buffer> {
+    return new Promise((resolvePromise, rejectPromise) => {
+        execFile(program, args, { ...options, encoding: null, windowsHide: true }, (error, stdout) => {
+            if (error) rejectPromise(error);
+            else resolvePromise(Buffer.from(stdout));
+        });
+    });
+}
+
+async function materializeGitTree(repository: string, destination: string, commit: string): Promise<void> {
+    const listing = await execFileBuffer(
+        "git",
+        ["-C", repository, "ls-tree", "-r", "-z", commit],
+        { timeout: 30_000, maxBuffer: 4 * 1024 * 1024 },
+    );
+    const records = new TextDecoder("utf-8", { fatal: true }).decode(listing).split("\0").filter(Boolean);
+    if (records.length > CONTEXT_PACK_MAX_ENTRIES + 1) throw new Error("Git context pack exceeds the entry limit.");
+    let totalBytes = 0;
+    for (const record of records) {
+        const match = /^(100644|100755|120000) blob ([a-f0-9]{40}|[a-f0-9]{64})\t([\s\S]+)$/.exec(record);
+        if (!match || match[1] === "120000") throw new Error("Git context packs may contain only regular files.");
+        const path = normalizePackPath(match[3]);
+        const { stdout: rawSize } = await execFileAsync(
+            "git",
+            ["-C", repository, "cat-file", "-s", match[2]],
+            { encoding: "utf8", timeout: 30_000, maxBuffer: 1024 },
+        );
+        const size = Number(rawSize.trim());
+        if (!Number.isSafeInteger(size) || size < 0 || size > CONTEXT_PACK_MAX_FILE_BYTES) {
+            throw new Error(`Git context pack file is unsafe or too large: ${path}`);
+        }
+        totalBytes += size;
+        if (totalBytes > CONTEXT_PACK_MAX_TOTAL_BYTES) throw new Error("Git context pack exceeds the total size limit.");
+        const target = resolve(destination, ...path.split("/"));
+        if (!contained(destination, target)) throw new Error(`Unsafe Git context pack path: ${path}`);
+        await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+        const bytes = await execFileBuffer(
+            "git",
+            ["-C", repository, "cat-file", "blob", match[2]],
+            { timeout: 30_000, maxBuffer: CONTEXT_PACK_MAX_FILE_BYTES + 1 },
+        );
+        if (bytes.byteLength !== size) throw new Error(`Git context pack blob changed while reading: ${path}`);
+        await writeFile(target, bytes, { mode: match[1] === "100755" ? 0o700 : 0o600 });
+    }
+}
+
 async function materializeSource(source: string, ref?: string): Promise<{ root: string; cleanup?: string; source: PackSource }> {
     if (!ref) {
         const requested = resolve(source);
@@ -274,9 +320,10 @@ async function materializeSource(source: string, ref?: string): Promise<{ root: 
         const { stdout } = await execFileAsync("git", ["-C", checkout, "rev-parse", "--verify", `${ref}^{commit}`], { timeout: 30_000, maxBuffer: 1024 * 1024 });
         const commit = stdout.trim();
         if (!GIT_COMMIT.test(commit)) throw new Error("Git did not resolve the requested ref to a full commit.");
-        await execFileAsync("git", ["-C", checkout, "checkout", "--quiet", "--detach", commit], { timeout: 60_000, maxBuffer: 1024 * 1024 });
-        await rm(join(checkout, ".git"), { recursive: true, force: true });
-        return { root: checkout, cleanup: checkout, source: { kind: "git", url: gitSource, ref, commit } };
+        const root = join(checkout, "pack");
+        await mkdir(root, { mode: 0o700 });
+        await materializeGitTree(checkout, root, commit);
+        return { root, cleanup: checkout, source: { kind: "git", url: gitSource, ref, commit } };
     } catch (error) {
         await rm(checkout, { recursive: true, force: true });
         throw new Error(`Unable to materialize Git context pack: ${error instanceof Error ? error.message : String(error)}`);

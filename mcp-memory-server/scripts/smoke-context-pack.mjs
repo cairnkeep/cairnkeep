@@ -102,6 +102,17 @@ const gitSource = join(root, "git-source");
 mkdirSync(gitSource);
 writeFileSync(join(gitSource, "readme.md"), "Pinned git pack.\n");
 await initializeContextPack(gitSource, { id: "git-guide", version: "1.0.0", title: "Git guide", description: "Pinned", license: "Apache-2.0" });
+const attributes = "readme.md text eol=crlf\n";
+writeFileSync(join(gitSource, ".gitattributes"), attributes);
+const gitManifestPath = join(gitSource, "context-pack.json");
+const gitManifest = JSON.parse(readFileSync(gitManifestPath, "utf8"));
+gitManifest.files.unshift({
+    path: ".gitattributes", kind: "document", title: "Git attributes",
+    description: "Line-ending checkout fixture.", keywords: ["git"],
+    sha256: createHash("sha256").update(attributes).digest("hex"),
+});
+writeFileSync(gitManifestPath, `${JSON.stringify(gitManifest, null, 2)}\n`);
+await lockContextPack(gitSource);
 execFileSync("git", ["init", "-q", gitSource]);
 execFileSync("git", ["-C", gitSource, "add", "."]);
 execFileSync("git", ["-C", gitSource, "-c", "user.name=Cairnkeep", "-c", "user.email=cairn@example.invalid", "commit", "-qm", "fixture"]);
