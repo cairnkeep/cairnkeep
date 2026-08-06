@@ -6,6 +6,7 @@ import { canonicalDigest } from "./eval-schema.js";
 import { EvalProcessError, runBoundedJsonProcess } from "./eval-process.js";
 import { noteNodeSchema } from "./node-schema.js";
 import { getNoteLayout, listAddressedNotes } from "./note-store.js";
+import { hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
 import {
     MAX_SKILL_BYTES,
     SKILL_SCHEMA_VERSION,
@@ -85,7 +86,7 @@ function privateDirectory(path: string): void {
     if (info.isSymbolicLink() || !info.isDirectory() || realpathSync(path) !== path) {
         throw new Error(`Unsafe skill state directory: ${path}`);
     }
-    chmodSync(path, 0o700);
+    hardenPrivatePath(path);
 }
 
 export function getSkillStore(projectRoot = process.cwd(), create = true): SkillStore {
@@ -127,13 +128,14 @@ function atomicWrite(path: string, value: unknown): void {
     } finally {
         closeSync(descriptor);
     }
-    chmodSync(temporary, 0o600);
+    hardenPrivatePath(temporary);
     renameSync(temporary, path);
+    hardenPrivatePath(path);
 }
 
 function readJson(path: string): unknown {
     const info = lstatSync(path);
-    if (info.isSymbolicLink() || !info.isFile() || info.size > MAX_ARTIFACT_BYTES || (info.mode & 0o077) !== 0) {
+    if (info.isSymbolicLink() || !info.isFile() || info.size > MAX_ARTIFACT_BYTES || !privatePathIsSafe(path)) {
         throw new Error(`Unsafe skill artifact: ${path}`);
     }
     const descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
@@ -147,7 +149,7 @@ function readJson(path: string): unknown {
 function listJson<T>(directory: string, parse: (value: unknown) => T): T[] {
     if (!existsSync(directory)) return [];
     const info = lstatSync(directory);
-    if (info.isSymbolicLink() || !info.isDirectory() || (info.mode & 0o077) !== 0) throw new Error("Unsafe skill artifact directory.");
+    if (info.isSymbolicLink() || !info.isDirectory() || !privatePathIsSafe(directory)) throw new Error("Unsafe skill artifact directory.");
     return [...new Set(readdirSync(directory))]
         .filter((name) => /^[a-z0-9][a-z0-9._-]{0,127}\.json$/.test(name))
         .sort()
@@ -542,7 +544,7 @@ export function applySkillProposal(options: {
         rolled_back_at: null,
     });
     writeFileSync(backupPath, target.content, { encoding: "utf8", mode: 0o600, flag: "wx" });
-    chmodSync(backupPath, 0o600);
+    hardenPrivatePath(backupPath);
     try {
         atomicWriteTarget(target.path, proposal.candidate_content, proposal.target_mode);
         if (sha256(readFileSync(target.path)) !== proposal.candidate_content_digest) {
@@ -598,7 +600,7 @@ export function rollbackSkillApplication(options: { projectRoot: string; applica
     const backup = resolve(store.project_root, application.backup_path);
     const backupInfo = lstatSync(backup);
     if (!isContained(store.backups, backup) || backupInfo.isSymbolicLink() || !backupInfo.isFile()
-        || backupInfo.size > MAX_SKILL_BYTES || (backupInfo.mode & 0o077) !== 0) {
+        || backupInfo.size > MAX_SKILL_BYTES || !privatePathIsSafe(backup)) {
         throw new Error("Skill backup is missing or unsafe.");
     }
     const original = readFileSync(backup, "utf8");

@@ -226,7 +226,14 @@ function assertLeasePolicy(coordinator, project, stateRoot) {
         assert.equal(statSync(path).size <= 4096, true, "lease is not bounded");
         const bytes = readFileSync(path, "utf8");
         const lease = JSON.parse(bytes);
-        assert.equal(lease.project_root, realpathSync(project), "lease omitted its validated project locator");
+        const expectedProject = realpathSync(project);
+        assert.equal(
+            process.platform === "win32"
+                ? resolve(lease.project_root).toLowerCase() === resolve(expectedProject).toLowerCase()
+                : lease.project_root === expectedProject,
+            true,
+            "lease omitted its validated project locator",
+        );
         for (const sentinel of SENTINELS) assert.equal(bytes.includes(sentinel), false, `lease leaked ${sentinel}`);
     }
 }
