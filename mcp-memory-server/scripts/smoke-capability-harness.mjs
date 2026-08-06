@@ -184,13 +184,11 @@ function allFiles(root) {
     return found;
 }
 
-function removeFixture(root) {
+function removeFixture(root, allowLockedEmptyRoot = false) {
     try {
         rmSync(root, { recursive: true, force: true, maxRetries: 12, retryDelay: 50 });
     } catch (error) {
-        if (process.platform === "win32"
-            && error?.code === "EPERM"
-            && allFiles(root).length === 0) return;
+        if (process.platform === "win32" && error?.code === "EPERM" && allowLockedEmptyRoot) return;
         throw error;
     }
 }
@@ -422,7 +420,7 @@ async function crashAndCwdChecks(coordinator) {
         await coordinator.recoverHarnessCapabilities({ state_root: unsafe.state });
         assert.deepEqual(allFiles(unsafe.state), [], "malformed lease was not pruned");
     } finally {
-        removeFixture(unsafe.base);
+        removeFixture(unsafe.base, true);
     }
 
     const mismatch = fixtureRoot("identity-mismatch");
