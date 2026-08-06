@@ -10,7 +10,7 @@ import {
     readFileSync,
     realpathSync,
 } from "node:fs";
-import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { CAPABILITY_IDS, type CapabilityId } from "./capability-schema.js";
@@ -219,13 +219,18 @@ function resolvePathProgram(program: string, base: string): string {
 
 function resolveProgram(program: string, base: string): string {
     if (isAbsolute(program) || program.includes("/") || program.includes("\\")) return resolvePathProgram(program, base);
+    const names = process.platform === "win32" && extname(program) === ""
+        ? [program, ...[".EXE", ".COM"].map((extension) => `${program}${extension}`)]
+        : [program];
     for (const directory of (process.env.PATH ?? "").split(delimiter).filter(Boolean)) {
-        const candidate = join(directory, program);
-        try {
-            accessSync(candidate, constants.X_OK);
-            if (lstatSync(candidate).isFile() || lstatSync(candidate).isSymbolicLink()) return realpathSync(candidate);
-        } catch {
-            // Continue through PATH without executing the candidate.
+        for (const name of names) {
+            const candidate = join(directory, name);
+            try {
+                accessSync(candidate, constants.X_OK);
+                if (lstatSync(candidate).isFile() || lstatSync(candidate).isSymbolicLink()) return realpathSync(candidate);
+            } catch {
+                // Continue through PATH without executing the candidate.
+            }
         }
     }
     throw new Error(`Evaluation program was not found on PATH: ${program}`);
