@@ -33,6 +33,7 @@ assert.match(valid.digest, /^[a-f0-9]{64}$/);
 
 const installed = await Promise.all([installContextPack(source), installContextPack(source)]);
 assert.equal(installed[0].pack.digest, installed[1].pack.digest, "concurrent installs converge");
+assert.equal(installed.filter(({ existing }) => existing).length, 1, "concurrent install identifies exactly one existing object");
 await enableContextPack(valid.digest, { projectRoot: project });
 assert.equal((await visiblePackFiles({ projectRoot: project })).length, 1, "unapproved skill hidden");
 assert.equal((await listVisibleContext({ projectRoot: project })).packs[0].files.length, 1);

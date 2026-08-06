@@ -235,6 +235,17 @@ async function makeImmutable(root: string): Promise<void> {
     }
 }
 
+async function makeWritable(root: string): Promise<void> {
+    if (!existsSync(root)) return;
+    await chmod(root, 0o700);
+    for (const entry of await readdir(root, { withFileTypes: true })) {
+        const path = join(root, entry.name);
+        if (entry.isDirectory()) await makeWritable(path);
+        else if (process.platform === "win32") await execFileAsync("attrib.exe", ["-R", path]);
+        else await chmod(path, 0o600);
+    }
+}
+
 function rejectCredentialUrl(source: string): void {
     try {
         const url = new URL(source);
@@ -287,6 +298,7 @@ export async function installContextPack(sourcePath: string, options: { ref?: st
         const objects = dirname(destination);
         await mkdir(objects, { recursive: true, mode: 0o700 });
         const temporary = join(objects, `.${pack.digest}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
+        let published = true;
         try {
             await cp(pack.root, temporary, { recursive: true, errorOnExist: true, force: false });
             const copied = await validateContextPack(temporary);
@@ -295,16 +307,20 @@ export async function installContextPack(sourcePath: string, options: { ref?: st
             try {
                 await rename(temporary, destination);
             } catch (error) {
-                if (!["EEXIST", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code ?? "") || !existsSync(destination)) throw error;
+                const code = (error as NodeJS.ErrnoException).code ?? "";
+                const converged = existsSync(destination)
+                    && (["EEXIST", "ENOTEMPTY"].includes(code) || (process.platform === "win32" && code === "EPERM"));
+                if (!converged) throw error;
                 const concurrent = await validateContextPack(destination);
                 if (concurrent.digest !== pack.digest) throw new Error("Concurrent context pack installation produced a conflicting object.");
+                published = false;
             }
         } finally {
-            await chmod(temporary, 0o700).catch(() => undefined);
+            await makeWritable(temporary).catch(() => undefined);
             await rm(temporary, { recursive: true, force: true }).catch(() => undefined);
         }
         await atomicJson(join(packBaseDir(), "sources", `${pack.digest}.json`), { schema_version: 1, source: materialized.source });
-        return { pack: await validateContextPack(destination), source: materialized.source, existing: false };
+        return { pack: await validateContextPack(destination), source: materialized.source, existing: !published };
     } finally {
         if (materialized.cleanup) await rm(materialized.cleanup, { recursive: true, force: true });
     }
@@ -483,14 +499,7 @@ export async function removeContextPack(selector: string): Promise<string> {
         if (pointer.enabled.some(({ digest }) => digest === pack.digest)) throw new Error("Context pack is enabled by a project and cannot be removed.");
     }
     const root = objectRoot(pack.digest);
-    const unlock = async (directory: string): Promise<void> => {
-        await chmod(directory, 0o700);
-        for (const entry of await readdir(directory, { withFileTypes: true })) {
-            const path = join(directory, entry.name);
-            if (entry.isDirectory()) await unlock(path); else await chmod(path, 0o600);
-        }
-    };
-    await unlock(root);
+    await makeWritable(root);
     await rm(root, { recursive: true, force: true });
     await rm(join(packBaseDir(), "sources", `${pack.digest}.json`), { force: true });
     return pack.digest;
