@@ -892,7 +892,9 @@ function pendingTransactionDirectories(notesRoot: string): string[] {
 }
 
 function syncFile(path: string): void {
-    const descriptor = openSync(path, "r");
+    // FlushFileBuffers requires a write-capable Windows handle. POSIX accepts
+    // the narrower read handle used by the historical implementation.
+    const descriptor = openSync(path, process.platform === "win32" ? "r+" : "r");
     try { fsyncSync(descriptor); } finally { closeSync(descriptor); }
 }
 
