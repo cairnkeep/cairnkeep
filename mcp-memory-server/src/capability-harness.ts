@@ -281,6 +281,14 @@ async function removeLease(path: string): Promise<void> {
             const code = (error as NodeJS.ErrnoException).code;
             if (code !== "EPERM" && code !== "EBUSY") throw error;
             lastError = error;
+            if (process.platform === "win32" && attempt === 0) {
+                try {
+                    const info = await lstat(path);
+                    if (info.isFile() && !info.isSymbolicLink()) hardenPrivatePath(path);
+                } catch (aclError) {
+                    if ((aclError as NodeJS.ErrnoException).code === "ENOENT") return;
+                }
+            }
             await new Promise((resolveDelay) => setTimeout(resolveDelay, 25 * (attempt + 1)));
         }
     }
