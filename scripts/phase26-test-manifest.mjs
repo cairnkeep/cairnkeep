@@ -8,7 +8,7 @@ const REQUIRED_PHASE26_TEST_PATHS = Object.freeze([
 
 export const PHASE26_TEST_MANIFEST = Object.freeze(REQUIRED_PHASE26_TEST_PATHS.map((path) => Object.freeze({
   path,
-  state: "red-only",
+  state: "routine",
 })));
 
 export function validatePhase26TestManifest(entries = PHASE26_TEST_MANIFEST) {
