@@ -1,4 +1,4 @@
-# L03 - Bootstrap the first project
+# L03 - Set up the first project
 
 **Status:** Ready
 **Track:** Quickstart
@@ -7,8 +7,8 @@
 
 ## Outcome
 
-You can bootstrap a disposable project, verify its wiring, store one accepted
-fact, and recall it from a new harness session.
+You can use the guided setup contract on an empty directory, verify its Git and
+harness wiring, store one accepted fact, and recall it from a new session.
 
 ## Prerequisites
 
@@ -18,21 +18,24 @@ fact, and recall it from a new harness session.
 
 ## Exercise
 
-1. Create a disposable repository:
+1. Create an empty disposable project directory:
 
    ```bash
    mkdir -p "$HOME/cairnkeep-course/first-project"
    cd "$HOME/cairnkeep-course/first-project"
-   git init
-   printf '# Cairnkeep course project\n' > README.md
    ```
 
-2. Bootstrap the project:
+2. Run the deterministic form of guided setup. The explicit flags make the
+   exercise reproducible while exercising the same preflight as interactive
+   `cairn setup`:
 
    ```bash
-   cairn bootstrap "$PWD"
+   cairn setup "$PWD" --git init --harness claude --memory local --yes
    cp .ai/env.example .ai/.env
    ```
+
+   Setup must create the Git repository, generate only the selected Claude
+   project assets, and write the private `.ai/cairnkeep.json` setup record.
 
 3. Keep optional endpoint and model values unset for this local exercise. Run
    diagnostics:
@@ -79,7 +82,8 @@ The lesson is complete only if:
 
 | Symptom | Cause | Recovery |
 |---|---|---|
-| Launcher is missing | A different directory was bootstrapped | Run `pwd`, then bootstrap that exact path |
+| Setup refuses the target | The directory is non-empty or its Git state conflicts with `--git init` | Preserve the directory, inspect it, then select `--git existing` or use a genuinely empty disposable path |
+| Launcher is missing | A different directory was configured or Claude was not selected | Run `pwd`, inspect `.ai/cairnkeep.json`, then replay the recovery command from `cairn doctor` |
 | `.ai/.env` is missing | Only the example is generated | Copy `.ai/env.example` to `.ai/.env` |
 | `cairn-memory` is unavailable | L02 MCP registration is absent or stale | Run `claude mcp get cairn-memory`, repair it, then restart Claude Code |
 | Slash commands are unknown | Operating assets were not loaded | Run `cairn sync --check`, apply if needed, then restart the harness |
@@ -105,12 +109,15 @@ synthetic memory through the normal memory review/delete workflow if required.
 
 ## Optional challenge
 
-Repeat bootstrap with `--untracked` in another disposable Git repository, then
-inspect `.git/info/exclude` to see how contributor mode avoids shared changes.
+Create another disposable Git repository and run `cairn bootstrap --untracked`
+there. Inspect `.git/info/exclude` to see how the compatibility primitive keeps
+contributor-mode scaffolding out of shared changes.
 
 ## Recap
 
-- Bootstrap is project-specific and follows machine setup.
+- Guided setup owns target preflight, Git choice, harness selection, and a
+  private reconciliation record.
+- Bootstrap remains available for compatibility and contributor workflows.
 - The generated launcher establishes a repeatable project environment.
 - Persistence is proven only after a new session recalls the accepted fact.
 
