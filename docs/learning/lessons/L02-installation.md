@@ -147,4 +147,4 @@ Do not delete memory stores as part of a course cleanup.
 - `sync --check` is the non-writing drift check.
 - Default stdio memory is local.
 
-Next: [L03 - Bootstrap the first project](L03-first-project.md).
+Next: [L03 - Set up the first project](L03-first-project.md).
