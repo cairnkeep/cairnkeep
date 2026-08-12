@@ -327,3 +327,53 @@ check "explicit pack purge removes context packs" "$([[ -e "$PACK_STORE" ]] && e
 echo
 if [[ "$fails" -gt 0 ]]; then echo "test-uninstall: $fails check(s) failed."; exit 1; fi
 echo "test-uninstall: OK"
+
+phase26_uninstall_complete=true
+[[ -f "$ROOT_DIR/pi/extensions/cairnkeep-memory.ts" ]] || phase26_uninstall_complete=false
+grep -qF 'extensions/cairnkeep-memory.ts' "$ROOT_DIR/scripts/sync-pi-assets.sh" || phase26_uninstall_complete=false
+grep -qF 'extensions/cairnkeep-memory.ts' "$ROOT_DIR/scripts/uninstall.sh" || phase26_uninstall_complete=false
+
+if [[ "$phase26_uninstall_complete" != true ]]; then
+  if [[ "${CAIRN_PHASE26_RED:-0}" == 1 ]]; then
+    echo "PHASE26_RED:PI_UNINSTALL_MISSING"
+    exit 86
+  fi
+  echo "SKIP: Pi memory-extension uninstall ownership is not complete"
+  exit 0
+fi
+
+# Exercise the new Pi owner separately so the long-standing uninstall oracle
+# above remains byte-for-byte focused on its established asset set.
+PHASE26_HOME="$SB/phase26-home"
+PHASE26_PI="$SB/phase26-pi"
+PHASE26_LIVE="$SB/phase26-live"
+PHASE26_STORE="$PHASE26_HOME/.cairnkeep"
+PHASE26_PACKS="$PHASE26_STORE/packs"
+mkdir -p "$PHASE26_HOME" "$PHASE26_PI/extensions" "$PHASE26_STORE/memory" "$PHASE26_PACKS/objects/fixture"
+printf 'neighbor bytes\n' >"$PHASE26_PI/extensions/operator-extension.ts"
+printf 'memory bytes\n' >"$PHASE26_STORE/memory/record"
+printf 'pack bytes\n' >"$PHASE26_PACKS/objects/fixture/record"
+
+HOME="$PHASE26_HOME" PI_CODING_AGENT_DIR="$PHASE26_PI" \
+  "$ROOT_DIR/scripts/sync-pi-assets.sh" --apply --live-root "$PHASE26_PI" >/dev/null 2>&1
+check "Pi memory extension installed" "$([[ -f "$PHASE26_PI/extensions/cairnkeep-memory.ts" ]] && echo yes || echo no)" "yes"
+printf '\n// operator-modified fixture\n' >>"$PHASE26_PI/extensions/cairnkeep-memory.ts"
+cp "$PHASE26_PI/extensions/cairnkeep-memory.ts" "$SB/pi-memory-modified.before.ts"
+
+HOME="$PHASE26_HOME" XDG_CONFIG_HOME="$PHASE26_HOME/.config" \
+  CAIRN_AGENTFS_BASE_DIR="$PHASE26_STORE" CAIRN_PACK_BASE_DIR="$PHASE26_PACKS" \
+  "$ROOT_DIR/scripts/uninstall.sh" --yes --live-root "$PHASE26_LIVE" --pi-live-root "$PHASE26_PI" >/dev/null 2>&1
+check "modified Pi memory extension removed after backup" "$([[ -e "$PHASE26_PI/extensions/cairnkeep-memory.ts" ]] && echo no || echo yes)" "yes"
+check "neighboring Pi extension preserved" "$(cat "$PHASE26_PI/extensions/operator-extension.ts")" "neighbor bytes"
+check "default Pi uninstall preserves memory" "$(cat "$PHASE26_STORE/memory/record")" "memory bytes"
+check "default Pi uninstall preserves context packs" "$(cat "$PHASE26_PACKS/objects/fixture/record")" "pack bytes"
+
+PHASE26_BACKUP=$(ls -dt "$PHASE26_HOME/.cairnkeep-uninstall-"* 2>/dev/null | head -1)
+check "Pi memory extension backup exists" "$([[ -f "$PHASE26_BACKUP/files/${PHASE26_PI#/}/extensions/cairnkeep-memory.ts" ]] && echo yes || echo no)" "yes"
+check "Pi memory extension manifest entry exists" "$(grep -cF "$PHASE26_PI/extensions/cairnkeep-memory.ts" "$PHASE26_BACKUP/manifest.tsv" 2>/dev/null || true)" "1"
+HOME="$PHASE26_HOME" bash "$PHASE26_BACKUP/revert.sh" >/dev/null 2>&1
+check "modified Pi memory extension restored exactly" "$(cmp -s "$SB/pi-memory-modified.before.ts" "$PHASE26_PI/extensions/cairnkeep-memory.ts" && echo yes || echo no)" "yes"
+check "neighbor remains exact after revert" "$(cat "$PHASE26_PI/extensions/operator-extension.ts")" "neighbor bytes"
+
+if [[ "$fails" -gt 0 ]]; then echo "test-uninstall: $fails Phase 26 check(s) failed."; exit 1; fi
+echo "PASS: Pi memory-extension backup-first uninstall and revert contract"

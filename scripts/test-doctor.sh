@@ -454,3 +454,69 @@ for sentinel in prompt-sentinel model-output-sentinel adapter-stderr-sentinel en
 done
 
 echo "PASS: cairn doctor (existing probes plus value-free capability/evaluation diagnostics)"
+
+phase26_doctor_complete=true
+for required in \
+  "$ROOT/scripts/setup.mjs" \
+  "$ROOT/schemas/cairnkeep-setup.schema.json" \
+  "$ROOT/pi/extensions/cairnkeep-memory.ts"; do
+  [[ -f "$required" ]] || phase26_doctor_complete=false
+done
+grep -qF 'cairnkeep.json' "$doctor" || phase26_doctor_complete=false
+grep -qF 'cairnkeep-memory.ts' "$doctor" || phase26_doctor_complete=false
+
+if [[ "$phase26_doctor_complete" != true ]]; then
+  if [[ "${CAIRN_PHASE26_RED:-0}" == 1 ]]; then
+    echo "PHASE26_RED:SETUP_DOCTOR_MISSING"
+    exit 86
+  fi
+  echo "SKIP: setup and Pi doctor diagnostics are not complete"
+  exit 0
+fi
+
+setup_home="$tmp/setup-home"
+setup_pi="$setup_home/.pi/agent"
+mkdir -p "$setup_home" "$setup_pi"
+HOME="$setup_home" "$ROOT/scripts/sync-pi-assets.sh" --apply --live-root "$setup_pi" >/dev/null
+
+complete_project="$tmp/setup-complete"
+HOME="$setup_home" "$ROOT/bin/cairn" setup "$complete_project" \
+  --git init --harness claude,pi --memory local --yes --json >/dev/null
+(cd "$complete_project" && HOME="$setup_home" PI_CODING_AGENT_DIR="$setup_pi" "$doctor") >"$tmp/setup-complete.out" 2>&1 \
+  || fail "doctor rejected complete guided setup"
+grep -Eq '\[PASS\].*(project )?setup.*complete' "$tmp/setup-complete.out" || fail "doctor omitted complete setup state"
+
+limited_project="$tmp/setup-limited"
+HOME="$setup_home" "$ROOT/bin/cairn" setup "$limited_project" \
+  --git none --harness claude --memory none --yes --json >/dev/null
+(cd "$limited_project" && HOME="$setup_home" PI_CODING_AGENT_DIR="$setup_pi" "$doctor") >"$tmp/setup-limited.out" 2>&1 \
+  || fail "doctor treated intentional Git-less setup as fatal"
+grep -Eq '\[WARN\].*(setup.*limited|Git-less)' "$tmp/setup-limited.out" || fail "doctor omitted Git-less limited state"
+
+incomplete_project="$tmp/setup-incomplete"
+mkdir -p "$incomplete_project/.ai"
+printf '%s\n' '{"schema_version":1,"git":"existing","memory":"local","harnesses":["pi"],"assets":{}}' >"$incomplete_project/.ai/cairnkeep.json"
+set +e
+(cd "$incomplete_project" && HOME="$setup_home" PI_CODING_AGENT_DIR="$setup_pi" "$doctor") >"$tmp/setup-incomplete.out" 2>&1
+incomplete_status=$?
+set -e
+[[ "$incomplete_status" -ne 0 ]] || fail "doctor accepted incomplete setup state"
+grep -Eq '\[FAIL\].*(setup.*incomplete|setup state)' "$tmp/setup-incomplete.out" || fail "doctor omitted incomplete setup diagnosis"
+grep -Eq 'cairn setup .*--git|cairn setup --git' "$tmp/setup-incomplete.out" || fail "incomplete setup lacks exact setup recovery"
+
+rm -f "$setup_pi/extensions/cairnkeep-memory.ts"
+set +e
+(cd "$complete_project" && HOME="$setup_home" PI_CODING_AGENT_DIR="$setup_pi" "$doctor") >"$tmp/setup-pi-drift.out" 2>&1
+pi_drift_status=$?
+set -e
+[[ "$pi_drift_status" -ne 0 ]] || fail "doctor accepted missing selected Pi memory extension"
+grep -Eq '\[FAIL\].*Pi.*memory extension|\[FAIL\].*cairnkeep-memory' "$tmp/setup-pi-drift.out" || fail "doctor omitted Pi drift diagnosis"
+grep -qF 'cairn sync-pi --apply' "$tmp/setup-pi-drift.out" || fail "Pi drift lacks exact sync recovery"
+
+for output in "$tmp/setup-complete.out" "$tmp/setup-limited.out" "$tmp/setup-incomplete.out" "$tmp/setup-pi-drift.out"; do
+  if grep -Eqi 'token[=:]|secret[=:]|credential[=:]|https?://' "$output"; then
+    fail "setup doctor exposed unbounded private values"
+  fi
+done
+
+echo "PASS: complete, limited, incomplete, Pi drift, and recovery doctor contract"
