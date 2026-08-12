@@ -118,5 +118,44 @@ if "$ROOT/bin/cairn" completion unsupported >/dev/null 2>&1; then
   exit 1
 fi
 
+completion_surface_complete=true
+for shell in bash zsh fish; do
+  if ! grep -qw 'setup' "$tmp/$shell"; then
+    completion_surface_complete=false
+  fi
+done
+"$ROOT/bin/cairn" completion powershell >"$tmp/powershell"
+if ! grep -qE "['\"]setup['\"]" "$tmp/powershell"; then
+  completion_surface_complete=false
+fi
+
+if [[ "$completion_surface_complete" != true ]]; then
+  if [[ "${CAIRN_PHASE26_RED:-0}" == 1 ]]; then
+    echo "PHASE26_RED:SETUP_COMPLETION_MISSING"
+    exit 86
+  fi
+  echo "SKIP: guided setup completion surface is not complete"
+  git -C "$ROOT" diff --check
+  echo "PASS: shell completion generation"
+  exit 0
+fi
+
+setup_flags='--git --harness --memory --policy --yes --json'
+setup_values='init existing none claude opencode pi kimi qwen local'
+for shell in bash zsh fish powershell; do
+  for flag in $setup_flags; do
+    grep -q -- "$flag\|${flag#--}" "$tmp/$shell" || {
+      echo "setup completion omitted $flag for $shell" >&2
+      exit 1
+    }
+  done
+  for value in $setup_values; do
+    grep -qF "$value" "$tmp/$shell" || {
+      echo "setup completion omitted $value for $shell" >&2
+      exit 1
+    }
+  done
+done
+
 git -C "$ROOT" diff --check
 echo "PASS: shell completion generation"

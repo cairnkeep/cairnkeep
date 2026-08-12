@@ -35,6 +35,8 @@ been rehearsed.
 | Complete MCP annotations and least-authority tool profiles | L20 | L20 | Ready; default profile remains full |
 | Immutable context packs and exact-digest skill approval | L21 | L21 | Ready; default off |
 | Native Windows x64 CLI, hooks, ACLs, scheduling, and recovery | L22 | L22 | Ready; PowerShell-native |
+| Guided project setup, selected harness state, and Git-less limitations | L23 | L23 | Ready; provisional unreleased v2.11 |
+| Pi local stdio memory bridge, trusted annotation details, and explicit lifecycle | L23 | L23 | Ready; Pi 0.84.1 provisional minimum |
 
 ## Release Review
 
@@ -67,6 +69,7 @@ repository remains the canonical source for explanations and scripts.
 | `course-09-skill` | L19 | Validated skill improvement in a disposable project |
 | `course-10-trust-context` | L20-L21 | MCP authority profiles and offline context-pack lifecycle |
 | `course-11-windows` | L22 | Native PowerShell lifecycle, ACL inspection, and reversible uninstall |
+| `course-12-guided-setup` | L23 | Deterministic setup, Pi local stdio, recovery, and backup-first uninstall |
 
 ## Command Ownership
 
@@ -76,9 +79,10 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | Command | Primary lesson |
 |---|---|
 | `cairn bootstrap` | L03 |
+| `cairn setup` | L23 |
 | `cairn memory-server` | L02 |
 | `cairn sync` | L02 |
-| `cairn sync-pi` | L13 |
+| `cairn sync-pi` | L13 and L23 |
 | `cairn sync-kimi` | L02 |
 | `cairn doctor` | L03; advanced repair in L13-L14 |
 | `cairn trajectory` | L13 |

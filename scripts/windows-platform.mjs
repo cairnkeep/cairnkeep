@@ -135,6 +135,30 @@ function windowsLauncher(harness) {
   return `@echo off\r\npowershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0start-harness.ps1" ${harness} %*\r\n`;
 }
 
+function windowsSetupAssets(harnesses) {
+  return Object.freeze([
+    ...harnesses.map((harness) => Object.freeze({
+      path: `.ai/start-${harness}.cmd`,
+      bytes: Buffer.from(windowsLauncher(harness), "utf8"),
+      mode: 0o755,
+      template: `start-${harness}.cmd.generated`,
+      harness,
+    })),
+    Object.freeze({
+      path: ".ai/start-harness.mjs",
+      bytes: Buffer.from(launcherModule(), "utf8"),
+      mode: 0o755,
+      template: "start-harness.mjs.generated",
+    }),
+    Object.freeze({
+      path: ".ai/start-harness.ps1",
+      bytes: Buffer.from(launcherPowerShell(), "utf8"),
+      mode: 0o600,
+      template: "start-harness.ps1.generated",
+    }),
+  ]);
+}
+
 export function launcherPowerShell() {
   return `param(
   [Parameter(Mandatory=$true, Position=0)][string]$Harness,
@@ -355,7 +379,7 @@ function syncSimple(root, args, kind) {
   if (positional.length) throw new Error(`Usage: cairn sync-${kind} [--check|--apply] [--live-root DIR]`);
   const apply = options.has("--apply");
   const config = kind === "pi"
-    ? { source: "pi", live: process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"), files: ["extensions/cairnkeep-trajectory.ts", "prompts/graphify.md"] }
+    ? { source: "pi", live: process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"), files: ["extensions/cairnkeep-memory.ts", "extensions/cairnkeep-trajectory.ts", "prompts/graphify.md"] }
     : { source: "kimi", live: process.env.KIMI_CODE_HOME || join(homedir(), ".kimi-code"), files: ["skills/graphify/SKILL.md"] };
   const live = resolve(expandHome(options.get("--live-root") || config.live));
   let ok = true;
@@ -582,7 +606,11 @@ function uninstallWindows(root, args) {
   for (const name of HOOK_EVENTS.keys()) targets.push(join(live, "hooks", `${name}.cmd`));
   targets.push(join(live, "hooks", "capability-command-start.cmd"), join(live, "hooks", "capability-command-finish.cmd"));
   const piLive = resolve(expandHome(options.get("--pi-live-root") || process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent")));
-  targets.push(join(piLive, "extensions", "cairnkeep-trajectory.ts"), join(piLive, "prompts", "graphify.md"));
+  targets.push(
+    join(piLive, "extensions", "cairnkeep-memory.ts"),
+    join(piLive, "extensions", "cairnkeep-trajectory.ts"),
+    join(piLive, "prompts", "graphify.md"),
+  );
   const kimiLive = resolve(expandHome(options.get("--kimi-live-root") || process.env.KIMI_CODE_HOME || join(homedir(), ".kimi-code")));
   targets.push(join(kimiLive, "skills", "graphify", "SKILL.md"));
   for (const project of projects) {
@@ -659,8 +687,10 @@ foreach ($Item in $Manifest.items) {
 export function powershellCompletion() {
   return `Register-ArgumentCompleter -Native -CommandName cairn -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
-  $commands = 'bootstrap','memory-server','sync','sync-pi','sync-kimi','doctor','trajectory','artifact','capabilities','mcp-tools','pack','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
-  $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+  $commands = 'bootstrap','setup','memory-server','sync','sync-pi','sync-kimi','doctor','trajectory','artifact','capabilities','mcp-tools','pack','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
+  $setup = '--git','--harness','--memory','--policy','--yes','--json','init','existing','none','claude','opencode','pi','kimi','qwen','local'
+  $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } else { $commands }
+  $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
     [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
   }
 }\n`;
@@ -669,6 +699,17 @@ export function powershellCompletion() {
 export async function runWindowsCommand({ command, args, root }) {
   switch (command) {
     case "bootstrap": bootstrapWindows(root, args); return true;
+    case "setup": {
+      const { runSetup } = await import("./setup.mjs");
+      process.exitCode = await runSetup(args, {
+        platform: "win32",
+        augmentPlan: (plan) => Object.freeze({
+          ...plan,
+          assets: Object.freeze([...plan.assets, ...windowsSetupAssets(plan.harnesses)]),
+        }),
+      });
+      return true;
+    }
     case "sync": syncClaude(root, args); return true;
     case "sync-pi": syncSimple(root, args, "pi"); return true;
     case "sync-kimi": syncSimple(root, args, "kimi"); return true;

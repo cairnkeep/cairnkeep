@@ -94,4 +94,53 @@ for (const file of markdownFiles("docs/learning")) {
 }
 NODE
 
+l23=docs/learning/lessons/L23-guided-setup.md
+quickstart=docs/learning/tracks/quickstart.md
+operator=docs/learning/tracks/operator.md
+phase26_learning_complete=true
+[[ -f "$l23" ]] || phase26_learning_complete=false
+grep -qF 'L23-guided-setup.md' "$quickstart" || phase26_learning_complete=false
+grep -qF 'L23-guided-setup.md' "$operator" || phase26_learning_complete=false
+
+if [[ "$phase26_learning_complete" != true ]]; then
+  if [[ "${CAIRN_PHASE26_RED:-0}" == 1 ]]; then
+    echo "PHASE26_RED:GUIDED_SETUP_LEARNING_MISSING"
+    exit 86
+  fi
+  echo "SKIP: Ready L23 guided-setup lesson and track routing are not complete"
+  echo "PASS: public learning path structure, readiness, links, and version alignment"
+  exit 0
+fi
+
+grep -q '^\*\*Status:\*\* Ready' "$l23"
+grep -qF "Tested with:** Cairnkeep $version" "$l23"
+for heading in '## Outcome' '## Exercise' '## Recovery exercise' '## Common failures' '## Privacy and trust boundary'; do
+  grep -qxF "$heading" "$l23" || {
+    echo "L23 missing required heading: $heading" >&2
+    exit 1
+  }
+done
+for command in \
+  'cairn setup' \
+  '--git init' \
+  '--git none' \
+  '--harness' \
+  '--memory' \
+  '--yes' \
+  'cairn sync-pi --apply' \
+  'cairn doctor' \
+  'cairn uninstall'; do
+  grep -qF -- "$command" "$l23" || {
+    echo "L23 missing guided setup command or mode: $command" >&2
+    exit 1
+  }
+done
+grep -Eqi 'missing|empty' "$l23"
+grep -Eqi 'deterministic|non-interactive|non-TTY' "$l23"
+grep -Eqi 'local.*stdio|stdio.*local' "$l23"
+grep -Eqi 'limited|Git-less' "$l23"
+grep -Eqi 'cancel|shutdown|child process' "$l23"
+grep -Eqi '0\.84\.1' "$l23"
+grep -Eqi 'credentials|secrets|private state' "$l23"
+
 echo "PASS: public learning path structure, readiness, links, and version alignment"

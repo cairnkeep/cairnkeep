@@ -21,6 +21,7 @@ SOURCE_ROOT="$ROOT_DIR/pi"
 LIVE_ROOT="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 MODE="check"
 ASSETS=(
+  "extensions/cairnkeep-memory.ts"
   "extensions/cairnkeep-trajectory.ts"
   "prompts/graphify.md"
 )
@@ -37,7 +38,7 @@ done
 
 render_asset() {
   local rel="$1"
-  if [[ "$rel" == "extensions/cairnkeep-trajectory.ts" ]]; then
+  if [[ "$rel" == extensions/*.ts ]]; then
     sed "s|@@INFRA_ROOT@@|$ROOT_DIR|g" "$SOURCE_ROOT/$rel"
   else
     cat "$SOURCE_ROOT/$rel"
@@ -74,20 +75,34 @@ ensure_sources
 if [[ "$MODE" == "apply" ]]; then
   updated=0
   unchanged=0
+  memory_updated=0
+  memory_unchanged=0
   for rel in "${ASSETS[@]}"; do
     mkdir -p "$(dirname "$LIVE_ROOT/$rel")"
     if [[ -f "$LIVE_ROOT/$rel" ]] && cmp -s <(render_asset "$rel") "$LIVE_ROOT/$rel"; then
-      unchanged=$((unchanged + 1))
+      if [[ "$rel" == "extensions/cairnkeep-memory.ts" ]]; then
+        memory_unchanged=1
+      else
+        unchanged=$((unchanged + 1))
+      fi
       continue
     fi
     rendered_tmp=$(mktemp)
     render_asset "$rel" > "$rendered_tmp"
     install -m 0644 "$rendered_tmp" "$LIVE_ROOT/$rel"
     rm -f "$rendered_tmp"
-    updated=$((updated + 1))
+    if [[ "$rel" == "extensions/cairnkeep-memory.ts" ]]; then
+      memory_updated=1
+    else
+      updated=$((updated + 1))
+    fi
   done
   printf 'Applied %s Pi asset(s); %s already matched.\n' "$updated" "$unchanged"
+  printf 'Pi memory extension: %s updated; %s already matched.\n' "$memory_updated" "$memory_unchanged"
 fi
 
-check_assets
+if ! check_assets; then
+  echo "Recovery: sync-pi-assets.sh --apply --live-root PATH" >&2
+  exit 1
+fi
 printf 'Pi extension and graph prompt are in sync under %s\n' "$LIVE_ROOT"

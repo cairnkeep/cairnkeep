@@ -35,6 +35,7 @@ export const USAGE = `cairn — Cairnkeep CLI
 
 Usage:
   cairn bootstrap [--untracked] [path]
+  cairn setup PATH --git init|existing|none --harness LIST --memory local|none [--policy PATH] --yes [--json]
   cairn memory-server
   cairn sync [--check|--apply] [--live-root DIR]
   cairn sync-pi [--check|--apply] [--live-root DIR]
@@ -92,6 +93,12 @@ export async function main(argv) {
 
   if (command === "completion" && args[0] === "powershell") {
     process.stdout.write(powershellCompletion());
+    return;
+  }
+
+  if (command === "setup" && process.platform !== "win32") {
+    const { runSetup } = await import("./setup.mjs");
+    process.exitCode = await runSetup(args);
     return;
   }
 

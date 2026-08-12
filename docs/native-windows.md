@@ -5,25 +5,34 @@ The supported path does not invoke WSL, Git Bash, or a POSIX shell. Windows
 ARM64 may use Windows x64 emulation, but it is not a native ARM64 support claim
 until the database dependency publishes and passes an ARM64 Windows binding.
 
-## Install and bootstrap
+## Install and guided setup
 
 Prerequisites are Node.js 22 or newer, npm, and the harness you intend to use.
-Git is needed only for Git-backed context packs and `--untracked` bootstrap.
+Git is required for `--git init`, `--git existing`, Git-backed context packs,
+and `--untracked` bootstrap. Explicit `--git none` provides the same documented
+limited mode as POSIX setup.
 The optional `sqlite3.exe` command enables WAL-safe `cairn memory export`.
 
 ```powershell
 npm install --global @cairnkeep/cli
 cairn version
-cairn sync --apply
-
 $Project = 'C:\src\my-project'
-cairn bootstrap $Project
+cairn setup $Project --git init --harness claude,pi --memory local --yes
+cairn sync --apply
+cairn sync-pi --apply
+cairn sync-pi --check
 Set-Location $Project
 cairn doctor
 .\.ai\start-claude.cmd
 ```
 
-Bootstrap writes both the established Unix launchers and native Windows
+Guided setup exposes the same target classification, confirmation, Git,
+harness, memory, reconciliation, counts, JSON result, diagnostics, launch, and
+recovery contract as POSIX. It writes a restricted `.ai/cairnkeep.json` setup
+record and never syncs machine assets automatically. `cairn bootstrap` remains
+the deterministic compatibility primitive for existing scripts.
+
+Setup and bootstrap write both the established Unix launchers and native Windows
 launchers. Each `.cmd` file enters `start-harness.ps1`, loads `.ai/.env`, changes
 to the project root, and forwards arguments without shell interpolation.
 Optional `.ai/pre-launch.ps1` and `.ai/post-exit.ps1` seams run in the same
@@ -42,7 +51,12 @@ cairn sync --check
 `cairn sync --apply` installs native `.cmd` hook transports and registers them
 in the harness settings. The hook logic itself is Node and remains fail-open
 except for capability admission, which preserves its fail-closed contract.
-`cairn sync-pi` and `cairn sync-kimi` use native filesystem operations.
+`cairn sync-pi` and `cairn sync-kimi` use native filesystem operations. Pi sync
+installs the maintained local stdio memory extension explicitly; setup does not
+start it or add remote access. Pi 0.84.1 is the provisional minimum, and final
+release readiness also exercises a separate installation of the exact
+registry-current Pi release. The two executable paths must be distinct, but
+their reported versions may both be 0.84.1 while that remains current.
 
 ## PowerShell completion
 
@@ -61,6 +75,8 @@ Windows user profile. Sensitive managed JSON files do not rely on meaningless
 Unix mode bits: Cairnkeep removes inherited ACLs and grants access only to the
 current SID, Local System, and built-in Administrators. Context-pack content is
 digest-verified before receiving restricted ACLs and a read-only attribute.
+The guided setup state uses this same private ACL and contains no credentials,
+endpoints, or absolute paths.
 
 The embedded AgentFS database driver retains Windows file handles until its
 Node process exits. Cairnkeep therefore runs artifact-store operations in
@@ -99,7 +115,8 @@ purge flags are supplied.
 ## Verification boundary
 
 The release gate runs from `windows-latest` using PowerShell for Node 22, 24,
-and 26. It builds the TypeScript server, runs its Node tests, exercises bootstrap,
-sync/check, native hooks, safe archive import, backup-first uninstall, spaces and
-Unicode paths, packs the npm artifact, installs it globally, invokes `cairn.cmd`,
-and runs `cairn doctor`. Git Bash is never selected as the job shell.
+and 26. It builds the TypeScript server, runs its Node tests, exercises guided
+setup and bootstrap, sync/check (including Pi), native hooks, safe archive
+import, backup-first uninstall, spaces and Unicode paths, packs the npm artifact,
+installs it globally, invokes `cairn.cmd`, and runs `cairn doctor`. Git Bash is
+never selected as the job shell.

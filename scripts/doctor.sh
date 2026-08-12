@@ -439,6 +439,63 @@ else
   fail "context-pack objects or project pointers failed integrity checks"
 fi
 
+# 14. Guided setup ownership from .ai/cairnkeep.json is diagnosed without
+# repairing project or machine assets. The Node controller returns only bounded
+# states and exact recovery commands; setup remains the sole owner of project
+# reconciliation.
+setup_diagnosis=$(node --input-type=module - "$CAIRN_ROOT/scripts/setup.mjs" "$PWD" <<'NODE' 2>/dev/null
+import { pathToFileURL } from "node:url";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+const module = await import(pathToFileURL(process.argv[2]).href);
+const value = module.diagnoseSetup(process.argv[3]);
+const allowed = new Set(["absent", "complete", "limited", "incomplete"]);
+if (value.schema_version !== 1 || !allowed.has(value.status) || !Array.isArray(value.recovery)) process.exit(1);
+let piSelected = false;
+if (value.status === "complete" || value.status === "limited") {
+  const state = JSON.parse(readFileSync(join(process.argv[3], ".ai", "cairnkeep.json"), "utf8"));
+  if (!Array.isArray(state.harnesses) || state.harnesses.some((name) => !["claude", "opencode", "pi", "kimi", "qwen"].includes(name))) process.exit(1);
+  piSelected = state.harnesses.includes("pi");
+}
+process.stdout.write(`${value.status}:${value.code}:${value.recovery.join("|")}:${piSelected ? "yes" : "no"}`);
+NODE
+) || setup_diagnosis='incomplete:setup-state:cairn setup . --git existing --harness claude --memory local --yes:no'
+IFS=: read -r setup_status setup_code setup_recovery setup_pi_selected <<< "$setup_diagnosis"
+case "$setup_status:$setup_code" in
+  absent:*) skip "project setup state (not configured; legacy bootstrap remains supported)" ;;
+  complete:configured) pass "project setup is complete" ;;
+  limited:git-disabled) warn "project setup is limited (Git-less mode)" ;;
+  incomplete:*)
+    fail "project setup state is incomplete; run: ${setup_recovery:-cairn setup . --git existing --harness claude --memory local --yes}"
+    ;;
+  *) fail "project setup state is incomplete; run: cairn setup . --git existing --harness claude --memory local --yes" ;;
+esac
+
+# 15. A selected Pi harness requires the explicitly synchronized local bridge
+# extension and its built child entrypoint. Diagnosis compares bounded bytes
+# only; it never starts the bridge or repairs machine state.
+if [[ "${setup_pi_selected:-no}" == "yes" ]]; then
+  pi_source="$CAIRN_ROOT/pi/extensions/cairnkeep-memory.ts"
+  pi_bridge="$CAIRN_ROOT/mcp-memory-server/dist/pi-mcp-bridge.js"
+  pi_live_root="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+  pi_live="$pi_live_root/extensions/cairnkeep-memory.ts"
+  if [[ ! -f "$pi_source" || ! -f "$pi_bridge" ]]; then
+    fail "Pi memory bridge build is incomplete; reinstall Cairnkeep or rebuild the memory server"
+  elif [[ ! -f "$pi_live" ]]; then
+    fail "Pi memory extension cairnkeep-memory.ts is missing; run: cairn sync-pi --apply"
+  elif node --input-type=module - "$pi_source" "$pi_live" "$CAIRN_ROOT" <<'NODE' >/dev/null 2>&1
+import { readFileSync } from "node:fs";
+const expected = readFileSync(process.argv[2], "utf8").replaceAll("@@INFRA_ROOT@@", process.argv[4]);
+const current = readFileSync(process.argv[3], "utf8");
+process.exit(expected === current ? 0 : 1);
+NODE
+  then
+    pass "Pi memory extension is synchronized for the selected project harness"
+  else
+    fail "Pi memory extension cairnkeep-memory.ts has drifted; run: cairn sync-pi --apply"
+  fi
+fi
+
 echo
 if [[ "$fails" -gt 0 ]]; then
   echo "cairn doctor: $fails configured dependency check(s) failed."
