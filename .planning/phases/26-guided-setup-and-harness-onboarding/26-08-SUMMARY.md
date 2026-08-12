@@ -84,7 +84,7 @@ coverage:
       - command: bash scripts/test-setup-overlay.sh
         status: pass
     human_judgment: false
-duration: 11min
+duration: 13min
 completed: 2026-08-12
 status: complete
 ---
@@ -95,9 +95,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 11 min
+- **Duration:** 13 min
 - **Started:** 2026-08-12T11:06:43Z
-- **Completed:** 2026-08-12T11:17:15Z
+- **Completed:** 2026-08-12T11:19:22Z
 - **Tasks:** 2
 - **Files modified:** 7
 
@@ -115,6 +115,7 @@ Each task was committed atomically:
 
 1. **Task 1: Document setup, Pi integration, platforms, privacy, and overlays** - `1bc7c6a` (docs)
 2. **Task 2: Add public setup, recovery, and provisional release guidance** - `7c3a608` (docs)
+3. **Release-boundary fix: Keep current v2.11 work distinct from shipped features** - `5eacb90` (fix)
 
 ## Files Created/Modified
 
@@ -136,7 +137,17 @@ Each task was committed atomically:
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+### Auto-fixed Issues
+
+**1. [Rule 1 - Bug] Kept provisional v2.11 work out of the shipped feature claim**
+
+- **Found during:** Final release-claim review
+- **Issue:** Adding `setup` and the Pi memory extension to the README's existing “Shipped” sentence contradicted the plan's explicit unreleased boundary.
+- **Fix:** Separated current provisional v2.11 functionality from shipped features and added an unreleased notice to the setup section.
+- **Files modified:** `README.md`
+- **Commit:** `5eacb90`
+
+**Total deviations:** 1 auto-fixed bug.
 
 ## Known Stubs
 
@@ -161,7 +172,7 @@ None. The documentation points only to implemented setup, policy, Pi lifecycle, 
 ## Self-Check: PASSED
 
 - All seven modified documentation files and this summary exist.
-- Task commits `1bc7c6a` and `7c3a608` exist in the feature worktree history.
+- Task commits `1bc7c6a`, `7c3a608`, and `5eacb90` exist in the feature worktree history.
 - Package, overlay, uninstall, documentation parity, and public-reference verification all pass.
 
 ---
