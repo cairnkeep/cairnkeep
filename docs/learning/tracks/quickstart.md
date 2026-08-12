@@ -14,7 +14,7 @@ The track is complete when a learner can start a new harness session, retrieve
 a previously accepted fact, and explain that default stdio memory is stored on
 the local machine rather than a discovered remote service. L23 then shows how
 the recommended guided entry point preserves deterministic automation and keeps
-Pi machine sync explicit. Its v2.11 surface is provisional and unreleased.
+Pi machine sync explicit. This guided surface ships in v2.11.
 
 Hands-on spine: `course-00-app` through `course-01-bootstrap`, followed by
 `course-12-guided-setup`, in the public

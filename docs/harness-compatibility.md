@@ -12,7 +12,7 @@ commands, hooks, plugins, or trajectory adapters.
 | OpenCode | Memory MCP, commands, workflows, plugins, launcher | Exercised by Cairnkeep tests |
 | Kimi Code | Memory MCP, `AGENTS.md`, launcher, opt-in graph Skill | Launcher tested; remote MCP tested with Kimi Code 0.30.0; graph Skill contract-tested |
 | Qwen Code | Memory MCP, launcher | Launcher tested; stdio and remote MCP tested with Qwen Code 0.21.1 |
-| Pi | Memory MCP through maintained local stdio extension, native opt-in trajectory extension, launcher, and graph prompt | Pi 0.84.1 provisional minimum; deterministic bridge and lifecycle tests |
+| Pi | Memory MCP through maintained local stdio extension, native opt-in trajectory extension, launcher, and graph prompt | Pi 0.84.1 validated minimum; deterministic and real bridge/lifecycle tests |
 | Codex CLI | Memory MCP | Configuration supported; no Cairnkeep operating-layer assets or launcher |
 | Other MCP clients | Memory plus optional domain-knowledge and context-pack tools | Protocol-compatible; not automatically runtime-tested |
 
@@ -57,11 +57,11 @@ decide which tools exist.
 Startup, calls, results, stderr retention, cancellation, and shutdown are
 bounded. The extension adds tools only: it does not run prompts, activate
 context-pack skills, create an autonomous loop, or add a remote transport.
-Pi 0.84.1 is the provisional minimum. Final release readiness requires tests on
-separate installations for that minimum and the explicitly versioned
-registry-current Pi release, together with Node.js 22/24/26, Bash 3.2, and
-native Windows. The executable paths must be distinct; their reported versions
-may both be 0.84.1 until the registry-current release advances.
+Pi 0.84.1 is the validated minimum. The v2.11 release matrix passed separate
+installations for that minimum and the explicitly versioned registry-current Pi
+release, together with Node.js 22/24/26, Bash 3.2, and native Windows. The
+executable paths were distinct; both reported 0.84.1 because that was also the
+registry-current release.
 
 ## Kimi Code
 

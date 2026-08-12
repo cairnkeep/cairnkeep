@@ -406,13 +406,11 @@ missing or drifted and points to `cairn sync-pi --apply`. `cairn uninstall
 --pi-live-root DIR` removes those files backup-first and leaves every other Pi
 asset untouched.
 
-Pi 0.84.1 is the provisional minimum supported version for this extension. A
-release-ready claim requires the complete setup and bridge matrix on Pi 0.84.1
-and a separate installation of the explicitly versioned registry-current Pi
-release, Node.js 22, 24, and 26, Bash 3.2, and native Windows. The two Pi
-executable paths must differ, but both may report 0.84.1 while that remains the
-current release. When the registry advances, its new exact version is required.
-Until that matrix passes, treat the boundary as provisional.
+Pi 0.84.1 is the validated minimum supported version for this extension. The
+v2.11 release passed the complete setup and bridge matrix on separate Pi 0.84.1
+minimum and registry-current installations, Node.js 22, 24, and 26, Bash 3.2,
+and native Windows. The two Pi executable paths differed, while both reported
+0.84.1 because that was also the registry-current release.
 
 The extension listens for Pi's native `session_shutdown` event and reads only
 the active branch from the read-only session manager. It returns before doing

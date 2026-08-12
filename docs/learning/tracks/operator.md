@@ -18,8 +18,8 @@
 All modules are optional. The track is complete when the operator can add and
 remove each integration without breaking the standalone local workflow and can
 explain its storage, network, credential, and rollback boundaries. L23 adds the
-provisional unreleased v2.11 setup/Pi lifecycle only after the earlier storage,
-governance, trust, and native-platform boundaries.
+v2.11 setup/Pi lifecycle only after the earlier storage, governance, trust, and
+native-platform boundaries.
 
 Hands-on spine: `course-04-operation`, `course-06-governance`, and
 `course-07-evaluation`, `course-10-trust-context`, and
