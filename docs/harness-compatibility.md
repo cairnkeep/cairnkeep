@@ -12,7 +12,7 @@ commands, hooks, plugins, or trajectory adapters.
 | OpenCode | Memory MCP, commands, workflows, plugins, launcher | Exercised by Cairnkeep tests |
 | Kimi Code | Memory MCP, `AGENTS.md`, launcher, opt-in graph Skill | Launcher tested; remote MCP tested with Kimi Code 0.30.0; graph Skill contract-tested |
 | Qwen Code | Memory MCP, launcher | Launcher tested; stdio and remote MCP tested with Qwen Code 0.21.1 |
-| Pi | Native opt-in trajectory extension, launcher, and graph prompt | Exercised by Cairnkeep tests; no bundled MCP bridge |
+| Pi | Memory MCP through maintained local stdio extension, native opt-in trajectory extension, launcher, and graph prompt | Pi 0.84.1 provisional minimum; deterministic bridge and lifecycle tests |
 | Codex CLI | Memory MCP | Configuration supported; no Cairnkeep operating-layer assets or launcher |
 | Other MCP clients | Memory plus optional domain-knowledge and context-pack tools | Protocol-compatible; not automatically runtime-tested |
 
@@ -33,7 +33,33 @@ Pi, Qwen Code, Codex, and other shell-capable clients can invoke
 `graphify` executable are on `PATH`. `cairn sync-kimi --apply` registers a Kimi
 Skill as `/graphify` (or `/skill:graphify`), and `cairn sync-pi --apply`
 registers a Pi prompt template as `/graphify`; both delegate exclusively to
-that CLI. Neither adds an MCP bridge to Pi or expands the other support levels.
+that CLI. Pi sync separately installs the Cairnkeep-owned local stdio memory
+extension; it does not expand the other support levels.
+
+## Pi
+
+Run `cairn sync-pi --apply` explicitly to install
+`extensions/cairnkeep-memory.ts`, `extensions/cairnkeep-trajectory.ts`, and
+`prompts/graphify.md` under the Pi agent root. Use `--check` for drift and
+`cairn doctor` from a project that selected Pi for setup-aware diagnosis. Setup
+reports this machine command but never runs it automatically. Uninstall removes
+only those owned paths, backup-first.
+
+The memory extension supervises `cairn memory-server` as a local stdio child.
+It discovers the effective MCP catalog dynamically and preserves names,
+descriptions, input/output schemas, original content, `structuredContent`,
+`_meta`, failure behavior, and the exact tool annotations in trusted result
+`details`. Pi 0.84.1 exposes no native annotations field in its public tool API,
+so those annotations are not claimed as native model-facing metadata. Server
+feature gates, capability state, and least-authority profiles continue to
+decide which tools exist.
+
+Startup, calls, results, stderr retention, cancellation, and shutdown are
+bounded. The extension adds tools only: it does not run prompts, activate
+context-pack skills, create an autonomous loop, or add a remote transport.
+Pi 0.84.1 is the provisional minimum. Final release readiness requires tests on
+that version and the then-current Pi release, together with Node.js 22/24/26,
+Bash 3.2, and native Windows.
 
 ## Kimi Code
 

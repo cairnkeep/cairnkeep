@@ -36,6 +36,8 @@ request unless the corresponding endpoint and credential are configured.
 | Automatic compaction recovery | None | Structured categories are injected locally; raw summary and other bodies are excluded |
 | Explicit artifact read/show | The redacted body only when HTTP is separately enabled and the operator/client explicitly reads it | Local terminal/stdio, or the explicitly registered authenticated server |
 | Opt-in evaluation coordinator | Adapter-defined inference may leave the machine only according to the explicit operator-owned adapter and inherited environment | Local adapter subprocess; Cairnkeep supplies no provider, endpoint, credential, model, or network default |
+| Guided project setup | None | Selected scaffold assets and private `.ai/cairnkeep.json` state in the target; machine sync is never automatic |
+| Pi memory extension | None | Local `cairn memory-server` stdio child; no HTTP transport is inherited |
 
 Model endpoints may be local or remote. Cairnkeep cannot determine a provider's
 retention, training, or logging policy; verify it before sending confidential
@@ -90,6 +92,35 @@ atomic replacements. Default uninstall retains them; explicit
 and its generated `revert.sh` restores exact bytes, modes, and layout. Explicit
 `cairn eval delete` and `prune` remove selected contained experiment trees with
 no hidden tombstone.
+
+## Guided setup and Pi bridge
+
+Guided setup performs a read-only target and Git preflight before project
+writes. Its schema-v1 `.ai/cairnkeep.json` record contains the package version,
+Git and memory choices, selected harness names, and setup-owned asset paths,
+digests, modes, and template identifiers. It does not contain credentials,
+endpoints, absolute paths, prompts, or memory values. The file is mode `0600`
+on POSIX and receives the private managed-file ACL on native Windows. Setup
+never invokes machine sync, and it does not start a harness or server child.
+
+When the explicitly installed Pi memory extension starts a session, it spawns
+`cairn memory-server` as a child in the project directory over local stdio. The
+bridge removes `MCP_HTTP_PORT` from the child environment, retains only the
+newest 16 KiB of child stderr for bounded failure diagnostics, caps startup,
+calls, catalogs, and results, and closes the child at shutdown. The child still
+inherits the remaining operator environment needed by the normal local server,
+so those environment values and the project directory are a child-process trust
+boundary even though they are not persisted by the bridge.
+
+Catalog and call replay is allow-listed to MCP tool metadata and result fields.
+Names, schemas, annotations, content, `structuredContent`, `_meta`, and error
+state are preserved without sanitizing away protocol meaning; Pi receives the
+annotations in trusted result `details` because Pi 0.84.1 has no native
+annotations field. The bridge does not log requests or results, create a second
+catalog, activate prompts or skills, add remote access, or persist a transcript.
+Sanitized test replay uses synthetic tool arguments, results, stderr, and
+project paths only; release evidence must not include credentials, private
+endpoints, memory values, or identifying local paths.
 
 ## Evaluation adapter and report flow
 

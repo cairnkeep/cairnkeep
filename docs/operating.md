@@ -7,20 +7,23 @@ Cairnkeep has three moving parts:
 
 1. **The memory server** (`cairn-memory`) — an MCP server your harness talks to.
 2. **The project scaffold** — `.ai/` launchers and the `.planning/` knowledge
-   layer, written by `cairn bootstrap`.
+   layer, written by `cairn setup` or the compatibility-oriented
+   `cairn bootstrap` primitive.
 3. **The operating layer** — the commands, agents, and hooks that live in your
    harness config and drive the workflow.
 
-`cairn bootstrap` only does step 2. Steps 1 and 3 are one-time-per-machine
-installs. This guide covers all three in order.
+`cairn setup` is the recommended project entry point. `cairn bootstrap`
+retains its established deterministic behavior for existing automation. Steps
+1 and 3 are one-time-per-machine installs; project setup reports the explicit
+sync command but never runs it automatically. This guide covers all three.
 
 ## Prerequisites
 
 - Node.js 22 or newer (for the memory server) and a supported harness. Claude
   Code and OpenCode receive the full operating layer. Kimi Code receives the
   memory MCP, launcher, and opt-in graph Skill; Qwen Code receives the memory
-  MCP and launcher. Pi receives its native trajectory adapter, graph prompt,
-  and launcher.
+  MCP and launcher. Pi receives a maintained local stdio MCP extension, native
+  trajectory adapter, graph prompt, and launcher after explicit machine sync.
 - Optional: the `sqlite3` CLI for `cairn memory export`. Runtime memory and
   `cairn memory import` do not require it.
 - Optional: an OpenAI-compatible LLM endpoint for memory extraction and
@@ -55,6 +58,52 @@ In PowerShell, load completion for the current session with:
 ```powershell
 Invoke-Expression (& cairn completion powershell | Out-String)
 ```
+
+## Guided project setup
+
+Interactive terminals may run `cairn setup` and answer the target, Git,
+harness, memory, and confirmation questions. Automation must make every choice
+explicit:
+
+```bash
+cairn setup /path/to/project --git init --harness claude,pi --memory local --yes
+```
+
+The deterministic form accepts `--git init|existing|none`, a comma-separated
+subset of `claude,opencode,pi,kimi,qwen`, and `--memory local|none`. `--git
+existing` requires the target to be in an existing work tree. `--git init`
+requires Git and is the only non-interactive authorization to initialize a
+repository. `--git none` is an explicit limited mode: repository-aware features
+remain unavailable, and both setup output and `cairn doctor` say so. A missing
+or empty interactive target recommends initialization and asks before writing;
+an existing non-Git tree is never initialized silently.
+
+Setup first classifies the target and Git state without writing, then creates or
+reconciles only the selected project launchers and common scaffold assets.
+Identical managed files remain unchanged, changed managed files are updated,
+and unrelated files are preserved. The result reports created, updated,
+unchanged, and skipped counts; `cairn doctor`; an exact launcher per selected
+harness; and the deterministic setup command to use for recovery. `--json`
+returns the same schema-v1 result. The private mode-`0600`
+`.ai/cairnkeep.json` record stores the package version, Git and memory modes,
+selected harnesses, and digests/modes/template identifiers for setup-owned
+assets. It contains no credentials, endpoints, or absolute paths.
+
+Setup never installs or refreshes machine-level harness assets. Its
+`machine_sync.automatic` field is always false, and the human output labels the
+reported command as not run automatically. Apply the relevant machine command
+explicitly, check it, then diagnose and launch:
+
+```bash
+cairn sync --apply                    # Claude Code operating assets
+cairn sync-pi --apply                 # Pi extension and prompt
+cairn sync-pi --check
+cd /path/to/project && cairn doctor
+./.ai/start-pi.sh
+```
+
+`cairn bootstrap [--untracked] PATH` remains available for scripts that depend
+on its original scaffold and Git-exclusion contract.
 
 ## Setup order (Claude Code)
 
@@ -219,8 +268,9 @@ cairn graph diff
 ```
 
 The same direct CLI works with Qwen Code, Codex, and other shell-capable
-clients. This does not add a Pi MCP bridge or imply that those harnesses receive
-the rest of Cairnkeep's operating layer.
+clients. Pi sync separately installs Cairnkeep's maintained local stdio MCP
+extension; the graph prompt remains a thin adapter and does not expand the rest
+of Pi's operating surface.
 
 All six modes delegate to `cairn graph`. Managed builds run Graphify's local
 code-only `update` path with provider credentials removed from the subprocess
@@ -315,26 +365,51 @@ configuration, approval behavior, and overlay guidance.
 
 ## Setup order (Pi)
 
-Pi trajectory capture uses the same project scaffold and store. Its sync also
-installs a thin `/graphify` prompt into Pi's agent root:
+Pi uses the same project scaffold and local memory store. Its explicit sync
+installs the maintained memory extension, native trajectory extension, and thin
+`/graphify` prompt into Pi's agent root:
 
 ```bash
 npm install -g @cairnkeep/cli
 cairn sync-pi --apply                    # default: ~/.pi/agent
-cairn bootstrap /path/to/project
+cairn setup /path/to/project --git init --harness pi --memory local --yes
 cp /path/to/project/.ai/env.example /path/to/project/.ai/.env
 cd /path/to/project && cairn doctor && ./.ai/start-pi.sh
 ```
 
-This command does not install an MCP bridge. Cairnkeep does not own or select a
-Pi bridge; if you want `cairn memory-server` tools inside Pi as well, configure
-a user-chosen Pi extension/bridge separately.
+The memory extension starts `cairn memory-server` as a local stdio child from
+the project root. It dynamically discovers the effective server catalog, so
+feature gates, capability state, and the current MCP tool profile remain
+authoritative. It does not contain a second hard-coded catalog. Startup is
+bounded to 10 seconds, calls to 30 seconds, results to 4 MiB, and retained child
+stderr to the newest 16 KiB. Cancellation is propagated, child or protocol
+failure is surfaced, and session shutdown closes the child.
+
+Tool names, descriptions, input and output schemas, content,
+`structuredContent`, `_meta`, and failure behavior cross the bridge without
+semantic rewriting. The exact MCP annotations are preserved in the trusted Pi
+result `details`, together with the discovered tool metadata and original
+content. Pi 0.84.1 has no native annotations field in its public tool API, so
+Cairnkeep does not claim native model-facing annotation propagation or invent a
+substitute field.
+
+The bridge is tools-only: it does not run prompts, activate context-pack skills,
+create an autonomous loop, add remote access, or bypass server-side tool
+restrictions. Removing `MCP_HTTP_PORT` from the child environment deliberately
+keeps this integration on local stdio.
 
 Use `cairn sync-pi --check` to report drift without writing, or
 `--live-root DIR` to target an isolated Pi agent root. The command owns exactly
-`extensions/cairnkeep-trajectory.ts` and `prompts/graphify.md`; `cairn
-uninstall --pi-live-root DIR` removes those files backup-first and leaves every
-other Pi asset untouched.
+`extensions/cairnkeep-memory.ts`, `extensions/cairnkeep-trajectory.ts`, and
+`prompts/graphify.md`; `cairn doctor` reports a selected Pi extension that is
+missing or drifted and points to `cairn sync-pi --apply`. `cairn uninstall
+--pi-live-root DIR` removes those files backup-first and leaves every other Pi
+asset untouched.
+
+Pi 0.84.1 is the provisional minimum supported version for this extension. A
+release-ready claim requires the complete setup and bridge matrix on Pi 0.84.1
+and the then-current Pi release, Node.js 22, 24, and 26, Bash 3.2, and native
+Windows. Until that matrix passes, treat the boundary as provisional.
 
 The extension listens for Pi's native `session_shutdown` event and reads only
 the active branch from the read-only session manager. It returns before doing
@@ -825,6 +900,13 @@ dedupe row, compaction pointer, and retention state passes. `--repair` may
 rebuild only derived indexes/dedupe/pointers from valid authoritative records.
 Unsupported schema, SQLite failure, invalid full records, or digest corruption
 fails untouched with guidance to preserve the database before manual recovery.
+
+When `.ai/cairnkeep.json` exists, doctor also validates its private state,
+selected assets, digests, and modes. It reports `limited` for explicit
+`--git none`, fails an incomplete or drifted setup with the recorded
+deterministic `cairn setup` recovery command, and checks the Pi machine
+extension when Pi was selected. `cairn sync-pi --apply` repairs that
+machine-level drift; setup itself never performs the sync.
 
 ### Evaluation harness (opt-in)
 

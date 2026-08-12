@@ -54,19 +54,54 @@ export ANTHROPIC_BASE_URL="$MY_INTERNAL_GATEWAY"
 The user still runs the standard `./.ai/start-claude.sh`; the overlay's behaviour
 is injected by the file's presence.
 
+## Guided setup policy seam
+
+An overlay may provide a data-only JSON policy to `cairn setup --policy PATH`.
+The public schema is
+[`schemas/cairnkeep-setup-policy.schema.json`](../schemas/cairnkeep-setup-policy.schema.json).
+It is strict and provider-neutral: `schema_version` is `1`; `defaults` may set
+`git`, `harnesses`, and `memory`; and `constraints` may restrict those values
+and require selected harnesses. Unknown properties are rejected.
+
+Precedence is explicit command-line choices, then policy defaults, then
+interactive input. Constraints validate the resolved plan regardless of which
+source supplied a choice. Non-interactive use still requires an explicit
+target and `--yes`, and every unresolved Git, harness, or memory choice is an
+error. A policy is a regular non-symlink JSON file no larger than 1 MiB; on
+POSIX it must not be executable. Keep organization-specific endpoints,
+credentials, and launcher logic outside this file.
+
+For deterministic onboarding, pin a reviewed policy beside the overlay and
+invoke:
+
+```bash
+cairn setup /path/to/project --policy /path/to/setup-policy.json \
+  --git existing --harness claude,pi --memory local --yes
+cairn sync-pi --apply
+cairn sync-pi --check
+```
+
+Setup reconciles only the selected project assets and reports machine sync
+without running it. The overlay remains responsible for applying and checking
+machine assets explicitly. Preserve `.ai/cairnkeep.json`: it is the private,
+versioned project ownership record used by status, doctor, recovery, and
+backup-first uninstall.
+
 ## An overlay install script
 
 Make it one idempotent command from a fresh machine:
 
 ```bash
-# 1. Get cairnkeep at a pinned version (npm or a pinned clone)
-npm i -g @cairnkeep/cli@1.0.2      # or: git clone … && git checkout v1.0.2
+# 1. Get cairnkeep at a reviewed, pinned version (npm or a pinned clone)
+npm i -g @cairnkeep/cli@<version>
 
 # 2. Register the memory server with your harness
 claude mcp add cairn-memory -s user -- cairn memory-server
 
-# 3. Scaffold the target project (contributor mode if you don't own the repo)
-cairn bootstrap --untracked /path/to/project
+# 3. Reconcile the target project deterministically
+cairn setup /path/to/project --git existing --harness claude --memory local --yes
+# Existing bootstrap automation remains supported:
+# cairn bootstrap --untracked /path/to/project
 
 # 4. Install the operating layer — GLOBAL or PROJECT-SCOPED (below)
 sync-claude-assets.sh --apply                      # global ~/.claude
@@ -128,6 +163,8 @@ secret storage, not generated project files.
 - [ ] Operating layer scoped as intended (global vs `--live-root`)
 - [ ] Optional integrations wired only where wanted
 - [ ] A single documented command takes a fresh machine to a working setup
+- [ ] Setup policy is data-only, schema-valid, and contains no secrets or endpoints
+- [ ] Machine sync/check is explicit; project setup never runs it automatically
 - [ ] Managed machines resolve `cairn` to the overlay distribution, not raw core
 - [ ] `cairn config explain` reports memory and RAG destinations without secrets
 - [ ] A project profile lock prevents silent cross-overlay reconfiguration
