@@ -179,6 +179,14 @@ export async function connectCairnPiBridge(options: CairnPiBridgeOptions = {}): 
             transportFailure = error;
             protocolErrorHandler?.(error);
         };
+        const protocolCloseHandler = transport.onclose;
+        transport.onclose = () => {
+            protocolCloseHandler?.();
+            if (state === "starting" || state === "ready") {
+                state = "closed";
+                catalog = [];
+            }
+        };
         const pid = transport.pid;
         if (pid !== null) options.onSpawn?.({ pid });
         catalog = await discover();
