@@ -408,8 +408,11 @@ asset untouched.
 
 Pi 0.84.1 is the provisional minimum supported version for this extension. A
 release-ready claim requires the complete setup and bridge matrix on Pi 0.84.1
-and the then-current Pi release, Node.js 22, 24, and 26, Bash 3.2, and native
-Windows. Until that matrix passes, treat the boundary as provisional.
+and a separate installation of the explicitly versioned registry-current Pi
+release, Node.js 22, 24, and 26, Bash 3.2, and native Windows. The two Pi
+executable paths must differ, but both may report 0.84.1 while that remains the
+current release. When the registry advances, its new exact version is required.
+Until that matrix passes, treat the boundary as provisional.
 
 The extension listens for Pi's native `session_shutdown` event and reads only
 the active branch from the read-only session manager. It returns before doing

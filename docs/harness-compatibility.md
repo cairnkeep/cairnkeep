@@ -58,8 +58,10 @@ Startup, calls, results, stderr retention, cancellation, and shutdown are
 bounded. The extension adds tools only: it does not run prompts, activate
 context-pack skills, create an autonomous loop, or add a remote transport.
 Pi 0.84.1 is the provisional minimum. Final release readiness requires tests on
-that version and the then-current Pi release, together with Node.js 22/24/26,
-Bash 3.2, and native Windows.
+separate installations for that minimum and the explicitly versioned
+registry-current Pi release, together with Node.js 22/24/26, Bash 3.2, and
+native Windows. The executable paths must be distinct; their reported versions
+may both be 0.84.1 until the registry-current release advances.
 
 ## Kimi Code
 

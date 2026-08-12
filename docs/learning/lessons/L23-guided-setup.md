@@ -138,6 +138,7 @@ prompts, approve skills, create an autonomous loop, or add remote access.
 
 Ready means this lesson and its deterministic contracts pass against the current
 tree. Final release readiness separately requires a non-skipping acceptance run
-against Pi 0.84.1 and an explicitly versioned then-current Pi executable, plus
-the documented Node.js, Bash 3.2, and native Windows matrix.
-
+against separate Pi 0.84.1 minimum and explicitly versioned registry-current
+installations, plus the documented Node.js, Bash 3.2, and native Windows matrix.
+Those executable paths must differ, but both may report 0.84.1 while that is the
+current release; a future registry advance requires its new exact version.

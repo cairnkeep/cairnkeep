@@ -54,7 +54,9 @@ except for capability admission, which preserves its fail-closed contract.
 `cairn sync-pi` and `cairn sync-kimi` use native filesystem operations. Pi sync
 installs the maintained local stdio memory extension explicitly; setup does not
 start it or add remote access. Pi 0.84.1 is the provisional minimum, and final
-release readiness also exercises the then-current Pi release.
+release readiness also exercises a separate installation of the exact
+registry-current Pi release. The two executable paths must be distinct, but
+their reported versions may both be 0.84.1 while that remains current.
 
 ## PowerShell completion
 

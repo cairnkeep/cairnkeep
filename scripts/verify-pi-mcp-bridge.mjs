@@ -442,7 +442,34 @@ async function selfTest() {
     assert.equal(requiredMissing.stdout.includes("SKIP"), false);
     assert.deepEqual(JSON.parse(requiredMissing.stdout), { schema_version: 1, status: "FAIL", reason: "required-fixtures-missing" });
     const minimum = writeFakeExecutable(sandbox, "pi-minimum", "0.84.1");
+    const equalCurrent = writeFakeExecutable(sandbox, "pi-current-equal", "0.84.1");
     const current = writeFakeExecutable(sandbox, "pi-current", "0.99.0");
+    const equalRelease = await spawnCaptured(process.execPath, [
+      selfPath,
+      "--required-release",
+      "--pi-0-84-1", minimum,
+      "--pi-current", equalCurrent,
+      "--pi-current-version", "0.84.1",
+    ], { cwd: root, env: cleanEnvironment() });
+    assert.equal(equalRelease.status, 0);
+    const equalEvidence = JSON.parse(equalRelease.stdout);
+    assert.equal(equalEvidence.status, "PASS");
+    assert.equal(equalEvidence.mode, "required-release");
+    assert.equal(equalEvidence.versions_equal, true);
+    assert.equal(equalEvidence.minimum.version, "0.84.1");
+    assert.equal(equalEvidence.current.version, "0.84.1");
+    for (const forbidden of [sandbox, process.env.USER, process.env.HOSTNAME, basename(root)]) {
+      if (forbidden && equalRelease.stdout.includes(forbidden)) fail("self-test-evidence-disclosure");
+    }
+    const duplicateFixture = await spawnCaptured(process.execPath, [
+      selfPath,
+      "--required-release",
+      "--pi-0-84-1", minimum,
+      "--pi-current", minimum,
+      "--pi-current-version", "0.84.1",
+    ], { cwd: root, env: cleanEnvironment() });
+    assert.notEqual(duplicateFixture.status, 0);
+    assert.deepEqual(JSON.parse(duplicateFixture.stdout), { schema_version: 1, status: "FAIL", reason: "fixtures-not-distinct" });
     const catalogs = await buildCatalogs(sandbox);
     const pass = await Promise.all([
       runExecutable(minimum, "0.84.1", catalogs, join(sandbox, "pass-minimum")),
@@ -454,7 +481,7 @@ async function selfTest() {
     await expectGate("pi-cancellation-failed", () => runProfile(minimum, "0.84.1", PROFILES[0], catalogs.get("full"), join(sandbox, "cancel-fault"), { CAIRN_PI_ACCEPTANCE_SELFTEST_FAULT: "cancellation" }));
     await expectGate("pi-runtime-failed", () => runProfile(minimum, "0.84.1", PROFILES[0], catalogs.get("full"), join(sandbox, "shutdown-fault"), { CAIRN_PI_ACCEPTANCE_SELFTEST_FAULT: "shutdown" }));
     await expectGate("pi-memory-child-orphaned", () => runProfile(minimum, "0.84.1", PROFILES[0], catalogs.get("full"), join(sandbox, "orphan-fault"), { CAIRN_PI_ACCEPTANCE_SELFTEST_FAULT: "orphan" }));
-    const sanitized = JSON.stringify({ schema_version: 1, status: "PASS", mode: "self-test", checks: ["skip", "required-input", "version", "profiles", "trusted-details", "cancellation", "shutdown", "orphan"] });
+    const sanitized = JSON.stringify({ schema_version: 1, status: "PASS", mode: "self-test", checks: ["skip", "required-input", "version", "equal-version-fixtures", "distinct-fixtures", "profiles", "trusted-details", "cancellation", "shutdown", "orphan"] });
     for (const forbidden of [sandbox, process.env.USER, process.env.HOSTNAME, basename(root)]) {
       if (forbidden && sanitized.includes(forbidden)) fail("self-test-evidence-disclosure");
     }
@@ -477,7 +504,6 @@ async function main() {
     return;
   }
   const currentVersion = semver(options.currentVersion);
-  if (currentVersion === "0.84.1") fail("current-version-not-distinct");
   const minimumPath = executable(options.minimumPath);
   const currentPath = executable(options.currentPath);
   if (minimumPath === currentPath) fail("fixtures-not-distinct");
@@ -486,7 +512,14 @@ async function main() {
     const catalogs = await buildCatalogs(sandbox);
     const minimum = await runExecutable(minimumPath, "0.84.1", catalogs, join(sandbox, "minimum"));
     const current = await runExecutable(currentPath, currentVersion, catalogs, join(sandbox, "current"));
-    output({ schema_version: 1, status: "PASS", mode: options.requiredRelease ? "required-release" : "available-fixtures", minimum, current });
+    output({
+      schema_version: 1,
+      status: "PASS",
+      mode: options.requiredRelease ? "required-release" : "available-fixtures",
+      versions_equal: currentVersion === "0.84.1",
+      minimum,
+      current,
+    });
   } finally {
     rmSync(sandbox, { recursive: true, force: true });
   }
