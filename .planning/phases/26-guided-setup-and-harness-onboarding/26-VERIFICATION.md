@@ -1,40 +1,32 @@
 ---
 phase: 26-guided-setup-and-harness-onboarding
-verified: 2026-08-12T13:05:25Z
-status: gaps_found
-score: 9/10 must-haves verified
+verified: 2026-08-12T13:22:46Z
+status: passed
+score: 10/10 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
-gaps:
-  - truth: "SETUP-02: missing or empty interactive targets recommend Git initialization while existing non-Git trees are never initialized silently"
-    status: partial
-    reason: "Explicit Git authorization and failure containment work, but the interactive controller asks for Git mode before target classification and presents no missing/empty-target recommendation. Public operating guidance claims that recommendation exists."
-    artifacts:
-      - path: "scripts/setup.mjs"
-        issue: "promptSetupChoices asks a generic Git-mode question at line 74; classifySetupTarget does not run until line 164, so target state cannot influence the prompt."
-      - path: "scripts/test-setup-preflight.mjs"
-        issue: "Tests pure non-TTY choices and classification separately, but never exercise the interactive prompt/recommendation path."
-      - path: "docs/operating.md"
-        issue: "Line 78 states that a missing or empty interactive target recommends initialization, which the live prompt does not do."
-    missing:
-      - "Classify the selected target before asking for Git mode, then visibly recommend init only for missing/empty interactive targets."
-      - "Keep existing non-Git targets explicit with no silent initialization."
-      - "Add a behavioral interactive test that asserts recommendation, confirmation, refusal/no-write, and existing-tree wording."
+re_verification:
+  previous_status: gaps_found
+  previous_score: 9/10
+  gaps_closed:
+    - "SETUP-02/D-04 interactive Git recommendation and target-aware prompt behavior"
+  gaps_remaining: []
+  regressions: []
 ---
 
 # Phase 26: Guided Setup & Harness Onboarding Verification Report
 
 **Phase Goal:** A first-time user can set up a missing, empty, non-Git, or existing project through an explicit harness-aware workflow that produces no ambiguous partial state, while existing scripted `cairn bootstrap` callers remain compatible.
 
-**Verified:** 2026-08-12T13:05:25Z
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Verified:** 2026-08-12T13:22:46Z
+**Status:** passed
+**Re-verification:** Yes — after gap closure in `0b7b575`
 
 ## Verdict
 
-Phase 26 is substantively implemented and its local, packaged, native-Windows, runtime-matrix, and Pi evidence is unusually strong. However, the goal contract is not fully achieved: the locked interactive Git-policy behavior in SETUP-02/D-04 is absent from the live controller. This is observable in code, contradicted by public documentation, and not covered by the tests that currently pass.
+Phase 26 achieves its goal. Commit `0b7b575` closes the only prior blocker by classifying the target before the interactive Git choice, carrying that preflight into planning, and presenting target-aware guidance without silently initializing Git.
 
-The failure is narrow but must-have: interactive onboarding is part of the phase goal. Status is therefore `gaps_found`, not `passed`.
+The new behavioral contract exercises the complete missing-target acceptance, empty-target refusal/no-write, and existing non-Git neutral paths. The deterministic non-TTY contract and every other focused Phase 26 regression check remain green.
 
 ## Goal Achievement
 
@@ -53,7 +45,7 @@ The failure is narrow but must-have: interactive onboarding is part of the phase
 | # | Truth | Status | Evidence |
 |---|---|---|---|
 | 1 | SETUP-01 — guided and deterministic setup classifies target/Git before project writes | VERIFIED | Public dispatch at `scripts/cairn-cli.mjs:99-102` and `scripts/windows-platform.mjs:699-712`; parse/preflight/plan/mutation order at `scripts/setup.mjs:153-187`; focused tests pass. |
-| 2 | SETUP-02 — Git initialization is explicit, failure classes are non-partial, and missing/empty interactive targets recommend initialization | **FAILED — BLOCKER** | Explicit authorization and failure handling exist, but `scripts/setup.mjs:69-82` asks generic Git mode before `classifySetupTarget()` at line 164. No recommendation is possible; `docs/operating.md:78-79` overclaims it. |
+| 2 | SETUP-02 — Git initialization is explicit, failure classes are non-partial, and missing/empty interactive targets recommend initialization | VERIFIED | `scripts/setup.mjs:69-89` classifies before the Git prompt, recommends `init` only for missing/empty targets, and uses neutral explicit wording for existing non-Git targets. `scripts/test-setup-preflight.mjs:208-254` exercises acceptance, refusal/no-write, existing-tree preservation, and exact prompt behavior. |
 | 3 | SETUP-03 — selected harnesses only, versioned state, compatible bootstrap | VERIFIED | Selected launcher construction at `scripts/setup-core.mjs:294-308`; state v1 at `scripts/setup-reconcile.mjs:316-324`; compatibility test passes. |
 | 4 | SETUP-04 — ownership-safe reconciliation, stable unchanged reruns, no implicit global reinstall, exact counts | VERIFIED | Desired/current/prior digest decisions at `scripts/setup-reconcile.mjs:289-330`; setup only reports machine sync at `scripts/setup.mjs:102-118`; reconcile/output tests pass. |
 | 5 | SETUP-05 — result and doctor name modes, launch, verification, limitations, and recovery | VERIFIED | Result model/rendering at `scripts/setup.mjs:93-135`; diagnosis at `scripts/setup.mjs:251-293`; output and doctor tests pass. |
@@ -63,7 +55,7 @@ The failure is narrow but must-have: interactive onboarding is part of the phase
 | 9 | PI-MCP-03 — explicit cross-platform Pi lifecycle and real stdio round trip without agent behavior | VERIFIED | Explicit sync/doctor/uninstall wiring, tools-only Pi registration, lifecycle test pass, and accepted non-SKIP real-Pi evidence for two distinct installations. |
 | 10 | OVERLAY-01 — stable provider-neutral data-only policy seam while core owns generic behavior | VERIFIED | Strict parser at `scripts/setup-core.mjs:49-150`; policy schema and public docs exist; overlay and privacy contracts pass. |
 
-**Score:** 9/10 requirement truths verified (0 present-but-behavior-unverified)
+**Score:** 10/10 requirement truths verified (0 present-but-behavior-unverified)
 
 ## Required Artifacts
 
@@ -71,14 +63,14 @@ The failure is narrow but must-have: interactive onboarding is part of the phase
 |---|---|---|---|
 | `scripts/setup-core.mjs` | 310 lines; substantive parse, policy, target, Git, choices, and plan exports | Imported by `scripts/setup.mjs`; produces frozen plan consumed by reconciler | VERIFIED |
 | `scripts/setup-reconcile.mjs` | 331 lines; substantive containment, digest, atomic write, and state logic | Imported by controller; writes selected assets then `.ai/cairnkeep.json` | VERIFIED |
-| `scripts/setup.mjs` | 294 lines; substantive controller, output, and doctor model | Called by POSIX and Windows CLI routes | PARTIAL — interactive recommendation gap |
+| `scripts/setup.mjs` | 306 lines; substantive controller, target-aware prompting, output, and doctor model | Called by POSIX and Windows CLI routes | VERIFIED |
 | `schemas/cairnkeep-setup.schema.json` | Strict v1 state schema exists | Packaged, documented, and contract-tested | VERIFIED |
 | `schemas/cairnkeep-setup-policy.schema.json` | Strict v1 policy schema exists | Packaged, documented, and checked against runtime behavior | VERIFIED |
 | `mcp-memory-server/src/pi-mcp-bridge.ts` | 240 lines; substantive SDK supervision and adaptation | Built to `dist`, dynamically imported by Pi extension | VERIFIED |
 | `pi/extensions/cairnkeep-memory.ts` | 61 lines; substantive tools-only lifecycle binding | Explicitly installed/checked by POSIX and Windows Pi sync | VERIFIED |
 | `scripts/phase26-test-manifest.mjs` | Exact five-entry routine manifest | Imported and executed by repository runner | VERIFIED |
 | `scripts/verify-pi-mcp-bridge.mjs` | 588 lines; substantive self-test and required-release acceptance runner | Used by release evidence; self-test passes locally | VERIFIED |
-| Public docs and Ready L23 | Operating, compatibility, Windows, privacy, overlay, uninstall, learning, and changelog surfaces exist | Docs/learning/package tests pass | PARTIAL — operating docs overclaim the missing interactive recommendation |
+| Public docs and Ready L23 | Operating, compatibility, Windows, privacy, overlay, uninstall, learning, and changelog surfaces exist | Docs/learning/package tests pass; target-aware prompt now matches operating guidance | VERIFIED |
 
 ## Key Link Verification
 
@@ -86,7 +78,7 @@ The failure is narrow but must-have: interactive onboarding is part of the phase
 |---|---|---|---|---|
 | `scripts/cairn-cli.mjs` | `scripts/setup.mjs` | Dynamic `runSetup` import | WIRED | POSIX path at lines 99-102. |
 | `scripts/windows-platform.mjs` | `scripts/setup.mjs` | Same controller plus Windows-only asset augmentation | WIRED | Lines 699-712; no second policy implementation. |
-| `scripts/setup.mjs` | `scripts/setup-core.mjs` | Parse → policy → prompt → preflight → choices → plan | WIRED | Lines 153-172; ordering exposes the recommendation gap. |
+| `scripts/setup.mjs` | `scripts/setup-core.mjs` | Parse → policy → target-aware preflight/prompt → choices → plan | WIRED | Interactive target preflight occurs at lines 75-81 and is carried forward at lines 169-176; non-TTY preflight remains direct. |
 | `scripts/setup.mjs` | `scripts/setup-reconcile.mjs` | Confirmed plan passed after prompt/confirmation | WIRED | Lines 174-187. |
 | `scripts/setup-reconcile.mjs` | `.ai/cairnkeep.json` | Strict relative state written last and atomically | WIRED | Lines 285-324. |
 | Pi extension | compiled bridge | Installed package root dynamic import | WIRED | `pi/extensions/cairnkeep-memory.ts:5-22`. |
@@ -99,7 +91,7 @@ The failure is narrow but must-have: interactive onboarding is part of the phase
 
 | Artifact | Data | Source | Consumer | Status |
 |---|---|---|---|---|
-| Setup controller | target/Git/harness/memory/confirmation | argv/policy/TTY | frozen plan → reconciler → result | FLOWING, except target state does not flow back into the interactive Git prompt |
+| Setup controller | target/Git/harness/memory/confirmation | argv/policy/TTY | target state → Git guidance → frozen plan → reconciler → result | FLOWING |
 | Setup state | selected assets, modes, digests, versions | reconciliation decisions | doctor and allow-listed uninstall | FLOWING |
 | Pi bridge | effective tool records and call results | live local MCP `tools/list` / `tools/call` | Pi tool definitions and trusted result details | FLOWING |
 | Test manifest | exact routine contract paths | `phase26-test-manifest.mjs` | shared repository dispatcher | FLOWING |
@@ -109,7 +101,7 @@ The failure is narrow but must-have: interactive onboarding is part of the phase
 | Decisions | Status | Evidence |
 |---|---|---|
 | D-01–D-03 | VERIFIED | Public setup plus compatible bootstrap; deterministic flags; read-only preflight before managed writes. |
-| D-04 | **FAILED** | Explicit `--git init` works and existing trees are not silently initialized, but missing/empty interactive targets receive no tailored recommendation. |
+| D-04 | VERIFIED | Missing/empty targets receive an `init recommended` prompt; existing non-Git targets state that init requires an explicit choice; refusal and neutral-mode tests prove no silent initialization. |
 | D-05–D-10 | VERIFIED | Distinct errors/no-write tests, Git-less limitations, multi-harness state, selected reconciliation, and explicit machine sync. |
 | D-11–D-15 | VERIFIED | Cairnkeep-owned SDK bridge, dynamic effective catalog, exact trusted details, bounded lifecycle, tools only. |
 | D-16–D-19 | VERIFIED | Shared Node path, provider-neutral policy, RED-before-GREEN history/contracts/docs, provisional unreleased v2.11 sequencing, and successful external platform matrix. |
@@ -133,7 +125,7 @@ The failure is narrow but must-have: interactive onboarding is part of the phase
 
 | Behavior | Command | Result | Status |
 |---|---|---|---|
-| Preflight/choice/no-write | `node scripts/test-setup-preflight.mjs` | PASS | PASS |
+| Preflight/interactive recommendation/no-write | `node scripts/test-setup-preflight.mjs` | PASS — missing accept, empty refuse/no-write, existing non-Git neutral, non-TTY matrix | PASS |
 | Ownership/idempotence/atomic state | `node scripts/test-setup-reconcile.mjs` | PASS | PASS |
 | Legacy bootstrap compatibility | `node scripts/test-setup-compatibility.mjs` | PASS | PASS |
 | Setup human/JSON/limited output | `bash scripts/test-setup-output.sh` | PASS | PASS |
@@ -145,9 +137,11 @@ The failure is narrow but must-have: interactive onboarding is part of the phase
 | Exact routine registration | `node scripts/run-repository-tests.mjs --verify-phase26-registration=routine` | PASS, five exact contracts once | PASS |
 | Real-Pi runner controls | `node scripts/verify-pi-mcp-bridge.mjs --self-test` | PASS, including skip/input/version/profile/cancel/shutdown/orphan controls | PASS |
 
+One full `npm test` aggregate was attempted once, as required by the verification policy. The lean execution wrapper terminated it at its output/runtime ceiling after more than 120 seconds and roughly 8 MB of passing output; no failing test assertion was observed. It is recorded as infrastructure-inconclusive rather than a product failure. The changed controller/test surface and all ten requirement areas were covered by the passing focused checks above.
+
 ## External Acceptance Evidence
 
-- `gh run view 31597475813 --repo cairnkeep/cairnkeep --json ...` independently returned `status: completed`, `conclusion: success`, head `143a5c1bf3bc142ed42c207c1b263fe064c8bf48`, and 11 successful jobs. These include native Windows on Node 22/24/26, memory server on Node 22/24/26, macOS fresh install/Bash 3.2, repository, server boot, container, and shell portability. From that tested head to current `HEAD`, only `26-10-SUMMARY.md` changed.
+- `gh run view 31597475813 --repo cairnkeep/cairnkeep --json ...` independently returned `status: completed`, `conclusion: success`, head `143a5c1bf3bc142ed42c207c1b263fe064c8bf48`, and 11 successful jobs. These include native Windows on Node 22/24/26, memory server on Node 22/24/26, macOS fresh install/Bash 3.2, repository, server boot, container, and shell portability. Changes after that tested head are acceptance documentation plus the narrowly scoped `0b7b575` controller/test fix, whose affected behavior was exercised locally during this re-verification.
 - Per the verification scope, the sanitized objective evidence in `26-10-SUMMARY.md` is accepted for the non-skipping real-Pi required-release run, official Node 24/26 containers, and isolated empty non-Git replay. The reported Pi matrix covers separate 0.84.1 fixture installations, full/read-only/custom catalogs, schemas, trusted metadata/details, harmless call, cancellation, awaited shutdown, and no orphan.
 
 ## Probe Execution
@@ -159,7 +153,7 @@ No `probe-*.sh` path is declared by the phase. The phase declares focused behavi
 | Requirement | Source plans | Status | Evidence |
 |---|---|---|---|
 | SETUP-01 | 01, 04, 06, 10 | SATISFIED | Public controller/preflight and passing focused tests. |
-| SETUP-02 | 01, 04, 06, 10 | **BLOCKED** | Interactive missing/empty recommendation absent. |
+| SETUP-02 | 01, 04, 06, 10 | SATISFIED | Target-aware interactive recommendation, explicit existing-tree behavior, refusal/no-write, and non-TTY compatibility all pass. |
 | SETUP-03 | 01, 04, 06, 10 | SATISFIED | Selected state/scaffold and bootstrap compatibility. |
 | SETUP-04 | 01, 04, 10 | SATISFIED | Three-way ownership and exact rerun counts. |
 | SETUP-05 | 02, 03, 06, 07, 08, 09, 10 | SATISFIED | Output, doctor, recovery, lifecycle, docs, learning. |
@@ -175,13 +169,11 @@ No Phase 26 requirement is orphaned from plan frontmatter.
 
 | File | Line | Finding | Severity | Impact |
 |---|---:|---|---|---|
-| `scripts/setup.mjs` | 74 / 164 | Git prompt precedes target classification; no target-aware recommendation | BLOCKER | D-04 and the recommendation clause of SETUP-02 are not implemented. |
-| `docs/operating.md` | 78 | Documentation claims missing/empty interactive targets recommend init | WARNING (same root cause) | Public guidance overstates live behavior. |
-| `scripts/test-setup-preflight.mjs` | 92-192 | Passing test separately covers non-TTY choices and pure classification, not their interactive integration | WARNING (same root cause) | A passing contract is misleading for the failed clause. |
+| — | — | No blocking or warning anti-pattern found in the gap-closure diff | — | The previous prompt-order/docs/test mismatch is closed. |
 
 No unreferenced `TBD`, `FIXME`, or `XXX` marker was found in phase-modified files. Empty/null matches were fixture accumulators, optional state, or deliberate cancellation returns rather than product stubs.
 
-The required disconfirmation pass found: one partially met requirement (SETUP-02), one passing test that does not test the claimed interactive behavior (`test-setup-preflight.mjs`), and one uncovered error/UX path (interactive recommendation/refusal wording by target class). No additional independent blocker was found.
+The re-verification disconfirmation pass checked the prior weak seam directly. The test now invokes `runSetup()` with injected interactive questions and asserts both prompt text and resulting filesystem state; it is no longer a presence-only or misleading test. No regression or new uncovered high-risk path was found in the two-file gap-closure diff.
 
 ## Human Verification Required
 
@@ -189,11 +181,9 @@ None. Native/runtime/real-Pi/replay evidence was explicitly accepted as objectiv
 
 ## Gaps Summary
 
-One blocking gap remains. Move target classification ahead of the interactive Git question (or otherwise feed classified target state into the prompt), visibly recommend `init` for missing/empty targets while keeping existing non-Git trees explicitly neutral, and add a behavioral interactive test. Update or retain the operating statement only after that test passes.
-
-No later milestone phase exists to which this must-have can be deferred.
+No gaps remain. The previous SETUP-02/D-04 blocker is closed and no regression was found.
 
 ---
 
-_Verified: 2026-08-12T13:05:25Z_
+_Verified: 2026-08-12T13:22:46Z_
 _Verifier: goal-backward code and behavior audit_
