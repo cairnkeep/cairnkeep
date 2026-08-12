@@ -163,12 +163,18 @@ async function defaultAtomicReplace(source, destination) {
     await rename(source, destination);
     return;
   }
-  if (!existsSync(destination)) {
-    await rename(source, destination);
-    return;
-  }
   let lastError = "Windows atomic setup replacement failed.";
   for (let attempt = 0; attempt < 12; attempt += 1) {
+    if (!existsSync(destination)) {
+      try {
+        await rename(source, destination);
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 25 * (attempt + 1)));
+        continue;
+      }
+    }
     const backup = `${destination}.replace-backup-${randomUUID()}`;
     try {
       const result = spawnSync("powershell.exe", [
