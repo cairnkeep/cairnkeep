@@ -125,6 +125,48 @@ remove_path() {
   echo "  removed: $abs"
 }
 
+# Print only package-known relative paths from a valid guided-setup ownership
+# record. The record identifies candidates, but never grants authority to an
+# arbitrary path. Modified candidates are still backed up before removal.
+setup_owned_paths() {
+  node --input-type=module - "$1" <<'NODE'
+import { lstatSync, readFileSync } from "node:fs";
+const path = process.argv[2];
+const info = lstatSync(path);
+if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024) process.exit(1);
+if (process.platform !== "win32" && (info.mode & 0o777) !== 0o600) process.exit(1);
+const state = JSON.parse(readFileSync(path, "utf8"));
+const exact = (value, keys) => value && typeof value === "object" && !Array.isArray(value)
+  && Object.keys(value).sort().join(",") === [...keys].sort().join(",");
+if (!exact(state, ["schema_version", "cairnkeep_version", "git", "memory", "harnesses", "assets"])
+    || state.schema_version !== 1
+    || !["init", "existing", "none"].includes(state.git)
+    || !["local", "none"].includes(state.memory)
+    || !Array.isArray(state.harnesses)
+    || !state.assets
+    || typeof state.assets !== "object"
+    || Array.isArray(state.assets)) process.exit(1);
+const allowed = new Set([
+  ".ai/env.example", ".ai/trajectory-redaction.json", ".ai/capabilities.json",
+  ".agentfs/.gitignore", ".planning/config.json", ".planning/PROJECT-BRIEF.md",
+  ".planning/wiki/index.md", ".planning/wiki/policy.md", ".planning/wiki/CONTRADICTIONS.md",
+  ".planning/wiki/LOG.md", ".planning/alignment/policy.md", ".planning/alignment/gap-register.yaml",
+  ".planning/graphs/policy.md", ".planning/graphs/.gitignore", ".planning/security/policy.md",
+  ".ai/start-harness.mjs", ".ai/start-harness.ps1",
+  ...["claude", "opencode", "pi", "kimi", "qwen"].flatMap((name) => [`.ai/start-${name}.sh`, `.ai/start-${name}.cmd`]),
+]);
+for (const [asset, record] of Object.entries(state.assets)) {
+  if (!allowed.has(asset)
+      || !exact(record, ["digest", "mode", "template"])
+      || !/^[a-f0-9]{64}$/.test(record.digest)
+      || !Number.isInteger(record.mode)
+      || record.mode < 0 || record.mode > 0o777
+      || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(record.template)) process.exit(1);
+}
+process.stdout.write(`${Object.keys(state.assets).sort().join("\n")}\n`);
+NODE
+}
+
 note() { [[ $DRY_RUN -eq 1 ]] || { ensure_bundle; printf '%s\n' "$1" >>"$NOTES"; }; }
 
 # ---- what will be removed ----------------------------------------------------
@@ -164,6 +206,7 @@ while IFS= read -r dst; do remove_path "$dst"; done < <(asset_dests)
 # These are precisely owned adapter paths; do not touch neighboring harness
 # configuration in either user root.
 echo "Pi adapters:"
+remove_path "$PI_LIVE_ROOT/extensions/cairnkeep-memory.ts"
 remove_path "$PI_LIVE_ROOT/extensions/cairnkeep-trajectory.ts"
 remove_path "$PI_LIVE_ROOT/prompts/graphify.md"
 echo "Kimi adapter:"
@@ -268,13 +311,33 @@ for proj in "${PROJECTS[@]:-}"; do
   # hook registrations and OpenCode plugin bytes restore together exactly.
   # Normal and master-off installations never create it, so absence is inert.
   remove_path "$proj/.ai/capability-contract"
-  for rel in "${PROJECT_AI_FILES[@]}"; do
-    remove_path "$proj/.ai/$rel"
-  done
-  if [[ $DRY_RUN -eq 0 && -d "$proj/.ai" ]]; then
-    rmdir "$proj/.ai" 2>/dev/null || true
+  setup_state="$proj/.ai/cairnkeep.json"
+  if [[ -e "$setup_state" ]]; then
+    if owned_paths=$(setup_owned_paths "$setup_state" 2>/dev/null); then
+      while IFS= read -r rel; do
+        [[ -n "$rel" ]] && remove_path "$proj/$rel"
+      done <<< "$owned_paths"
+      remove_path "$setup_state"
+      if [[ $DRY_RUN -eq 0 ]]; then
+        for managed_dir in \
+          "$proj/.planning/wiki" "$proj/.planning/alignment" "$proj/.planning/graphs" \
+          "$proj/.planning/security" "$proj/.planning" "$proj/.ai" "$proj/.agentfs"; do
+          rmdir "$managed_dir" 2>/dev/null || true
+        done
+      fi
+    else
+      echo "  kept guided setup scaffold: ownership state is invalid or unsafe"
+    fi
+  else
+    # Compatibility path for projects created by the legacy bootstrap command.
+    for rel in "${PROJECT_AI_FILES[@]}"; do
+      remove_path "$proj/.ai/$rel"
+    done
+    if [[ $DRY_RUN -eq 0 && -d "$proj/.ai" ]]; then
+      rmdir "$proj/.ai" 2>/dev/null || true
+    fi
+    remove_path "$proj/.planning"
   fi
-  remove_path "$proj/.planning"
   if [[ $PURGE_MEMORY -eq 1 ]]; then
     remove_path "$proj/.agentfs"
   elif [[ -d "$proj/.agentfs" ]]; then

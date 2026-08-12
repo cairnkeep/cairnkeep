@@ -606,7 +606,11 @@ function uninstallWindows(root, args) {
   for (const name of HOOK_EVENTS.keys()) targets.push(join(live, "hooks", `${name}.cmd`));
   targets.push(join(live, "hooks", "capability-command-start.cmd"), join(live, "hooks", "capability-command-finish.cmd"));
   const piLive = resolve(expandHome(options.get("--pi-live-root") || process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent")));
-  targets.push(join(piLive, "extensions", "cairnkeep-trajectory.ts"), join(piLive, "prompts", "graphify.md"));
+  targets.push(
+    join(piLive, "extensions", "cairnkeep-memory.ts"),
+    join(piLive, "extensions", "cairnkeep-trajectory.ts"),
+    join(piLive, "prompts", "graphify.md"),
+  );
   const kimiLive = resolve(expandHome(options.get("--kimi-live-root") || process.env.KIMI_CODE_HOME || join(homedir(), ".kimi-code")));
   targets.push(join(kimiLive, "skills", "graphify", "SKILL.md"));
   for (const project of projects) {
