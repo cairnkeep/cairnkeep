@@ -8,13 +8,19 @@ synthetic Trail Ledger project with tagged states from a plain application to
 offline evaluation. Detailed contracts remain in the linked operating,
 storage, privacy, and lesson documents.
 
+Guided setup and the maintained Pi memory extension are provisional unreleased
+v2.11 surfaces in the current tree, sequenced after pending v2.10. Their presence
+here is not a tag, package publication, or release claim. See
+[L23](lessons/L23-guided-setup.md) for the tested boundary.
+
 ## The three-layer model
 
 1. **Memory server:** an MCP process that owns scoped durable storage. The
    default stdio setup runs on the current machine; installation never
    discovers or selects a remote host.
 2. **Project scaffold:** launchers, private environment, and `.planning/`
-   policy/derived-knowledge files created by `cairn bootstrap`.
+   policy/derived-knowledge files reconciled by `cairn setup`; `cairn bootstrap`
+   remains the deterministic compatibility primitive.
 3. **Operating layer:** harness commands, agents, and hooks installed by
    `cairn sync --apply` or the harness-specific equivalent.
 
@@ -48,6 +54,7 @@ prerequisites for ordinary memory.
 | Wiki and alignment | `/wiki-ingest`, `/wiki-query`, `/wiki-lint`, alignment files | Written only when invoked; reviewable `.planning/` artifacts | Re-run lint, inspect source citations, revert tracked changes normally | `course-02-memory` |
 | Local code graph | `cairn graph build|query|status|diff|explain|path`; `/graphify` delegates | Default off; optional isolated `graphify` executable; incremental work under `graphify-out/`, published view under `.planning/graphs/` | Ignore both derived locations; check status and source before trusting a result; use `--force` only after intentional deletion; uninstall adapters separately | `course-08-graph` |
 | Repository quality | `/repo-review`, `/security-audit` | On-demand workflow; findings are hypotheses until reproduced | Require file/line evidence and regression tests | `course-03-quality` |
+| Guided project setup | `cairn setup PATH --git init\|existing\|none --harness LIST --memory local\|none --yes` | Reconciles only selected project assets; private `.ai/cairnkeep.json`; machine sync is never automatic | Repeat deterministically, run doctor, or replay its recovery command; Git-less mode remains limited | `course-12-guided-setup` |
 
 ## Storage and optional topology
 
@@ -62,6 +69,7 @@ prerequisites for ordinary memory.
 | Managed overlays | Separate distribution manifest, wrapper, profile lock, fleet and rollback gates | Policy and secrets belong in the private distribution/machine config, never core | `overlay info`, doctor, fleet dry run/current state, rollback | `course-04-operation` |
 | MCP tool profiles | `cairn mcp-tools set full|read-only|custom` | Strict mode-`0600` project config; process overrides take precedence; profile only removes tools | Inspect catalog/status digest; reset and restart MCP | `course-10-trust-context` |
 | Context packs | Manual local or commit-pinned Git install plus project enablement | Immutable objects and atomic pointers under `CAIRN_PACK_BASE_DIR`; no background sync | Validate, inspect digest, check/apply update, disable/remove | `course-10-trust-context` |
+| Pi local stdio memory | Select Pi during setup, then explicitly run `cairn sync-pi --apply` | Local memory-server child; dynamic effective tool catalog; annotations retained in trusted details, not a native Pi field | `cairn sync-pi --check`, `cairn doctor`, cancel one call, then observe awaited shutdown with no orphan | `course-12-guided-setup` |
 
 ## Evidence, governance, and measurement
 
@@ -83,7 +91,7 @@ prerequisites for ordinary memory.
 
 - Use a generated launcher so project environment and hooks are repeatable.
 - Run `cairn sync --check` after every core upgrade; apply only reported drift.
-- Run `cairn sync-pi --check` when the optional Pi capture/graph adapter is installed.
+- Run `cairn sync-pi --check` when the Pi memory/trajectory/graph assets are installed.
 - Run `cairn sync-kimi --check` when the optional Kimi graph Skill is installed.
 - Use `cairn doctor --repair` only after preserving the affected store and only
   for repairable derived indexes/metadata.
