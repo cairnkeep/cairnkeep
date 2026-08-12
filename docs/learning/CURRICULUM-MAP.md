@@ -76,6 +76,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | Command | Primary lesson |
 |---|---|
 | `cairn bootstrap` | L03 |
+| `cairn setup` | L23 (scheduled; RED-only until the guided-setup learning plan) |
 | `cairn memory-server` | L02 |
 | `cairn sync` | L02 |
 | `cairn sync-pi` | L13 |
