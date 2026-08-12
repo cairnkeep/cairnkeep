@@ -200,7 +200,22 @@ async function buildCatalogs(sandbox) {
   return catalogs;
 }
 
+function captureToolRegistrations(pi, registeredTools) {
+  return new Proxy(pi, {
+    get(target, property, receiver) {
+      if (property === "registerTool") {
+        return (tool) => {
+          registeredTools.set(tool.name, tool);
+          target.registerTool(tool);
+        };
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
+}
+
 const OBSERVER_SOURCE = String.raw`
+import cairnMemoryExtension from @@CAIRN_MEMORY_EXTENSION@@;
 import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
@@ -208,26 +223,31 @@ const evidencePath = process.env.CAIRN_PI_ACCEPTANCE_EVIDENCE;
 const bridgePath = process.env.CAIRN_PI_ACCEPTANCE_BRIDGE;
 const write = (value) => writeFileSync(evidencePath, JSON.stringify(value));
 const serial = (value) => JSON.parse(JSON.stringify(value));
+@@CAPTURE_TOOL_REGISTRATIONS@@
 
 export default function acceptanceObserver(pi) {
+  const registeredTools = new Map();
+  cairnMemoryExtension(captureToolRegistrations(pi, registeredTools));
   pi.on("session_start", async (_event, ctx) => {
     let acceptanceBridge;
+    let stage = "tools";
     try {
-      let registered = [];
-      for (let attempt = 0; attempt < 80; attempt += 1) {
-        registered = pi.getAllTools().filter((tool) => !["read", "bash", "edit", "write", "grep", "find", "ls"].includes(tool.name));
-        if (registered.some(({ name }) => name === "memory_list") && registered.some(({ name }) => name === "context_explore")) break;
-        await new Promise((resolvePromise) => setTimeout(resolvePromise, 25));
-      }
+      const registered = Array.from(registeredTools.values());
+      const visibleRegistered = pi.getAllTools().filter(({ name }) => registeredTools.has(name));
       const read = registered.find(({ name }) => name === "memory_list");
       const delayed = registered.find(({ name }) => name === "context_explore");
       if (!read || !delayed || typeof read.execute !== "function" || typeof delayed.execute !== "function") throw new Error("tools unavailable");
 
+      stage = "bridge-import";
       const bridgeModule = await import(pathToFileURL(bridgePath).href);
+      stage = "bridge-connect";
       acceptanceBridge = await bridgeModule.connectCairnPiBridge({ cwd: ctx.cwd, env: { ...process.env } });
+      stage = "catalog";
       const trustedCatalog = await acceptanceBridge.listAllTools();
 
+      stage = "read-call";
       const first = await read.execute("acceptance-read-1", { scope: "project" }, new AbortController().signal);
+      stage = "cancel-call";
       const controller = new AbortController();
       const pending = delayed.execute("acceptance-cancel", {
         query: "synthetic cancellation probe",
@@ -237,10 +257,13 @@ export default function acceptanceObserver(pi) {
       setTimeout(() => controller.abort(new Error("cancelled")), 50);
       let cancellation = false;
       try { await pending; } catch { cancellation = true; }
+      stage = "post-cancel-call";
       const after = await read.execute("acceptance-read-2", { scope: "project" }, new AbortController().signal);
+      stage = "bridge-close";
       await acceptanceBridge.close();
       acceptanceBridge = undefined;
 
+      stage = "evidence";
       write({
         status: "PASS",
         registered: registered.map((tool) => ({
@@ -248,6 +271,12 @@ export default function acceptanceObserver(pi) {
           description: tool.description,
           inputSchema: serial(tool.parameters),
           nativeAnnotations: Object.hasOwn(tool, "annotations"),
+        })),
+        visibleRegistered: visibleRegistered.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: serial(tool.parameters),
+          exposesExecute: typeof tool.execute === "function",
         })),
         trustedCatalog: serial(trustedCatalog),
         callDetails: serial(first.details),
@@ -258,7 +287,7 @@ export default function acceptanceObserver(pi) {
       });
     } catch {
       try { await acceptanceBridge?.close(); } catch {}
-      write({ status: "FAIL", reason: "observer-contract-failed" });
+      write({ status: "FAIL", reason: "observer-" + stage + "-failed" });
     } finally {
       ctx.shutdown();
     }
@@ -273,12 +302,14 @@ function writeRuntimeFixtures(sandbox) {
   const installedExtension = join(extensionDir, "cairnkeep-memory.ts");
   const rendered = readFileSync(extensionTemplate, "utf8").replaceAll("@@INFRA_ROOT@@", root.replaceAll("\\", "/"));
   writeFileSync(installedExtension, rendered);
-  const observer = join(sandbox, "acceptance-observer.mjs");
-  writeFileSync(observer, OBSERVER_SOURCE);
+  const observer = join(sandbox, "cairnkeep-acceptance.ts");
+  writeFileSync(observer, OBSERVER_SOURCE
+    .replace("@@CAIRN_MEMORY_EXTENSION@@", JSON.stringify(installedExtension))
+    .replace("@@CAPTURE_TOOL_REGISTRATIONS@@", captureToolRegistrations.toString()));
   const delayed = join(sandbox, "delayed-explore.mjs");
   writeFileSync(delayed, "#!/usr/bin/env node\nsetTimeout(() => process.stdout.write(JSON.stringify({citations:[],stats:{turns:0,tool_calls:0}})), 10000);\n");
   chmodSync(delayed, 0o755);
-  return { piRoot, installedExtension, observer };
+  return { piRoot, observer };
 }
 
 function writeCairnWrapper(sandbox) {
@@ -297,14 +328,23 @@ await import(pathToFileURL(${JSON.stringify(serverEntry)}).href);
 }
 
 function validateCatalogEvidence(expected, evidence) {
-  if (evidence?.status !== "PASS") fail("pi-observer-failed");
-  if (!Array.isArray(evidence.registered) || !Array.isArray(evidence.trustedCatalog)) fail("pi-evidence-invalid");
+  if (evidence?.status !== "PASS") {
+    const reason = typeof evidence?.reason === "string" && /^observer-(tools|bridge-import|bridge-connect|catalog|read-call|cancel-call|post-cancel-call|bridge-close|evidence)-failed$/.test(evidence.reason)
+      ? evidence.reason
+      : "pi-observer-failed";
+    fail(reason);
+  }
+  if (!Array.isArray(evidence.registered) || !Array.isArray(evidence.visibleRegistered) || !Array.isArray(evidence.trustedCatalog)) fail("pi-evidence-invalid");
   assert.deepEqual(evidence.trustedCatalog, expected, "trusted Pi bridge catalog drifted");
   assert.deepEqual(evidence.registered.map(({ name }) => name), expected.map(({ name }) => name), "Pi registered tool order drifted");
+  assert.deepEqual(evidence.visibleRegistered.map(({ name }) => name), expected.map(({ name }) => name), "Pi public tool order drifted");
   for (let index = 0; index < expected.length; index += 1) {
     assert.equal(evidence.registered[index].description, expected[index].description, `${expected[index].name} description drifted`);
     assert.deepEqual(evidence.registered[index].inputSchema, expected[index].inputSchema, `${expected[index].name} input schema drifted`);
     assert.equal(evidence.registered[index].nativeAnnotations, false, `${expected[index].name} claimed unsupported native annotations`);
+    assert.equal(evidence.visibleRegistered[index].description, expected[index].description, `${expected[index].name} public description drifted`);
+    assert.deepEqual(evidence.visibleRegistered[index].inputSchema, expected[index].inputSchema, `${expected[index].name} public input schema drifted`);
+    assert.equal(evidence.visibleRegistered[index].exposesExecute, false, `${expected[index].name} public metadata unexpectedly exposed execute`);
     assert.deepEqual(evidence.trustedCatalog[index].outputSchema, expected[index].outputSchema, `${expected[index].name} output schema drifted`);
     assert.deepEqual(evidence.trustedCatalog[index].annotations, expected[index].annotations, `${expected[index].name} annotations drifted`);
   }
@@ -352,7 +392,7 @@ async function reportedVersion(path, expected) {
 async function runProfile(executablePath, version, profile, expected, parent, extraEnv = {}) {
   const sandbox = join(parent, `${version.replaceAll(/[^0-9A-Za-z]/g, "-")}-${profile.name}`);
   mkdirSync(sandbox, { recursive: true });
-  const { piRoot, installedExtension, observer } = writeRuntimeFixtures(sandbox);
+  const { piRoot, observer } = writeRuntimeFixtures(sandbox);
   const wrapperBin = writeCairnWrapper(sandbox);
   const evidencePath = join(sandbox, "evidence.json");
   const pidFile = join(sandbox, "children.txt");
@@ -371,7 +411,6 @@ async function runProfile(executablePath, version, profile, expected, parent, ex
   };
   const args = [
     "--mode", "rpc", "--no-session", "--no-extensions",
-    "--extension", installedExtension,
     "--extension", observer,
     "--no-skills", "--no-prompt-templates", "--no-context-files",
     "--no-builtin-tools", "--approve",
@@ -410,9 +449,10 @@ appendFileSync(process.env.CAIRN_PI_ACCEPTANCE_PIDS, String(child.pid) + "\\n");
 if (fault === "orphan") child.unref(); else await new Promise((resolvePromise) => child.once("exit", resolvePromise));
 const registered = expected.map((tool) => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, nativeAnnotations: false }));
 if (fault === "profile" && process.env.CAIRN_PI_ACCEPTANCE_PROFILE === "read-only") registered[0].name = "drifted_tool";
+const visibleRegistered = registered.map(({ name, description, inputSchema }) => ({ name, description, inputSchema, exposesExecute: false }));
 const read = expected.find(({ name }) => name === "memory_list");
 writeFileSync(process.env.CAIRN_PI_ACCEPTANCE_EVIDENCE, JSON.stringify({
-  status: "PASS", registered, trustedCatalog: expected,
+  status: "PASS", registered, visibleRegistered, trustedCatalog: expected,
   callDetails: { tool: read, annotations: read?.annotations, outputSchema: read?.outputSchema },
   callPassed: true, cancellation: fault !== "cancellation", sessionUsable: true,
   shutdownRequested: true,
@@ -434,6 +474,20 @@ async function expectGate(code, action) {
 async function selfTest() {
   const sandbox = mkdtempSync(join(tmpdir(), "cairn-pi-release-self-test-"));
   try {
+    const captured = new Map();
+    const definitions = new Map();
+    const metadataOnlyPi = {
+      registerTool(tool) { definitions.set(tool.name, tool); },
+      getAllTools() {
+        return Array.from(definitions.values(), ({ name, description, parameters }) => ({ name, description, parameters }));
+      },
+    };
+    const acceptancePi = captureToolRegistrations(metadataOnlyPi, captured);
+    const execute = async () => ({ content: [] });
+    acceptancePi.registerTool({ name: "fixture_tool", description: "Fixture", parameters: { type: "object" }, execute });
+    assert.equal(metadataOnlyPi.getAllTools()[0].execute, undefined);
+    assert.equal(captured.get("fixture_tool").execute, execute);
+
     const skipped = await spawnCaptured(process.execPath, [selfPath], { cwd: root, env: cleanEnvironment(), timeoutMs: 5_000 });
     assert.equal(skipped.status, 0);
     assert.deepEqual(JSON.parse(skipped.stdout), { schema_version: 1, status: "SKIP", reason: "real-pi-fixtures-unavailable" });
@@ -481,7 +535,7 @@ async function selfTest() {
     await expectGate("pi-cancellation-failed", () => runProfile(minimum, "0.84.1", PROFILES[0], catalogs.get("full"), join(sandbox, "cancel-fault"), { CAIRN_PI_ACCEPTANCE_SELFTEST_FAULT: "cancellation" }));
     await expectGate("pi-runtime-failed", () => runProfile(minimum, "0.84.1", PROFILES[0], catalogs.get("full"), join(sandbox, "shutdown-fault"), { CAIRN_PI_ACCEPTANCE_SELFTEST_FAULT: "shutdown" }));
     await expectGate("pi-memory-child-orphaned", () => runProfile(minimum, "0.84.1", PROFILES[0], catalogs.get("full"), join(sandbox, "orphan-fault"), { CAIRN_PI_ACCEPTANCE_SELFTEST_FAULT: "orphan" }));
-    const sanitized = JSON.stringify({ schema_version: 1, status: "PASS", mode: "self-test", checks: ["skip", "required-input", "version", "equal-version-fixtures", "distinct-fixtures", "profiles", "trusted-details", "cancellation", "shutdown", "orphan"] });
+    const sanitized = JSON.stringify({ schema_version: 1, status: "PASS", mode: "self-test", checks: ["skip", "required-input", "version", "equal-version-fixtures", "distinct-fixtures", "metadata-only-pi-api", "profiles", "trusted-details", "cancellation", "shutdown", "orphan"] });
     for (const forbidden of [sandbox, process.env.USER, process.env.HOSTNAME, basename(root)]) {
       if (forbidden && sanitized.includes(forbidden)) fail("self-test-evidence-disclosure");
     }
