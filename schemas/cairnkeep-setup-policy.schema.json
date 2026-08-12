@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/cairnkeep-setup-policy.schema.json",
+  "title": "Cairnkeep guided setup policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "defaults", "constraints"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "git": {"enum": ["init", "existing", "none"]},
+        "harnesses": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["claude", "opencode", "pi", "kimi", "qwen"]}
+        },
+        "memory": {"enum": ["local", "none"]}
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "git": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["init", "existing", "none"]}
+        },
+        "harnesses": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["claude", "opencode", "pi", "kimi", "qwen"]}
+        },
+        "required_harnesses": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["claude", "opencode", "pi", "kimi", "qwen"]}
+        },
+        "memory": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["local", "none"]}
+        }
+      }
+    }
+  }
+}

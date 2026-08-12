@@ -96,6 +96,7 @@ assert.throws(() => core.readSetupPolicy(linked), /symbolic|symlink|unsafe|polic
 
 const executable = path.join(sandbox, "executable.json");
 fs.writeFileSync(executable, '{"schema_version":1,"defaults":{},"constraints":{}}\n', { mode: 0o755 });
+fs.chmodSync(executable, 0o755);
 assert.throws(() => core.readSetupPolicy(executable), /executable|mode|unsafe|policy/i);
 
 for (const managed of [".ai", ".planning", ".agentfs"]) {
