@@ -67,14 +67,22 @@ function parseInteractiveHarnesses(value) {
 }
 
 export async function promptSetupChoices(parsed, streams) {
-  const terminal = createInterface({ input: streams.input, output: streams.output });
+  const terminal = typeof streams.question === "function"
+    ? { question: streams.question, close: streams.closePrompt ?? (() => {}) }
+    : createInterface({ input: streams.input, output: streams.output });
   try {
     const target = parsed.target ?? (await terminal.question("Target path: ")).trim();
     if (!target) throw operational("interactive-input", "A setup target path is required.");
-    const git = parsed.git ?? (await terminal.question("Git mode (init, existing, none): ")).trim();
+    const preflight = classifySetupTarget(target);
+    const gitQuestion = preflight.targetState === "missing" || preflight.targetState === "empty"
+      ? "Git mode (init recommended; choices: init, existing, none): "
+      : preflight.repository === "work-tree"
+        ? "Git mode (existing recommended; choices: init, existing, none): "
+        : "Git mode (init requires explicit choice for existing non-Git target; choices: init, existing, none): ";
+    const git = parsed.git ?? (await terminal.question(gitQuestion)).trim();
     const harnesses = parsed.harnesses ?? parseInteractiveHarnesses(await terminal.question(`Harnesses (${HARNESSES.join(", ")}): `));
     const memory = parsed.memory ?? (await terminal.question("Memory mode (local, none): ")).trim();
-    return { target, git, harnesses, memory, terminal };
+    return { target, git, harnesses, memory, preflight, terminal };
   } catch (error) {
     terminal.close();
     throw error;
@@ -157,11 +165,13 @@ async function executeSetup(args, options) {
 
   let interactive = null;
   let target = parsed.target;
+  let preflight = null;
   if (isTTY && (!target || !parsed.git || !parsed.harnesses || !parsed.memory || !parsed.confirmed)) {
     interactive = await promptSetupChoices(parsed, options);
     target = interactive.target;
+    preflight = interactive.preflight;
   }
-  const preflight = classifySetupTarget(target);
+  preflight ??= classifySetupTarget(target);
   const choices = resolveSetupChoices({
     parsed,
     preflight,
@@ -195,6 +205,8 @@ export async function runSetup(args, options = {}) {
     isTTY: options.isTTY,
     platform: options.platform ?? process.platform,
     augmentPlan: options.augmentPlan,
+    question: options.question,
+    closePrompt: options.closePrompt,
   };
   try {
     const result = await executeSetup(args, streams);

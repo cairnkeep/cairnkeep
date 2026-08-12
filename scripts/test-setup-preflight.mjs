@@ -6,6 +6,7 @@ import {
   lstatSync,
   mkdtempSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -18,6 +19,7 @@ const EXPECTED_RED_EXIT = 86;
 const RED_MARKER = "PHASE26_RED:SETUP_CORE_MISSING";
 const here = dirname(fileURLToPath(import.meta.url));
 const setupCorePath = join(here, "setup-core.mjs");
+const setupPath = join(here, "setup.mjs");
 const MANAGED_PATHS = [".ai", ".planning", ".agentfs"];
 
 function assertNoManagedPaths(target, label) {
@@ -73,6 +75,10 @@ function validateFixtures() {
 
 async function loadSetupCore() {
   return import(pathToFileURL(setupCorePath).href);
+}
+
+async function loadSetup() {
+  return import(pathToFileURL(setupPath).href);
 }
 
 function assertExports(core) {
@@ -191,6 +197,62 @@ function testPreflightContract(core, fixture) {
   assertNoManagedPaths(fixture.sandbox, "mutation planning");
 }
 
+function captureStream() {
+  let output = "";
+  return {
+    stream: { write(value) { output += String(value); return true; } },
+    read() { return output; },
+  };
+}
+
+async function runInteractive(setup, args, responses) {
+  const prompts = [];
+  const remaining = [...responses];
+  const output = captureStream();
+  const error = captureStream();
+  const status = await setup.runSetup(args, {
+    isTTY: true,
+    input: { isTTY: false },
+    output: output.stream,
+    error: error.stream,
+    question: async (prompt) => {
+      prompts.push(prompt);
+      assert.ok(remaining.length > 0, `unexpected interactive prompt: ${prompt}`);
+      return remaining.shift();
+    },
+  });
+  assert.deepEqual(remaining, [], "not all scripted interactive answers were consumed");
+  return { status, prompts, output: output.read(), error: error.read() };
+}
+
+async function testInteractiveGitRecommendation(setup, fixture) {
+  const accepted = await runInteractive(setup, [], [fixture.missing, "init", "pi", "local", "yes"]);
+  assert.equal(accepted.status, 0);
+  assert.equal(accepted.error, "");
+  assert.match(accepted.prompts[0], /target path/i);
+  assert.match(accepted.prompts[1], /init recommended/i);
+  assert.equal(existsSync(join(fixture.missing, ".git")), true);
+  assert.equal(existsSync(join(fixture.missing, ".ai", "cairnkeep.json")), true);
+
+  const refused = await runInteractive(setup, [fixture.empty], ["init", "pi", "local", "no"]);
+  assert.equal(refused.status, 0);
+  assert.equal(refused.error, "");
+  assert.ok(refused.prompts.some((prompt) => /init recommended/i.test(prompt)));
+  assert.match(refused.output, /cancelled; no files were changed/i);
+  assert.equal(existsSync(join(fixture.empty, ".git")), false);
+  assertNoManagedPaths(fixture.empty, "refused interactive setup");
+
+  const existing = await runInteractive(setup, [fixture.nonempty], ["none", "pi", "local", "yes"]);
+  assert.equal(existing.status, 0);
+  assert.equal(existing.error, "");
+  const gitPrompt = existing.prompts.find((prompt) => /Git mode/i.test(prompt));
+  assert.match(gitPrompt, /init requires explicit choice/i);
+  assert.doesNotMatch(gitPrompt, /init recommended/i);
+  assert.equal(existsSync(join(fixture.nonempty, ".git")), false);
+  assert.equal(readFileSync(join(fixture.nonempty, "operator.txt"), "utf8"), "preserve\n");
+  assert.equal(existsSync(join(fixture.nonempty, ".ai", "cairnkeep.json")), true);
+}
+
 async function main() {
   const fixture = validateFixtures();
   try {
@@ -208,6 +270,8 @@ async function main() {
     assertExports(core);
     testChoiceContract(core, fixture);
     testPreflightContract(core, fixture);
+    const setup = await loadSetup();
+    await testInteractiveGitRecommendation(setup, fixture);
     console.log("PASS: setup target, Git, syntax, choice, and no-write preflight contract");
   } finally {
     rmSync(fixture.sandbox, { recursive: true, force: true });
