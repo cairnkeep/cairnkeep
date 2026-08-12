@@ -21,6 +21,7 @@ SOURCE_ROOT="$ROOT_DIR/pi"
 LIVE_ROOT="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 MODE="check"
 ASSETS=(
+  "extensions/cairnkeep-memory.ts"
   "extensions/cairnkeep-trajectory.ts"
   "prompts/graphify.md"
 )
@@ -37,7 +38,7 @@ done
 
 render_asset() {
   local rel="$1"
-  if [[ "$rel" == "extensions/cairnkeep-trajectory.ts" ]]; then
+  if [[ "$rel" == extensions/*.ts ]]; then
     sed "s|@@INFRA_ROOT@@|$ROOT_DIR|g" "$SOURCE_ROOT/$rel"
   else
     cat "$SOURCE_ROOT/$rel"
@@ -89,5 +90,8 @@ if [[ "$MODE" == "apply" ]]; then
   printf 'Applied %s Pi asset(s); %s already matched.\n' "$updated" "$unchanged"
 fi
 
-check_assets
+if ! check_assets; then
+  echo "Recovery: sync-pi-assets.sh --apply --live-root PATH" >&2
+  exit 1
+fi
 printf 'Pi extension and graph prompt are in sync under %s\n' "$LIVE_ROOT"

@@ -379,7 +379,7 @@ function syncSimple(root, args, kind) {
   if (positional.length) throw new Error(`Usage: cairn sync-${kind} [--check|--apply] [--live-root DIR]`);
   const apply = options.has("--apply");
   const config = kind === "pi"
-    ? { source: "pi", live: process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"), files: ["extensions/cairnkeep-trajectory.ts", "prompts/graphify.md"] }
+    ? { source: "pi", live: process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"), files: ["extensions/cairnkeep-memory.ts", "extensions/cairnkeep-trajectory.ts", "prompts/graphify.md"] }
     : { source: "kimi", live: process.env.KIMI_CODE_HOME || join(homedir(), ".kimi-code"), files: ["skills/graphify/SKILL.md"] };
   const live = resolve(expandHome(options.get("--live-root") || config.live));
   let ok = true;
