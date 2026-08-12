@@ -3,12 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart and Operator
 **Time:** 35 minutes
-**Tested with:** Cairnkeep 2.10.0 package baseline plus the provisional,
-unreleased v2.11 setup tree; Pi 0.84.1 provisional minimum; Node.js 22, 24,
-and 26
-
-This lesson exercises functionality in the current tree that is sequenced after
-pending v2.10. It is not a v2.11 tag, package publication, or release claim.
+**Tested with:** Cairnkeep 2.11.0; Pi 0.84.1; Node.js 22, 24, and 26
 
 ## Outcome
 
@@ -19,8 +14,7 @@ recover or uninstall every managed asset without hidden machine changes.
 ## Prerequisites
 
 - Node.js 22 or newer, npm, and Git for the main exercise.
-- Pi 0.84.1 or newer. Version 0.84.1 is the provisional minimum, not a final
-  compatibility claim.
+- Pi 0.84.1 or newer.
 - A disposable parent directory containing no credentials, secrets, private
   state, or identifying project data.
 
@@ -136,8 +130,8 @@ prompts, approve skills, create an autonomous loop, or add remote access.
 
 ## Release boundary
 
-Ready means this lesson and its deterministic contracts pass against the current
-tree. Final release readiness separately requires a non-skipping acceptance run
+Ready means this lesson and its deterministic contracts pass against v2.11.0.
+Release readiness requires a non-skipping acceptance run
 against separate Pi 0.84.1 minimum and explicitly versioned registry-current
 installations, plus the documented Node.js, Bash 3.2, and native Windows matrix.
 Those executable paths must differ, but both may report 0.84.1 while that is the

@@ -14,7 +14,7 @@ Qwen Code, Pi, and other MCP clients).
 
 ## Status
 
-Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync`, `sync-pi`, `sync-kimi`,
+Shipped: the memory server, the `cairn` CLI (`setup`, `bootstrap`, `memory-server`, `sync`, `sync-pi`, `sync-kimi`,
 `doctor`, `trajectory`, `artifact`, `mcp-tools`, `pack`, `notes`, `memory`, `eval`, `audit-timer`, `completion`, `uninstall`) installable via
 `npm i -g @cairnkeep/cli`, and the
 operating layer (commands,
@@ -27,10 +27,8 @@ a thin routing seam (`route_check`), both of which delegate to
 [token-miser](https://github.com/cairnkeep/token-miser), a public
 cairnkeep-org sibling project.
 
-The current tree also contains the provisional, unreleased v2.11 work:
-`cairn setup` and the maintained Pi local stdio memory extension. These are
-sequenced after pending v2.10 and are not a tag, package publication, or release
-claim.
+Version 2.11 adds guided `cairn setup`, the maintained Pi local stdio memory
+extension, and the native Windows operating layer.
 
 ## Compatibility
 
@@ -44,7 +42,7 @@ and 20 are end-of-life upstream.
 | OpenCode on Linux/macOS | Memory server plus commands, plugins, hooks, and launchers |
 | Kimi Code on Linux/macOS | Memory MCP server, project launcher, and opt-in `/graphify` Skill |
 | Qwen Code on Linux/macOS | Memory MCP server plus project launcher; no Cairnkeep operating-layer assets yet |
-| Pi on Linux/macOS | Provisional unreleased v2.11 memory MCP through a maintained local stdio extension; shipped native opt-in trajectory extension, launcher, and `/graphify` prompt; Pi 0.84.1 provisional minimum for the bridge |
+| Pi on Linux/macOS | Memory MCP through a maintained local stdio extension; native opt-in trajectory extension, launcher, and `/graphify` prompt; Pi 0.84.1 minimum for the bridge |
 | Codex CLI | Memory MCP server; no Cairnkeep operating-layer assets |
 | Other MCP clients | Memory plus optional domain-knowledge and context-pack MCP tools |
 | Native Windows x64 | Node-native CLI, guided setup, memory server, bootstrap compatibility, PowerShell/Command Prompt launchers, sync, hooks, doctor, storage lifecycle, Task Scheduler, completion, and uninstall |
@@ -137,10 +135,6 @@ them. These are the accelerators the author pairs cairnkeep with; each is opt-in
 
 ## Setup
 
-> The guided `cairn setup` flow and maintained Pi memory extension described
-> below are provisional unreleased v2.11 functionality in the current tree,
-> sequenced after pending v2.10.
-
 A working workflow needs three things: the memory server registered, the
 operating layer installed into your harness, and a configured project. `cairn
 setup` is the recommended guided entry point; `cairn bootstrap` remains the
@@ -215,9 +209,9 @@ This installs the maintained local stdio memory extension, trajectory capture,
 and the thin `/graphify` prompt. The memory extension discovers the effective
 server tool catalog and preserves annotations in trusted result details; Pi's
 public API has no native annotations field. It adds tools only—no prompt runs,
-skill activation, autonomous loop, or remote access. Pi 0.84.1 is the
-provisional minimum; final release readiness also requires the then-current Pi
-release plus the documented Node, Bash, and native Windows matrix.
+skill activation, autonomous loop, or remote access. Pi 0.84.1 is the minimum
+validated version; v2.11 also passed the registry-current Pi release and the
+documented Node, Bash, and native Windows matrix.
 
 Preview removal before confirming it. Uninstall backs up every managed file it
 will change and prints the generated revert command; durable memory and context

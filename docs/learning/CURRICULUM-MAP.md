@@ -1,7 +1,7 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.10.0
-**Last reviewed:** 2026-08-06
+**Baseline:** Cairnkeep 2.11.0
+**Last reviewed:** 2026-08-12
 
 This map prevents the course from drifting behind the product. It assigns each
 user-facing surface to a lesson and records whether the lesson is complete or
@@ -35,8 +35,8 @@ been rehearsed.
 | Complete MCP annotations and least-authority tool profiles | L20 | L20 | Ready; default profile remains full |
 | Immutable context packs and exact-digest skill approval | L21 | L21 | Ready; default off |
 | Native Windows x64 CLI, hooks, ACLs, scheduling, and recovery | L22 | L22 | Ready; PowerShell-native |
-| Guided project setup, selected harness state, and Git-less limitations | L23 | L23 | Ready; provisional unreleased v2.11 |
-| Pi local stdio memory bridge, trusted annotation details, and explicit lifecycle | L23 | L23 | Ready; Pi 0.84.1 provisional minimum |
+| Guided project setup, selected harness state, and Git-less limitations | L23 | L23 | Ready |
+| Pi local stdio memory bridge, trusted annotation details, and explicit lifecycle | L23 | L23 | Ready; Pi 0.84.1 validated minimum |
 
 ## Release Review
 

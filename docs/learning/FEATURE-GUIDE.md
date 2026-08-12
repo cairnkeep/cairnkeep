@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.10.0
+**Baseline:** Cairnkeep 2.11.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -8,9 +8,7 @@ synthetic Trail Ledger project with tagged states from a plain application to
 offline evaluation. Detailed contracts remain in the linked operating,
 storage, privacy, and lesson documents.
 
-Guided setup and the maintained Pi memory extension are provisional unreleased
-v2.11 surfaces in the current tree, sequenced after pending v2.10. Their presence
-here is not a tag, package publication, or release claim. See
+Guided setup and the maintained Pi memory extension ship in v2.11. See
 [L23](lessons/L23-guided-setup.md) for the tested boundary.
 
 ## The three-layer model

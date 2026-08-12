@@ -5,6 +5,8 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-08-12
+
 ### Added
 
 - Replace the Bash npm entry point with a cross-platform Node CLI while keeping
@@ -26,13 +28,7 @@ All notable user-facing changes are documented here. This project follows
   native platform. Windows ARM64 remains an x64-emulation target until the
   storage dependency ships a native ARM64 binding.
 
-### Provisional v2.11.0 (unreleased; sequenced after pending v2.10.0)
-
-No v2.11.0 tag, package publication, or release is claimed. These entries remain
-provisional until the pending v2.10.0 sequence and the full release matrix are
-complete.
-
-#### Added
+### Added
 
 - Add `cairn setup` as the recommended guided project entry point, with a fully
   deterministic non-interactive form, explicit Git/harness/memory choices,
@@ -43,9 +39,9 @@ complete.
   enforced on every resolved plan.
 - Add the maintained Pi local stdio memory extension, dynamic MCP catalog
   discovery, bounded child lifecycle, cancellation, exact response preservation,
-  and trusted annotation metadata. Pi 0.84.1 is the provisional minimum.
+  and trusted annotation metadata. Pi 0.84.1 is the validated minimum.
 
-#### Changed
+### Changed
 
 - Make project setup report machine sync without running it automatically;
   `cairn sync-pi --apply|--check`, `cairn doctor`, and backup-first uninstall
@@ -321,7 +317,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.9.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.11.0...HEAD
+[2.11.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.9.0...v2.11.0
 [2.9.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.6.0...v2.7.0

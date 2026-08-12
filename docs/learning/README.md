@@ -53,7 +53,7 @@ expanded only after their labs are executable.
 | L20 | [Least-authority MCP tool profiles](lessons/L20-mcp-tool-profiles.md) | Ready | 25 min |
 | L21 | [Immutable context packs and skill approval](lessons/L21-context-packs.md) | Ready | 40 min |
 | L22 | [Operate Cairnkeep on native Windows](lessons/L22-native-windows.md) | Ready | 30 min |
-| L23 | [Guided setup and Pi memory](lessons/L23-guided-setup.md) | Ready; provisional unreleased v2.11 | 35 min |
+| L23 | [Guided setup and Pi memory](lessons/L23-guided-setup.md) | Ready | 35 min |
 
 The [curriculum coverage map](CURRICULUM-MAP.md) records where every public
 feature is introduced, practised, and operated. It also marks design-only work
