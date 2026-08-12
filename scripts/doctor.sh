@@ -439,6 +439,30 @@ else
   fail "context-pack objects or project pointers failed integrity checks"
 fi
 
+# 14. Guided setup ownership from .ai/cairnkeep.json is diagnosed without
+# repairing project or machine assets. The Node controller returns only bounded
+# states and exact recovery commands; setup remains the sole owner of project
+# reconciliation.
+setup_diagnosis=$(node --input-type=module - "$CAIRN_ROOT/scripts/setup.mjs" "$PWD" <<'NODE' 2>/dev/null
+import { pathToFileURL } from "node:url";
+const module = await import(pathToFileURL(process.argv[2]).href);
+const value = module.diagnoseSetup(process.argv[3]);
+const allowed = new Set(["absent", "complete", "limited", "incomplete"]);
+if (value.schema_version !== 1 || !allowed.has(value.status) || !Array.isArray(value.recovery)) process.exit(1);
+process.stdout.write(`${value.status}\t${value.code}\t${value.recovery.join("|")}`);
+NODE
+) || setup_diagnosis=$'incomplete\tsetup-state\tcairn setup . --git existing --harness claude --memory local --yes'
+IFS=$'\t' read -r setup_status setup_code setup_recovery <<< "$setup_diagnosis"
+case "$setup_status:$setup_code" in
+  absent:*) skip "project setup state (not configured; legacy bootstrap remains supported)" ;;
+  complete:configured) pass "project setup is complete" ;;
+  limited:git-disabled) warn "project setup is limited (Git-less mode)" ;;
+  incomplete:*)
+    fail "project setup state is incomplete; run: ${setup_recovery:-cairn setup . --git existing --harness claude --memory local --yes}"
+    ;;
+  *) fail "project setup state is incomplete; run: cairn setup . --git existing --harness claude --memory local --yes" ;;
+esac
+
 echo
 if [[ "$fails" -gt 0 ]]; then
   echo "cairn doctor: $fails configured dependency check(s) failed."
