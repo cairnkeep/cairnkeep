@@ -7,9 +7,9 @@
 
 ## Outcome
 
-You can prove that Cairnkeep is running natively from PowerShell, bootstrap a
-path containing spaces, inspect its security boundary, and perform a reversible
-uninstall without relying on WSL or Git Bash.
+You can prove that Cairnkeep is running natively from PowerShell, run guided
+setup on an empty path containing spaces, inspect its security boundary, and
+perform a reversible uninstall without relying on WSL or Git Bash.
 
 ## Exercise
 
@@ -21,7 +21,7 @@ cairn version
 
 $Lab = Join-Path $env:TEMP 'Cairnkeep Windows Lab'
 New-Item -ItemType Directory -Force -Path $Lab | Out-Null
-cairn bootstrap $Lab
+cairn setup $Lab --git init --harness claude --memory local --yes
 cairn sync --apply --live-root (Join-Path $Lab '.claude-test')
 cairn sync --check --live-root (Join-Path $Lab '.claude-test')
 Push-Location $Lab
@@ -29,9 +29,9 @@ cairn doctor
 Pop-Location
 ```
 
-Verify that `.ai/start-claude.cmd`, `.ai/start-harness.ps1`, and the managed
-Claude assets exist. `cairn doctor` must identify native Windows x64 and complete
-an MCP stdio handshake.
+Verify that `.git`, `.ai/cairnkeep.json`, `.ai/start-claude.cmd`,
+`.ai/start-harness.ps1`, and the managed Claude assets exist. `cairn doctor`
+must identify native Windows x64 and complete an MCP stdio handshake.
 
 ## Permission check
 

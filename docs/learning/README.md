@@ -8,7 +8,8 @@ publication material.
 
 Choose the shortest track that matches your goal:
 
-- [Quickstart](tracks/quickstart.md) - prove the core value in about 75 minutes.
+- [Quickstart](tracks/quickstart.md) - prove the core value and inspect guided
+  setup/Pi integration in about 110 minutes.
 - [Practitioner](tracks/practitioner.md) - adopt Cairnkeep in daily project work.
 - [Evidence and evaluation](tracks/evidence-and-evaluation.md) - inspect optional
   session evidence, govern capabilities, and measure changes without overstating
@@ -33,7 +34,7 @@ expanded only after their labs are executable.
 | L00 | [Why Cairnkeep?](lessons/L00-why-cairnkeep.md) | Ready | 10 min |
 | L01 | [Try it safely](lessons/L01-safe-trial.md) | Ready | 15 min |
 | L02 | [Install the local workflow](lessons/L02-installation.md) | Ready | 25 min |
-| L03 | [Bootstrap the first project](lessons/L03-first-project.md) | Ready | 25 min |
+| L03 | [Set up the first project](lessons/L03-first-project.md) | Ready | 25 min |
 | L04 | [Memory fundamentals](lessons/L04-memory-fundamentals.md) | Brief | 35 min |
 | L05 | [The daily workflow](lessons/L05-daily-workflow.md) | Brief | 40 min |
 | L06 | [Repository review and security](lessons/L06-repository-quality.md) | Brief | 45 min |

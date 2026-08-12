@@ -1,7 +1,7 @@
 # Curriculum Coverage Map
 
 **Baseline:** Cairnkeep 2.11.0
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-13
 
 This map prevents the course from drifting behind the product. It assigns each
 user-facing surface to a lesson and records whether the lesson is complete or
@@ -14,7 +14,7 @@ been rehearsed.
 | Product surface | Introduced | Practised or operated | Learning status |
 |---|---|---|---|
 | Local stdio memory and MCP registration | L00-L02 | L03-L04 | L00-L03 Ready; L04 Brief |
-| Project bootstrap, launchers, and contributor mode | L02-L03 | L05 | L02-L03 Ready; L05 Brief |
+| Guided project setup, launchers, and bootstrap compatibility/contributor mode | L02-L03 | L05 and L23 | L02-L03 and L23 Ready; L05 Brief |
 | Memory scopes, keys, search, supersession, and history | L04 | L04-L05 | Brief |
 | Wiki, alignment, and repository quality workflows | L05-L06 | L05-L06 | Brief |
 | Optional local code graph, graph inspection, and harness delegates | L18 | L18 | Brief; default off |
@@ -35,7 +35,7 @@ been rehearsed.
 | Complete MCP annotations and least-authority tool profiles | L20 | L20 | Ready; default profile remains full |
 | Immutable context packs and exact-digest skill approval | L21 | L21 | Ready; default off |
 | Native Windows x64 CLI, hooks, ACLs, scheduling, and recovery | L22 | L22 | Ready; PowerShell-native |
-| Guided project setup, selected harness state, and Git-less limitations | L23 | L23 | Ready |
+| Guided project setup, selected harness state, and Git-less limitations | L03 | L03 and L23 | Ready |
 | Pi local stdio memory bridge, trusted annotation details, and explicit lifecycle | L23 | L23 | Ready; Pi 0.84.1 validated minimum |
 
 ## Release Review
@@ -58,7 +58,7 @@ repository remains the canonical source for explanations and scripts.
 | Checkpoint | Lessons | Purpose |
 |---|---|---|
 | `course-00-app` | L00-L02 | Plain synthetic application before Cairnkeep |
-| `course-01-bootstrap` | L03 | Neutral bootstrap and isolated environment |
+| `course-01-bootstrap` | L03 | Guided local setup and isolated environment |
 | `course-02-memory` | L04-L05 | Memory lifecycle and derived knowledge |
 | `course-03-quality` | L06 | Repository review and deliberately vulnerable fixture |
 | `course-04-operation` | L07-L12 | Storage, routing, integrations, containers, overlays |
@@ -78,8 +78,8 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 
 | Command | Primary lesson |
 |---|---|
-| `cairn bootstrap` | L03 |
-| `cairn setup` | L23 |
+| `cairn bootstrap` | L03 compatibility challenge |
+| `cairn setup` | L03; advanced Pi lifecycle in L23 |
 | `cairn memory-server` | L02 |
 | `cairn sync` | L02 |
 | `cairn sync-pi` | L13 and L23 |

@@ -26,8 +26,9 @@ A complete setup has three independent parts:
 2. the MCP registration used by the harness;
 3. the operating layer containing commands, agents, hooks, and templates.
 
-`cairn bootstrap` configures a project later; it does not perform the first two
-machine-level steps.
+`cairn setup` configures a project later; it does not perform the first two
+machine-level steps. `cairn bootstrap` remains the compatibility primitive for
+scripts and overlays that already own their setup policy.
 
 ## Exercise
 
@@ -78,7 +79,7 @@ machine-level steps.
    Invoke-Expression (& cairn completion powershell | Out-String)
    ```
 
-   Bootstrap emits `.cmd` launchers on Windows; use
+   Project setup emits `.cmd` launchers on Windows; use
    `.\.ai\start-claude.cmd` instead of the Unix `.sh` launcher.
 
 ## Verify
@@ -108,8 +109,9 @@ installation.
 This registration starts `cairn memory-server` locally as a stdio child. It
 does not discover a server, send memory to a remote host, configure embeddings,
 enable session capture, or enable an optional document-RAG integration. Pi uses
-the separate `cairn sync-pi` trajectory and graph-prompt adapter and still needs
-a user-selected bridge if Pi should expose MCP memory tools.
+the separate, explicit `cairn sync-pi --apply` command to install Cairnkeep's
+maintained local stdio memory extension, trajectory extension, and graph prompt.
+Project setup records the Pi selection but never changes machine-level Pi assets.
 
 Kimi Code can use the same memory server through its generated
 `.ai/start-kimi.sh` launcher, but its HTTP MCP configuration requires a literal
@@ -145,4 +147,4 @@ Do not delete memory stores as part of a course cleanup.
 - `sync --check` is the non-writing drift check.
 - Default stdio memory is local.
 
-Next: [L03 - Bootstrap the first project](L03-first-project.md).
+Next: [L03 - Set up the first project](L03-first-project.md).
