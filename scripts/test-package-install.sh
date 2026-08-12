@@ -331,4 +331,68 @@ fi
 [[ "$(sha256sum "$ROOT/package-lock.json" | cut -d' ' -f1)" == "$root_lock_before" ]] || fail "root lockfile changed during pack/install"
 [[ "$(sha256sum "$ROOT/mcp-memory-server/package-lock.json" | cut -d' ' -f1)" == "$server_lock_before" ]] || fail "server lockfile changed during pack/install"
 
+phase26_surface_complete=true
+for required in \
+  scripts/setup.mjs \
+  scripts/setup-core.mjs \
+  scripts/setup-reconcile.mjs \
+  schemas/cairnkeep-setup.schema.json \
+  schemas/cairnkeep-setup-policy.schema.json \
+  mcp-memory-server/dist/pi-mcp-bridge.js \
+  pi/extensions/cairnkeep-memory.ts \
+  docs/operating.md \
+  docs/harness-compatibility.md \
+  docs/native-windows.md \
+  docs/building-an-overlay.md
+do
+  [[ -f "$ROOT/$required" ]] || phase26_surface_complete=false
+done
+
+if [[ "$phase26_surface_complete" != true ]]; then
+  if [[ "${CAIRN_PHASE26_RED:-0}" == 1 ]]; then
+    echo "PHASE26_RED:SETUP_PACKAGE_MISSING"
+    exit 86
+  fi
+  echo "SKIP: packaged guided setup and Pi bridge surface is not complete"
+  echo "PASS: npm tarball installs a self-contained CLI and MCP server"
+  exit 0
+fi
+
+for required in \
+  scripts/setup.mjs \
+  scripts/setup-core.mjs \
+  scripts/setup-reconcile.mjs \
+  schemas/cairnkeep-setup.schema.json \
+  schemas/cairnkeep-setup-policy.schema.json \
+  mcp-memory-server/dist/pi-mcp-bridge.js \
+  pi/extensions/cairnkeep-memory.ts \
+  docs/operating.md \
+  docs/harness-compatibility.md \
+  docs/native-windows.md \
+  docs/building-an-overlay.md
+do
+  [[ -f "$installed_root/$required" ]] || fail "npm tarball omitted Phase 26 asset $required"
+done
+
+installed_setup_target="$tmp/Installed Setup – Unicode"
+(cd "$tmp" && cairn setup "$installed_setup_target" \
+  --git none --harness claude,pi --memory local --yes --json) >"$tmp/installed-setup.json" \
+  || fail "installed cairn setup failed outside the source checkout"
+node - "$tmp/installed-setup.json" "$installed_setup_target" <<'NODE'
+const fs = require("fs");
+const [resultPath, target] = process.argv.slice(2);
+const result = JSON.parse(fs.readFileSync(resultPath, "utf8"));
+if (result.schema_version !== 1 || result.status !== "limited") process.exit(1);
+if (result.git !== "none" || result.memory !== "local") process.exit(1);
+if (JSON.stringify(result.harnesses) !== JSON.stringify(["claude", "pi"])) process.exit(1);
+if (!fs.existsSync(`${target}/.ai/cairnkeep.json`)) process.exit(1);
+NODE
+
+if find "$installed_root" -type f \( \
+  -name '.env' -o -name '*.tmp' -o -name '*.bak' -o -name 'cairnkeep.json' \
+  -o -path '*/.planning/*' -o -path '*/.agentfs/*' \
+\) | grep -q .; then
+  fail "npm tarball included temporary or project-private setup state"
+fi
+
 echo "PASS: npm tarball installs a self-contained CLI and MCP server"

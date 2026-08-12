@@ -67,7 +67,66 @@ try {
   assert.ok(!existsSync(join(claudeRoot, "commands", "remember.md")));
   const cleanedSettings = JSON.parse(readFileSync(join(claudeRoot, "settings.json"), "utf8"));
   assert.ok(!JSON.stringify(cleanedSettings).includes("memory-wakeup"));
-  console.log("PASS: native Windows CLI lifecycle, paths, archive safety, hooks, and PowerShell completion");
+
+  const setupSurfaceComplete = [
+    join(root, "scripts", "setup.mjs"),
+    join(root, "scripts", "setup-core.mjs"),
+    join(root, "scripts", "setup-reconcile.mjs"),
+    join(root, "schemas", "cairnkeep-setup.schema.json"),
+    join(root, "schemas", "cairnkeep-setup-policy.schema.json"),
+  ].every((candidate) => existsSync(candidate))
+    && /case\s+["']setup["']/.test(readFileSync(join(root, "scripts", "windows-platform.mjs"), "utf8"))
+    && /["']setup["']/.test(powershellCompletion());
+
+  if (!setupSurfaceComplete) {
+    if (process.env.CAIRN_PHASE26_RED === "1") {
+      console.log("PHASE26_RED:WINDOWS_SETUP_MISSING");
+      process.exitCode = 86;
+    } else {
+      console.log("SKIP: simulated Windows guided setup surface is not complete");
+      console.log("PASS: native Windows CLI lifecycle, paths, archive safety, hooks, and PowerShell completion");
+    }
+  } else {
+    const setupProject = join(sandbox, "Guided Project with spaces – Unicode");
+    let output = "";
+    const originalWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = ((chunk, ...args) => {
+      output += String(chunk);
+      return true;
+    });
+    try {
+      const handled = await runWindowsCommand({
+        command: "setup",
+        args: [setupProject, "--git", "none", "--harness", "claude,pi", "--memory", "local", "--yes", "--json"],
+        root,
+      });
+      assert.equal(handled, true);
+    } finally {
+      process.stdout.write = originalWrite;
+    }
+    const setupResult = JSON.parse(output);
+    assert.equal(setupResult.schema_version, 1);
+    assert.equal(setupResult.status, "limited");
+    assert.equal(setupResult.git, "none");
+    assert.equal(setupResult.memory, "local");
+    assert.deepEqual(setupResult.harnesses, ["claude", "pi"]);
+    assert.equal(Array.isArray(setupResult.recovery), true);
+    assert.equal(setupResult.recovery.some((line) => /cairn (?:setup|sync)/.test(line)), true);
+
+    const setupStatePath = join(setupProject, ".ai", "cairnkeep.json");
+    assert.ok(existsSync(setupStatePath));
+    const setupState = JSON.parse(readFileSync(setupStatePath, "utf8"));
+    const serializedState = JSON.stringify(setupState);
+    assert.equal(serializedState.includes(setupProject), false);
+    assert.doesNotMatch(serializedState, /(?:token|secret|credential|endpoint|username|environment|https?:)/i);
+    assert.match(powershellCompletion(), /--git/);
+    assert.match(powershellCompletion(), /--harness/);
+    assert.match(powershellCompletion(), /--memory/);
+    assert.match(powershellCompletion(), /--policy/);
+    assert.match(powershellCompletion(), /--yes/);
+    assert.match(powershellCompletion(), /--json/);
+    console.log("PASS: simulated Windows setup parity, private state, recovery, and completion contract");
+  }
 } finally {
   if (originalBase === undefined) delete process.env.CAIRN_AGENTFS_BASE_DIR;
   else process.env.CAIRN_AGENTFS_BASE_DIR = originalBase;
