@@ -26,6 +26,33 @@ All notable user-facing changes are documented here. This project follows
   native platform. Windows ARM64 remains an x64-emulation target until the
   storage dependency ships a native ARM64 binding.
 
+### Provisional v2.11.0 (unreleased; sequenced after pending v2.10.0)
+
+No v2.11.0 tag, package publication, or release is claimed. These entries remain
+provisional until the pending v2.10.0 sequence and the full release matrix are
+complete.
+
+#### Added
+
+- Add `cairn setup` as the recommended guided project entry point, with a fully
+  deterministic non-interactive form, explicit Git/harness/memory choices,
+  versioned private project state, selected-asset reconciliation, structured
+  output, doctor diagnostics, and recovery commands.
+- Add a strict provider-neutral setup-policy schema for private overlays, with
+  command-line choices taking precedence over policy defaults and constraints
+  enforced on every resolved plan.
+- Add the maintained Pi local stdio memory extension, dynamic MCP catalog
+  discovery, bounded child lifecycle, cancellation, exact response preservation,
+  and trusted annotation metadata. Pi 0.84.1 is the provisional minimum.
+
+#### Changed
+
+- Make project setup report machine sync without running it automatically;
+  `cairn sync-pi --apply|--check`, `cairn doctor`, and backup-first uninstall
+  remain explicit lifecycle operations.
+- Preserve `cairn bootstrap` and `--untracked` as backward-compatible scripted
+  primitives while recommending guided setup for new onboarding.
+
 ## [2.9.0] - 2026-08-06
 
 ### Added

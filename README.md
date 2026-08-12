@@ -14,12 +14,13 @@ Qwen Code, Pi, and other MCP clients).
 
 ## Status
 
-Shipped: the memory server, the `cairn` CLI (`bootstrap`, `memory-server`, `sync`, `sync-pi`, `sync-kimi`,
+Shipped: the memory server, the `cairn` CLI (`setup`, `bootstrap`, `memory-server`, `sync`, `sync-pi`, `sync-kimi`,
 `doctor`, `trajectory`, `artifact`, `mcp-tools`, `pack`, `notes`, `memory`, `eval`, `audit-timer`, `completion`, `uninstall`) installable via
 `npm i -g @cairnkeep/cli`, and the
 operating layer (commands,
-agents, hooks) installed on Claude Code and OpenCode, plus a native Pi
-trajectory extension and thin Pi/Kimi graph adapters. The generic launchers
+agents, hooks) installed on Claude Code and OpenCode, plus maintained local
+stdio memory and trajectory extensions for Pi and thin Pi/Kimi graph adapters.
+The generic launchers
 expose wrapper seams (`.ai/pre-launch.sh`/`.ai/pre-launch.ps1`,
 `CAIRN_EXTRA_SETTINGS`, `.ai/post-exit.sh`/`.ai/post-exit.ps1`) so an enterprise wrapper can add provider/credential setup
 without forking them. Also shipped: context exploration (`/context-explore`) and
@@ -39,10 +40,10 @@ and 20 are end-of-life upstream.
 | OpenCode on Linux/macOS | Memory server plus commands, plugins, hooks, and launchers |
 | Kimi Code on Linux/macOS | Memory MCP server, project launcher, and opt-in `/graphify` Skill |
 | Qwen Code on Linux/macOS | Memory MCP server plus project launcher; no Cairnkeep operating-layer assets yet |
-| Pi on Linux/macOS | Native opt-in trajectory extension, launcher, and `/graphify` prompt; no bundled MCP bridge |
+| Pi on Linux/macOS | Memory MCP through a maintained local stdio extension, native opt-in trajectory extension, launcher, and `/graphify` prompt; Pi 0.84.1 provisional minimum |
 | Codex CLI | Memory MCP server; no Cairnkeep operating-layer assets |
 | Other MCP clients | Memory plus optional domain-knowledge and context-pack MCP tools |
-| Native Windows x64 | Node-native CLI, memory server, bootstrap, PowerShell/Command Prompt launchers, sync, hooks, doctor, storage lifecycle, Task Scheduler, completion, and uninstall |
+| Native Windows x64 | Node-native CLI, guided setup, memory server, bootstrap compatibility, PowerShell/Command Prompt launchers, sync, hooks, doctor, storage lifecycle, Task Scheduler, completion, and uninstall |
 | Windows ARM64 | Supported through Windows x64 emulation only; a native database binding is not currently shipped |
 | WSL | Uses the normal Linux workflow; distinct from native Windows and Git Bash |
 
@@ -82,8 +83,9 @@ storage paths, secrets, and private derived images, see
 - **`mcp-memory-server/`** — an MCP server exposing durable, scoped memory
   (`memory_write`, `memory_search`, …) backed by AgentFS, with optional
   embedding-ranked search against any OpenAI-compatible endpoint.
-- **`bin/cairn`** — the CLI. `cairn bootstrap [path]` scaffolds a project's
-  `.ai/` launchers + env; `cairn doctor` health-checks the configured pieces;
+- **`bin/cairn`** — the CLI. `cairn setup [path]` guides or deterministically
+  reconciles selected project assets; `cairn bootstrap [path]` preserves the
+  established scripted scaffold contract; `cairn doctor` health-checks the configured pieces;
   `cairn trajectory list|show|prune` manages opt-in local session trajectories;
   `cairn artifact list|show|delete|prune` manages opt-in local artifacts;
   `cairn mcp-tools list|status|set|reset` applies least-authority discovery
@@ -103,7 +105,7 @@ storage paths, secrets, and private derived images, see
   (`export` requires the optional `sqlite3` CLI);
   `cairn audit-timer` installs the scheduled memory+wiki audit;
   `cairn completion bash|zsh|fish` generates shell completion definitions; and
-  `cairn sync-pi` installs the native Pi trajectory extension and graph prompt;
+  `cairn sync-pi` installs the native Pi memory and trajectory extensions plus graph prompt;
   `cairn sync-kimi` installs the Kimi graph Skill;
   `cairn uninstall` reverses the install (backup-first, revertible).
 - **`templates/`** — project scaffolding (generic launchers, env) plus the
@@ -132,9 +134,11 @@ them. These are the accelerators the author pairs cairnkeep with; each is opt-in
 ## Setup
 
 A working workflow needs three things: the memory server registered, the
-operating layer (commands, agents, hooks) installed into your harness, and a
-bootstrapped project. `cairn bootstrap` does only the last of these — the full
-ordered walkthrough is in **[docs/operating.md](docs/operating.md)**.
+operating layer installed into your harness, and a configured project. `cairn
+setup` is the recommended guided entry point; `cairn bootstrap` remains the
+deterministic compatibility primitive for established scripts. Project setup
+reports but never performs machine-level sync. The full ordered walkthrough is
+in **[docs/operating.md](docs/operating.md)**.
 
 This setup is local by default: the registered stdio server stores memory on
 the user's computer. Cairnkeep never discovers or selects a remote host.
@@ -151,8 +155,8 @@ claude mcp add cairn-memory -s user -- cairn memory-server
 # 2. Install the operating layer (commands, agents, hooks, scaffold templates)
 cairn sync --apply                       # add --live-root <proj>/.claude to scope it
 
-# 3. Scaffold a project and configure it
-cairn bootstrap /path/to/project
+# 3. Configure a project deterministically
+cairn setup /path/to/project --git init --harness claude --memory local --yes
 cp /path/to/project/.ai/env.example /path/to/project/.ai/.env   # then edit
 
 # 4. Launch (and, optionally, check the wiring first)
@@ -189,18 +193,36 @@ headers. Review and approve project MCP configuration with
 `qwen mcp approve cairn-memory`, then launch with `./.ai/start-qwen.sh`. See
 [Harness compatibility](docs/harness-compatibility.md#qwen-code).
 
-For Pi, install the local trajectory adapter and use the scaffolded launcher:
+For Pi, select Pi during project setup, explicitly install/check its machine
+assets, run doctor, and use the generated launcher:
 
 ```bash
 cairn sync-pi --apply
-cairn bootstrap /path/to/project
-cd /path/to/project && ./.ai/start-pi.sh
+cairn sync-pi --check
+cairn setup /path/to/project --git init --harness pi --memory local --yes
+cd /path/to/project && cairn doctor && ./.ai/start-pi.sh
 ```
 
-This installs trajectory capture plus the thin `/graphify` prompt. The prompt
-delegates exclusively to `cairn graph`. Cairnkeep does not bundle or select a
-Pi MCP bridge; configure a user-chosen bridge separately if you also want the
-MCP memory tools inside Pi.
+This installs the maintained local stdio memory extension, trajectory capture,
+and the thin `/graphify` prompt. The memory extension discovers the effective
+server tool catalog and preserves annotations in trusted result details; Pi's
+public API has no native annotations field. It adds tools only—no prompt runs,
+skill activation, autonomous loop, or remote access. Pi 0.84.1 is the
+provisional minimum; final release readiness also requires the then-current Pi
+release plus the documented Node, Bash, and native Windows matrix.
+
+Preview removal before confirming it. Uninstall backs up every managed file it
+will change and prints the generated revert command; durable memory and context
+packs remain unless their explicit purge flags are supplied:
+
+```bash
+cairn uninstall --dry-run /path/to/project
+cairn uninstall --yes /path/to/project
+```
+
+If setup-owned project assets drift, rerun the exact `cairn setup ... --yes`
+recovery command reported by `cairn doctor`. For Pi machine-asset drift, run
+`cairn sync-pi --apply`, then `cairn sync-pi --check` and `cairn doctor`.
 
 Closed trajectories can be compiled into local hindsight notes without a model
 or embedding service. Capture and distillation are separate opt-ins:
