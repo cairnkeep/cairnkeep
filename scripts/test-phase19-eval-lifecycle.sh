@@ -336,8 +336,18 @@ const cancelTask={...tasks[0],id:"task-cancel",input:"cancel"};
 const cancelPlan=makePlan([cancelTask]);
 const cancelStore=await reports.createEvalReportStore({root:join(fixtureRoot,"reports"),experiment_id:"cancel-fixture"});
 const controller=new AbortController();
-setTimeout(()=>controller.abort(),100);
-const cancelled=await runner.runTwoPassExperiment({plan:cancelPlan,report_store:cancelStore,temporary_root:fixtureRoot,signal:controller.signal,distill_command:{program:process.execPath,args:[distillerScript]}});
+const cancellation=runner.runTwoPassExperiment({plan:cancelPlan,report_store:cancelStore,temporary_root:fixtureRoot,signal:controller.signal,distill_command:{program:process.execPath,args:[distillerScript]}});
+let adapterStarted=false;
+for (let attempt=0; attempt<200; attempt+=1) {
+  await new Promise((resolve)=>setTimeout(resolve,25));
+  if (existsSync(invocationLog) && readFileSync(invocationLog,"utf8").includes("task-cancel:run1")) {
+    adapterStarted=true;
+    break;
+  }
+}
+assert.equal(adapterStarted,true,"cancellation fixture adapter did not start");
+controller.abort();
+const cancelled=await cancellation;
 assert.equal(cancelled.report.status,"partial");
 assert.deepEqual(cancelled.report.observations.map(({terminal_state})=>terminal_state),["cancelled"]);
 assert.equal(cancelled.report.observations[0].process.cleanup!=="pending",true);
