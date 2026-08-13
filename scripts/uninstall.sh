@@ -45,6 +45,7 @@ PROJECT_AI_FILES=(
   start-pi.sh
   start-kimi.sh
   start-qwen.sh
+  start-codex.sh
   env.example
   trajectory-redaction.json
   capabilities.json
@@ -129,9 +130,11 @@ remove_path() {
 # record. The record identifies candidates, but never grants authority to an
 # arbitrary path. Modified candidates are still backed up before removal.
 setup_owned_paths() {
-  node --input-type=module - "$1" <<'NODE'
+  node --input-type=module - "$1" "$CAIRN_ROOT/scripts/harness-registry.mjs" <<'NODE'
 import { lstatSync, readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 const path = process.argv[2];
+const registry = await import(pathToFileURL(process.argv[3]).href);
 const info = lstatSync(path);
 if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024) process.exit(1);
 if (process.platform !== "win32" && (info.mode & 0o777) !== 0o600) process.exit(1);
@@ -153,7 +156,8 @@ const allowed = new Set([
   ".planning/wiki/LOG.md", ".planning/alignment/policy.md", ".planning/alignment/gap-register.yaml",
   ".planning/graphs/policy.md", ".planning/graphs/.gitignore", ".planning/security/policy.md",
   ".ai/start-harness.mjs", ".ai/start-harness.ps1",
-  ...["claude", "opencode", "pi", "kimi", "qwen"].flatMap((name) => [`.ai/start-${name}.sh`, `.ai/start-${name}.cmd`]),
+  ...registry.HARNESS_IDS.flatMap((name) => [`.ai/start-${name}.sh`, `.ai/start-${name}.cmd`]),
+  ...registry.HARNESS_IDS.flatMap((name) => registry.harnessProjectAssets(name, "local").map(({ path }) => path)),
 ]);
 for (const [asset, record] of Object.entries(state.assets)) {
   if (!allowed.has(asset)
@@ -321,7 +325,7 @@ for proj in "${PROJECTS[@]:-}"; do
       if [[ $DRY_RUN -eq 0 ]]; then
         for managed_dir in \
           "$proj/.planning/wiki" "$proj/.planning/alignment" "$proj/.planning/graphs" \
-          "$proj/.planning/security" "$proj/.planning" "$proj/.ai" "$proj/.agentfs"; do
+          "$proj/.planning/security" "$proj/.planning" "$proj/.codex" "$proj/.ai" "$proj/.agentfs"; do
           rmdir "$managed_dir" 2>/dev/null || true
         done
       fi

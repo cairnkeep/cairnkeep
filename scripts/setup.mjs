@@ -21,13 +21,14 @@ import {
   resolveSetupChoices,
 } from "./setup-core.mjs";
 import { reconcileSetupPlan } from "./setup-reconcile.mjs";
+import { HARNESS_IDS, machineSyncCommand, requiredHarnessAssetPaths } from "./harness-registry.mjs";
 
-const HARNESSES = Object.freeze(["claude", "opencode", "pi", "kimi", "qwen"]);
+const HARNESSES = HARNESS_IDS;
 const GIT_MODES = Object.freeze(["init", "existing", "none"]);
 const MEMORY_MODES = Object.freeze(["local", "none"]);
 const STATE_KEYS = Object.freeze(["schema_version", "cairnkeep_version", "git", "memory", "harnesses", "assets"]);
 const ASSET_KEYS = Object.freeze(["digest", "mode", "template"]);
-const SAFE_ASSET = /^\.(?:ai|planning|agentfs)\/(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._/-]+$/;
+const SAFE_ASSET = /^\.(?:ai|planning|agentfs|codex)\/(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._/-]+$/;
 const COMMON_SETUP_ASSETS = Object.freeze([
   ".ai/env.example",
   ".ai/trajectory-redaction.json",
@@ -108,7 +109,7 @@ function setupRecovery(plan) {
 }
 
 function resultFor(plan, reconciliation, platform) {
-  const machineCommand = plan.harnesses.includes("pi") ? "cairn sync-pi --apply" : "cairn sync --apply";
+  const machineCommand = machineSyncCommand(plan.harnesses);
   return Object.freeze({
     schema_version: 1,
     status: plan.limited ? "limited" : "complete",
@@ -139,7 +140,12 @@ export function renderSetupResult(result, stream) {
   for (const command of result.launch_commands) writeLine(stream, `Launch: ${command}`);
   for (const command of result.recovery) writeLine(stream, `Recovery: ${command}`);
   for (const limitation of result.limitations) writeLine(stream, `Limitation: ${limitation}`);
-  writeLine(stream, `Machine sync: ${result.machine_sync.command} (not run automatically)`);
+  if (result.harnesses.includes("codex") && result.memory === "local") {
+    writeLine(stream, "Codex: review .codex/config.toml and accept the project trust prompt before use");
+  }
+  writeLine(stream, result.machine_sync.command
+    ? `Machine sync: ${result.machine_sync.command} (not run automatically)`
+    : "Machine sync: not required for the selected harnesses");
 }
 
 function createTarget(target) {
@@ -260,6 +266,33 @@ function readPrivateState(path) {
   }
 }
 
+function hasCodexMemoryConfig(project) {
+  const path = join(project, ".codex", "config.toml");
+  if (!existsSync(path)) return false;
+  const info = lstatSync(path);
+  if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024) return false;
+  let descriptor;
+  let text;
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const opened = fstatSync(descriptor);
+    if (!opened.isFile() || opened.dev !== info.dev || opened.ino !== info.ino || opened.size > 1024 * 1024) return false;
+    text = readFileSync(descriptor, "utf8");
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+  const lines = text.split(/\r?\n/);
+  const headers = lines.flatMap((line, index) => (
+    ["[mcp_servers.cairn-memory]", "[mcp_servers.\"cairn-memory\"]"].includes(line.trim()) ? [index] : []
+  ));
+  if (headers.length !== 1) return false;
+  const [start] = headers;
+  const next = lines.findIndex((line, index) => index > start && /^\s*\[[^\]]+\]\s*$/.test(line));
+  const section = lines.slice(start + 1, next < 0 ? lines.length : next).join("\n");
+  return (section.match(/^\s*command\s*=\s*["']cairn["']\s*$/gm) ?? []).length === 1
+    && (section.match(/^\s*args\s*=\s*\[\s*["']memory-server["']\s*\]\s*$/gm) ?? []).length === 1;
+}
+
 export function diagnoseSetup(target = ".") {
   const project = resolve(target);
   const statePath = join(project, ".ai", "cairnkeep.json");
@@ -292,8 +325,11 @@ export function diagnoseSetup(target = ".") {
       const digest = createHash("sha256").update(readFileSync(destination)).digest("hex");
       if (digest !== record.digest || (process.platform !== "win32" && (info.mode & 0o777) !== record.mode)) return incompleteDiagnosis(recovery);
     }
-    const requiredAssets = [...COMMON_SETUP_ASSETS, ...state.harnesses.map((harness) => `.ai/start-${harness}.sh`)];
+    const requiredAssets = [...COMMON_SETUP_ASSETS, ...requiredHarnessAssetPaths(state.harnesses, state.memory)];
     if (requiredAssets.some((path) => !Object.hasOwn(state.assets, path))) return incompleteDiagnosis(recovery);
+    if (state.memory === "local" && state.harnesses.includes("codex") && !hasCodexMemoryConfig(project)) {
+      return incompleteDiagnosis(recovery);
+    }
     return Object.freeze({
       schema_version: 1,
       status: state.git === "none" ? "limited" : "complete",

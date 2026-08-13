@@ -70,7 +70,7 @@ cairn setup /path/to/project --git init --harness claude,pi --memory local --yes
 ```
 
 The deterministic form accepts `--git init|existing|none`, a comma-separated
-subset of `claude,opencode,pi,kimi,qwen`, and `--memory local|none`. `--git
+subset of `claude,opencode,pi,kimi,qwen,codex`, and `--memory local|none`. `--git
 existing` requires the target to be in an existing work tree. `--git init`
 requires Git and is the only non-interactive authorization to initialize a
 repository. `--git none` is an explicit limited mode: repository-aware features
@@ -91,8 +91,10 @@ assets. It contains no credentials, endpoints, or absolute paths.
 
 Setup never installs or refreshes machine-level harness assets. Its
 `machine_sync.automatic` field is always false, and the human output labels the
-reported command as not run automatically. Apply the relevant machine command
-explicitly, check it, then diagnose and launch:
+reported command as not run automatically. For selections such as Codex and
+Qwen that need no machine sync, `machine_sync.command` is `null` and the human
+output says that sync is not required. Apply any reported command explicitly,
+check it, then diagnose and launch:
 
 ```bash
 cairn sync --apply                    # Claude Code operating assets
@@ -104,6 +106,25 @@ cd /path/to/project && cairn doctor
 
 `cairn bootstrap [--untracked] PATH` remains available for scripts that depend
 on its original scaffold and Git-exclusion contract.
+
+## Setup order (Codex CLI)
+
+Codex uses project-scoped configuration, so setup owns the complete local MCP
+wiring without editing user-wide state:
+
+```bash
+npm install -g @cairnkeep/cli
+cairn setup /path/to/project --git init --harness codex --memory local --yes
+cd /path/to/project
+cairn doctor
+./.ai/start-codex.sh                    # native Windows: .\.ai\start-codex.cmd
+```
+
+Review `.codex/config.toml` and accept Codex's project-trust prompt before use.
+An existing different file is preserved and reported as skipped; merge the
+generated `mcp_servers.cairn-memory` table into it, then run `cairn doctor`.
+Uninstall leaves that operator-owned file intact. Selecting
+`--memory none` creates the launcher but deliberately omits the MCP entry.
 
 ## Setup order (Claude Code)
 
@@ -865,13 +886,13 @@ maintain a running install — without forking the core. All are opt-in.
 ### Launcher seams
 
 The generic launchers (`.ai/start-claude.sh`, `.ai/start-opencode.sh`,
-`.ai/start-kimi.sh`, `.ai/start-qwen.sh`, and `.ai/start-pi.sh`) run optional hooks around the
+`.ai/start-kimi.sh`, `.ai/start-qwen.sh`, `.ai/start-codex.sh`, and `.ai/start-pi.sh`) run optional hooks around the
 harness, each a no-op when absent:
 
 | Seam | When | Purpose |
 |---|---|---|
 | `.ai/pre-launch.sh` | sourced after `.env`, before launch | export env (e.g. a provider base URL / auth), refresh credentials, or abort by returning non-zero |
-| `CAIRN_EXTRA_SETTINGS` | read just before launch | path to a settings file layered on Claude Code (`--settings`) or OpenCode (`OPENCODE_CONFIG`); Kimi, Qwen, and Pi leave the variable available to hooks but do not interpret it |
+| `CAIRN_EXTRA_SETTINGS` | read just before launch | path to a settings file layered on Claude Code (`--settings`) or OpenCode (`OPENCODE_CONFIG`); Kimi, Qwen, Codex, and Pi leave the variable available to hooks but do not interpret it |
 | `.ai/post-exit.sh` | sourced after the harness exits | teardown; `CAIRN_EXIT_STATUS` holds the exit code |
 
 A wrapper that needs a non-default provider drops a `pre-launch.sh` that renders

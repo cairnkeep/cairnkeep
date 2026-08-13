@@ -13,13 +13,15 @@ commands, hooks, plugins, or trajectory adapters.
 | Kimi Code | Memory MCP, `AGENTS.md`, launcher, opt-in graph Skill | Launcher tested; remote MCP tested with Kimi Code 0.30.0; graph Skill contract-tested |
 | Qwen Code | Memory MCP, launcher | Launcher tested; stdio and remote MCP tested with Qwen Code 0.21.1 |
 | Pi | Memory MCP through maintained local stdio extension, native opt-in trajectory extension, launcher, and graph prompt | Pi 0.84.1 validated minimum; deterministic and real bridge/lifecycle tests |
-| Codex CLI | Memory MCP | Configuration supported; no Cairnkeep operating-layer assets or launcher |
+| Codex CLI | Project-scoped memory MCP and launcher | Setup and launcher contract-tested on POSIX and simulated native Windows; project trust remains operator-controlled |
 | Other MCP clients | Memory plus optional domain-knowledge and context-pack tools | Protocol-compatible; not automatically runtime-tested |
 
 Only Claude Code and OpenCode currently receive the complete operating layer.
 Kimi receives one narrow graph Skill, while Pi receives one narrow graph prompt;
 neither is equivalent to the full commands, agents, hooks, and plugins surface.
 Qwen skills and hooks still require harness-specific adaptation and validation.
+Codex receives a project-local MCP entry and launcher, but not Cairnkeep-specific
+commands, hooks, agents, or automatic skill activation.
 
 Every MCP client receives complete tool annotations and may use a Cairnkeep
 least-authority profile independent of harness assets. Context-pack tools are
@@ -199,6 +201,37 @@ Git, and leave secret values as environment references.
 
 Qwen MCP configuration is documented at
 [Qwen Code MCP](https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/).
+
+## Codex CLI
+
+Select Codex during setup to create a project-scoped local stdio entry and
+launcher:
+
+```bash
+cairn setup /path/to/project --git init --harness codex --memory local --yes
+cd /path/to/project
+./.ai/start-codex.sh
+```
+
+Native Windows uses `.\.ai\start-codex.cmd`. The generated
+`.codex/config.toml` contains only:
+
+```toml
+[mcp_servers.cairn-memory]
+command = "cairn"
+args = ["memory-server"]
+```
+
+Review this file before accepting Codex's project-trust prompt. Cairnkeep does
+not grant trust, edit the user-wide Codex configuration, or start Codex during
+setup. If an operator-owned `.codex/config.toml` already differs, setup reports
+`skipped` and leaves it unchanged; merge the table manually and run `cairn
+doctor` to verify the effective entry. Uninstall never removes an
+operator-owned configuration file.
+
+The launcher loads `.ai/.env`, runs optional pre/post hooks, changes to the
+project root, and passes all arguments to `codex`. It does not install native
+Codex Skills or instructions and does not activate approved context-pack skills.
 
 ## Candidate memory clients
 

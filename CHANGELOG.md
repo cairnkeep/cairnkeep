@@ -5,6 +5,25 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-08-13
+
+### Added
+
+- Add one declarative harness registry for setup choices, project assets,
+  launcher generation, diagnostics, native Windows, and lifecycle tooling.
+- Add first-class Codex CLI setup with a project-scoped local stdio MCP entry,
+  POSIX and native Windows launchers, explicit project-trust guidance, and a
+  memory-off path that creates no MCP configuration.
+- Add a five-minute quickstart and Codex route to the public learning path.
+
+### Changed
+
+- Derive guided setup policy validation and required-asset diagnosis from the
+  shared harness catalog. Codex/Qwen-only setup now reports that no machine
+  sync is required instead of suggesting unrelated operating assets.
+- Extend bootstrap contributor mode, backup-first uninstall, schema validation,
+  package checks, and native Windows coverage to Codex-owned project files.
+
 ## [2.11.0] - 2026-08-12
 
 ### Added
@@ -317,7 +336,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.11.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.12.0...HEAD
+[2.12.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.9.0...v2.11.0
 [2.9.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.7.0...v2.8.0

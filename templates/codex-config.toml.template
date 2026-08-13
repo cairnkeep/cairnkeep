@@ -1,0 +1,5 @@
+# Cairnkeep project-scoped memory server. Codex loads project configuration only
+# after the project has been trusted.
+[mcp_servers.cairn-memory]
+command = "cairn"
+args = ["memory-server"]

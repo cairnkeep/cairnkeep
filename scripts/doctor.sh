@@ -443,18 +443,19 @@ fi
 # repairing project or machine assets. The Node controller returns only bounded
 # states and exact recovery commands; setup remains the sole owner of project
 # reconciliation.
-setup_diagnosis=$(node --input-type=module - "$CAIRN_ROOT/scripts/setup.mjs" "$PWD" <<'NODE' 2>/dev/null
+setup_diagnosis=$(node --input-type=module - "$CAIRN_ROOT/scripts/setup.mjs" "$CAIRN_ROOT/scripts/harness-registry.mjs" "$PWD" <<'NODE' 2>/dev/null
 import { pathToFileURL } from "node:url";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 const module = await import(pathToFileURL(process.argv[2]).href);
-const value = module.diagnoseSetup(process.argv[3]);
+const registry = await import(pathToFileURL(process.argv[3]).href);
+const value = module.diagnoseSetup(process.argv[4]);
 const allowed = new Set(["absent", "complete", "limited", "incomplete"]);
 if (value.schema_version !== 1 || !allowed.has(value.status) || !Array.isArray(value.recovery)) process.exit(1);
 let piSelected = false;
 if (value.status === "complete" || value.status === "limited") {
-  const state = JSON.parse(readFileSync(join(process.argv[3], ".ai", "cairnkeep.json"), "utf8"));
-  if (!Array.isArray(state.harnesses) || state.harnesses.some((name) => !["claude", "opencode", "pi", "kimi", "qwen"].includes(name))) process.exit(1);
+  const state = JSON.parse(readFileSync(join(process.argv[4], ".ai", "cairnkeep.json"), "utf8"));
+  if (!Array.isArray(state.harnesses) || state.harnesses.some((name) => !registry.HARNESS_IDS.includes(name))) process.exit(1);
   piSelected = state.harnesses.includes("pi");
 }
 process.stdout.write(`${value.status}:${value.code}:${value.recovery.join("|")}:${piSelected ? "yes" : "no"}`);

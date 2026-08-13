@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Cairnkeep launcher for Codex CLI. Loads this project's private .ai/.env and
+# starts Codex in the project root. The project-scoped MCP registration lives in
+# .codex/config.toml and is only loaded after Codex trusts the project.
+set -euo pipefail
+ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+
+if [[ -f "$ROOT_DIR/.ai/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/.env"
+  set +a
+fi
+if [[ -f "$ROOT_DIR/.ai/pre-launch.sh" ]]; then
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/pre-launch.sh"
+fi
+cd "$ROOT_DIR"
+
+if [[ -f "$ROOT_DIR/.ai/post-exit.sh" ]]; then
+  set +e
+  codex "$@"
+  CAIRN_EXIT_STATUS=$?
+  set -e
+  export CAIRN_EXIT_STATUS
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/post-exit.sh" || true
+  exit "$CAIRN_EXIT_STATUS"
+fi
+exec codex "$@"

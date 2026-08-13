@@ -1,6 +1,6 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.11.0
+**Baseline:** Cairnkeep 2.12.0
 **Last reviewed:** 2026-08-13
 
 This map prevents the course from drifting behind the product. It assigns each
@@ -15,6 +15,7 @@ been rehearsed.
 |---|---|---|---|
 | Local stdio memory and MCP registration | L00-L02 | L03-L04 | L00-L03 Ready; L04 Brief |
 | Guided project setup, launchers, and bootstrap compatibility/contributor mode | L02-L03 | L05 and L23 | L02-L03 and L23 Ready; L05 Brief |
+| Declarative harness registry and Codex project-scoped MCP setup | L03 | L03 and L23 | Ready; project trust remains explicit |
 | Memory scopes, keys, search, supersession, and history | L04 | L04-L05 | Brief |
 | Wiki, alignment, and repository quality workflows | L05-L06 | L05-L06 | Brief |
 | Optional local code graph, graph inspection, and harness delegates | L18 | L18 | Brief; default off |
@@ -58,7 +59,7 @@ repository remains the canonical source for explanations and scripts.
 | Checkpoint | Lessons | Purpose |
 |---|---|---|
 | `course-00-app` | L00-L02 | Plain synthetic application before Cairnkeep |
-| `course-01-bootstrap` | L03 | Guided local setup and isolated environment |
+| `course-01-bootstrap` | L03 | Guided local setup, Codex project configuration, and isolated environment |
 | `course-02-memory` | L04-L05 | Memory lifecycle and derived knowledge |
 | `course-03-quality` | L06 | Repository review and deliberately vulnerable fixture |
 | `course-04-operation` | L07-L12 | Storage, routing, integrations, containers, overlays |
@@ -79,7 +80,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | Command | Primary lesson |
 |---|---|
 | `cairn bootstrap` | L03 compatibility challenge |
-| `cairn setup` | L03; advanced Pi lifecycle in L23 |
+| `cairn setup` | L03 for Claude/Codex; advanced Pi lifecycle in L23 |
 | `cairn memory-server` | L02 |
 | `cairn sync` | L02 |
 | `cairn sync-pi` | L13 and L23 |

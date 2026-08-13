@@ -8,8 +8,8 @@ publication material.
 
 Choose the shortest track that matches your goal:
 
-- [Quickstart](tracks/quickstart.md) - prove the core value and inspect guided
-  setup/Pi integration in about 110 minutes.
+- [Quickstart](tracks/quickstart.md) - prove the core value, including the
+  one-command Codex project path and the explicit Pi lifecycle, in about 110 minutes.
 - [Practitioner](tracks/practitioner.md) - adopt Cairnkeep in daily project work.
 - [Evidence and evaluation](tracks/evidence-and-evaluation.md) - inspect optional
   session evidence, govern capabilities, and measure changes without overstating

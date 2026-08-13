@@ -3,12 +3,13 @@
 **Status:** Ready
 **Track:** Quickstart
 **Time:** 25 minutes
-**Tested with:** Cairnkeep 2.11.0
+**Tested with:** Cairnkeep 2.12.0
 
 ## Outcome
 
-You can use the guided setup contract on an empty directory, verify its Git and
-harness wiring, store one accepted fact, and recall it from a new session.
+You can use the guided setup contract on an empty directory, choose Claude Code
+or Codex CLI, verify its Git and harness wiring, store one accepted fact, and
+recall it from a new session.
 
 ## Prerequisites
 
@@ -25,17 +26,24 @@ harness wiring, store one accepted fact, and recall it from a new session.
    cd "$HOME/cairnkeep-course/first-project"
    ```
 
-2. Run the deterministic form of guided setup. The explicit flags make the
+2. Choose one harness and run the deterministic form of guided setup. The
+   explicit flags make the
    exercise reproducible while exercising the same preflight as interactive
    `cairn setup`:
 
    ```bash
+   # Full operating-layer route from L02:
    cairn setup "$PWD" --git init --harness claude --memory local --yes
+
+   # Or the self-contained Codex memory route:
+   # cairn setup "$PWD" --git init --harness codex --memory local --yes
    cp .ai/env.example .ai/.env
    ```
 
-   Setup must create the Git repository, generate only the selected Claude
-   project assets, and write the private `.ai/cairnkeep.json` setup record.
+   Setup must create the Git repository, generate only the selected harness
+   assets, and write the private `.ai/cairnkeep.json` setup record. Codex also
+   receives `.codex/config.toml`; review it and accept Codex's project-trust
+   prompt before launching.
 
 3. Keep optional endpoint and model values unset for this local exercise. Run
    diagnostics:
@@ -48,10 +56,11 @@ harness wiring, store one accepted fact, and recall it from a new session.
    and evaluation flags unset. The quickstart proves core memory without
    silently changing the amount of retained data.
 
-4. Launch Claude Code through the generated project launcher:
+4. Launch the selected harness through its generated project launcher:
 
    ```bash
    ./.ai/start-claude.sh
+   # Codex route: ./.ai/start-codex.sh
    ```
 
 5. In the harness, store a deliberately synthetic convention:
@@ -85,7 +94,8 @@ The lesson is complete only if:
 | Setup refuses the target | The directory is non-empty or its Git state conflicts with `--git init` | Preserve the directory, inspect it, then select `--git existing` or use a genuinely empty disposable path |
 | Launcher is missing | A different directory was configured or Claude was not selected | Run `pwd`, inspect `.ai/cairnkeep.json`, then replay the recovery command from `cairn doctor` |
 | `.ai/.env` is missing | Only the example is generated | Copy `.ai/env.example` to `.ai/.env` |
-| `cairn-memory` is unavailable | L02 MCP registration is absent or stale | Run `claude mcp get cairn-memory`, repair it, then restart Claude Code |
+| `cairn-memory` is unavailable in Claude | L02 MCP registration is absent or stale | Run `claude mcp get cairn-memory`, repair it, then restart Claude Code |
+| `cairn-memory` is unavailable in Codex | Project configuration was skipped or the project is not trusted | Review/merge `.codex/config.toml`, rerun setup, then accept project trust and relaunch |
 | Slash commands are unknown | Operating assets were not loaded | Run `cairn sync --check`, apply if needed, then restart the harness |
 | Recall works only in the first session | Sessions used different storage routing | Compare launchers and environment, then inspect `cairn memory path` |
 
@@ -119,6 +129,8 @@ contributor-mode scaffolding out of shared changes.
   private reconciliation record.
 - Bootstrap remains available for compatibility and contributor workflows.
 - The generated launcher establishes a repeatable project environment.
+- Codex memory setup is project-scoped and does not silently grant trust or
+  modify the user-wide Codex configuration.
 - Persistence is proven only after a new session recalls the accepted fact.
 
 Next: [L04 - Memory fundamentals](L04-memory-fundamentals.md).

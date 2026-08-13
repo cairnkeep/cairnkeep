@@ -28,7 +28,7 @@ manifest, profile-lock, private-registry, and rollback contract.
 ## The launcher seams
 
 The generic launchers (`.ai/start-claude.sh`, `.ai/start-opencode.sh`,
-`.ai/start-kimi.sh`, `.ai/start-qwen.sh`, and `.ai/start-pi.sh`, scaffolded by `cairn bootstrap`) run
+`.ai/start-kimi.sh`, `.ai/start-qwen.sh`, `.ai/start-codex.sh`, and `.ai/start-pi.sh`, scaffolded by `cairn bootstrap`) run
 optional hooks, each a no-op when absent:
 
 | Seam | When | Use it for |

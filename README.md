@@ -9,8 +9,25 @@
 A *cairn* is a stack of stones left as a trail marker for whoever follows; a
 *keep* is where you store what matters. **Cairnkeep** is where coding agents
 stack durable memory — decisions, pitfalls, patterns — and follow the trail
-across sessions, projects, and harnesses (Claude Code, OpenCode, Kimi Code,
-Qwen Code, Pi, and other MCP clients).
+across sessions, projects, and harnesses (Claude Code, Codex CLI, OpenCode,
+Kimi Code, Qwen Code, Pi, and other MCP clients).
+
+## Five-minute start
+
+For Codex CLI, Cairnkeep can install the complete project-local memory wiring
+in one command:
+
+```bash
+npm install --global @cairnkeep/cli
+cairn setup /path/to/project --git init --harness codex --memory local --yes
+cd /path/to/project
+./.ai/start-codex.sh                 # Windows: .\.ai\start-codex.cmd
+```
+
+Review `.codex/config.toml` and accept Codex's project-trust prompt on first
+use. No separate MCP registration or machine-level asset sync is needed. See
+the **[quickstart](docs/quickstart.md)** for existing repositories, Claude Code,
+verification, and the first remember/recall cycle.
 
 ## Status
 
@@ -27,8 +44,8 @@ a thin routing seam (`route_check`), both of which delegate to
 [token-miser](https://github.com/cairnkeep/token-miser), a public
 cairnkeep-org sibling project.
 
-Version 2.11 adds guided `cairn setup`, the maintained Pi local stdio memory
-extension, and the native Windows operating layer.
+Version 2.12 adds a declarative harness registry, first-class Codex project
+setup, and a shorter path from installation to verified recall.
 
 ## Compatibility
 
@@ -43,7 +60,7 @@ and 20 are end-of-life upstream.
 | Kimi Code on Linux/macOS | Memory MCP server, project launcher, and opt-in `/graphify` Skill |
 | Qwen Code on Linux/macOS | Memory MCP server plus project launcher; no Cairnkeep operating-layer assets yet |
 | Pi on Linux/macOS | Memory MCP through a maintained local stdio extension; native opt-in trajectory extension, launcher, and `/graphify` prompt; Pi 0.84.1 minimum for the bridge |
-| Codex CLI | Memory MCP server; no Cairnkeep operating-layer assets |
+| Codex CLI on Linux/macOS | Project-scoped memory MCP configuration and launcher; no Cairnkeep-specific commands or hooks |
 | Other MCP clients | Memory plus optional domain-knowledge and context-pack MCP tools |
 | Native Windows x64 | Node-native CLI, guided setup, memory server, bootstrap compatibility, PowerShell/Command Prompt launchers, sync, hooks, doctor, storage lifecycle, Task Scheduler, completion, and uninstall |
 | Windows ARM64 | Supported through Windows x64 emulation only; a native database binding is not currently shipped |
@@ -60,7 +77,7 @@ installation, and clean Node 22/24/26 runtime checks are exercised in CI. See
 ACL, scheduling, process-tree, and recovery details.
 
 See [Harness compatibility](docs/harness-compatibility.md) for exact support
-levels, Kimi and Qwen configuration, and candidates that are not yet runtime-tested.
+levels, trust boundaries, and candidates that are not yet runtime-tested.
 
 ## Try with Podman
 
@@ -140,6 +157,7 @@ operating layer installed into your harness, and a configured project. `cairn
 setup` is the recommended guided entry point; `cairn bootstrap` remains the
 deterministic compatibility primitive for established scripts. Project setup
 reports but never performs machine-level sync. The full ordered walkthrough is
+in **[the quickstart](docs/quickstart.md)**; the complete operator reference is
 in **[docs/operating.md](docs/operating.md)**.
 
 This setup is local by default: the registered stdio server stores memory on
@@ -178,6 +196,13 @@ patterns/transactional-migrations: Use transactional migrations for schema chang
 
 The exact command rendering depends on the client. Any MCP client can call
 `memory_write` and `memory_search` directly.
+
+For Codex CLI, `cairn setup --harness codex --memory local` writes the
+project-scoped `.codex/config.toml` entry and both POSIX and native Windows
+launchers. Review the configuration and trust the project before launching.
+Existing operator-owned `.codex/config.toml` files are never overwritten; a
+reported `skipped` file must be merged by the operator and checked with
+`cairn doctor`.
 
 For Kimi Code, bootstrap supplies a launcher and Kimi reads the repository's
 MCP configuration. A local stdio entry uses `cairn memory-server`. Remote Kimi

@@ -46,6 +46,7 @@ bootstrap_output=$(cairn bootstrap "$tmp/project")
 [[ -x "$tmp/project/.ai/start-pi.sh" ]] || fail "bootstrap did not install an executable Pi launcher"
 [[ -x "$tmp/project/.ai/start-kimi.sh" ]] || fail "bootstrap did not install an executable Kimi launcher"
 [[ -x "$tmp/project/.ai/start-qwen.sh" ]] || fail "bootstrap did not install an executable Qwen launcher"
+[[ -x "$tmp/project/.ai/start-codex.sh" ]] || fail "bootstrap did not install an executable Codex launcher"
 [[ -f "$tmp/project/.planning/config.json" ]] || fail "bootstrap did not install the planning scaffold"
 
 (cd "$tmp/project" && cairn doctor) >/dev/null || fail "installed package failed cairn doctor"
@@ -267,6 +268,10 @@ NODE
   fail "npm tarball omitted the Kimi launcher template"
 [[ -f "$installed_root/templates/start-qwen.sh.template" ]] || \
   fail "npm tarball omitted the Qwen launcher template"
+[[ -f "$installed_root/templates/start-codex.sh.template" ]] || \
+  fail "npm tarball omitted the Codex launcher template"
+[[ -f "$installed_root/templates/codex-config.toml.template" ]] || \
+  fail "npm tarball omitted the Codex MCP configuration template"
 [[ -f "$installed_root/schemas/note.schema.json" ]] || \
   fail "npm tarball omitted the note schema"
 [[ -f "$installed_root/schemas/memory-node.schema.json" ]] || \

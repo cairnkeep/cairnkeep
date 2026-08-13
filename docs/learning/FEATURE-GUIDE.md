@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.11.0
+**Baseline:** Cairnkeep 2.12.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -8,8 +8,10 @@ synthetic Trail Ledger project with tagged states from a plain application to
 offline evaluation. Detailed contracts remain in the linked operating,
 storage, privacy, and lesson documents.
 
-Guided setup and the maintained Pi memory extension ship in v2.11. See
-[L23](lessons/L23-guided-setup.md) for the tested boundary.
+Guided setup and the maintained Pi memory extension shipped in v2.11. The v2.12
+harness registry adds first-class Codex project setup without granting project
+trust. See [L03](lessons/L03-first-project.md) and
+[L23](lessons/L23-guided-setup.md) for the tested boundaries.
 
 ## The three-layer model
 
@@ -52,7 +54,8 @@ prerequisites for ordinary memory.
 | Wiki and alignment | `/wiki-ingest`, `/wiki-query`, `/wiki-lint`, alignment files | Written only when invoked; reviewable `.planning/` artifacts | Re-run lint, inspect source citations, revert tracked changes normally | `course-02-memory` |
 | Local code graph | `cairn graph build|query|status|diff|explain|path`; `/graphify` delegates | Default off; optional isolated `graphify` executable; incremental work under `graphify-out/`, published view under `.planning/graphs/` | Ignore both derived locations; check status and source before trusting a result; use `--force` only after intentional deletion; uninstall adapters separately | `course-08-graph` |
 | Repository quality | `/repo-review`, `/security-audit` | On-demand workflow; findings are hypotheses until reproduced | Require file/line evidence and regression tests | `course-03-quality` |
-| Guided project setup | `cairn setup PATH --git init\|existing\|none --harness LIST --memory local\|none --yes` | Reconciles only selected project assets; private `.ai/cairnkeep.json`; machine sync is never automatic | Repeat deterministically, run doctor, or replay its recovery command; Git-less mode remains limited | `course-12-guided-setup` |
+| Guided project setup | `cairn setup PATH --git init\|existing\|none --harness LIST --memory local\|none --yes` | Reconciles only selected project assets from one harness registry; private `.ai/cairnkeep.json`; machine sync is never automatic | Repeat deterministically, run doctor, or replay its recovery command; Git-less mode remains limited | `course-12-guided-setup` |
+| Codex project memory | Select `--harness codex --memory local` | Writes `.codex/config.toml` plus POSIX/native Windows launchers; local stdio; user-wide configuration and trust remain untouched | Review the MCP table, accept Codex project trust, run doctor, and relaunch; uninstall is backup-first | `course-01-bootstrap` |
 
 ## Storage and optional topology
 
@@ -88,6 +91,8 @@ prerequisites for ordinary memory.
 ## Harness and maintenance checks
 
 - Use a generated launcher so project environment and hooks are repeatable.
+- For Codex, review `.codex/config.toml` and accept project trust; no machine
+  sync is required for the memory-only integration.
 - Run `cairn sync --check` after every core upgrade; apply only reported drift.
 - Run `cairn sync-pi --check` when the Pi memory/trajectory/graph assets are installed.
 - Run `cairn sync-kimi --check` when the optional Kimi graph Skill is installed.

@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+CAIRN_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+harnesses=$(node "$CAIRN_ROOT/scripts/harness-registry.mjs" ids)
 shell=${1:-}
 
 case "$shell" in
   bash)
-    cat <<'EOF'
+    sed "s/__CAIRN_HARNESSES__/$harnesses/g" <<'EOF'
 _cairn_complete() {
   local current previous commands
   COMPREPLY=()
@@ -18,7 +20,7 @@ _cairn_complete() {
   fi
   case "${COMP_WORDS[1]}" in
     bootstrap) COMPREPLY=( $(compgen -W "--untracked" -- "$current") ) ;;
-    setup) COMPREPLY=( $(compgen -W "--git --harness --memory --policy --yes --json init existing none claude opencode pi kimi qwen local" -- "$current") ) ;;
+    setup) COMPREPLY=( $(compgen -W "--git --harness --memory --policy --yes --json init existing none __CAIRN_HARNESSES__ local" -- "$current") ) ;;
     sync) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
     sync-pi) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
     sync-kimi) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
@@ -78,7 +80,7 @@ complete -F _cairn_complete cairn
 EOF
     ;;
   zsh)
-    cat <<'EOF'
+    sed "s/__CAIRN_HARNESSES__/$harnesses/g" <<'EOF'
 #compdef cairn
 _cairn() {
   local -a commands
@@ -112,7 +114,7 @@ _cairn() {
   fi
   case $words[2] in
     bootstrap) _arguments '--untracked[keep scaffold out of Git]' '*:project directory:_files -/' ;;
-    setup) _arguments '*:project directory:_files -/' '--git[Git mode]:mode:(init existing none)' '--harness[selected harnesses]:harnesses:(claude opencode pi kimi qwen)' '--memory[memory mode]:mode:(local none)' '--policy[setup policy]:file:_files' '--yes[confirm setup]' '--json[emit JSON]' ;;
+    setup) _arguments '*:project directory:_files -/' '--git[Git mode]:mode:(init existing none)' '--harness[selected harnesses]:harnesses:(__CAIRN_HARNESSES__)' '--memory[memory mode]:mode:(local none)' '--policy[setup policy]:file:_files' '--yes[confirm setup]' '--json[emit JSON]' ;;
     sync) _arguments '--apply[apply changes]' '--live-root[project Claude root]:directory:_files -/' ;;
     sync-pi) _arguments '--apply[apply changes]' '--live-root[Pi agent root]:directory:_files -/' ;;
     sync-kimi) _arguments '--apply[apply changes]' '--live-root[Kimi Code root]:directory:_files -/' ;;
@@ -175,7 +177,7 @@ _cairn "$@"
 EOF
     ;;
   fish)
-    cat <<'EOF'
+    sed "s/__CAIRN_HARNESSES__/$harnesses/g" <<'EOF'
 complete -c cairn -f
 for command in bootstrap setup memory-server sync sync-pi sync-kimi doctor trajectory artifact capabilities mcp-tools pack notes eval skill graph memory audit-timer uninstall completion version help
     complete -c cairn -n "not __fish_seen_subcommand_from bootstrap setup memory-server sync sync-pi sync-kimi doctor trajectory artifact capabilities mcp-tools pack notes eval skill graph memory audit-timer uninstall completion version help" -a $command
@@ -188,7 +190,7 @@ complete -c cairn -n "__fish_seen_subcommand_from sync-kimi" -l apply
 complete -c cairn -n "__fish_seen_subcommand_from sync-kimi" -l live-root -r
 complete -c cairn -n "__fish_seen_subcommand_from bootstrap" -l untracked
 complete -c cairn -n "__fish_seen_subcommand_from setup" -l git -r -a "init existing none"
-complete -c cairn -n "__fish_seen_subcommand_from setup" -l harness -r -a "claude opencode pi kimi qwen"
+complete -c cairn -n "__fish_seen_subcommand_from setup" -l harness -r -a "__CAIRN_HARNESSES__"
 complete -c cairn -n "__fish_seen_subcommand_from setup" -l memory -r -a "local none"
 complete -c cairn -n "__fish_seen_subcommand_from setup" -l policy -r
 complete -c cairn -n "__fish_seen_subcommand_from setup" -l yes

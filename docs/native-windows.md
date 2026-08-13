@@ -32,6 +32,20 @@ recovery contract as POSIX. It writes a restricted `.ai/cairnkeep.json` setup
 record and never syncs machine assets automatically. `cairn bootstrap` remains
 the deterministic compatibility primitive for existing scripts.
 
+For Codex memory without a harness-wide sync, select only Codex:
+
+```powershell
+cairn setup $Project --git init --harness codex --memory local --yes
+Set-Location $Project
+cairn doctor
+.\.ai\start-codex.cmd
+```
+
+Review `.codex\config.toml` and accept Codex's project-trust prompt. Setup does
+not edit the user-wide Codex configuration or grant trust. It preserves a
+different existing project configuration and doctor verifies a manually merged
+`mcp_servers.cairn-memory` table.
+
 Setup and bootstrap write both the established Unix launchers and native Windows
 launchers. Each `.cmd` file enters `start-harness.ps1`, loads `.ai/.env`, changes
 to the project root, and forwards arguments without shell interpolation.

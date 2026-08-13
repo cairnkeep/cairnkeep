@@ -3,12 +3,13 @@ import { accessSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, join, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { HARNESS_IDS, harnessProjectAssets } from "./harness-registry.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TEMPLATE_ROOT = join(ROOT, "templates");
 const POLICY_LIMIT_BYTES = 1024 * 1024;
 const GIT_MODES = Object.freeze(["init", "existing", "none"]);
-const HARNESSES = Object.freeze(["claude", "opencode", "pi", "kimi", "qwen"]);
+const HARNESSES = HARNESS_IDS;
 const MEMORY_MODES = Object.freeze(["local", "none"]);
 
 const COMMON_ASSETS = Object.freeze([
@@ -293,7 +294,8 @@ export function buildSetupPlan({ target, preflight, choices }) {
   if (choices.git !== "none" && preflight.gitExecutable === "missing") throw operational("missing-git", "The selected Git mode requires the Git executable.");
   const harnesses = HARNESSES.filter((name) => choices.harnesses.includes(name));
   const assets = [
-    ...harnesses.map((harness) => templateAsset(`start-${harness}.sh.template`, `.ai/start-${harness}.sh`, 0o755, harness)),
+    ...harnesses.flatMap((harness) => harnessProjectAssets(harness, choices.memory)
+      .map(({ template, path, mode }) => templateAsset(template, path, mode, harness))),
     ...COMMON_ASSETS.map(([template, path, mode]) => templateAsset(template, path, mode)),
   ];
   const version = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;

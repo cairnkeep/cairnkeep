@@ -16,6 +16,7 @@ import {
   runWindowsCommand,
 } from "./windows-platform.mjs";
 import { runNativeContainer } from "./cairn-container-cli.mjs";
+import { HARNESS_IDS } from "./harness-registry.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const sandbox = mkdtempSync(join(tmpdir(), "cairn-windows-native-"));
@@ -28,7 +29,7 @@ try {
   const project = join(sandbox, "Project with spaces – Unicode");
   mkdirSync(project, { recursive: true });
   bootstrapWindows(root, [project]);
-  for (const harness of ["claude", "opencode", "pi", "kimi", "qwen"]) {
+  for (const harness of HARNESS_IDS) {
     assert.ok(existsSync(join(project, ".ai", `start-${harness}.cmd`)), `${harness} cmd launcher`);
   }
   assert.match(readFileSync(join(project, ".ai", "start-claude.cmd"), "utf8"), /start-harness\.ps1/);
@@ -125,6 +126,28 @@ try {
     assert.match(powershellCompletion(), /--policy/);
     assert.match(powershellCompletion(), /--yes/);
     assert.match(powershellCompletion(), /--json/);
+    assert.match(powershellCompletion(), /codex/);
+
+    const codexProject = join(sandbox, "Guided Codex Project");
+    let codexOutput = "";
+    process.stdout.write = ((chunk) => {
+      codexOutput += String(chunk);
+      return true;
+    });
+    try {
+      await runWindowsCommand({
+        command: "setup",
+        args: [codexProject, "--git", "none", "--harness", "codex", "--memory", "local", "--yes", "--json"],
+        root,
+      });
+    } finally {
+      process.stdout.write = originalWrite;
+    }
+    const codexResult = JSON.parse(codexOutput);
+    assert.deepEqual(codexResult.harnesses, ["codex"]);
+    assert.equal(codexResult.machine_sync.command, null);
+    assert.ok(existsSync(join(codexProject, ".ai", "start-codex.cmd")));
+    assert.match(readFileSync(join(codexProject, ".codex", "config.toml"), "utf8"), /mcp_servers\.cairn-memory/);
     console.log("PASS: simulated Windows setup parity, private state, recovery, and completion contract");
   }
 } finally {

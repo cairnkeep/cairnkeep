@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Operator
 **Time:** 30 minutes
-**Tested with:** Cairnkeep 2.11.0, Windows x64, and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.12.0, Windows x64, and Node.js 22 or newer
 
 ## Outcome
 
@@ -16,7 +16,7 @@ perform a reversible uninstall without relying on WSL or Git Bash.
 From PowerShell:
 
 ```powershell
-npm install --global @cairnkeep/cli@2.11.0
+npm install --global @cairnkeep/cli@2.12.0
 cairn version
 
 $Lab = Join-Path $env:TEMP 'Cairnkeep Windows Lab'

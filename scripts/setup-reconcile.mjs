@@ -16,16 +16,17 @@ import {
 import { open, rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { HARNESS_IDS } from "./harness-registry.mjs";
 
 export const SETUP_STATE_SCHEMA_VERSION = 1;
 
-const HARNESSES = Object.freeze(["claude", "opencode", "pi", "kimi", "qwen"]);
+const HARNESSES = HARNESS_IDS;
 const GIT_MODES = Object.freeze(["init", "existing", "none"]);
 const MEMORY_MODES = Object.freeze(["local", "none"]);
 const STATE_KEYS = Object.freeze(["schema_version", "cairnkeep_version", "git", "memory", "harnesses", "assets"]);
 const ASSET_KEYS = Object.freeze(["digest", "mode", "template"]);
 const DIGEST_PATTERN = /^[a-f0-9]{64}$/;
-const RELATIVE_PATH_PATTERN = /^\.(?:ai|planning|agentfs)\/(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._/-]+$/;
+const RELATIVE_PATH_PATTERN = /^\.(?:ai|planning|agentfs|codex)\/(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._/-]+$/;
 const TEMPLATE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 export function hashSetupAsset(bytes) {
