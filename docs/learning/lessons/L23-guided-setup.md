@@ -3,13 +3,17 @@
 **Status:** Ready
 **Track:** Quickstart and Operator
 **Time:** 35 minutes
-**Tested with:** Cairnkeep 2.11.0; Pi 0.84.1; Node.js 22, 24, and 26
+**Tested with:** Cairnkeep 2.12.0; Pi 0.84.1; Node.js 22, 24, and 26
 
 ## Outcome
 
 You can classify a missing or empty target, replay setup without a TTY, explain
 the limitations of Git-less mode, verify Pi's local stdio memory bridge, and
 recover or uninstall every managed asset without hidden machine changes.
+
+The selected harnesses come from Cairnkeep's declarative registry. Codex is a
+supported selection: it receives `.codex/config.toml` and a launcher, while Pi
+continues to require its separate explicit machine sync.
 
 ## Prerequisites
 
@@ -130,7 +134,7 @@ prompts, approve skills, create an autonomous loop, or add remote access.
 
 ## Release boundary
 
-Ready means this lesson and its deterministic contracts pass against v2.11.0.
+Ready means this lesson and its deterministic contracts pass against v2.12.0.
 Release readiness requires a non-skipping acceptance run
 against separate Pi 0.84.1 minimum and explicitly versioned registry-current
 installations, plus the documented Node.js, Bash 3.2, and native Windows matrix.

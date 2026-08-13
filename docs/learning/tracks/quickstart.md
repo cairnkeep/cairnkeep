@@ -13,8 +13,9 @@
 The track is complete when a learner can start a new harness session, retrieve
 a previously accepted fact, and explain that default stdio memory is stored on
 the local machine rather than a discovered remote service. L03 uses the
-recommended guided entry point; L23 extends that contract to Pi's maintained
-local stdio bridge while keeping machine sync explicit.
+recommended guided entry point and offers Codex's project-scoped path without a
+separate machine sync; L23 extends that contract to Pi's maintained local stdio
+bridge while keeping its machine sync explicit.
 
 Hands-on spine: `course-00-app` through `course-01-bootstrap`, followed by
 `course-12-guided-setup`, in the public

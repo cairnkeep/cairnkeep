@@ -20,6 +20,7 @@ import { gzipSync, gunzipSync } from "node:zlib";
 import { spawnSync } from "node:child_process";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { homedir, tmpdir } from "node:os";
+import { HARNESS_IDS, harnessProjectAssets } from "./harness-registry.mjs";
 
 const BOOTSTRAP_FILES = [
   ["env.example.template", ".ai/env.example"],
@@ -39,7 +40,7 @@ const BOOTSTRAP_FILES = [
   ["security-policy.md.template", ".planning/security/policy.md"],
 ];
 
-const HARNESSES = ["claude", "opencode", "pi", "kimi", "qwen"];
+const HARNESSES = HARNESS_IDS;
 const HOOK_EVENTS = new Map([
   ["memory-wakeup", ["SessionStart", ""]],
   ["memory-capture", ["SessionEnd", ""]],
@@ -249,7 +250,8 @@ export function bootstrapWindows(root, args) {
     installFile(join(templates, source), join(target, ...destination.split("/")), destination.endsWith("capabilities.json") ? 0o600 : 0o644);
   }
   for (const harness of HARNESSES) {
-    installFile(join(templates, `start-${harness}.sh.template`), join(target, ".ai", `start-${harness}.sh`), 0o755);
+    const asset = harnessProjectAssets(harness, "local")[0];
+    installFile(join(templates, asset.template), join(target, ...asset.path.split("/")), asset.mode);
     const cmdPath = join(target, ".ai", `start-${harness}.cmd`);
     if (!existsSync(cmdPath)) atomicWrite(cmdPath, windowsLauncher(harness), 0o755);
   }
@@ -267,7 +269,9 @@ export function bootstrapWindows(root, args) {
   }
 
   console.log(`\nCairnkeep bootstrapped into ${target}`);
-  console.log(`Launch from PowerShell or Command Prompt with ${join(target, ".ai", "start-claude.cmd")}`);
+  console.log(`Codex: run 'cairn setup' in the project and select Codex, review trust, then use ${join(target, ".ai", "start-codex.cmd")}`);
+  console.log(`Claude: register 'cairn memory-server', run 'cairn sync --apply', then use ${join(target, ".ai", "start-claude.cmd")}`);
+  console.log("For new projects, prefer 'cairn setup'; guide: docs/quickstart.md");
 }
 
 function walkFiles(root, predicate = () => true, prefix = "") {
@@ -616,7 +620,10 @@ function uninstallWindows(root, args) {
   for (const project of projects) {
     const base = resolve(project);
     for (const [, rel] of BOOTSTRAP_FILES) targets.push(join(base, ...rel.split("/")));
-    for (const harness of HARNESSES) targets.push(join(base, ".ai", `start-${harness}.cmd`));
+    for (const harness of HARNESSES) {
+      for (const asset of harnessProjectAssets(harness, "local")) targets.push(join(base, ...asset.path.split("/")));
+      targets.push(join(base, ".ai", `start-${harness}.cmd`));
+    }
     targets.push(join(base, ".ai", "start-harness.mjs"));
     targets.push(join(base, ".ai", "start-harness.ps1"));
     if (options.has("--purge-memory")) targets.push(join(base, ".agentfs"));
@@ -685,10 +692,11 @@ foreach ($Item in $Manifest.items) {
 }
 
 export function powershellCompletion() {
+  const harnesses = HARNESS_IDS.map((id) => `'${id}'`).join(",");
   return `Register-ArgumentCompleter -Native -CommandName cairn -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
   $commands = 'bootstrap','setup','memory-server','sync','sync-pi','sync-kimi','doctor','trajectory','artifact','capabilities','mcp-tools','pack','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
-  $setup = '--git','--harness','--memory','--policy','--yes','--json','init','existing','none','claude','opencode','pi','kimi','qwen','local'
+  $setup = '--git','--harness','--memory','--policy','--yes','--json','init','existing','none',${harnesses},'local'
   $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } else { $commands }
   $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
     [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)

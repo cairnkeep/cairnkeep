@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart
 **Time:** 25 minutes
-**Tested with:** Cairnkeep 2.11.0 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.12.0 and Node.js 22 or newer
 
 ## Outcome
 
@@ -13,7 +13,8 @@ layer, and distinguish a complete installation from a partial one.
 ## Prerequisites
 
 - Node.js 22 or newer and npm.
-- Claude Code installed for the commands below. OpenCode, Kimi Code, and Qwen Code users
+- Claude Code installed for the full operating-layer commands below. Codex CLI
+  users can take the project-scoped path in L03. OpenCode, Kimi Code, and Qwen Code users
   should follow the equivalent setup in
   [the operating guide](../../operating.md).
 - Permission to install an npm package globally for your user.
@@ -30,6 +31,10 @@ A complete setup has three independent parts:
 machine-level steps. `cairn bootstrap` remains the compatibility primitive for
 scripts and overlays that already own their setup policy.
 
+Codex is the simpler memory-only exception: L03 writes its project-scoped MCP
+entry and launcher, so it needs no user-wide MCP registration or machine-level
+sync. Codex project trust remains an explicit operator decision.
+
 ## Exercise
 
 1. Confirm the runtime:
@@ -42,7 +47,7 @@ scripts and overlays that already own their setup policy.
 2. Install Cairnkeep:
 
    ```bash
-   npm install --global @cairnkeep/cli@2.11.0
+   npm install --global @cairnkeep/cli@2.12.0
    cairn --version
    ```
 

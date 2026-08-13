@@ -14,12 +14,12 @@
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": {"enum": ["claude", "opencode", "pi", "kimi", "qwen"]}
+      "items": {"enum": ["claude", "opencode", "pi", "kimi", "qwen", "codex"]}
     },
     "assets": {
       "type": "object",
       "propertyNames": {
-        "pattern": "^\\.(?:ai|planning|agentfs)/(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$"
+        "pattern": "^\\.(?:ai|planning|agentfs|codex)/(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$"
       },
       "additionalProperties": {
         "type": "object",

@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bootstrapWindows } from "./windows-platform.mjs";
+import { HARNESS_IDS } from "./harness-registry.mjs";
 
 const EXPECTED_RED_EXIT = 86;
 const RED_MARKER = "PHASE26_RED:SETUP_RECONCILE_MISSING";
@@ -25,8 +26,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
 const setupCorePath = join(here, "setup-core.mjs");
 const setupReconcilePath = join(here, "setup-reconcile.mjs");
-const HARNESSES = ["claude", "opencode", "pi", "kimi", "qwen"];
-const MANAGED_ROOTS = [".ai", ".planning", ".agentfs"];
+const HARNESSES = HARNESS_IDS;
+const MANAGED_ROOTS = [".ai", ".codex", ".planning", ".agentfs"];
 
 function run(executable, args, options = {}) {
   const result = spawnSync(executable, args, {
@@ -141,9 +142,9 @@ async function testSetupCompatibility(production, sandbox, legacy) {
     choices: Object.freeze({ git: "existing", harnesses: HARNESSES, memory: "local", confirmed: true }),
   });
   const result = await production.reconcile.reconcileSetupPlan(plan);
-  assert.deepEqual(result.counts, { created: legacy.posixBefore.size, updated: 0, unchanged: 0, skipped: 0 });
+  assert.deepEqual(result.counts, { created: legacy.posixBefore.size + 1, updated: 0, unchanged: 0, skipped: 0 });
   const current = snapshot(target);
-  assertSnapshotEqual(current, legacy.posixBefore, "deterministic setup", [".ai/cairnkeep.json"]);
+  assertSnapshotEqual(current, legacy.posixBefore, "deterministic setup", [".ai/cairnkeep.json", ".codex/config.toml"]);
   assert.ok(current.has(".ai/cairnkeep.json"), "setup state missing");
   const state = JSON.parse(current.get(".ai/cairnkeep.json").bytes.toString("utf8"));
   assert.deepEqual(state.harnesses, HARNESSES);

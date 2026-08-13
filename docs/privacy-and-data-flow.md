@@ -37,6 +37,7 @@ request unless the corresponding endpoint and credential are configured.
 | Explicit artifact read/show | The redacted body only when HTTP is separately enabled and the operator/client explicitly reads it | Local terminal/stdio, or the explicitly registered authenticated server |
 | Opt-in evaluation coordinator | Adapter-defined inference may leave the machine only according to the explicit operator-owned adapter and inherited environment | Local adapter subprocess; Cairnkeep supplies no provider, endpoint, credential, model, or network default |
 | Guided project setup | None | Selected scaffold assets and private `.ai/cairnkeep.json` state in the target; machine sync is never automatic |
+| Codex project setup and launcher | None | Local `.codex/config.toml` starts `cairn memory-server` over stdio only after the operator trusts the project |
 | Pi memory extension | None | Local `cairn memory-server` stdio child; no HTTP transport is inherited |
 
 Model endpoints may be local or remote. Cairnkeep cannot determine a provider's
@@ -93,7 +94,7 @@ and its generated `revert.sh` restores exact bytes, modes, and layout. Explicit
 `cairn eval delete` and `prune` remove selected contained experiment trees with
 no hidden tombstone.
 
-## Guided setup and Pi bridge
+## Guided setup, Codex, and Pi bridge
 
 Guided setup performs a read-only target and Git preflight before project
 writes. Its schema-v1 `.ai/cairnkeep.json` record contains the package version,
@@ -102,6 +103,12 @@ digests, modes, and template identifiers. It does not contain credentials,
 endpoints, absolute paths, prompts, or memory values. The file is mode `0600`
 on POSIX and receives the private managed-file ACL on native Windows. Setup
 never invokes machine sync, and it does not start a harness or server child.
+
+Selecting Codex with local memory adds a non-secret project MCP table that
+invokes `cairn memory-server`. Setup never edits user-wide Codex configuration,
+grants project trust, or overwrites a different `.codex/config.toml`. Doctor can
+validate a manually merged Cairnkeep table without claiming ownership of the
+surrounding operator configuration, and uninstall leaves that file intact.
 
 When the explicitly installed Pi memory extension starts a session, it spawns
 `cairn memory-server` as a child in the project directory over local stdio. The
