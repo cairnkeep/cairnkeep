@@ -53,6 +53,15 @@ Optional `.ai/pre-launch.ps1` and `.ai/post-exit.ps1` seams run in the same
 PowerShell process, so exported environment changes reach the harness. The post
 hook receives `$env:CAIRN_EXIT_STATUS`.
 
+With `CAIRN_WORK_EVIDENCE=1`, the native PowerShell launcher routes all selected
+harnesses through `cairn evidence run`. It uses the system `git.exe`, writes the
+same private project-local format as POSIX systems, and preserves the harness
+exit status. Missing Git, a non-repository directory or capture failure warns
+and launches the harness directly. Optional patch capture additionally requires
+`CAIRN_WORK_EVIDENCE_PATCH=1` and `CAIRN_ARTIFACT_STORE=1`; Windows atomic
+replacement uses the platform file-replace primitive rather than POSIX rename
+semantics.
+
 ## MCP and operating assets
 
 Register the stdio server exactly as on other platforms:

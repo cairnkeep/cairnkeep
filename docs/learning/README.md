@@ -44,7 +44,7 @@ expanded only after their labs are executable.
 | L10 | [Faster context exploration](lessons/L10-context-exploration.md) | Brief | 30 min |
 | L11 | [Containers and isolation](lessons/L11-containers.md) | Brief | 40 min |
 | L12 | [Managed overlays](lessons/L12-managed-overlays.md) | Brief | 45 min |
-| L13 | [Session evidence and hindsight](lessons/L13-session-evidence.md) | Brief | 45 min |
+| L13 | [Session evidence and hindsight](lessons/L13-session-evidence.md) | Brief | 60 min |
 | L14 | [Typed memory and controlled import](lessons/L14-typed-memory.md) | Brief | 40 min |
 | L15 | [Capability governance](lessons/L15-capability-governance.md) | Brief | 35 min |
 | L16 | [Evaluation and ablation](lessons/L16-evaluation.md) | Brief | 50 min |

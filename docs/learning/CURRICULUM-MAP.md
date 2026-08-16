@@ -1,6 +1,6 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.12.0
+**Baseline:** Cairnkeep 2.13.0
 **Last reviewed:** 2026-08-13
 
 This map prevents the course from drifting behind the product. It assigns each
@@ -27,6 +27,7 @@ been rehearsed.
 | Structured trajectories and Pi capture adapter | L13 | L13 | Brief; default off |
 | Hindsight-note distillation, lookup, enrichment, and promotion | L13 | L13-L14 | Brief; default off |
 | Compaction continuity and immutable artifacts | L13 | L13 | Brief; default off |
+| Git-linked work evidence | L13 | L13 | Lab + recording outline; default off |
 | Typed memory nodes, filters, address spaces, and structured import | L14 | L14 | Brief; default off |
 | Managed eight-capability contract and payload-free callbacks | L15 | L15-L16 | Brief; default off |
 | Deterministic two-pass evaluation and one-capability ablation | L16 | L16 | Brief; default off |
@@ -88,6 +89,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn doctor` | L03; advanced repair in L13-L14 |
 | `cairn trajectory` | L13 |
 | `cairn artifact` | L13 |
+| `cairn evidence` | L13 |
 | `cairn capabilities` | L15 |
 | `cairn mcp-tools` | L20 |
 | `cairn pack` | L21 |

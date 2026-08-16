@@ -292,6 +292,10 @@ for module in artifact-schema artifact-store compaction-normalize artifact-cli; 
   [[ -f "$installed_root/mcp-memory-server/dist/$module.js" ]] || \
     fail "npm tarball omitted compiled $module"
 done
+for module in work-evidence-schema work-evidence-store work-evidence-cli; do
+  [[ -f "$installed_root/mcp-memory-server/dist/$module.js" ]] || \
+    fail "npm tarball omitted compiled $module"
+done
 [[ -x "$installed_root/claude/hooks/compaction-capture.sh" ]] || \
   fail "npm tarball omitted the executable Claude compaction hook"
 [[ -f "$installed_root/opencode/plugins/memory-capture.ts" ]] || \

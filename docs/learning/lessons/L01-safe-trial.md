@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart
 **Time:** 15 minutes
-**Tested with:** Cairnkeep 2.12.0
+**Tested with:** Cairnkeep 2.13.0
 
 ## Outcome
 
@@ -26,7 +26,7 @@ ephemeral; the named course volume is persistent.
 1. Pull the public image:
 
    ```bash
-   podman pull ghcr.io/cairnkeep/cairnkeep:2.12.0
+   podman pull ghcr.io/cairnkeep/cairnkeep:2.13.0
    ```
 
 2. Start the stdio server with a read-only root filesystem and no Linux
@@ -38,7 +38,7 @@ ephemeral; the named course volume is persistent.
      --read-only --cap-drop=all --security-opt=no-new-privileges \
      --tmpfs=/tmp:rw,noexec,nosuid,size=64m,mode=1777 \
      --volume cairnkeep-course-data:/data:Z,U \
-     ghcr.io/cairnkeep/cairnkeep:2.12.0 stdio
+     ghcr.io/cairnkeep/cairnkeep:2.13.0 stdio
    ```
 
 3. The process waits quietly for MCP input. Press `Ctrl-C` after confirming it

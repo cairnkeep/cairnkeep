@@ -66,7 +66,9 @@ async function captureClaude(args: string[]): Promise<void> {
     const normalized = await normalizeClaudeTranscript(transcriptPath, projectRoot);
     const redacted = redactTrajectory(normalized, projectRoot);
     const fitted = fitTrajectoryToBytes(redacted, limits.sessionMaxBytes);
-    await putTrajectory(projectRoot, fitted, limits);
+    const stored = await putTrajectory(projectRoot, fitted, limits);
+    const { linkActiveWorkEvidence } = await import("./work-evidence-store.js");
+    await linkActiveWorkEvidence(projectRoot, { kind: "trajectory", trajectory_id: stored.session_id });
 }
 
 async function captureOpenCode(args: string[]): Promise<void> {
@@ -76,7 +78,9 @@ async function captureOpenCode(args: string[]): Promise<void> {
     const normalized = normalizeOpenCodeSession(JSON.parse(await readStdin()), projectRoot);
     const redacted = redactTrajectory(normalized, projectRoot);
     const fitted = fitTrajectoryToBytes(redacted, limits.sessionMaxBytes);
-    await putTrajectory(projectRoot, fitted, limits);
+    const stored = await putTrajectory(projectRoot, fitted, limits);
+    const { linkActiveWorkEvidence } = await import("./work-evidence-store.js");
+    await linkActiveWorkEvidence(projectRoot, { kind: "trajectory", trajectory_id: stored.session_id });
 }
 
 async function capturePi(args: string[]): Promise<void> {
@@ -86,7 +90,9 @@ async function capturePi(args: string[]): Promise<void> {
     const normalized = normalizePiSession(JSON.parse(await readStdin()), projectRoot);
     const redacted = redactTrajectory(normalized, projectRoot);
     const fitted = fitTrajectoryToBytes(redacted, limits.sessionMaxBytes);
-    await putTrajectory(projectRoot, fitted, limits);
+    const stored = await putTrajectory(projectRoot, fitted, limits);
+    const { linkActiveWorkEvidence } = await import("./work-evidence-store.js");
+    await linkActiveWorkEvidence(projectRoot, { kind: "trajectory", trajectory_id: stored.session_id });
 }
 
 async function main(): Promise<void> {

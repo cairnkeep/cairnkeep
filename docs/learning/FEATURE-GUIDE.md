@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.12.0
+**Baseline:** Cairnkeep 2.13.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -12,6 +12,9 @@ Guided setup and the maintained Pi memory extension shipped in v2.11. The v2.12
 harness registry adds first-class Codex project setup without granting project
 trust. See [L03](lessons/L03-first-project.md) and
 [L23](lessons/L23-guided-setup.md) for the tested boundaries.
+Version 2.13 adds local Git-linked work evidence around all generated harness
+launchers; [L13](lessons/L13-session-evidence.md) covers its privacy and
+retention contract.
 
 ## The three-layer model
 
@@ -35,7 +38,7 @@ Run setup in that order, then confirm `cairn doctor`, `cairn sync --check`, and
 | 2 | Wiki, alignment, graph, repository/security review | Tracked derived knowledge and quality workflows are sufficient |
 | 3 | Backup, migration, multiple-machine routing | Storage placement and recovery are predictable |
 | 4 | Document RAG or context exploration | An optional external corpus or faster repository exploration is justified |
-| 5 | Trajectories, notes, compaction, artifacts | Local session evidence has an explicit retention purpose |
+| 5 | Trajectories, notes, compaction, artifacts, Git work evidence | Local session evidence has an explicit retention purpose |
 | 6 | Typed nodes and capability governance | Filtering and centrally inspectable feature state are needed |
 | 7 | Evaluation and ablation | A concrete change needs bounded measurement |
 | 8 | Validated skill improvement | Repeated resolved hindsight warrants a measured skill change |
@@ -81,6 +84,7 @@ prerequisites for ordinary memory.
 | Note enrichment | Distillation plus separate enrichment flag, endpoint, key, and model | No server restart for the offline job | Failure leaves deterministic note usable; unset enrichment flag | `course-05-evidence` |
 | Compaction continuity | `CAIRN_COMPACTION_CAPTURE=1` | Sync assets and relaunch harness | Inspect provenance/age; remove retained local artifacts explicitly | `course-05-evidence` |
 | Artifact tools | `CAIRN_ARTIFACT_STORE=1`; HTTP needs a second flag and existing HTTP auth | Restart MCP server when tool exposure changes | `cairn artifact list|show|delete|prune` with dry runs | `course-05-evidence` |
+| Git-linked work evidence | `CAIRN_WORK_EVIDENCE=1`; optional patch also needs `CAIRN_WORK_EVIDENCE_PATCH=1` and the artifact store | Relaunch through a generated harness launcher | `cairn evidence list|show|delete|prune|doctor`; local only, no restore/apply | `course-05-evidence` |
 | Typed nodes/import | `CAIRN_TYPED_MEMORY_NODES=1` | Restart MCP server; tool schema changes | Hard-filter search; dry-run, replay-safe import; `cairn doctor --repair` only for derived state | `course-05-evidence` |
 | Capability contract | `CAIRN_CAPABILITY_CONTRACT=1` | MCP changes require restart; operating changes apply next invocation | `cairn capabilities list|status|enable|disable|reset|logging`; digest identifies state only | `course-06-governance` |
 | Evaluation | `CAIRN_EVAL=1` for the coordinator process | No harness chosen by Cairnkeep | `validate` before `run`; inspect report, missingness and evidence scope; dry-run prune/delete | `course-07-evaluation` |

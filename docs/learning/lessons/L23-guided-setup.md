@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart and Operator
 **Time:** 35 minutes
-**Tested with:** Cairnkeep 2.12.0; Pi 0.84.1; Node.js 22, 24, and 26
+**Tested with:** Cairnkeep 2.13.0; Pi 0.84.1; Node.js 22, 24, and 26
 
 ## Outcome
 
@@ -134,7 +134,7 @@ prompts, approve skills, create an autonomous loop, or add remote access.
 
 ## Release boundary
 
-Ready means this lesson and its deterministic contracts pass against v2.12.0.
+Ready means this lesson and its deterministic contracts pass against v2.13.0.
 Release readiness requires a non-skipping acceptance run
 against separate Pi 0.84.1 minimum and explicitly versioned registry-current
 installations, plus the documented Node.js, Bash 3.2, and native Windows matrix.

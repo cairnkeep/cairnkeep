@@ -32,7 +32,7 @@ verification, and the first remember/recall cycle.
 ## Status
 
 Shipped: the memory server, the `cairn` CLI (`setup`, `bootstrap`, `memory-server`, `sync`, `sync-pi`, `sync-kimi`,
-`doctor`, `trajectory`, `artifact`, `mcp-tools`, `pack`, `notes`, `memory`, `eval`, `audit-timer`, `completion`, `uninstall`) installable via
+`doctor`, `trajectory`, `artifact`, `evidence`, `mcp-tools`, `pack`, `notes`, `memory`, `eval`, `audit-timer`, `completion`, `uninstall`) installable via
 `npm i -g @cairnkeep/cli`, and the
 operating layer (commands,
 agents, hooks) installed on Claude Code and OpenCode, plus the native Pi
@@ -46,6 +46,8 @@ cairnkeep-org sibling project.
 
 Version 2.12 adds a declarative harness registry, first-class Codex project
 setup, and a shorter path from installation to verified recall.
+Version 2.13 adds opt-in local Git-linked work evidence around generated harness
+launchers, including native Windows, without capturing prompts or replacing Git.
 
 ## Compatibility
 
@@ -329,6 +331,12 @@ search):
 | `CAIRN_TRAJECTORY_RETENTION_DAYS` | Retain captured sessions for this many days (default `30`) |
 | `CAIRN_TRAJECTORY_REDACTION_FILE` | Optional project-contained redaction config (default `.ai/trajectory-redaction.json` when present) |
 | `CAIRN_REDACTION_FILE` | Optional project-contained redaction config shared by trajectories and artifacts (falls back to `CAIRN_TRAJECTORY_REDACTION_FILE`) |
+| `CAIRN_WORK_EVIDENCE` | Capture bounded Git state around generated harness launches (off by default) |
+| `CAIRN_WORK_EVIDENCE_PATCH` | Request an optional redacted patch artifact (off by default; also requires `CAIRN_ARTIFACT_STORE`) |
+| `CAIRN_WORK_EVIDENCE_RETENTION_DAYS` | Work-evidence retention (default `30`; `0` disables age pruning) |
+| `CAIRN_WORK_EVIDENCE_STORE_MAX_BYTES` | Project-local work-evidence metadata budget (default `67108864`, 64 MiB) |
+| `CAIRN_WORK_EVIDENCE_MAX_TOUCHED_PATHS` | Maximum touched-path labels per record (default and hard maximum `4096`) |
+| `CAIRN_WORK_EVIDENCE_PATCH_MAX_BYTES` | Maximum optional patch bytes (default `1048576`, 1 MiB; the artifact cap can lower it) |
 | `CAIRN_COMPACTION_CAPTURE` | Opt in to local harness-produced compaction capture and fresh-session recovery (off by default) |
 | `CAIRN_ARTIFACT_STORE` | Expose four local stdio artifact tools (off by default; independent of compaction capture) |
 | `CAIRN_ARTIFACT_HTTP` | Separately consent to artifact tools over authenticated HTTP (off by default; also requires `CAIRN_ARTIFACT_STORE`) |
@@ -516,6 +524,17 @@ only digests, counts, keys, and actions—never supplied values. The default
 reject policy cannot overwrite; explicit supersede preserves typed history.
 Note addresses require `scope: project` and logical keys, never filesystem
 paths. See the [operating guide](docs/operating.md#typed-memory-nodes-and-note-address-spaces-opt-in).
+
+### Git-linked work evidence (opt-in)
+
+`CAIRN_WORK_EVIDENCE=1` makes generated Claude Code, OpenCode, Pi, Kimi, Qwen
+and Codex launchers record bounded start/end Git state and links to exact local
+trajectories, artifacts and reviewed-memory writes. It records no prompts,
+keystrokes or reasoning, and harness launch remains fail-open when Git or
+capture is unavailable. Inspect it with `cairn evidence list|show|delete|prune|doctor`.
+Optional patch capture requires both `CAIRN_WORK_EVIDENCE_PATCH=1` and
+`CAIRN_ARTIFACT_STORE=1`; Cairnkeep never applies or restores a patch. See the
+[work-evidence guide](docs/work-evidence.md).
 
 ### Compaction continuity and artifacts (opt-in)
 

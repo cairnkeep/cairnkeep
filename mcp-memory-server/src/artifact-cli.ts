@@ -102,7 +102,9 @@ async function captureClaude(projectRoot: string, args: string[]): Promise<void>
         });
         return;
     }
-    await putArtifact(projectRoot, artifactInput(normalized));
+    const result = await putArtifact(projectRoot, artifactInput(normalized));
+    const { linkActiveWorkEvidence } = await import("./work-evidence-store.js");
+    await linkActiveWorkEvidence(projectRoot, { kind: "artifact", artifact_id: result.artifact.artifact_id });
 }
 
 async function captureOpenCode(projectRoot: string): Promise<void> {
@@ -116,7 +118,9 @@ async function captureOpenCode(projectRoot: string): Promise<void> {
         await recordUnsupportedCompactionAdapter(projectRoot, { harness: "opencode", harness_version: version, reason: "unsupported_version" });
         return;
     }
-    await putArtifact(projectRoot, artifactInput(normalized));
+    const result = await putArtifact(projectRoot, artifactInput(normalized));
+    const { linkActiveWorkEvidence } = await import("./work-evidence-store.js");
+    await linkActiveWorkEvidence(projectRoot, { kind: "artifact", artifact_id: result.artifact.artifact_id });
 }
 
 async function recover(projectRoot: string, args: string[]): Promise<void> {

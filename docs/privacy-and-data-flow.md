@@ -23,6 +23,8 @@ request unless the corresponding endpoint and credential are configured.
 | Remote HTTP memory | MCP requests and responses, including memory content | The explicitly registered Cairnkeep HTTP server |
 | Opt-in trajectory capture | None | Local `<project>/.agentfs/trajectory.db` only; no model or HTTP path exists |
 | Opt-in capability callback records | None | Payload-free final metadata in local `<project>/.agentfs/trajectory.db`; HTTP transport is always skipped |
+| Opt-in Git-linked work evidence | Repository-relative Git state and exact local object identifiers | Local `<Git root>/.agentfs/work-evidence/v1/`; HTTP transport is always skipped |
+| Separately enabled work-evidence patch | Redacted tracked diff from the starting commit to the ending worktree | Local artifact store only; requires both work-evidence patch and artifact-store consent |
 | Opt-in deterministic note distillation | None | Reads redacted closed trajectories; writes local Markdown + manifest under `${CAIRN_AGENTFS_BASE_DIR:-~/.cairnkeep}/notes/` |
 | Separately opted-in note enrichment | `CAIRN_LLM_API_KEY` | Sends bounded redacted note evidence to the explicit `CAIRN_LLM_API_URL` chat endpoint |
 | Typed lifecycle and inline `memory_import` over local stdio | None | Values, metadata, digests, replay bindings, and history remain in the selected local store |
@@ -330,6 +332,40 @@ controls. It exposes only the four artifact tools, never trajectories,
 compaction hooks, or a generic filesystem. With HTTP consent absent, remote
 clients cannot observe artifact schemas or content. Artifacts have no default egress.
 Artifacts have no telemetry; local capture/recovery never uses the HTTP route.
+
+## Git-linked work evidence
+
+Work evidence is disabled unless `CAIRN_WORK_EVIDENCE=1` is present in the
+launcher environment. Generated launchers observe Git immediately before and
+after the harness process and store commit, branch/detached/unborn and dirty
+state, canonical status/workspace digests, bounded touched-path labels,
+timestamps and exit status. Descendant processes may append exact identifiers
+for trajectories, artifacts and reviewed-memory writes. They do not copy those
+bodies into the evidence record.
+
+Workspace digests are derived from Git object state and can include the hashes
+of observed untracked content. Bodies are not retained, but hashing is not
+redaction: an observer can test guesses for low-entropy content. Keep secrets
+out of project worktrees and do not enable this feature when path labels or
+content-derived digests exceed the project's retention policy.
+
+No prompt, keystroke, shell history, environment value or model reasoning is
+captured. Repository-relative path labels are retained because they are needed
+to explain the observed worktree transition. Concurrent processes are not
+distinguishable, and a path restored to its starting state is not reported as
+touched. The record is evidence of an interval and integrity relationships, not
+proof of authorship.
+
+Optional patch capture requires both `CAIRN_WORK_EVIDENCE_PATCH=1` and
+`CAIRN_ARTIFACT_STORE=1`. The diff is computed from the start commit to the end
+worktree, so it can contain tracked edits that existed before launch. Untracked
+bodies are omitted. Existing recursive redaction and the lower configured byte
+cap apply before the artifact is persisted. Cairnkeep never applies, restores
+or sends the patch.
+
+`work_evidence_list` and `work_evidence_read` are local-stdio-only observation
+tools. They are absent when the feature is off and absent from authenticated
+HTTP even when it is on. No work-evidence path performs a network request.
 
 ## Structured trajectory capture
 

@@ -20,6 +20,7 @@ registration, memory remains on that computer.
 | `project` | `<server working directory>/.agentfs/project.db` |
 | Opt-in session trajectories and capability callback state | `<harness project root>/.agentfs/trajectory.db` |
 | Opt-in local artifacts and compaction revisions | `<project root>/.agentfs/artifacts.db` |
+| Opt-in Git-linked work evidence | `<Git root>/.agentfs/work-evidence/v1/` |
 | Opt-in evaluation reports and note snapshots | `<project root>/.agentfs/eval/experiments/<experiment-id>/` |
 | Immutable context-pack objects and source records | `${CAIRN_PACK_BASE_DIR:-~/.cairnkeep/packs}/objects/` and `sources/` |
 | Digest-pinned context-pack project pointers and approvals | `${CAIRN_PACK_BASE_DIR:-~/.cairnkeep/packs}/projects/` |
@@ -127,6 +128,31 @@ all-project runs. Occurrence provenance is capped at 1024 entries per note and
 the processed-session ledger at 4096 digests per project. Note bodies do not
 expire automatically: inspect/delete them according to your own retention
 policy. Trajectory pruning does not delete already-derived notes.
+
+## Git-linked work evidence
+
+`CAIRN_WORK_EVIDENCE=1` stores private, atomic JSON records below
+`<Git root>/.agentfs/work-evidence/v1/records/` and append-only link sets below
+`links/`. The root is resolved with the system Git executable; ancestor
+symlinks, non-regular records and malformed data fail closed. Files and
+directories are hardened with the same platform-specific private-permission
+boundary used by other local stores.
+
+Each record is immutable after it moves from pending to complete. Completion
+captures the final Git observation and an overall digest; it never rewrites the
+start observation. A crash can leave a pending record, which `cairn evidence
+doctor` reports. Doctor may report permissions, corruption and temporary
+remnants, but does not infer or manufacture a missing end state.
+
+Defaults are 30 days, 64 MiB of local metadata, 4,096 touched path labels and a
+1 MiB optional patch cap. Capture and `cairn evidence prune` apply the age and
+budget policy. `delete` and `prune` support dry runs. Patch bodies, when doubly
+enabled, are ordinary redacted artifacts in `.agentfs/artifacts.db`; the
+evidence record keeps only the artifact identifier and digest relationship.
+
+Default uninstall retains the project `.agentfs` tree. Explicit
+`--purge-memory` follows the existing backup-first project-store boundary and
+therefore includes work evidence. Memory export does not include it.
 
 ## Artifact storage
 

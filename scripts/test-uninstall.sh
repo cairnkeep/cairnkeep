@@ -124,6 +124,7 @@ ADJACENT_PROJECT="$SB/adjacent-project"
 mkdir -p "$PROJECT_DATA/.ai" \
   "$PROJECT_DATA/.agentfs/eval/experiments/complete/snapshots/task-one" \
   "$PROJECT_DATA/.agentfs/eval/experiments/partial" \
+  "$PROJECT_DATA/.agentfs/work-evidence/v1/records" \
   "$ADJACENT_PROJECT/.agentfs/eval/experiments/adjacent"
 printf '%s\n' '{"schema_version":1,"capabilities":{"wiki":false},"logging":{"callbacks":true}}' >"$PROJECT_DATA/.ai/capabilities.json"
 chmod 600 "$PROJECT_DATA/.ai/capabilities.json"
@@ -132,17 +133,22 @@ printf 'artifact-v1\000durable\377bytes\n' >"$PROJECT_DATA/.agentfs/artifacts.db
 printf 'session-and-callback-v1\000durable\377bytes\n' >"$PROJECT_DATA/.agentfs/trajectory.db"
 printf 'callback-wal-v1\000durable\377bytes\n' >"$PROJECT_DATA/.agentfs/trajectory.db-wal"
 printf 'unrelated-memory-v1\000durable\377bytes\n' >"$PROJECT_DATA/.agentfs/project.db"
+printf 'work-evidence-v1\000durable\377bytes\n' >"$PROJECT_DATA/.agentfs/work-evidence/v1/records/wev-fixture.json"
 printf 'complete-report-v1\000private\377bytes\n' >"$PROJECT_DATA/.agentfs/eval/experiments/complete/report.json"
 printf 'partial-report-v1\000private\377bytes\n' >"$PROJECT_DATA/.agentfs/eval/experiments/partial/report.json"
 printf 'note-snapshot-v1\000private\377bytes\n' >"$PROJECT_DATA/.agentfs/eval/experiments/complete/snapshots/task-one/note.md"
 printf 'adjacent-eval-v1\000must-survive\377bytes\n' >"$ADJACENT_PROJECT/.agentfs/eval/experiments/adjacent/report.json"
 chmod 700 "$PROJECT_DATA/.agentfs" "$PROJECT_DATA/.agentfs/eval" \
+  "$PROJECT_DATA/.agentfs/work-evidence" \
+  "$PROJECT_DATA/.agentfs/work-evidence/v1" \
+  "$PROJECT_DATA/.agentfs/work-evidence/v1/records" \
   "$PROJECT_DATA/.agentfs/eval/experiments" \
   "$PROJECT_DATA/.agentfs/eval/experiments/complete" \
   "$PROJECT_DATA/.agentfs/eval/experiments/complete/snapshots" \
   "$PROJECT_DATA/.agentfs/eval/experiments/complete/snapshots/task-one" \
   "$PROJECT_DATA/.agentfs/eval/experiments/partial"
 chmod 600 "$PROJECT_DATA/.agentfs/project.db" \
+  "$PROJECT_DATA/.agentfs/work-evidence/v1/records/wev-fixture.json" \
   "$PROJECT_DATA/.agentfs/eval/experiments/complete/report.json" \
   "$PROJECT_DATA/.agentfs/eval/experiments/partial/report.json"
 chmod 400 "$PROJECT_DATA/.agentfs/eval/experiments/complete/snapshots/task-one/note.md"
@@ -155,6 +161,7 @@ cp "$PROJECT_DATA/.ai/operator-state.bin" "$SB/operator-state.before.bin"
 cp "$PROJECT_DATA/.agentfs/artifacts.db" "$SB/artifacts.before.db"
 cp "$PROJECT_DATA/.agentfs/trajectory.db" "$SB/trajectory.before.db"
 cp "$PROJECT_DATA/.agentfs/trajectory.db-wal" "$SB/trajectory.before.db-wal"
+cp "$PROJECT_DATA/.agentfs/work-evidence/v1/records/wev-fixture.json" "$SB/work-evidence.before.json"
 agentfs_before=$(tree_identity "$PROJECT_DATA/.agentfs")
 eval_before=$(tree_identity "$PROJECT_DATA/.agentfs/eval")
 adjacent_before=$(tree_identity "$ADJACENT_PROJECT/.agentfs")
@@ -239,6 +246,7 @@ check "default uninstall leaves normal OpenCode installation exact" "$(diff -qr 
 check "default uninstall keeps unrelated .ai bytes exact" "$(cmp -s "$SB/operator-state.before.bin" "$PROJECT_DATA/.ai/operator-state.bin" && echo yes || echo no)" "yes"
 check "default uninstall keeps callback DB exact" "$(cmp -s "$SB/trajectory.before.db" "$PROJECT_DATA/.agentfs/trajectory.db" && echo yes || echo no)" "yes"
 check "default uninstall keeps callback WAL exact" "$(cmp -s "$SB/trajectory.before.db-wal" "$PROJECT_DATA/.agentfs/trajectory.db-wal" && echo yes || echo no)" "yes"
+check "default uninstall keeps work evidence exact" "$(cmp -s "$SB/work-evidence.before.json" "$PROJECT_DATA/.agentfs/work-evidence/v1/records/wev-fixture.json" && echo yes || echo no)" "yes"
 check "default uninstall keeps complete and partial eval reports, snapshots, modes, and layout exact" "$(tree_identity "$PROJECT_DATA/.agentfs/eval")" "$eval_before"
 check "default uninstall keeps unrelated project memory exact" "$(tree_identity "$PROJECT_DATA/.agentfs")" "$agentfs_before"
 check "default uninstall leaves adjacent project exact" "$(tree_identity "$ADJACENT_PROJECT/.agentfs")" "$adjacent_before"
@@ -271,6 +279,7 @@ ARTIFACT_BK=$(ls -dt "$ARTIFACT_HOME/.cairnkeep-uninstall-"* 2>/dev/null | head 
 check "artifact purge backup is exact" "$(cmp -s "$SB/artifacts.before.db" "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs/artifacts.db" && echo yes || echo no)" "yes"
 check "callback purge backup is exact" "$(cmp -s "$SB/trajectory.before.db" "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs/trajectory.db" && echo yes || echo no)" "yes"
 check "callback WAL purge backup is exact" "$(cmp -s "$SB/trajectory.before.db-wal" "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs/trajectory.db-wal" && echo yes || echo no)" "yes"
+check "work-evidence purge backup is exact" "$(cmp -s "$SB/work-evidence.before.json" "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs/work-evidence/v1/records/wev-fixture.json" && echo yes || echo no)" "yes"
 check "purge backup contains exact eval tree, bytes, and modes" "$(tree_identity "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs/eval")" "$eval_before"
 check "purge backup contains exact unrelated project memory" "$(tree_identity "$ARTIFACT_BK/files/${PROJECT_DATA#/}/.agentfs")" "$agentfs_before"
 check "selected-project purge leaves adjacent project exact" "$(tree_identity "$ADJACENT_PROJECT/.agentfs")" "$adjacent_before"
@@ -278,6 +287,7 @@ HOME="$ARTIFACT_HOME" XDG_CONFIG_HOME="$ARTIFACT_HOME/.config" bash "$ARTIFACT_B
 check "artifact revert restores exact bytes" "$(cmp -s "$SB/artifacts.before.db" "$PROJECT_DATA/.agentfs/artifacts.db" && echo yes || echo no)" "yes"
 check "callback revert restores exact bytes" "$(cmp -s "$SB/trajectory.before.db" "$PROJECT_DATA/.agentfs/trajectory.db" && echo yes || echo no)" "yes"
 check "callback WAL revert restores exact bytes" "$(cmp -s "$SB/trajectory.before.db-wal" "$PROJECT_DATA/.agentfs/trajectory.db-wal" && echo yes || echo no)" "yes"
+check "work-evidence revert restores exact bytes" "$(cmp -s "$SB/work-evidence.before.json" "$PROJECT_DATA/.agentfs/work-evidence/v1/records/wev-fixture.json" && echo yes || echo no)" "yes"
 check "purge revert restores exact eval tree, bytes, and modes" "$(tree_identity "$PROJECT_DATA/.agentfs/eval")" "$eval_before"
 check "purge revert restores exact unrelated project memory" "$(tree_identity "$PROJECT_DATA/.agentfs")" "$agentfs_before"
 check "purge revert leaves adjacent project exact" "$(tree_identity "$ADJACENT_PROJECT/.agentfs")" "$adjacent_before"

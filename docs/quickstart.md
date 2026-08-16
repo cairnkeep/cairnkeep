@@ -84,3 +84,8 @@ cairn uninstall --dry-run .                                       # preview remo
 For all harnesses, remote HTTP, storage, profiles, context packs, overlays, and
 recovery details, continue with [Operating Cairnkeep](operating.md) or the
 [learning path](learning/README.md).
+
+To add bounded Git state around future generated-launcher sessions, set
+`CAIRN_WORK_EVIDENCE=1` in `.ai/.env`; inspect it with `cairn evidence list`.
+It is local and off by default. Patch capture remains a separate double-consent
+feature. See [Git-linked work evidence](work-evidence.md).

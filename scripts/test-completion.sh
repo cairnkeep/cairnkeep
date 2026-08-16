@@ -48,6 +48,9 @@ for shell in bash zsh fish; do
   grep -q 'pack' "$tmp/$shell"
   grep -q 'init.*lock.*validate.*install.*list.*show.*remove.*enable.*disable.*update.*skills.*approve-skill.*revoke-skill\|init lock validate install list show remove enable disable update skills approve-skill revoke-skill' "$tmp/$shell"
   grep -q -- '--purge-packs\|-l purge-packs' "$tmp/$shell"
+  grep -q 'evidence' "$tmp/$shell"
+  grep -q 'list.*show.*delete.*prune.*doctor\|list show delete prune doctor' "$tmp/$shell"
+  grep -q -- '--status\|-l status' "$tmp/$shell"
 done
 
 "$ROOT/bin/cairn" help >"$tmp/root-help"
@@ -64,6 +67,7 @@ if grep -q 'doctor-diagnosis' "$tmp/eval-help"; then
   exit 1
 fi
 grep -qF 'cairn skill <harvest|list|show|review|propose|evaluate|apply|rollback>' "$tmp/root-help"
+grep -qF 'cairn evidence <list|show|delete|prune|doctor>' "$tmp/root-help"
 node "$ROOT/mcp-memory-server/dist/skill-cli.js" --help >"$tmp/skill-help"
 for command in $skill_commands; do
   grep -q "cairn skill $command" "$tmp/skill-help"

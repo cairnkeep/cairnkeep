@@ -5,6 +5,17 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-08-17
+
+### Added
+
+- Add opt-in, local Git-linked work evidence for all six generated harness
+  launchers and native Windows, with bounded start/end state, touched paths,
+  append-only trajectory/artifact/reviewed-memory links, lifecycle CLI and two
+  local read-only MCP observations.
+- Add separately consented, redacted patch artifacts and document their
+  start-commit scope, pre-existing-dirty limitation and omitted untracked bodies.
+
 ## [2.12.0] - 2026-08-13
 
 ### Added
@@ -336,7 +347,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.12.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.13.0...HEAD
+[2.13.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.9.0...v2.11.0
 [2.9.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.8.0...v2.9.0
