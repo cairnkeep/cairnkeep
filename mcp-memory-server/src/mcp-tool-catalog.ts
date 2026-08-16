@@ -44,6 +44,8 @@ export const MCP_TOOL_CATALOG = {
     context_pack_list: observation("List context packs"),
     context_pack_search: observation("Search context packs"),
     context_pack_read: observation("Read context pack file"),
+    work_evidence_list: observation("List work evidence"),
+    work_evidence_read: observation("Read work evidence"),
 } as const satisfies Record<string, CairnToolMetadata>;
 
 export type CairnToolName = keyof typeof MCP_TOOL_CATALOG;

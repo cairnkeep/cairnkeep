@@ -432,6 +432,41 @@ check_artifact_remote_path_contract() {
   return "$failed"
 }
 
+check_work_evidence_contract() {
+  local failed=0 key value source_term
+
+  while IFS='|' read -r key value source_term; do
+    [[ -n "$key" ]] || continue
+    grep -qF "$key" mcp-memory-server/src/work-evidence-schema.ts || failed=1
+    grep -qF "$source_term" mcp-memory-server/src/work-evidence-schema.ts || failed=1
+    grep -qxF "# $key=$value" templates/env.example.template || failed=1
+    grep -qF "$key" README.md docs/operating.md docs/work-evidence.md || failed=1
+    grep -qF "$value" README.md docs/operating.md docs/work-evidence.md || failed=1
+  done <<'EOF'
+CAIRN_WORK_EVIDENCE_RETENTION_DAYS|30|WORK_EVIDENCE_DEFAULT_RETENTION_DAYS = 30
+CAIRN_WORK_EVIDENCE_STORE_MAX_BYTES|67108864|WORK_EVIDENCE_DEFAULT_STORE_MAX_BYTES = 64 * 1024 * 1024
+CAIRN_WORK_EVIDENCE_MAX_TOUCHED_PATHS|4096|WORK_EVIDENCE_DEFAULT_MAX_TOUCHED_PATHS = 4096
+CAIRN_WORK_EVIDENCE_PATCH_MAX_BYTES|1048576|WORK_EVIDENCE_DEFAULT_PATCH_MAX_BYTES = 1024 * 1024
+EOF
+
+  for key in CAIRN_WORK_EVIDENCE CAIRN_WORK_EVIDENCE_PATCH; do
+    grep -qF "$key" mcp-memory-server/src/work-evidence-schema.ts templates/env.example.template README.md docs/operating.md docs/privacy-and-data-flow.md || failed=1
+  done
+  for source_term in work_evidence_list work_evidence_read; do
+    grep -qF "\"$source_term\"" mcp-memory-server/src/index.ts || failed=1
+    grep -qF "$source_term" README.md docs/operating.md docs/privacy-and-data-flow.md docs/work-evidence.md || failed=1
+  done
+  for source_term in 'list [--status pending|complete] [--json]' 'show <evidence-id-or-prefix> [--json]' 'delete <evidence-id-or-prefix> [--dry-run] [--json]' 'prune [--dry-run] [--json]' 'doctor [--repair] [--json]'; do
+    grep -qF "$source_term" mcp-memory-server/src/work-evidence-cli.ts || failed=1
+  done
+  grep -qF '.agentfs/work-evidence/v1/' docs/storage.md docs/privacy-and-data-flow.md docs/work-evidence.md || failed=1
+  grep -qF 'cairn evidence' docs/learning/CURRICULUM-MAP.md docs/learning/FEATURE-GUIDE.md docs/learning/lessons/L13-session-evidence.md || failed=1
+  grep -qF 'never exposed by the HTTP transport' docs/work-evidence.md || failed=1
+
+  [[ "$failed" -eq 0 ]] && echo "[work-evidence-contract] OK: flags/defaults/tools/storage/privacy/learning match source"
+  return "$failed"
+}
+
 check_capability_contract() {
   local failed=0 file id env tool term source_file docs_files
 
@@ -624,6 +659,7 @@ main() {
   check_typed_contract || failed=1
   check_artifact_contract || failed=1
   check_artifact_remote_path_contract || failed=1
+  check_work_evidence_contract || failed=1
   check_capability_contract || failed=1
   check_native_capability_docs || failed=1
 

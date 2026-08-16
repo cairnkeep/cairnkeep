@@ -466,6 +466,12 @@ vendor or host.
 | `CAIRN_TRAJECTORY_RETENTION_DAYS` | Age retention applied on capture/prune (default `30`; `0` removes sessions once they are older than the current instant) |
 | `CAIRN_TRAJECTORY_REDACTION_FILE` | Optional redaction JSON path contained by the project (default `.ai/trajectory-redaction.json` when that file exists) |
 | `CAIRN_REDACTION_FILE` | Optional project-contained redaction JSON shared by trajectories and artifacts; takes precedence over `CAIRN_TRAJECTORY_REDACTION_FILE` |
+| `CAIRN_WORK_EVIDENCE` | Capture bounded Git state around generated harness launches (off by default) |
+| `CAIRN_WORK_EVIDENCE_PATCH` | Request an optional redacted patch artifact (off by default; requires `CAIRN_ARTIFACT_STORE`) |
+| `CAIRN_WORK_EVIDENCE_RETENTION_DAYS` | Work-evidence retention (default `30`; `0` disables age pruning) |
+| `CAIRN_WORK_EVIDENCE_STORE_MAX_BYTES` | Project-local metadata budget (default `67108864`, 64 MiB) |
+| `CAIRN_WORK_EVIDENCE_MAX_TOUCHED_PATHS` | Maximum touched-path labels per record (default and hard maximum `4096`) |
+| `CAIRN_WORK_EVIDENCE_PATCH_MAX_BYTES` | Optional patch cap (default `1048576`, 1 MiB; the artifact cap can lower it) |
 | `CAIRN_COMPACTION_CAPTURE` | Opt in to supported local compaction capture and automatic structured recovery (off by default; unset means zero new work) |
 | `CAIRN_ARTIFACT_STORE` | Expose the four local stdio artifact tools (off by default; independent of compaction capture) |
 | `CAIRN_ARTIFACT_HTTP` | Separately expose artifact tools over authenticated HTTP (off by default; also requires `CAIRN_ARTIFACT_STORE`) |
@@ -1041,6 +1047,43 @@ confirmation set. Only the same result on confirmation makes the proposal
 eligible for exact-digest application. See
 [Validated skill improvement](skill-improvement.md) for the command sequence,
 adapter contract, task constraints, and rollback procedure.
+
+### Git-linked work evidence (opt-in)
+
+Set `CAIRN_WORK_EVIDENCE=1` in `.ai/.env` and use a generated harness launcher.
+The launcher opens a local evidence interval before Claude Code, OpenCode, Pi,
+Kimi, Qwen or Codex and settles it after exit. A missing Git executable, a
+non-repository directory or a capture error produces a warning and never blocks
+the harness. Direct harness launches do not create launcher-owned evidence.
+The launcher reserves `CAIRN_WORK_EVIDENCE_ID` and `CAIRN_WORK_EVIDENCE_ROOT`
+for child-process correlation; operators must not set either variable directly.
+
+```bash
+cairn evidence list --json
+cairn evidence show EVIDENCE-ID --json
+cairn evidence delete EVIDENCE-ID --dry-run --json
+cairn evidence prune --dry-run --json
+cairn evidence doctor --json
+```
+
+The start/end record includes commits, branch/detached/unborn state, dirty
+state, canonical status/workspace digests, touched path labels, timestamps and
+exit status. It can append exact trajectory, artifact and reviewed-memory
+identifiers produced by descendant processes. It captures no prompts,
+keystrokes, command history or reasoning. Concurrent writers are not
+attributed, and a path changed then restored to its starting state is invisible.
+
+Patch capture is a separate consent boundary: both
+`CAIRN_WORK_EVIDENCE_PATCH=1` and `CAIRN_ARTIFACT_STORE=1` are required. The
+redacted, bounded diff is computed from the starting commit to the ending
+worktree, so it can include tracked changes that predated the session; untracked
+bodies are omitted. Cairnkeep has no apply, restore or replay operation.
+
+When enabled, local stdio exposes only `work_evidence_list` and
+`work_evidence_read`; they are read-only, non-destructive, idempotent and
+closed-world. HTTP never exposes them. See [Git-linked work evidence](work-evidence.md),
+[storage](storage.md#git-linked-work-evidence) and
+[privacy](privacy-and-data-flow.md#git-linked-work-evidence).
 
 ### Structured session trajectories (opt-in)
 

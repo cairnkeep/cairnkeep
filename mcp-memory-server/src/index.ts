@@ -73,6 +73,7 @@ import type { NoteAddressSpace } from "./note-store.js";
 import { contextPackHttpEnabled, contextPacksEnabled, listVisibleContext, readVisibleContext, searchVisibleContext } from "./context-pack.js";
 import { metadataForTool } from "./mcp-tool-catalog.js";
 import { profileAllowsTool, resolveMcpToolProfile, type McpToolProfileStatus } from "./mcp-tool-profile.js";
+import { isWorkEvidenceEnabled } from "./work-evidence-schema.js";
 
 type CapabilityWrapper = typeof import("./capability-adapter.js").withCapability;
 type AsyncToolCallback<Args extends AnySchema> = (
@@ -1183,6 +1184,7 @@ function buildMemoryServer(
     const typedNodesEnabled = isTypedMemoryNodesEnabled();
     const artifactToolsEnabled = isArtifactStoreEnabled() && (!context.remote || isArtifactHttpEnabled());
     const contextPackToolsEnabled = contextPacksEnabled() && (!context.remote || contextPackHttpEnabled());
+    const workEvidenceToolsEnabled = isWorkEvidenceEnabled() && !context.remote;
     if (artifactToolsEnabled && context.remote && !context.projectId) {
         throw new ClientContextError("Remote artifact access requires X-Cairn-Project.");
     }
@@ -1250,6 +1252,8 @@ if (artifactToolsEnabled) {
             const { putArtifact } = await import("./artifact-store.js");
             const result = await putArtifact(projectRoot, { ...input, session_ref: sessionRef });
             const artifact = result.artifact;
+            const { linkActiveWorkEvidence } = await import("./work-evidence-store.js");
+            await linkActiveWorkEvidence(projectRoot, { kind: "artifact", artifact_id: artifact.artifact_id });
             const payload = {
                 schema_version: artifact.schema_version,
                 artifact_id: artifact.artifact_id,
@@ -1897,6 +1901,9 @@ registerTool(
                 };
             });
 
+            const { linkActiveWorkEvidence } = await import("./work-evidence-store.js");
+            await linkActiveWorkEvidence(process.cwd(), { kind: "reviewed_memory", scope, review_id, key });
+
             return {
                 content: [{ type: "text", text: asToolText(payload) }],
                 structuredContent: payload,
@@ -2383,6 +2390,35 @@ if (contextPackToolsEnabled) {
     );
 }
 
+    if (workEvidenceToolsEnabled) {
+        registerTool(
+            "work_evidence_list",
+            {
+                description: "List bounded local Git-linked work-evidence records for this project.",
+                inputSchema: z.object({
+                    status: z.enum(["pending", "complete"]).optional(),
+                    limit: z.number().int().min(1).max(100).optional(),
+                }).strict(),
+            },
+            async ({ status, limit }) => {
+                const { listWorkEvidence } = await import("./work-evidence-store.js");
+                const payload = listWorkEvidence(process.cwd(), { status, limit });
+                return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
+            },
+        );
+        registerTool(
+            "work_evidence_read",
+            {
+                description: "Read one local Git-linked work-evidence record by exact ID or unambiguous prefix.",
+                inputSchema: z.object({ evidence_id: z.string().min(4).max(40).regex(/^wev_[0-9a-f-]*$/i) }).strict(),
+            },
+            async ({ evidence_id }) => {
+                const { readWorkEvidence } = await import("./work-evidence-store.js");
+                const payload = readWorkEvidence(evidence_id, process.cwd());
+                return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
+            },
+        );
+    }
     return server;
 }
 

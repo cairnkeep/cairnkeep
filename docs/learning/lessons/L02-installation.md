@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart
 **Time:** 25 minutes
-**Tested with:** Cairnkeep 2.12.0 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.13.0 and Node.js 22 or newer
 
 ## Outcome
 
@@ -47,7 +47,7 @@ sync. Codex project trust remains an explicit operator decision.
 2. Install Cairnkeep:
 
    ```bash
-   npm install --global @cairnkeep/cli@2.12.0
+   npm install --global @cairnkeep/cli@2.13.0
    cairn --version
    ```
 

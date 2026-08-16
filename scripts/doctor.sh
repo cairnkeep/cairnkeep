@@ -201,7 +201,36 @@ try {
   [[ $artifact_status -eq 0 || "$artifact_state" == "broken" ]] || true
 fi
 
-# 9. Typed metadata overlays and canonical-note transaction state. The internal
+# 9. Project-local Git-linked work-evidence records. Absence is healthy because
+#    capture is opt-in. Repair removes safe temporary remnants only; it never
+#    finalizes an interrupted session or invents a Git state.
+evidence_cli="$CAIRN_ROOT/mcp-memory-server/dist/work-evidence-cli.js"
+if [[ ! -f "$evidence_cli" ]]; then
+  fail "work-evidence diagnostics unavailable — rebuild mcp-memory-server"
+else
+  evidence_args=(doctor --json)
+  [[ $REPAIR_STORES -eq 1 ]] && evidence_args+=(--repair)
+  evidence_json=$(node "$evidence_cli" "${evidence_args[@]}" 2>/dev/null)
+  evidence_status=$?
+  evidence_state=$(node -e '
+try {
+  const value = JSON.parse(process.argv[1])
+  if (!value.exists) process.stdout.write("absent")
+  else if (value.ok && value.repaired) process.stdout.write("repaired")
+  else if (value.ok) process.stdout.write("ok")
+  else process.stdout.write("broken")
+} catch { process.stdout.write("invalid") }
+' "$evidence_json" 2>/dev/null)
+  case "$evidence_state" in
+    absent) skip "work-evidence store (not present — capture is opt-in)" ;;
+    repaired) pass "work-evidence store repaired (temporary remnants removed; evidence preserved)" ;;
+    ok) pass "work-evidence records and append-only links are valid" ;;
+    *) fail "work-evidence validation failed — inspect with: cairn evidence doctor --json" ;;
+  esac
+  [[ $evidence_status -eq 0 || "$evidence_state" == "broken" ]] || true
+fi
+
+# 10. Typed metadata overlays and canonical-note transaction state. The internal
 #    JSON seam enumerates only contained local databases and the one notes root;
 #    raw KV cells and unmarked Markdown bytes are never repair inputs.
 node_cli="$CAIRN_ROOT/mcp-memory-server/dist/node-cli.js"

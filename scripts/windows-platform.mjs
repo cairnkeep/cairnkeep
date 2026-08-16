@@ -190,7 +190,19 @@ if ($env:CAIRN_EXTRA_SETTINGS -and $Harness -eq 'claude') {
 if ($env:CAIRN_EXTRA_SETTINGS -and $Harness -eq 'opencode') { $env:OPENCODE_CONFIG = $env:CAIRN_EXTRA_SETTINGS }
 Push-Location $ProjectRoot
 try {
-  & $Harness @HarnessArgs
+  $EvidenceEnabled = $env:CAIRN_WORK_EVIDENCE -match '^(1|true|yes|on)$'
+  $CairnCommand = if ($EvidenceEnabled) { Get-Command cairn -ErrorAction SilentlyContinue } else { $null }
+  $EvidenceSupported = $false
+  if ($EvidenceEnabled -and $CairnCommand) {
+    & $CairnCommand.Source evidence --help *> $null
+    $EvidenceSupported = ($LASTEXITCODE -eq 0)
+  }
+  if ($EvidenceSupported) {
+    & $CairnCommand.Source evidence run --harness $Harness -- $Harness @HarnessArgs
+  } else {
+    if ($EvidenceEnabled) { Write-Warning 'a compatible cairn evidence command is unavailable; launching without capture' }
+    & $Harness @HarnessArgs
+  }
   $Status = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
 } finally {
   Pop-Location
@@ -440,6 +452,7 @@ async function doctorWindows(root, args) {
   for (const [label, file, doctorArgs] of [
     ["trajectory", "trajectory-cli.js", ["doctor", "--json", ...(repair ? ["--repair"] : [])]],
     ["artifact", "artifact-cli.js", ["doctor", "--json", ...(repair ? ["--repair"] : [])]],
+    ["work evidence", "work-evidence-cli.js", ["doctor", "--json", ...(repair ? ["--repair"] : [])]],
     ["typed memory", "node-cli.js", ["doctor", "--project-root", process.cwd(), ...(repair ? ["--repair"] : [])]],
     ["capability", "capability-cli.js", ["doctor", "--json"]],
     ["context pack", "context-pack-cli.js", ["doctor", "--json"]],
@@ -695,7 +708,7 @@ export function powershellCompletion() {
   const harnesses = HARNESS_IDS.map((id) => `'${id}'`).join(",");
   return `Register-ArgumentCompleter -Native -CommandName cairn -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
-  $commands = 'bootstrap','setup','memory-server','sync','sync-pi','sync-kimi','doctor','trajectory','artifact','capabilities','mcp-tools','pack','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
+  $commands = 'bootstrap','setup','memory-server','sync','sync-pi','sync-kimi','doctor','trajectory','artifact','evidence','capabilities','mcp-tools','pack','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
   $setup = '--git','--harness','--memory','--policy','--yes','--json','init','existing','none',${harnesses},'local'
   $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } else { $commands }
   $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {

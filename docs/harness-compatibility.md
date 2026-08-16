@@ -4,6 +4,12 @@ Cairnkeep separates memory transport from harness-specific operating assets.
 An MCP client can use the memory tools without also supporting Cairnkeep's
 commands, hooks, plugins, or trajectory adapters.
 
+All six generated launchers—Claude Code, OpenCode, Kimi, Qwen, Pi and Codex—
+support the same opt-in Git-linked work-evidence wrapper. The wrapper is local,
+requires `CAIRN_WORK_EVIDENCE=1`, and fails open so optional capture cannot
+prevent a harness from launching. It does not imply that the harness supports
+Cairnkeep commands, hooks or native trajectory capture.
+
 ## Support levels
 
 | Harness | Supported surface | Runtime status |

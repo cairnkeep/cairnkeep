@@ -13,7 +13,8 @@
 6. [L19 - Validated skill improvement](../lessons/L19-validated-skill-improvement.md)
 
 The track is complete when the learner can explain each consent boundary,
-inspect and manage every local evidence store, compare baseline and ablation
+inspect and manage every local evidence store, including Git-linked work
+evidence, compare baseline and ablation
 reports without making unsupported claims, apply or roll back an exact eligible
 skill proposal, and distinguish that narrow runtime from the design-only
 general meta-agent contract.

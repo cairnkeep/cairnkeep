@@ -36,6 +36,8 @@ try {
   assert.match(launcherModule(), /spawnSync\(command/);
   assert.match(launcherPowerShell(), /pre-launch\.ps1/);
   assert.match(launcherPowerShell(), /post-exit\.ps1/);
+  assert.match(launcherPowerShell(), /evidence run --harness/);
+  assert.match(launcherPowerShell(), /CAIRN_WORK_EVIDENCE/);
 
   const claudeRoot = join(sandbox, "Claude Config");
   await runWindowsCommand({ command: "sync", args: ["--apply", "--live-root", claudeRoot], root });
@@ -56,6 +58,7 @@ try {
   await runWindowsCommand({ command: "memory", args: ["import", archive], root });
   assert.equal(readFileSync(join(memory, "project.db"), "utf8"), "sqlite-a");
   assert.match(powershellCompletion(), /Register-ArgumentCompleter/);
+  assert.match(powershellCompletion(), /evidence/);
 
   let containerArgs = [];
   runNativeContainer(["stdio", "--image", "example/windows:1", "--volume", "windows-data"], root, (_engine, args) => { containerArgs = args; });
