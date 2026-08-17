@@ -71,6 +71,24 @@ jobs:
           npm --prefix mcp-memory-server ci
           npm --prefix mcp-memory-server test
 
+      - name: Build and validate release artifacts
+        env:
+          VERSION: ${{ steps.identity.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          npm pack --pack-destination artifacts >/dev/null
+          ./node_modules/.bin/cyclonedx-npm \
+            --package-lock-only \
+            --omit dev \
+            --output-reproducible \
+            --spec-version 1.6 \
+            --output-format JSON \
+            --output-file "artifacts/cairnkeep-cli-$VERSION.cdx.json" \
+            --validate \
+            package.json
+          (cd artifacts && sha256sum ./* > SHA256SUMS)
+
       - name: Check registry state
         id: registry
         env:
@@ -88,17 +106,6 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           DIST_TAG: ${{ steps.identity.outputs.dist_tag }}
         run: npm publish --access public --provenance --tag "$DIST_TAG"
-
-      - name: Build release artifacts
-        env:
-          VERSION: ${{ steps.identity.outputs.version }}
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts
-          npm pack --pack-destination artifacts >/dev/null
-          npm sbom --omit=dev --sbom-format cyclonedx \
-            > "artifacts/cairnkeep-cli-$VERSION.cdx.json"
-          (cd artifacts && sha256sum ./* > SHA256SUMS)
 
       - name: Attach package and SBOM to GitHub release
         env:

@@ -5,6 +5,15 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.13.1] - 2026-08-17
+
+### Fixed
+
+- Generate release SBOMs directly as reproducible, schema-validated CycloneDX
+  1.6 documents with the pinned official npm generator. This replaces npm's
+  invalid CycloneDX 1.5 output and fails publication before attaching a broken
+  SBOM.
+
 ## [2.13.0] - 2026-08-17
 
 ### Added
@@ -347,7 +356,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.13.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.13.1...HEAD
+[2.13.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.13.0...v2.13.1
 [2.13.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.9.0...v2.11.0

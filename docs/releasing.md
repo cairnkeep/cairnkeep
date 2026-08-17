@@ -12,8 +12,12 @@ from a workstation.
 4. Publish a GitHub Release whose tag is exactly `v<package.json version>`.
 5. The `Publish release` workflow checks out that immutable tag, repeats the
    tests, and publishes `@cairnkeep/cli` with npm provenance.
-6. The workflow attaches the npm tarball, a CycloneDX SBOM, and SHA-256 checksums
-   to the GitHub Release.
+6. The workflow uses the exact locked `@cyclonedx/cyclonedx-npm` development
+   dependency to generate a reproducible CycloneDX 1.6 SBOM from
+   `package-lock.json`. Generation includes schema validation and runs before
+   npm publication, so an invalid document blocks both publication and
+   attachment. The workflow attaches that SBOM, the npm tarball, and SHA-256
+   checksums to the GitHub Release.
 7. The workflow publishes versioned `linux/amd64` and `linux/arm64`
    memory-server and workspace images to GHCR. It also updates `latest` for a
    stable release or `next` for a prerelease.
