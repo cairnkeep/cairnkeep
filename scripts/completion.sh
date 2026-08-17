@@ -56,7 +56,7 @@ _cairn_complete() {
       esac
       ;;
     mcp-tools) COMPREPLY=( $(compgen -W "list status set reset full read-only custom --tool --project --json" -- "$current") ) ;;
-    pack) COMPREPLY=( $(compgen -W "init lock validate install list show remove enable disable update skills approve-skill revoke-skill --id --version --title --description --license --ref --project --project-id --check --apply --confirm --json" -- "$current") ) ;;
+    pack) COMPREPLY=( $(compgen -W "init lock validate install import-okf validate-okf export-okf list show remove enable disable update skills approve-skill revoke-skill --id --version --title --description --license --ref --project --project-id --output --file --note --check --apply --confirm --json" -- "$current") ) ;;
     notes) COMPREPLY=( $(compgen -W "distill search-error promote doctor --project --session --all-projects --para-root --text --component --with --confirm --repair --json" -- "$current") ) ;;
     eval)
       case "${COMP_WORDS[2]:-}" in
@@ -133,7 +133,7 @@ _cairn() {
       ;;
     evidence) _values 'work evidence command' list show delete prune doctor '--status[filter records]:status:(pending complete)' '--dry-run[report without mutation]' '--repair[remove safe temporary remnants]' '--json[emit JSON]' ;;
     mcp-tools) _values 'MCP tool profile command' list status set reset full read-only custom '--tool[allow an exact tool]:tool:' '--project[project root]:directory:_files -/' '--json[emit JSON]' ;;
-    pack) _values 'context pack command' init lock validate install list show remove enable disable update skills approve-skill revoke-skill '--ref[pinned Git ref]:ref:' '--project[project root]:directory:_files -/' '--project-id[remote project ID]:project ID:' '--check[inspect update]' '--apply[apply update]' '--confirm[confirm digest]:digest:' '--json[emit JSON]' ;;
+    pack) _values 'context pack command' init lock validate install import-okf validate-okf export-okf list show remove enable disable update skills approve-skill revoke-skill '--ref[pinned Git ref]:ref:' '--project[project root]:directory:_files -/' '--project-id[remote project ID]:project ID:' '--output[export output directory]:directory:_files -/' '--file[explicit project Markdown file]:file:_files' '--note[promoted shared note ID]:note ID:' '--check[inspect update or export]' '--apply[apply update or export]' '--confirm[confirm digest]:digest:' '--json[emit JSON]' ;;
     capabilities)
       case $words[3] in
         list|status) _arguments '--json[emit JSON]' ;;
@@ -223,7 +223,7 @@ complete -c cairn -n "__fish_seen_subcommand_from mcp-tools; and __fish_seen_sub
 complete -c cairn -n "__fish_seen_subcommand_from mcp-tools" -l project -r
 complete -c cairn -n "__fish_seen_subcommand_from mcp-tools" -l tool -r
 complete -c cairn -n "__fish_seen_subcommand_from mcp-tools" -l json
-complete -c cairn -n "__fish_seen_subcommand_from pack" -a "init lock validate install list show remove enable disable update skills approve-skill revoke-skill"
+complete -c cairn -n "__fish_seen_subcommand_from pack" -a "init lock validate install import-okf validate-okf export-okf list show remove enable disable update skills approve-skill revoke-skill"
 complete -c cairn -n "__fish_seen_subcommand_from pack" -l project -r
 complete -c cairn -n "__fish_seen_subcommand_from pack" -l project-id -r
 complete -c cairn -n "__fish_seen_subcommand_from pack" -l ref -r

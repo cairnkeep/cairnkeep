@@ -12,6 +12,15 @@
     "title": { "type": "string", "minLength": 1, "maxLength": 256 },
     "description": { "type": "string", "minLength": 1, "maxLength": 2048 },
     "license": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "source_format": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "okf" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 32 }
+      }
+    },
     "files": {
       "type": "array",
       "maxItems": 1024,

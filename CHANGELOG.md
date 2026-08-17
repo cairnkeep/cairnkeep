@@ -5,6 +5,20 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-08-17
+
+### Added
+
+- Add validation and immutable context-pack import for Open Knowledge Format
+  0.1/0.2 bundles, preserving structured source, trust, freshness, and gap
+  diagnostics without activating computations or instructions.
+- Add deterministic digest-keyed document links and the read-only,
+  closed-world `context_pack_related` MCP observation.
+- Add allowlist-only, redacted OKF 0.2 export for named project Markdown and
+  promoted shared notes, with a no-write preview and exact-digest atomic apply.
+- Add offline retrieval/freshness/gap regression fixtures and an explicit
+  decision gate for any future external knowledge-system adapter.
+
 ## [2.13.1] - 2026-08-17
 
 ### Fixed
@@ -356,7 +370,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.13.1...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.14.0...HEAD
+[2.14.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.13.1...v2.14.0
 [2.13.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.13.0...v2.13.1
 [2.13.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.11.0...v2.12.0

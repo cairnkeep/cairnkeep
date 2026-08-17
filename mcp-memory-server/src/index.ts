@@ -70,7 +70,7 @@ import {
     supersedeTypedNode,
 } from "./node-store.js";
 import type { NoteAddressSpace } from "./note-store.js";
-import { contextPackHttpEnabled, contextPacksEnabled, listVisibleContext, readVisibleContext, searchVisibleContext } from "./context-pack.js";
+import { contextPackHttpEnabled, contextPacksEnabled, listVisibleContext, readVisibleContext, relatedVisibleContext, searchVisibleContext } from "./context-pack.js";
 import { metadataForTool } from "./mcp-tool-catalog.js";
 import { profileAllowsTool, resolveMcpToolProfile, type McpToolProfileStatus } from "./mcp-tool-profile.js";
 import { isWorkEvidenceEnabled } from "./work-evidence-schema.js";
@@ -2385,6 +2385,22 @@ if (contextPackToolsEnabled) {
         },
         async ({ pack, path, offset, max_bytes }) => {
             const payload = await readVisibleContext(pack, path, { ...contextPackProject, offset, maxBytes: max_bytes });
+            return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
+        },
+    );
+    registerTool(
+        "context_pack_related",
+        {
+            description: "Traverse deterministic links between documents in an enabled imported Open Knowledge Format pack.",
+            inputSchema: z.object({
+                pack: z.string().min(1).max(128),
+                path: z.string().min(1).max(512),
+                direction: z.enum(["outbound", "inbound", "both"]).optional(),
+                limit: z.number().int().min(1).max(100).optional(),
+            }).strict(),
+        },
+        async ({ pack, path, direction, limit }) => {
+            const payload = await relatedVisibleContext(pack, path, { ...contextPackProject, direction, limit });
             return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
         },
     );

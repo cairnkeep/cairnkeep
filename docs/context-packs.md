@@ -61,9 +61,11 @@ switches only the named project.
 
 ## Retrieval and skill approval
 
-Set `CAIRN_CONTEXT_PACKS=1` and restart the memory server to register the three
-read-only, closed-world tools: `context_pack_list`, `context_pack_search`, and
-`context_pack_read`. Every file or search result includes pack ID, version,
+Set `CAIRN_CONTEXT_PACKS=1` and restart the memory server to register the
+read-only, closed-world tools: `context_pack_list`, `context_pack_search`,
+`context_pack_read`, and `context_pack_related`. The related tool is available
+for imported OKF bundles and traverses only deterministic local document links.
+Every file or search result includes pack ID, version,
 pack digest, path, kind, and file digest. Search uses the existing optional
 embedding configuration and falls back to deterministic substring matching if
 configuration or the endpoint is unavailable. Embedding cache data is stored
@@ -92,3 +94,11 @@ Authenticated HTTP deployments need the separate
 `CAIRN_CONTEXT_PACKS=1`, the existing bearer token, Host/CORS guards, and a
 project header. Pack digests prove integrity, not publisher authenticity.
 Publisher signatures remain future work.
+
+## Open Knowledge Format exchange
+
+Use `cairn pack validate-okf` and `cairn pack import-okf` to consume OKF 0.1 or
+0.2 as an immutable pack. Use the preview-and-confirm `cairn pack export-okf`
+workflow to export only named project Markdown and promoted shared notes. See
+[Open Knowledge Format exchange](open-knowledge-format.md) for the provenance,
+graph, privacy, regression, and external-adapter decision contracts.

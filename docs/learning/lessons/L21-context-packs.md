@@ -1,7 +1,7 @@
 # L21 - Immutable context packs and skill approval
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.13.1 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.14.0 and Node.js 22 or newer
 **Time:** 40 minutes
 
 ## Outcome
@@ -77,3 +77,7 @@ rm -rf "$lab"
 - `CAIRN_CONTEXT_PACKS=1` enables local read-only tools only after restart.
 - HTTP additionally requires `CAIRN_CONTEXT_PACK_HTTP=1` and existing auth.
 - A digest proves integrity, not publisher authenticity.
+
+Continue with [L24](L24-okf-exchange.md) for structured OKF provenance,
+deterministic related-document retrieval, regression diagnostics, and the
+privacy-reviewed export workflow.

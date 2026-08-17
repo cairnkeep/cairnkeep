@@ -548,3 +548,9 @@ and switch only the named project after exact-digest confirmation.
 It never chooses a pack version or grants a skill approval. `cairn pack remove`
 refuses any referenced digest. Ordinary uninstall retains this directory even
 when memory is removed; `--purge-packs` is the separate backup-first consent.
+
+Imported OKF files live inside the same immutable object. The deterministic
+link index is derived data under `cache/graphs/<pack-digest>.json`; corruption
+or deletion does not affect identity and causes a rebuild from the object. OKF
+exports are not stored automatically: `export-okf --apply` creates a new
+operator-selected directory only after its preview digest is confirmed.

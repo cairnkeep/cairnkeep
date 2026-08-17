@@ -2,7 +2,7 @@
 
 **Audience:** advanced users and platform maintainers
 **Prerequisite:** Practitioner track; L13 before operating captured evidence
-**Total time:** about 5 hours 35 minutes
+**Total time:** about 6 hours 10 minutes
 
 1. [L09 - Domain knowledge with RAG](../lessons/L09-domain-knowledge.md)
 2. [L10 - Faster context exploration](../lessons/L10-context-exploration.md)
@@ -14,12 +14,15 @@
 8. [L21 - Immutable context packs and skill approval](../lessons/L21-context-packs.md)
 9. [L22 - Operate Cairnkeep on native Windows](../lessons/L22-native-windows.md)
 10. [L23 - Guided setup and Pi memory](../lessons/L23-guided-setup.md)
+11. [L24 - Reviewed knowledge exchange](../lessons/L24-okf-exchange.md)
 
 All modules are optional. The track is complete when the operator can add and
 remove each integration without breaking the standalone local workflow and can
 explain its storage, network, credential, and rollback boundaries. L23 adds the
 v2.11 setup/Pi lifecycle only after the earlier storage, governance, trust, and
 native-platform boundaries.
+L24 adds portable exchange only after the immutable-pack and privacy boundaries
+are understood.
 
 Hands-on spine: `course-04-operation`, `course-06-governance`, and
 `course-07-evaluation`, `course-10-trust-context`, and

@@ -1302,3 +1302,17 @@ an `--apply --confirm CANDIDATE-DIGEST`. Use `cairn pack skills` and exact-diges
 approval before a bundled skill can be read through MCP. HTTP needs the separate
 `CAIRN_CONTEXT_PACK_HTTP=1` flag and all existing authentication/Host/CORS
 controls. See [Immutable context packs](context-packs.md).
+
+Validate and import an OKF bundle without converting it by hand:
+
+```bash
+cairn pack validate-okf ./knowledge
+cairn pack import-okf ./knowledge --id reviewed-knowledge \
+  --version 1.0.0 --license CC-BY-4.0
+```
+
+Imported OKF packs preserve structured source/trust/freshness metadata and add
+read-only related-document traversal. Privacy-reviewed export is an explicit
+`export-okf --check` followed by `--apply --confirm PREVIEW-DIGEST`; only named
+Markdown files and promoted shared notes are eligible. See
+[Open Knowledge Format exchange](open-knowledge-format.md).

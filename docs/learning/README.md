@@ -55,6 +55,7 @@ expanded only after their labs are executable.
 | L21 | [Immutable context packs and skill approval](lessons/L21-context-packs.md) | Ready | 40 min |
 | L22 | [Operate Cairnkeep on native Windows](lessons/L22-native-windows.md) | Ready | 30 min |
 | L23 | [Guided setup and Pi memory](lessons/L23-guided-setup.md) | Ready | 35 min |
+| L24 | [Reviewed knowledge exchange](lessons/L24-okf-exchange.md) | Ready | 35 min |
 
 The [curriculum coverage map](CURRICULUM-MAP.md) records where every public
 feature is introduced, practised, and operated. It also marks design-only work
@@ -73,7 +74,7 @@ Every complete lesson contains:
 
 The learner should never need optional infrastructure to complete L00-L06.
 Remote memory, RAG, routing, containers, graph indexing, structured capture,
-typed nodes, capability governance, evaluation, and context packs are separate
+typed nodes, capability governance, evaluation, context packs, and OKF exchange are separate
 opt-in modules. MCP profiles are restrictive and never activate an optional
 feature.
 

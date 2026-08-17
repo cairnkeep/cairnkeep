@@ -12,6 +12,7 @@ import {
     initializeContextPack,
     inspectContextPackUpdate,
     installContextPack,
+    installOkfContextPack,
     listInstalledContextPacks,
     listPackSkills,
     lockContextPack,
@@ -21,12 +22,17 @@ import {
     revokePackSkill,
     validateContextPack,
 } from "./context-pack.js";
+import { applyOkfExport, planOkfExport, validateOkfBundle } from "./okf.js";
 
 function usage(): never {
     process.stderr.write(`Usage:
   cairn pack init [DIRECTORY] [--id ID] [--version VERSION] [--title TITLE] [--description TEXT] [--license LICENSE]
   cairn pack lock|validate [DIRECTORY]
   cairn pack install SOURCE [--ref REF]
+  cairn pack import-okf SOURCE --id ID --version VERSION --license LICENSE [--title TITLE] [--description TEXT] [--ref REF]
+  cairn pack validate-okf [DIRECTORY]
+  cairn pack export-okf --project PATH --output DIRECTORY (--file PATH | --note ID)... --check
+  cairn pack export-okf --project PATH --output DIRECTORY (--file PATH | --note ID)... --apply --confirm DIGEST
   cairn pack list [--json]
   cairn pack show SELECTOR [--json]
   cairn pack remove SELECTOR
@@ -54,6 +60,12 @@ function flag(args: string[], name: string): boolean {
     if (index < 0) return false;
     args.splice(index, 1);
     return true;
+}
+
+function takeAll(args: string[], name: string): string[] {
+    const values: string[] = [];
+    while (args.includes(name)) values.push(take(args, name)!);
+    return values;
 }
 
 function projectOptions(args: string[]): { projectRoot?: string; projectId?: string } {
@@ -96,6 +108,44 @@ async function main(): Promise<void> {
         if (args.length) usage();
         const result = await installContextPack(source, { ref });
         output({ id: result.pack.manifest.id, version: result.pack.manifest.version, digest: result.pack.digest, source: result.source, existing: result.existing }, json, `${result.existing ? "Already installed" : "Installed"} ${result.pack.manifest.id}@${result.pack.manifest.version} ${result.pack.digest}`);
+        return;
+    }
+    if (command === "import-okf") {
+        const source = args.shift();
+        if (!source) usage();
+        const id = take(args, "--id");
+        const version = take(args, "--version");
+        const license = take(args, "--license");
+        const title = take(args, "--title");
+        const description = take(args, "--description");
+        const ref = take(args, "--ref");
+        if (!id || !version || !license || args.length) usage();
+        const result = await installOkfContextPack(source, { id, version, license, title, description, ref });
+        const payload = { id: result.pack.manifest.id, version: result.pack.manifest.version, digest: result.pack.digest, source: result.source, existing: result.existing, diagnostics: result.diagnostics };
+        output(payload, json, `${result.existing ? "Already installed" : "Imported"} ${result.pack.manifest.id}@${result.pack.manifest.version} ${result.pack.digest} (${result.diagnostics.length} diagnostics)`);
+        return;
+    }
+    if (command === "validate-okf") {
+        const directory = args.shift() ?? process.cwd();
+        if (args.length) usage();
+        const result = await validateOkfBundle(directory);
+        output(result, json, `Valid Open Knowledge Format ${result.version} bundle: ${result.files.length} files, ${result.diagnostics.length} diagnostics.`);
+        return;
+    }
+    if (command === "export-okf") {
+        const projectRoot = take(args, "--project") ?? process.cwd();
+        const outputDirectory = take(args, "--output");
+        const files = takeAll(args, "--file");
+        const noteIds = takeAll(args, "--note");
+        const check = flag(args, "--check");
+        const apply = flag(args, "--apply");
+        const confirm = take(args, "--confirm");
+        if (!outputDirectory || args.length || check === apply || (apply && !confirm) || (check && confirm)) usage();
+        const options = { projectRoot, outputDirectory, files, noteIds };
+        const result = check ? await planOkfExport(options) : await applyOkfExport(options, confirm!);
+        output(result, json, check
+            ? `Export preview ${result.confirmation_digest}: ${result.output_files.length} files, ${result.redaction_replacements} redactions. Re-run with --apply --confirm ${result.confirmation_digest}.`
+            : `Exported Open Knowledge Format bundle to ${resolve(outputDirectory)}.`);
         return;
     }
     if (command === "list") {

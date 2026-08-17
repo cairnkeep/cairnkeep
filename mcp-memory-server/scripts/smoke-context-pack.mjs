@@ -74,7 +74,7 @@ const client = new Client({ name: "smoke-context-pack", version: "1" }, { capabi
 await client.connect(transport);
 try {
     const names = (await client.listTools()).tools.map(({ name }) => name);
-    for (const name of ["context_pack_list", "context_pack_search", "context_pack_read"]) assert.ok(names.includes(name));
+    for (const name of ["context_pack_list", "context_pack_search", "context_pack_read", "context_pack_related"]) assert.ok(names.includes(name));
     const listed = await client.callTool({ name: "context_pack_list", arguments: {} });
     assert.equal(listed.structuredContent.packs[0].files.length, 2);
     const searched = await client.callTool({ name: "context_pack_search", arguments: { query: "immutable" } });
