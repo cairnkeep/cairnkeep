@@ -15,6 +15,9 @@ trust. See [L03](lessons/L03-first-project.md) and
 Version 2.13 adds local Git-linked work evidence around all generated harness
 launchers; [L13](lessons/L13-session-evidence.md) covers its privacy and
 retention contract.
+The current post-2.13 work adds OKF 0.1/0.2 import, structured provenance,
+deterministic links, and reviewed OKF 0.2 export; see
+[L24](lessons/L24-okf-exchange.md).
 
 ## The three-layer model
 
@@ -43,7 +46,7 @@ Run setup in that order, then confirm `cairn doctor`, `cairn sync --check`, and
 | 7 | Evaluation and ablation | A concrete change needs bounded measurement |
 | 8 | Validated skill improvement | Repeated resolved hindsight warrants a measured skill change |
 | 9 | Least-authority MCP profiles | A client should receive fewer tools than the default catalog |
-| 10 | Immutable context packs | Reviewed external context should be pinned without becoming memory |
+| 10 | Immutable context packs and OKF exchange | Reviewed external context should be pinned or exchanged without becoming memory |
 
 Every stage is independently useful. Stages 4-8 are opt-in and are not
 prerequisites for ordinary memory.
@@ -73,6 +76,7 @@ prerequisites for ordinary memory.
 | Managed overlays | Separate distribution manifest, wrapper, profile lock, fleet and rollback gates | Policy and secrets belong in the private distribution/machine config, never core | `overlay info`, doctor, fleet dry run/current state, rollback | `course-04-operation` |
 | MCP tool profiles | `cairn mcp-tools set full|read-only|custom` | Strict mode-`0600` project config; process overrides take precedence; profile only removes tools | Inspect catalog/status digest; reset and restart MCP | `course-10-trust-context` |
 | Context packs | Manual local or commit-pinned Git install plus project enablement | Immutable objects and atomic pointers under `CAIRN_PACK_BASE_DIR`; no background sync | Validate, inspect digest, check/apply update, disable/remove | `course-10-trust-context` |
+| OKF exchange | `cairn pack validate-okf`, `import-okf`, and preview-confirm `export-okf` | Local import/export by default; explicit file/shared-note allowlist; redacted output | Inspect diagnostics/provenance/output list; exact-digest apply; disable/remove imported pack | `course-10-trust-context` |
 | Pi local stdio memory | Select Pi during setup, then explicitly run `cairn sync-pi --apply` | Local memory-server child; dynamic effective tool catalog; annotations retained in trusted details, not a native Pi field | `cairn sync-pi --check`, `cairn doctor`, cancel one call, then observe awaited shutdown with no orphan | `course-12-guided-setup` |
 
 ## Evidence, governance, and measurement

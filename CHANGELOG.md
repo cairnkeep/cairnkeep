@@ -5,6 +5,18 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- Add validation and immutable context-pack import for Open Knowledge Format
+  0.1/0.2 bundles, preserving structured source, trust, freshness, and gap
+  diagnostics without activating computations or instructions.
+- Add deterministic digest-keyed document links and the read-only,
+  closed-world `context_pack_related` MCP observation.
+- Add allowlist-only, redacted OKF 0.2 export for named project Markdown and
+  promoted shared notes, with a no-write preview and exact-digest atomic apply.
+- Add offline retrieval/freshness/gap regression fixtures and an explicit
+  decision gate for any future external knowledge-system adapter.
+
 ## [2.13.1] - 2026-08-17
 
 ### Fixed

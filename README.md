@@ -322,7 +322,7 @@ search):
 | `CAIRN_AGENTFS_BASE_DIR` | Base dir for global memory scopes (default `~/.cairnkeep`) |
 | `CAIRN_MCP_TOOL_PROFILE` | Process override for MCP exposure: `full`, `read-only`, or `custom` |
 | `CAIRN_MCP_ALLOWED_TOOLS` | Comma-separated exact allowlist required by a custom process profile |
-| `CAIRN_CONTEXT_PACKS` | Opt in to local context-pack list/search/read tools (default off) |
+| `CAIRN_CONTEXT_PACKS` | Opt in to local context-pack list/search/read/related tools (default off) |
 | `CAIRN_CONTEXT_PACK_HTTP` | Separately consent to context-pack tools over authenticated HTTP (default off) |
 | `CAIRN_PACK_BASE_DIR` | Immutable pack objects, source records, pointers, and retrieval cache (default `~/.cairnkeep/packs`) |
 | `CAIRN_TRAJECTORY_CAPTURE` | Opt in to local structured session capture (`1`, `true`, `yes`, or `on`; default off) |
@@ -389,10 +389,12 @@ cannot bypass capability or feature gates. See
 
 Context packs are immutable, digest-addressed local document/skill bundles.
 They are installed and project-pinned manually; no background Git sync occurs.
-With `CAIRN_CONTEXT_PACKS=1`, enabled documents are searchable through three
-read-only MCP tools. Skills remain invisible until their exact file digest is
+With `CAIRN_CONTEXT_PACKS=1`, enabled documents are searchable and their local
+links traversable through four read-only MCP tools. Skills remain invisible until their exact file digest is
 approved, and are never copied or executed. See
-[Immutable context packs](docs/context-packs.md).
+[Immutable context packs](docs/context-packs.md). OKF 0.1/0.2 import and
+privacy-reviewed OKF 0.2 export are documented in
+[Open Knowledge Format exchange](docs/open-knowledge-format.md).
 
 ### Managed capability contract (opt-in)
 
@@ -581,6 +583,7 @@ exposes trajectory data. See the [operating guide](docs/operating.md#compaction-
 - **Privacy and data flow** — [docs/privacy-and-data-flow.md](docs/privacy-and-data-flow.md)
 - **MCP tool profiles** — [docs/mcp-tool-profiles.md](docs/mcp-tool-profiles.md)
 - **Immutable context packs** — [docs/context-packs.md](docs/context-packs.md)
+- **Open Knowledge Format exchange** — [docs/open-knowledge-format.md](docs/open-knowledge-format.md)
 - **Validated skill improvement** — [docs/skill-improvement.md](docs/skill-improvement.md)
 - **Git providers** — [docs/git-providers.md](docs/git-providers.md)
 - **Support** — [SUPPORT.md](SUPPORT.md)

@@ -5,16 +5,18 @@ import {
     copyFileSync,
     existsSync,
     fsyncSync,
+    lstatSync,
     mkdirSync,
     openSync,
     readFileSync,
+    realpathSync,
     readdirSync,
     renameSync,
     rmSync,
     writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { buildFailureSignature } from "./failure-signature.js";
 import {
@@ -90,6 +92,16 @@ export type DistillationStoreResult = {
     created: StoredNoteResult[];
     updated: StoredNoteResult[];
     already_processed: string[];
+};
+
+export type SharedNoteExport = {
+    id: string;
+    title: string;
+    description: string;
+    keywords: string[];
+    tags: string[];
+    updated_at: string;
+    content: string;
 };
 
 function digest(domain: string, value: string): string {
@@ -311,6 +323,39 @@ function resultFor(notesRoot: string, entry: NoteRecord): StoredNoteResult {
         ...(note.status ? { status: note.status } : {}),
         node_type: note.node_type,
         ...(note.canonical_id ? { canonical_id: note.canonical_id } : {}),
+    };
+}
+
+export function readSharedNoteForExport(noteId: string): SharedNoteExport {
+    if (!noteId || noteId.length > 256) throw new Error("Invalid shared note ID.");
+    const notesRoot = join(baseDirectory(), "notes");
+    const entry = loadManifest(notesRoot).notes[noteId];
+    if (!entry) throw new Error(`Shared note "${noteId}" was not found.`);
+    if (entry.record.node_type !== "shared") throw new Error(`Note "${noteId}" is not a promoted shared note.`);
+    const notesInfo = lstatSync(notesRoot);
+    if (!notesInfo.isDirectory() || notesInfo.isSymbolicLink()) throw new Error("Shared note store is unsafe.");
+    const realNotesRoot = realpathSync(notesRoot);
+    const path = resolve(notesRoot, entry.path);
+    const realPath = realpathSync(path);
+    const rel = relative(realNotesRoot, realPath);
+    if (!rel || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+        throw new Error(`Shared note "${noteId}" has an unsafe path.`);
+    }
+    const info = lstatSync(path);
+    if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024) throw new Error(`Shared note "${noteId}" is unsafe or too large.`);
+    const bytes = readFileSync(realPath);
+    let content: string;
+    try { content = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+    catch { throw new Error(`Shared note "${noteId}" is not UTF-8.`); }
+    if (Buffer.from(content, "utf8").compare(bytes) !== 0) throw new Error(`Shared note "${noteId}" is not canonical UTF-8.`);
+    return {
+        id: entry.record.id,
+        title: entry.record.title,
+        description: entry.record.description,
+        keywords: entry.record.keywords,
+        tags: entry.record.tags,
+        updated_at: entry.record.updated_at,
+        content,
     };
 }
 

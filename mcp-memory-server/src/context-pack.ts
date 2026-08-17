@@ -10,6 +10,7 @@ import { promisify } from "node:util";
 
 import { z } from "zod";
 import { EmbeddingCache, cosineSimilarity, embedTexts, getEmbeddingConfig, hashText } from "./embeddings.js";
+import { indexOkfBundle, validateOkfBundle, type OkfIndex } from "./okf.js";
 import { atomicReplace, hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
 
 const execFileAsync = promisify(execFile);
@@ -38,6 +39,10 @@ export const contextPackManifestSchema = z.object({
     title: z.string().min(1).max(256),
     description: z.string().min(1).max(2048),
     license: z.string().min(1).max(128),
+    source_format: z.object({
+        name: z.literal("okf"),
+        version: z.string().min(1).max(32),
+    }).strict().optional(),
     files: z.array(contextPackFileSchema).max(CONTEXT_PACK_MAX_ENTRIES),
 }).strict();
 export type ContextPackManifest = z.infer<typeof contextPackManifestSchema>;
@@ -330,45 +335,110 @@ async function materializeSource(source: string, ref?: string): Promise<{ root: 
     }
 }
 
+async function publishContextPack(pack: ValidatedContextPack, source: PackSource): Promise<{ pack: ValidatedContextPack; source: PackSource; existing: boolean }> {
+    const destination = objectRoot(pack.digest);
+    if (existsSync(destination)) {
+        const existing = await validateContextPack(destination);
+        if (existing.digest !== pack.digest) throw new Error("Stored context pack object failed verification.");
+        await makeImmutable(destination);
+        await atomicJson(join(packBaseDir(), "sources", `${pack.digest}.json`), { schema_version: 1, source });
+        return { pack: existing, source, existing: true };
+    }
+    const objects = dirname(destination);
+    await mkdir(objects, { recursive: true, mode: 0o700 });
+    const temporary = join(objects, `.${pack.digest}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
+    let published = true;
+    try {
+        await cp(pack.root, temporary, { recursive: true, errorOnExist: true, force: false });
+        const copied = await validateContextPack(temporary);
+        if (copied.digest !== pack.digest) throw new Error("Context pack changed during installation.");
+        await makeImmutable(temporary);
+        try {
+            await rename(temporary, destination);
+        } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code ?? "";
+            const converged = existsSync(destination)
+                && (["EEXIST", "ENOTEMPTY"].includes(code) || (process.platform === "win32" && code === "EPERM"));
+            if (!converged) throw error;
+            const concurrent = await validateContextPack(destination);
+            if (concurrent.digest !== pack.digest) throw new Error("Concurrent context pack installation produced a conflicting object.");
+            published = false;
+        }
+    } finally {
+        await makeWritable(temporary).catch(() => undefined);
+        await rm(temporary, { recursive: true, force: true }).catch(() => undefined);
+    }
+    await atomicJson(join(packBaseDir(), "sources", `${pack.digest}.json`), { schema_version: 1, source });
+    return { pack: await validateContextPack(destination), source, existing: !published };
+}
+
 export async function installContextPack(sourcePath: string, options: { ref?: string } = {}): Promise<{ pack: ValidatedContextPack; source: PackSource; existing: boolean }> {
     const materialized = await materializeSource(sourcePath, options.ref);
     try {
-        const pack = await validateContextPack(materialized.root);
-        const destination = objectRoot(pack.digest);
-        if (existsSync(destination)) {
-            const existing = await validateContextPack(destination);
-            if (existing.digest !== pack.digest) throw new Error("Stored context pack object failed verification.");
-            await makeImmutable(destination);
-            await atomicJson(join(packBaseDir(), "sources", `${pack.digest}.json`), { schema_version: 1, source: materialized.source });
-            return { pack: existing, source: materialized.source, existing: true };
-        }
-        const objects = dirname(destination);
-        await mkdir(objects, { recursive: true, mode: 0o700 });
-        const temporary = join(objects, `.${pack.digest}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
-        let published = true;
-        try {
-            await cp(pack.root, temporary, { recursive: true, errorOnExist: true, force: false });
-            const copied = await validateContextPack(temporary);
-            if (copied.digest !== pack.digest) throw new Error("Context pack changed during installation.");
-            await makeImmutable(temporary);
-            try {
-                await rename(temporary, destination);
-            } catch (error) {
-                const code = (error as NodeJS.ErrnoException).code ?? "";
-                const converged = existsSync(destination)
-                    && (["EEXIST", "ENOTEMPTY"].includes(code) || (process.platform === "win32" && code === "EPERM"));
-                if (!converged) throw error;
-                const concurrent = await validateContextPack(destination);
-                if (concurrent.digest !== pack.digest) throw new Error("Concurrent context pack installation produced a conflicting object.");
-                published = false;
-            }
-        } finally {
-            await makeWritable(temporary).catch(() => undefined);
-            await rm(temporary, { recursive: true, force: true }).catch(() => undefined);
-        }
-        await atomicJson(join(packBaseDir(), "sources", `${pack.digest}.json`), { schema_version: 1, source: materialized.source });
-        return { pack: await validateContextPack(destination), source: materialized.source, existing: !published };
+        return await publishContextPack(await validateContextPack(materialized.root), materialized.source);
     } finally {
+        if (materialized.cleanup) await rm(materialized.cleanup, { recursive: true, force: true });
+    }
+}
+
+type OkfPackOptions = {
+    id: string;
+    version: string;
+    license: string;
+    title?: string;
+    description?: string;
+    ref?: string;
+};
+
+async function prepareOkfContextPack(sourceRoot: string, options: OkfPackOptions): Promise<{ pack: ValidatedContextPack; staging_root: string; diagnostics: unknown[] }> {
+    const stagingRoot = await mkdtemp(join(tmpdir(), "cairn-okf-pack-"));
+    const staging = join(stagingRoot, "pack");
+    try {
+        const okf = await validateOkfBundle(sourceRoot);
+        await mkdir(staging, { recursive: true, mode: 0o700 });
+        for (const file of okf.files) {
+            const source = resolve(okf.root, ...file.path.split("/"));
+            const target = resolve(staging, ...file.path.split("/"));
+            if (!contained(okf.root, source) || !contained(staging, target)) throw new Error(`Unsafe OKF path: ${file.path}`);
+            await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+            await cp(source, target, { errorOnExist: true, force: false });
+        }
+        const title = options.title?.trim() || okf.files.find(({ path }) => path === "index.md")?.title || options.id;
+        const description = options.description?.trim() || `Imported Open Knowledge Format ${okf.version} bundle.`;
+        const manifest = contextPackManifestSchema.parse({
+            schema_version: 1,
+            id: options.id,
+            version: options.version,
+            title,
+            description,
+            license: options.license,
+            source_format: { name: "okf", version: okf.version },
+            files: okf.files.map((file) => ({
+                path: file.path,
+                kind: "document" as const,
+                title: file.title,
+                description: file.description,
+                keywords: file.keywords,
+                sha256: file.sha256,
+            })),
+        });
+        await writeFile(join(staging, CONTEXT_PACK_MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+        return { pack: await validateContextPack(staging), staging_root: stagingRoot, diagnostics: okf.diagnostics };
+    } catch (error) {
+        await rm(stagingRoot, { recursive: true, force: true });
+        throw error;
+    }
+}
+
+export async function installOkfContextPack(sourcePath: string, options: OkfPackOptions): Promise<{ pack: ValidatedContextPack; source: PackSource; existing: boolean; diagnostics: unknown[] }> {
+    const materialized = await materializeSource(sourcePath, options.ref);
+    let prepared: Awaited<ReturnType<typeof prepareOkfContextPack>> | undefined;
+    try {
+        prepared = await prepareOkfContextPack(materialized.root, options);
+        const result = await publishContextPack(prepared.pack, materialized.source);
+        return { ...result, diagnostics: prepared.diagnostics };
+    } finally {
+        if (prepared) await rm(prepared.staging_root, { recursive: true, force: true });
         if (materialized.cleanup) await rm(materialized.cleanup, { recursive: true, force: true });
     }
 }
@@ -549,6 +619,8 @@ export async function removeContextPack(selector: string): Promise<string> {
     await makeWritable(root);
     await rm(root, { recursive: true, force: true });
     await rm(join(packBaseDir(), "sources", `${pack.digest}.json`), { force: true });
+    await rm(join(packBaseDir(), "cache", "graphs", `${pack.digest}.json`), { force: true });
+    okfIndexPromises.delete(pack.digest);
     return pack.digest;
 }
 
@@ -606,6 +678,40 @@ function provenance(pack: ValidatedContextPack, file: ContextPackFile) {
     return { pack_id: pack.manifest.id, version: pack.manifest.version, pack_digest: pack.digest, path: file.path, kind: file.kind, file_digest: file.sha256 };
 }
 
+const okfIndexPromises = new Map<string, Promise<OkfIndex>>();
+
+async function okfIndex(pack: ValidatedContextPack): Promise<OkfIndex | null> {
+    const sourceFormat = pack.manifest.source_format;
+    if (sourceFormat?.name !== "okf") return null;
+    let pending = okfIndexPromises.get(pack.digest);
+    if (!pending) {
+        pending = (async () => {
+            const cachePath = join(packBaseDir(), "cache", "graphs", `${pack.digest}.json`);
+            const built = await indexOkfBundle(pack.root, pack.manifest.files.map(({ path }) => path), sourceFormat.version);
+            await atomicJson(cachePath, built).catch(() => undefined);
+            return built;
+        })();
+        okfIndexPromises.set(pack.digest, pending);
+    }
+    return pending;
+}
+
+async function okfProvenance(pack: ValidatedContextPack, file: ContextPackFile): Promise<Record<string, unknown>> {
+    const index = await okfIndex(pack);
+    if (!index) return {};
+    const indexed = index.files.find(({ path }) => path === file.path);
+    if (!indexed) return {};
+    return {
+        okf: {
+            version: index.version,
+            role: indexed.role,
+            ...(indexed.concept ?? {}),
+            links: { outbound: indexed.outbound, broken: indexed.broken_links },
+            diagnostics: index.diagnostics.filter(({ path }) => path === file.path),
+        },
+    };
+}
+
 function utf8Slice(bytes: Buffer, start: number, maximum: number): { text: string; bytes: number } {
     const requestedStart = Math.min(start, bytes.length);
     let safeStart = requestedStart;
@@ -661,7 +767,7 @@ export async function listVisibleContext(options: { projectRoot?: string; projec
     const grouped = new Map<string, { pack_id: string; version: string; pack_digest: string; title: string; files: unknown[] }>();
     for (const { pack, file } of files) {
         const row = grouped.get(pack.digest) ?? { pack_id: pack.manifest.id, version: pack.manifest.version, pack_digest: pack.digest, title: pack.manifest.title, files: [] };
-        row.files.push({ ...provenance(pack, file), title: file.title, description: file.description, keywords: file.keywords });
+        row.files.push({ ...provenance(pack, file), ...await okfProvenance(pack, file), title: file.title, description: file.description, keywords: file.keywords });
         grouped.set(pack.digest, row);
     }
     return { schema_version: 1, packs: [...grouped.values()] };
@@ -670,11 +776,12 @@ export async function listVisibleContext(options: { projectRoot?: string; projec
 export async function searchVisibleContext(query: string, options: { projectRoot?: string; projectId?: string; limit?: number }) {
     const normalized = query.trim().toLocaleLowerCase("en");
     if (!normalized) throw new Error("Context pack search query must not be empty.");
-    const candidates: Array<{ pack: ValidatedContextPack; file: ContextPackFile; offset: number; text: string; searchable: string }> = [];
+    const candidates: Array<{ pack: ValidatedContextPack; file: ContextPackFile; offset: number; text: string; searchable: string; okf: Record<string, unknown> }> = [];
     for (const { pack, file } of await visiblePackFiles(options)) {
         const text = await readFile(join(pack.root, file.path), "utf8");
+        const okf = await okfProvenance(pack, file);
         for (const chunk of chunks(text)) {
-            candidates.push({ pack, file, offset: chunk.offset, text: chunk.text, searchable: `${file.title}\n${file.description}\n${file.keywords.join(" ")}\n${chunk.text}` });
+            candidates.push({ pack, file, offset: chunk.offset, text: chunk.text, searchable: `${file.title}\n${file.description}\n${file.keywords.join(" ")}\n${chunk.text}`, okf });
         }
     }
     const config = getEmbeddingConfig();
@@ -695,7 +802,7 @@ export async function searchVisibleContext(query: string, options: { projectRoot
             });
             cache.save();
             const results = candidates.map((candidate, index) => ({
-                ...provenance(candidate.pack, candidate.file), offset: candidate.offset, text: candidate.text,
+                ...provenance(candidate.pack, candidate.file), ...candidate.okf, offset: candidate.offset, text: candidate.text,
                 score: cosineSimilarity(embedded[0], vectors[index] ?? []),
             })).sort((a, b) => b.score - a.score || a.pack_digest.localeCompare(b.pack_digest, "en") || a.path.localeCompare(b.path, "en") || a.offset - b.offset);
             return { schema_version: 1, query, search_mode: "embedding" as const, results: results.slice(0, options.limit ?? 20) };
@@ -705,7 +812,7 @@ export async function searchVisibleContext(query: string, options: { projectRoot
     }
     const results = candidates.flatMap((candidate) => {
         const occurrences = candidate.searchable.toLocaleLowerCase("en").split(normalized).length - 1;
-        return occurrences ? [{ ...provenance(candidate.pack, candidate.file), offset: candidate.offset, text: candidate.text, score: occurrences }] : [];
+        return occurrences ? [{ ...provenance(candidate.pack, candidate.file), ...candidate.okf, offset: candidate.offset, text: candidate.text, score: occurrences }] : [];
     });
     results.sort((a, b) => b.score - a.score || a.pack_digest.localeCompare(b.pack_digest, "en") || a.path.localeCompare(b.path, "en") || a.offset - b.offset);
     return { schema_version: 1, query, search_mode: "substring" as const, results: results.slice(0, options.limit ?? 20) };
@@ -722,14 +829,56 @@ export async function readVisibleContext(packSelector: string, path: string, opt
     const maxBytes = options.maxBytes ?? 8192;
     if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(maxBytes) || maxBytes < 1 || maxBytes > 8192) throw new Error("Invalid context pack read range.");
     const slice = utf8Slice(bytes, offset, maxBytes);
-    return { schema_version: 1, ...provenance(pack, file), offset, text: slice.text, next_offset: offset + slice.bytes < bytes.length ? offset + slice.bytes : null };
+    return { schema_version: 1, ...provenance(pack, file), ...await okfProvenance(pack, file), offset, text: slice.text, next_offset: offset + slice.bytes < bytes.length ? offset + slice.bytes : null };
+}
+
+export async function relatedVisibleContext(packSelector: string, path: string, options: {
+    projectRoot?: string;
+    projectId?: string;
+    direction?: "outbound" | "inbound" | "both";
+    limit?: number;
+}) {
+    const normalized = normalizePackPath(path);
+    const visible = await visiblePackFiles(options);
+    const matches = visible.filter(({ pack, file }) => (pack.digest === packSelector || pack.digest.startsWith(packSelector) || pack.manifest.id === packSelector) && file.path === normalized);
+    if (matches.length !== 1) throw new Error(matches.length ? "Context pack selector is ambiguous." : "Context pack file is not enabled or approved.");
+    const { pack, file } = matches[0];
+    const index = await okfIndex(pack);
+    if (!index) throw new Error("Related-document traversal is available only for imported Open Knowledge Format packs.");
+    const source = index.files.find(({ path: candidate }) => candidate === file.path);
+    if (!source) throw new Error("Context pack graph does not contain the requested file.");
+    const direction = options.direction ?? "both";
+    const visiblePaths = new Set(visible.filter(({ pack: candidate }) => candidate.digest === pack.digest).map(({ file: candidate }) => candidate.path));
+    const outbound = new Set(direction === "inbound" ? [] : source.outbound);
+    const inbound = new Set(direction === "outbound" ? [] : index.files.filter(({ outbound: links }) => links.includes(file.path)).map(({ path: candidate }) => candidate));
+    const paths = [...new Set([...outbound, ...inbound])].filter((candidate) => visiblePaths.has(candidate)).sort((a, b) => a.localeCompare(b, "en"));
+    const limit = options.limit ?? 20;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("Invalid related-document limit.");
+    const results = [];
+    for (const candidatePath of paths.slice(0, limit)) {
+        const candidateFile = pack.manifest.files.find(({ path: declared }) => declared === candidatePath)!;
+        const relation = outbound.has(candidatePath) && inbound.has(candidatePath) ? "both" : outbound.has(candidatePath) ? "outbound" : "inbound";
+        results.push({ ...provenance(pack, candidateFile), ...await okfProvenance(pack, candidateFile), relation, title: candidateFile.title, description: candidateFile.description, keywords: candidateFile.keywords });
+    }
+    return { schema_version: 1, ...provenance(pack, file), ...await okfProvenance(pack, file), direction, results, diagnostics: index.diagnostics.filter(({ path: diagnosticPath }) => diagnosticPath === file.path) };
 }
 
 export async function doctorContextPacks(): Promise<{ ok: boolean; objects: number; projects: number; issues: string[]; temporary_remnants: string[] }> {
     const issues: string[] = [];
     const remnants: string[] = [];
     let objects = 0;
-    try { objects = (await listInstalledContextPacks()).length; } catch (error) { issues.push(error instanceof Error ? error.message : String(error)); }
+    const expectedGraphs = new Map<string, string>();
+    try {
+        const installed = await listInstalledContextPacks();
+        objects = installed.length;
+        for (const item of installed) {
+            const pack = await validateContextPack(objectRoot(item.digest));
+            if (pack.manifest.source_format?.name === "okf") {
+                const graph = await indexOkfBundle(pack.root, pack.manifest.files.map(({ path }) => path), pack.manifest.source_format.version);
+                expectedGraphs.set(pack.digest, JSON.stringify(graph));
+            }
+        }
+    } catch (error) { issues.push(error instanceof Error ? error.message : String(error)); }
     const findRemnants = async (directory: string): Promise<void> => {
         if (!existsSync(directory)) return;
         for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -753,6 +902,31 @@ export async function doctorContextPacks(): Promise<{ ok: boolean; objects: numb
                 }
                 if (!existsSync(objectRoot(match[1]))) issues.push(`Orphaned context pack source record: ${entry.name}`);
                 try { readPackSource(match[1]); } catch (error) { issues.push(error instanceof Error ? error.message : String(error)); }
+            }
+        }
+    }
+    const graphDirectory = join(packBaseDir(), "cache", "graphs");
+    if (existsSync(graphDirectory)) {
+        const directoryInfo = lstatSync(graphDirectory);
+        if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink()) {
+            issues.push("Context pack graph cache directory is unsafe.");
+        } else {
+            for (const entry of await readdir(graphDirectory, { withFileTypes: true })) {
+                const match = /^([a-f0-9]{64})\.json$/.exec(entry.name);
+                const path = join(graphDirectory, entry.name);
+                if (!entry.isFile() || entry.isSymbolicLink() || !match || lstatSync(path).size > CONTEXT_PACK_MAX_FILE_BYTES || !privatePathIsSafe(path)) {
+                    issues.push(`Invalid context pack graph cache entry: ${entry.name}`);
+                    continue;
+                }
+                if (!existsSync(objectRoot(match[1]))) issues.push(`Orphaned context pack graph cache: ${entry.name}`);
+                try {
+                    const cached = JSON.parse(await readFile(path, "utf8")) as Partial<OkfIndex>;
+                    if (cached.schema_version !== 1 || !Array.isArray(cached.files) || !Array.isArray(cached.diagnostics)) throw new Error("invalid graph cache schema");
+                    const expected = expectedGraphs.get(match[1]);
+                    if (expected && JSON.stringify(cached) !== expected) throw new Error("graph cache does not match the immutable object");
+                } catch (error) {
+                    issues.push(`Invalid context pack graph cache: ${entry.name}: ${error instanceof Error ? error.message : String(error)}`);
+                }
             }
         }
     }
@@ -783,17 +957,30 @@ export async function doctorContextPacks(): Promise<{ ok: boolean; objects: numb
     return { ok: issues.length === 0 && remnants.length === 0, objects, projects: pointers.length, issues, temporary_remnants: remnants };
 }
 
-export async function inspectContextPackUpdate(selector: string, options: { projectRoot?: string; projectId?: string }): Promise<{ current_digest: string; candidate_digest: string; changed: boolean; source: PackSource }> {
+export async function inspectContextPackUpdate(selector: string, options: { projectRoot?: string; projectId?: string }): Promise<{ current_digest: string; candidate_digest: string; changed: boolean; source: PackSource; source_format?: "okf" }> {
     const pointer = readProjectPointer(options);
     const enabled = pointer.enabled.find((entry) => entry.id === selector || entry.digest === selector || entry.digest.startsWith(selector));
     if (!enabled) throw new Error("Context pack is not enabled for this project.");
     const sourceRecord = JSON.parse(await readFile(join(packBaseDir(), "sources", `${enabled.digest}.json`), "utf8")) as { source: PackSource };
     const source = sourceRecord.source;
+    const current = await validateContextPack(objectRoot(enabled.digest));
     const materialized = await materializeSource(source.kind === "local" ? source.path : source.url, source.kind === "git" ? source.ref : undefined);
+    let prepared: Awaited<ReturnType<typeof prepareOkfContextPack>> | undefined;
     try {
+        if (current.manifest.source_format?.name === "okf") {
+            prepared = await prepareOkfContextPack(materialized.root, {
+                id: current.manifest.id,
+                version: current.manifest.version,
+                license: current.manifest.license,
+                title: current.manifest.title,
+                description: current.manifest.description,
+            });
+            return { current_digest: enabled.digest, candidate_digest: prepared.pack.digest, changed: prepared.pack.digest !== enabled.digest, source: materialized.source, source_format: "okf" };
+        }
         const candidate = await validateContextPack(materialized.root);
         return { current_digest: enabled.digest, candidate_digest: candidate.digest, changed: candidate.digest !== enabled.digest, source: materialized.source };
     } finally {
+        if (prepared) await rm(prepared.staging_root, { recursive: true, force: true });
         if (materialized.cleanup) await rm(materialized.cleanup, { recursive: true, force: true });
     }
 }
@@ -801,7 +988,20 @@ export async function inspectContextPackUpdate(selector: string, options: { proj
 export async function applyContextPackUpdate(selector: string, confirm: string, options: { projectRoot?: string; projectId?: string }) {
     const check = await inspectContextPackUpdate(selector, options);
     if (confirm !== check.candidate_digest) throw new Error("Update confirmation digest does not match the inspected context pack.");
-    const installed = await installContextPack(check.source.kind === "local" ? check.source.path : check.source.url, check.source.kind === "git" ? { ref: check.source.ref } : {});
+    let installed: Awaited<ReturnType<typeof installContextPack>>;
+    if (check.source_format === "okf") {
+        const current = await validateContextPack(objectRoot(check.current_digest));
+        installed = await installOkfContextPack(check.source.kind === "local" ? check.source.path : check.source.url, {
+            id: current.manifest.id,
+            version: current.manifest.version,
+            license: current.manifest.license,
+            title: current.manifest.title,
+            description: current.manifest.description,
+            ...(check.source.kind === "git" ? { ref: check.source.ref } : {}),
+        });
+    } else {
+        installed = await installContextPack(check.source.kind === "local" ? check.source.path : check.source.url, check.source.kind === "git" ? { ref: check.source.ref } : {});
+    }
     if (installed.pack.digest !== confirm) throw new Error("Context pack changed after update inspection.");
     const pointer = await enableContextPack(installed.pack.digest, options);
     return { ...check, applied: true, pointer };

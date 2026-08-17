@@ -1,7 +1,7 @@
 # Curriculum Coverage Map
 
 **Baseline:** Cairnkeep 2.13.1
-**Last reviewed:** 2026-08-13
+**Last reviewed:** 2026-08-17
 
 This map prevents the course from drifting behind the product. It assigns each
 user-facing surface to a lesson and records whether the lesson is complete or
@@ -39,6 +39,7 @@ been rehearsed.
 | Native Windows x64 CLI, hooks, ACLs, scheduling, and recovery | L22 | L22 | Ready; PowerShell-native |
 | Guided project setup, selected harness state, and Git-less limitations | L03 | L03 and L23 | Ready |
 | Pi local stdio memory bridge, trusted annotation details, and explicit lifecycle | L23 | L23 | Ready; Pi 0.84.1 validated minimum |
+| OKF 0.1/0.2 validation/import, provenance, links, regressions, and reviewed 0.2 export | L24 | L24 | Ready; local/offline by default |
 
 ## Release Review
 
@@ -69,7 +70,7 @@ repository remains the canonical source for explanations and scripts.
 | `course-07-evaluation` | L16-L17 | Package-owned offline fixture and design boundary |
 | `course-08-graph` | L18 | Optional local structural graph workflow |
 | `course-09-skill` | L19 | Validated skill improvement in a disposable project |
-| `course-10-trust-context` | L20-L21 | MCP authority profiles and offline context-pack lifecycle |
+| `course-10-trust-context` | L20-L21 and L24 | MCP authority profiles, offline context-pack lifecycle, and reviewed OKF exchange |
 | `course-11-windows` | L22 | Native PowerShell lifecycle, ACL inspection, and reversible uninstall |
 | `course-12-guided-setup` | L23 | Deterministic setup, Pi local stdio, recovery, and backup-first uninstall |
 
@@ -92,7 +93,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn evidence` | L13 |
 | `cairn capabilities` | L15 |
 | `cairn mcp-tools` | L20 |
-| `cairn pack` | L21 |
+| `cairn pack` | L21 and L24 |
 | `cairn notes` | L13 |
 | `cairn eval` | L16 |
 | `cairn skill` | L19 |

@@ -9,6 +9,7 @@ import { distillProject } from "../dist/note-distiller.js";
 import { getNoteLayout, promoteNotes, searchHindsight } from "../dist/note-store.js";
 import { getTrajectoryLimits, trajectorySessionSchema } from "../dist/trajectory-schema.js";
 import { putTrajectory } from "../dist/trajectory-store.js";
+import { applyOkfExport, planOkfExport, validateOkfBundle } from "../dist/okf.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = JSON.parse(readFileSync(join(here, "fixtures", "notes", "lifecycle-sessions.json"), "utf8"));
@@ -131,6 +132,14 @@ try {
     assert.equal(allFiles(join(storeRoot, "notes", "shared")).filter((path) => path.endsWith(".md")).length, 1);
     assert.match(readFileSync(created.path, "utf8"), /node_type: provenance/);
     assert.match(readFileSync(other.created[0].path, "utf8"), /node_type: provenance/);
+    const okfOutput = join(scratch, "shared-note-okf");
+    const okfOptions = { projectRoot: projectA, outputDirectory: okfOutput, files: [], noteIds: [promoted.shared_id] };
+    const okfPlan = await planOkfExport(okfOptions);
+    assert.equal(okfPlan.output_files.some(({ kind }) => kind === "shared-note"), true);
+    await applyOkfExport(okfOptions, okfPlan.confirmation_digest);
+    const exportedShared = (await validateOkfBundle(okfOutput)).concepts[0];
+    assert.equal(exportedShared.trust_tier, "machine-confirmed");
+    assert.match(readFileSync(join(okfOutput, "notes", `${promoted.shared_id}.md`), "utf8"), /Cairnkeep Shared Note/);
     await assert.rejects(() => promoteNotes({ sourceNoteId: created.id, corroboratingNoteId: created.id, confirm: true }));
     await assert.rejects(() => promoteNotes({ sourceNoteId: created.id, corroboratingNoteId: other.created[0].id, confirm: false }));
 

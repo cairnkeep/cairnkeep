@@ -19,6 +19,8 @@ request unless the corresponding endpoint and credential are configured.
 | Local context-pack install/list/read/substring search | None | Verified immutable files and project pointers under `CAIRN_PACK_BASE_DIR` |
 | Embedding-ranked context-pack search | Enabled file chunks not already cached, plus the query | The explicitly configured embedding endpoint; failure falls back locally |
 | Authenticated HTTP context-pack retrieval | MCP requests and enabled document/approved-skill content | The explicit Cairnkeep HTTP server; requires separate pack HTTP consent |
+| Local OKF validation/import/link traversal | None | Source files are read locally; immutable object and digest-keyed graph cache remain under `CAIRN_PACK_BASE_DIR` |
+| Privacy-reviewed OKF export | None | Only explicitly named Markdown/promoted shared notes are redacted into the operator-selected local output directory after exact preview confirmation |
 | Optional Graphify workflow | The repository path, exact query/symbol names, root `graphify-out/` work directory, and local `.planning/graphs/` publication are passed to or produced by the operator-installed `graphify` executable | Local Graphify subprocess with a minimal environment and no provider credentials; managed build uses code-only `update`, never semantic document extraction |
 | Remote HTTP memory | MCP requests and responses, including memory content | The explicitly registered Cairnkeep HTTP server |
 | Opt-in trajectory capture | None | Local `<project>/.agentfs/trajectory.db` only; no model or HTTP path exists |

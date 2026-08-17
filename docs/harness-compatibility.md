@@ -31,7 +31,7 @@ commands, hooks, agents, or automatic skill activation.
 
 Every MCP client receives complete tool annotations and may use a Cairnkeep
 least-authority profile independent of harness assets. Context-pack tools are
-ordinary read-only MCP tools and require the pack feature gate; authenticated
+ordinary read-only MCP tools (including imported-OKF link traversal) and require the pack feature gate; authenticated
 HTTP additionally requires separate pack-HTTP consent. Approved pack skills
 remain context documents, not native harness Skills or automatic instructions.
 
