@@ -262,5 +262,11 @@ await Promise.all(["minimal", "balanced", "strict", "balanced"].map((profile) =>
 assert.deepEqual((await resolvePlaybookStatus({ projectRoot: concurrent, env: {} })).issues, []);
 await Promise.all([setPlaybookProfile(concurrent, "strict"), resetPlaybook(concurrent)]);
 assert.deepEqual((await resolvePlaybookStatus({ projectRoot: concurrent, env: {} })).issues, []);
+for (let round = 0; round < 12; round += 1) {
+    await Promise.all(Array.from({ length: 12 }, (_, index) => index % 4 === 0
+        ? resetPlaybook(concurrent)
+        : setPlaybookProfile(concurrent, ["minimal", "balanced", "strict"][index % 3])));
+    assert.deepEqual((await resolvePlaybookStatus({ projectRoot: concurrent, env: {} })).issues, []);
+}
 
 console.log("PASS: strict playbooks, deterministic decisions, enforcement, private receipts, and threat boundaries");

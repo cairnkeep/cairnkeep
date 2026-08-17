@@ -253,9 +253,20 @@ async function acquireLock(lock: string): Promise<() => Promise<void>> {
             await mkdir(lock, { mode: 0o700 });
             return () => rm(lock, { recursive: true, force: true });
         } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-            const info = await lstat(lock);
-            if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("Playbook configuration lock is unsafe.");
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code !== "EEXIST" && !(process.platform === "win32" && code === "EPERM")) throw error;
+            try {
+                const info = await lstat(lock);
+                if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("Playbook configuration lock is unsafe.");
+            } catch (inspectionError) {
+                const inspectionCode = (inspectionError as NodeJS.ErrnoException).code;
+                if (inspectionCode === "ENOENT") continue;
+                if (process.platform === "win32" && (inspectionCode === "EPERM" || inspectionCode === "EBUSY")) {
+                    await delay(LOCK_WAIT_MS);
+                    continue;
+                }
+                throw inspectionError;
+            }
             await delay(LOCK_WAIT_MS);
         }
     }
