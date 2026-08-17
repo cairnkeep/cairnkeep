@@ -240,6 +240,26 @@ The launcher loads `.ai/.env`, runs optional pre/post hooks, changes to the
 project root, and passes all arguments to `codex`. It does not install native
 Codex Skills or instructions and does not activate approved context-pack skills.
 
+Codex uses MCP annotations when deciding whether a tool needs approval. In
+non-interactive `codex exec`, an unapproved mutating call is cancelled rather
+than silently executed. Cairnkeep intentionally does not autoapprove memory
+writes during setup. An operator who has explicitly authorized a bounded,
+unattended workflow may add narrow per-tool policy to the isolated Codex config:
+
+```toml
+[mcp_servers.cairn-memory.tools.memory_write]
+approval_mode = "approve"
+
+[mcp_servers.cairn-memory.tools.memory_supersede]
+approval_mode = "approve"
+```
+
+Do not add this to shared or ordinary interactive configuration merely to avoid
+prompts. Keep the allowlist limited to the authorized tools and continue to use
+Cairn MCP profiles and project isolation. See the
+[official Codex MCP configuration reference](https://developers.openai.com/codex/mcp)
+for approval-mode semantics.
+
 ## Candidate memory clients
 
 The following clients have documented MCP support and are reasonable adapter
