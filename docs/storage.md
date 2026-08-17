@@ -57,6 +57,28 @@ indexes. Defaults are 5 MiB per serialized session, 256 MiB logical total and
 and then the oldest records needed to meet the logical budget. `prune
 --dry-run` reports the same decision without changing the database.
 
+## Playbook policy and receipt storage
+
+The project policy is `.ai/playbooks.json`, a strict schema-versioned file with
+private permissions. It contains a built-in profile name and bounded overrides
+for canonical actions only. The effective policy digest is derived from its
+canonical meaning, so formatting changes do not create a different policy.
+
+Recorded outcomes are immutable JSON files under
+`.agentfs/playbooks/receipts/`. Each receipt is at most 8 KiB and binds the
+canonical project identity, policy and decision digests, local actor assertion,
+session, event, action, outcome, bounded reason, and timestamp. The store is
+private, capped at 10,000 receipts, and rejects symlinks, unsafe file kinds,
+unsafe permissions, and malformed bytes. It deliberately contains no prompts,
+source bodies, diffs, credentials, or environment snapshots.
+
+Back up `.ai/playbooks.json` with project configuration and
+`.agentfs/playbooks/` with other project-local evidence. Copying receipts does
+not make their actor authenticated. Run `cairn playbook doctor --project PATH`
+after a restore. Ordinary uninstall removes the setup-owned policy and managed
+instruction block backup-first, while retained `.agentfs` evidence follows the
+normal project-data retention choice.
+
 ## Capability callback storage
 
 Managed operating callbacks use two separate versioned KV namespaces inside

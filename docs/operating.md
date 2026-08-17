@@ -830,6 +830,60 @@ is not an authorization boundary. See [Memory storage and deployment](storage.md
 for the placement rules, client registration, TLS requirements, project headers,
 and backup boundaries.
 
+## Project playbooks
+
+Guided setup and tracked bootstrap create private `.ai/playbooks.json` mode
+`0600` with the `balanced` profile and reconcile a delimited block in the
+project's `AGENTS.md`. `--untracked` bootstrap leaves the shared `AGENTS.md`
+untouched. The policy can select only eight canonical Cairnkeep actions; it
+cannot contain commands, prompts, URLs, or extensions.
+
+```bash
+cairn playbook list
+cairn playbook status --project .
+cairn playbook set strict
+cairn playbook enable review.security must
+cairn playbook disable learning.capture
+cairn playbook reset learning.capture
+```
+
+At task start, use `check start`; after a material risk or scope change, use
+`check check`; before completion, use `check finish`. Supply actual changed
+paths and evidence rather than trusting a model's unsupported claim:
+
+```bash
+cairn playbook check finish --changed src/auth.ts docs/security.md \
+  --risk security --public-change \
+  --completed verify.tests review.repository review.security docs.update \
+  --enforce
+```
+
+Exit 3 means applicable `must` evidence is missing. Exit 2 means the policy has
+diagnostic issues. Otherwise the check succeeded. `should` actions remain
+advisory and should carry a concrete `--skipped ACTION=REASON` when omitted.
+Checking never executes the displayed commands, contacts a service, enables a
+capability, or grants approval.
+
+Material outcomes can be stored with `cairn playbook record` using the exact
+policy and decision digests from the check. Inspect them with `cairn playbook
+receipts list|show`; validate state with `cairn playbook doctor`. Actor and
+session options are provenance labels only: v2.15 does not authenticate them
+and does not provide team ACLs. See [team mode](design/team-mode.md) for the
+future admission contract.
+
+The managed instruction lifecycle is explicit and ownership-safe:
+
+```bash
+cairn playbook instructions check
+cairn playbook instructions install
+cairn playbook instructions remove
+```
+
+Claude and OpenCode receive `/cairn-work`; Pi and Kimi receive corresponding
+thin prompt/Skill adapters when their explicit machine sync runs. Codex and
+Qwen follow the project `AGENTS.md` block. These surfaces route to the same CLI
+and do not create a Cairnkeep-owned agent loop.
+
 ## The workflow
 
 Once installed, the operating layer gives you:

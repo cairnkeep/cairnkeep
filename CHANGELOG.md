@@ -5,6 +5,34 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-08-17
+
+### Added
+
+- Add strict local project playbooks with `minimal`, `balanced`, and `strict`
+  profiles, bounded canonical action overrides, deterministic start/check/finish
+  decisions, enforcement for missing `must` evidence, and stable policy and
+  decision digests.
+- Add private project-bound outcome receipts with bounded unauthenticated actor
+  provenance, lifecycle inspection, and doctor validation without storing
+  prompts, source bodies, changed paths, diffs, credentials, or command output.
+- Add ownership-safe managed `AGENTS.md` guidance plus thin Claude, OpenCode,
+  Pi, and Kimi `/cairn-work` adapters; Codex and Qwen use the portable project
+  instructions without automatic skill activation.
+- Add an implementation-ready future team-mode contract covering authenticated
+  identity, scopes, ACLs, review queues, audit history, tenant isolation,
+  retention, migration, and release gates while keeping team operation deferred.
+- Add a release-verified playbook lesson, course checkpoint, feature/curriculum
+  coverage, and companion video script.
+
+### Changed
+
+- Guided setup and tracked bootstrap now install the balanced policy and safely
+  reconcile the managed agent-instruction block. Untracked bootstrap leaves
+  shared `AGENTS.md` untouched.
+- Extend completion, native Windows, package, doctor, and backup-first uninstall
+  coverage to the playbook lifecycle and harness adapters.
+
 ## [2.14.0] - 2026-08-17
 
 ### Added
@@ -370,7 +398,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.14.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.15.0...HEAD
+[2.15.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.13.1...v2.14.0
 [2.13.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.13.0...v2.13.1
 [2.13.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.12.0...v2.13.0

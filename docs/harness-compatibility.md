@@ -14,20 +14,21 @@ Cairnkeep commands, hooks or native trajectory capture.
 
 | Harness | Supported surface | Runtime status |
 |---|---|---|
-| Claude Code | Memory MCP, commands, agents, hooks, launcher | Exercised by Cairnkeep tests |
-| OpenCode | Memory MCP, commands, workflows, plugins, launcher | Exercised by Cairnkeep tests |
-| Kimi Code | Memory MCP, `AGENTS.md`, launcher, opt-in graph Skill | Launcher tested; remote MCP tested with Kimi Code 0.30.0; graph Skill contract-tested |
-| Qwen Code | Memory MCP, launcher | Launcher tested; stdio and remote MCP tested with Qwen Code 0.21.1 |
-| Pi | Memory MCP through maintained local stdio extension, native opt-in trajectory extension, launcher, and graph prompt | Pi 0.84.1 validated minimum; deterministic and real bridge/lifecycle tests |
-| Codex CLI | Project-scoped memory MCP and launcher | Setup and launcher contract-tested on POSIX and simulated native Windows; project trust remains operator-controlled |
+| Claude Code | Memory MCP, commands (including `/cairn-work`), agents, hooks, launcher | Exercised by Cairnkeep tests |
+| OpenCode | Memory MCP, commands (including `/cairn-work`), workflows, plugins, launcher | Exercised by Cairnkeep tests |
+| Kimi Code | Memory MCP, `AGENTS.md`, launcher, opt-in graph and cairn-work Skills | Launcher tested; remote MCP tested with Kimi Code 0.30.0; Skills contract-tested |
+| Qwen Code | Memory MCP, launcher, project `AGENTS.md` playbook guidance | Launcher tested; stdio and remote MCP tested with Qwen Code 0.21.1 |
+| Pi | Memory MCP through maintained local stdio extension, native opt-in trajectory extension, launcher, graph and cairn-work prompts | Pi 0.84.1 validated minimum; deterministic and real bridge/lifecycle tests |
+| Codex CLI | Project-scoped memory MCP, launcher, and project `AGENTS.md` playbook guidance | Setup and launcher contract-tested on POSIX and simulated native Windows; project trust remains operator-controlled |
 | Other MCP clients | Memory plus optional domain-knowledge and context-pack tools | Protocol-compatible; not automatically runtime-tested |
 
 Only Claude Code and OpenCode currently receive the complete operating layer.
-Kimi receives one narrow graph Skill, while Pi receives one narrow graph prompt;
+Kimi receives narrow graph and playbook Skills, while Pi receives matching narrow prompts;
 neither is equivalent to the full commands, agents, hooks, and plugins surface.
 Qwen skills and hooks still require harness-specific adaptation and validation.
-Codex receives a project-local MCP entry and launcher, but not Cairnkeep-specific
-commands, hooks, agents, or automatic skill activation.
+Codex receives a project-local MCP entry, launcher, and portable playbook
+instructions, but not Cairnkeep-specific commands, hooks, agents, or automatic
+skill activation.
 
 Every MCP client receives complete tool annotations and may use a Cairnkeep
 least-authority profile independent of harness assets. Context-pack tools are
@@ -48,7 +49,7 @@ extension; it does not expand the other support levels.
 
 Run `cairn sync-pi --apply` explicitly to install
 `extensions/cairnkeep-memory.ts`, `extensions/cairnkeep-trajectory.ts`, and
-`prompts/graphify.md` under the Pi agent root. Use `--check` for drift and
+`prompts/graphify.md`, and `prompts/cairn-work.md` under the Pi agent root. Use `--check` for drift and
 `cairn doctor` from a project that selected Pi for setup-aware diagnosis. Setup
 reports this machine command but never runs it automatically. Uninstall removes
 only those owned paths, backup-first.

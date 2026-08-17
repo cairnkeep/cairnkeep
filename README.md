@@ -32,11 +32,11 @@ verification, and the first remember/recall cycle.
 ## Status
 
 Shipped: the memory server, the `cairn` CLI (`setup`, `bootstrap`, `memory-server`, `sync`, `sync-pi`, `sync-kimi`,
-`doctor`, `trajectory`, `artifact`, `evidence`, `mcp-tools`, `pack`, `notes`, `memory`, `eval`, `audit-timer`, `completion`, `uninstall`) installable via
+`doctor`, `playbook`, `trajectory`, `artifact`, `evidence`, `mcp-tools`, `pack`, `notes`, `memory`, `eval`, `audit-timer`, `completion`, `uninstall`) installable via
 `npm i -g @cairnkeep/cli`, and the
 operating layer (commands,
 agents, hooks) installed on Claude Code and OpenCode, plus the native Pi
-trajectory extension and thin Pi/Kimi graph adapters. The generic launchers
+trajectory extension and thin Pi/Kimi graph and playbook adapters. The generic launchers
 expose wrapper seams (`.ai/pre-launch.sh`/`.ai/pre-launch.ps1`,
 `CAIRN_EXTRA_SETTINGS`, `.ai/post-exit.sh`/`.ai/post-exit.ps1`) so an enterprise wrapper can add provider/credential setup
 without forking them. Also shipped: context exploration (`/context-explore`) and
@@ -48,6 +48,9 @@ Version 2.12 adds a declarative harness registry, first-class Codex project
 setup, and a shorter path from installation to verified recall.
 Version 2.13 adds opt-in local Git-linked work evidence around generated harness
 launchers, including native Windows, without capturing prompts or replacing Git.
+Version 2.15 adds bounded project playbooks that help agents select existing
+recall, planning, verification, review, security, documentation, and learning
+steps without becoming an agent runtime or granting approval.
 
 ## Compatibility
 
@@ -199,6 +202,19 @@ patterns/transactional-migrations: Use transactional migrations for schema chang
 The exact command rendering depends on the client. Any MCP client can call
 `memory_write` and `memory_search` directly.
 
+Setup also installs a balanced `.ai/playbooks.json` policy and an ownership-safe
+managed block in `AGENTS.md`. Agents can evaluate it at task boundaries:
+
+```bash
+cairn playbook check start --complexity standard --familiarity mixed
+cairn playbook check finish --changed src/example.ts --completed verify.tests --enforce
+```
+
+The result selects only existing Cairnkeep actions. It never runs them, enables
+a disabled capability, grants approval, or promotes memory automatically. Use
+`cairn playbook status`, `set minimal|balanced|strict`, and `enable|disable` to
+inspect or customize the project policy.
+
 For Codex CLI, `cairn setup --harness codex --memory local` writes the
 project-scoped `.codex/config.toml` entry and both POSIX and native Windows
 launchers. Review the configuration and trust the project before launching.
@@ -325,6 +341,10 @@ search):
 | `CAIRN_CONTEXT_PACKS` | Opt in to local context-pack list/search/read/related tools (default off) |
 | `CAIRN_CONTEXT_PACK_HTTP` | Separately consent to context-pack tools over authenticated HTTP (default off) |
 | `CAIRN_PACK_BASE_DIR` | Immutable pack objects, source records, pointers, and retrieval cache (default `~/.cairnkeep/packs`) |
+| `CAIRN_PLAYBOOK_PROFILE` | Process-only playbook profile override: `minimal`, `balanced`, or `strict` (project default: `balanced`) |
+| `CAIRN_PLAYBOOK_ACTOR` | Optional local receipt label; caller-supplied and unauthenticated in v2.15 |
+| `CAIRN_PLAYBOOK_ACTOR_KIND` | Optional local actor kind: `user`, `agent`, or `service` |
+| `CAIRN_PLAYBOOK_SESSION` | Optional bounded session label used by playbook decisions and receipts |
 | `CAIRN_TRAJECTORY_CAPTURE` | Opt in to local structured session capture (`1`, `true`, `yes`, or `on`; default off) |
 | `CAIRN_TRAJECTORY_SESSION_MAX_BYTES` | Maximum serialized bytes per captured session (default `5242880`, 5 MiB) |
 | `CAIRN_TRAJECTORY_STORE_MAX_BYTES` | Maximum logical bytes across local trajectories (default `268435456`, 256 MiB) |

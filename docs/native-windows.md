@@ -32,6 +32,11 @@ recovery contract as POSIX. It writes a restricted `.ai/cairnkeep.json` setup
 record and never syncs machine assets automatically. `cairn bootstrap` remains
 the deterministic compatibility primitive for existing scripts.
 
+Setup also writes private `.ai/playbooks.json` and reconciles Cairnkeep's
+delimited workflow block in `AGENTS.md` without replacing surrounding rules.
+The Node-native `cairn playbook` lifecycle, deterministic enforcement, private
+receipts, and instruction management are identical on Windows and POSIX.
+
 For Codex memory without a harness-wide sync, select only Codex:
 
 ```powershell
@@ -89,6 +94,9 @@ Load completion for the current session:
 Invoke-Expression (& cairn completion powershell | Out-String)
 ```
 
+The completer includes playbook profiles, lifecycle events, canonical actions,
+and check/record options as well as the top-level command.
+
 Place the same expression in `$PROFILE` to load it in future sessions.
 
 ## Storage and permissions
@@ -134,6 +142,10 @@ mutation it creates a timestamped bundle under
 `~/cairnkeep-uninstall-backups/` containing exact files, a strict manifest, and
 `revert.ps1`. Durable memory and context packs remain unless their separate
 purge flags are supplied.
+
+Uninstall removes only Cairnkeep's managed `AGENTS.md` block and preserves
+surrounding project instructions. Pi and Kimi playbook adapters are handled as
+precisely owned paths alongside their graph adapters.
 
 ## Verification boundary
 

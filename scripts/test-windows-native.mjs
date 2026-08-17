@@ -28,6 +28,7 @@ try {
   process.env.USERPROFILE = sandbox;
   const project = join(sandbox, "Project with spaces – Unicode");
   mkdirSync(project, { recursive: true });
+  writeFileSync(join(project, "AGENTS.md"), "# User rules\n\nKeep this line.\n");
   bootstrapWindows(root, [project]);
   for (const harness of HARNESS_IDS) {
     assert.ok(existsSync(join(project, ".ai", `start-${harness}.cmd`)), `${harness} cmd launcher`);
@@ -38,6 +39,8 @@ try {
   assert.match(launcherPowerShell(), /post-exit\.ps1/);
   assert.match(launcherPowerShell(), /evidence run --harness/);
   assert.match(launcherPowerShell(), /CAIRN_WORK_EVIDENCE/);
+  assert.match(readFileSync(join(project, "AGENTS.md"), "utf8"), /cairnkeep:playbook:v1:start/);
+  assert.match(readFileSync(join(project, "AGENTS.md"), "utf8"), /Keep this line\./);
 
   const claudeRoot = join(sandbox, "Claude Config");
   await runWindowsCommand({ command: "sync", args: ["--apply", "--live-root", claudeRoot], root });
@@ -59,6 +62,9 @@ try {
   assert.equal(readFileSync(join(memory, "project.db"), "utf8"), "sqlite-a");
   assert.match(powershellCompletion(), /Register-ArgumentCompleter/);
   assert.match(powershellCompletion(), /evidence/);
+  assert.match(powershellCompletion(), /playbook/);
+  assert.match(powershellCompletion(), /review\.security/);
+  assert.match(powershellCompletion(), /--enforce/);
 
   let containerArgs = [];
   runNativeContainer(["stdio", "--image", "example/windows:1", "--volume", "windows-data"], root, (_engine, args) => { containerArgs = args; });
@@ -68,6 +74,7 @@ try {
 
   await runWindowsCommand({ command: "uninstall", args: ["--yes", "--live-root", claudeRoot, project], root });
   assert.ok(!existsSync(join(project, ".ai", "start-claude.cmd")));
+  assert.equal(readFileSync(join(project, "AGENTS.md"), "utf8"), "# User rules\n\nKeep this line.\n");
   assert.ok(!existsSync(join(claudeRoot, "commands", "remember.md")));
   const cleanedSettings = JSON.parse(readFileSync(join(claudeRoot, "settings.json"), "utf8"));
   assert.ok(!JSON.stringify(cleanedSettings).includes("memory-wakeup"));

@@ -22,7 +22,7 @@ for shell in bash zsh fish; do
   for capability_id in $capability_ids; do
     grep -qF "$capability_id" "$tmp/$shell"
   done
-  if grep -Eq '(^|[[:space:]"'"'"'])(guard|start|finish)([[:space:]"'"'"']|$)' "$tmp/$shell"; then
+  if grep -Eq '(^|[[:space:]"'"'"'])guard([[:space:]"'"'"']|$)' "$tmp/$shell"; then
     echo "completion exposed a private capability operation for $shell" >&2
     exit 1
   fi
@@ -34,7 +34,7 @@ for shell in bash zsh fish; do
   for capability_id in $capability_ids; do
     grep -qF "$capability_id" "$tmp/$shell"
   done
-  if grep -Eq '(^|[[:space:]"'"'"'])(doctor-diagnosis|guard|start|finish)([[:space:]"'"'"']|$)' "$tmp/$shell"; then
+  if grep -Eq '(^|[[:space:]"'"'"'])(doctor-diagnosis|guard)([[:space:]"'"'"']|$)' "$tmp/$shell"; then
     echo "completion exposed a private eval lifecycle operation for $shell" >&2
     exit 1
   fi
@@ -51,6 +51,14 @@ for shell in bash zsh fish; do
   grep -q 'evidence' "$tmp/$shell"
   grep -q 'list.*show.*delete.*prune.*doctor\|list show delete prune doctor' "$tmp/$shell"
   grep -q -- '--status\|-l status' "$tmp/$shell"
+  grep -q 'playbook' "$tmp/$shell"
+  grep -q 'list.*status.*init.*set.*enable.*disable.*reset.*check.*record.*receipts.*instructions.*doctor\|list status init set enable disable reset check record receipts instructions doctor' "$tmp/$shell"
+  for playbook_value in minimal balanced strict context.recall verify.tests review.security learning.capture; do
+    grep -qF "$playbook_value" "$tmp/$shell"
+  done
+  for playbook_flag in --project --json --enforce --changed --complexity --familiarity --risk --public-change --completed --skipped --failed; do
+    grep -q -- "$playbook_flag\|-l ${playbook_flag#--}" "$tmp/$shell"
+  done
 done
 
 "$ROOT/bin/cairn" help >"$tmp/root-help"
@@ -68,6 +76,7 @@ if grep -q 'doctor-diagnosis' "$tmp/eval-help"; then
 fi
 grep -qF 'cairn skill <harvest|list|show|review|propose|evaluate|apply|rollback>' "$tmp/root-help"
 grep -qF 'cairn evidence <list|show|delete|prune|doctor>' "$tmp/root-help"
+grep -qF 'cairn playbook <list|status|init|set|enable|disable|reset|check|record|receipts|instructions|doctor>' "$tmp/root-help"
 node "$ROOT/mcp-memory-server/dist/skill-cli.js" --help >"$tmp/skill-help"
 for command in $skill_commands; do
   grep -q "cairn skill $command" "$tmp/skill-help"

@@ -21,11 +21,13 @@ import { spawnSync } from "node:child_process";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { HARNESS_IDS, harnessProjectAssets } from "./harness-registry.mjs";
+import { reconcilePlaybookInstructions, removePlaybookInstructions } from "./playbook-instructions.mjs";
 
 const BOOTSTRAP_FILES = [
   ["env.example.template", ".ai/env.example"],
   ["trajectory-redaction.json.template", ".ai/trajectory-redaction.json"],
   ["capabilities.json.template", ".ai/capabilities.json"],
+  ["playbooks.json.template", ".ai/playbooks.json"],
   ["agentfs-gitignore.template", ".agentfs/.gitignore"],
   ["planning-config.json.template", ".planning/config.json"],
   ["project-brief.md.template", ".planning/PROJECT-BRIEF.md"],
@@ -257,9 +259,11 @@ export function bootstrapWindows(root, args) {
     prefix = git(["rev-parse", "--show-prefix"], target).replaceAll("\\", "/");
   }
 
+  if (!options.has("--untracked")) reconcilePlaybookInstructions(target, { check: true });
+
   const templates = join(root, "templates");
   for (const [source, destination] of BOOTSTRAP_FILES) {
-    installFile(join(templates, source), join(target, ...destination.split("/")), destination.endsWith("capabilities.json") ? 0o600 : 0o644);
+    installFile(join(templates, source), join(target, ...destination.split("/")), /(?:capabilities|playbooks)\.json$/.test(destination) ? 0o600 : 0o644);
   }
   for (const harness of HARNESSES) {
     const asset = harnessProjectAssets(harness, "local")[0];
@@ -271,6 +275,9 @@ export function bootstrapWindows(root, args) {
   if (!existsSync(modulePath)) atomicWrite(modulePath, launcherModule(), 0o755);
   const powershellPath = join(target, ".ai", "start-harness.ps1");
   if (!existsSync(powershellPath)) atomicWrite(powershellPath, launcherPowerShell(), 0o600);
+  if (!options.has("--untracked")) {
+    reconcilePlaybookInstructions(target);
+  }
 
   if (excludeFile) {
     mkdirSync(dirname(excludeFile), { recursive: true });
@@ -456,6 +463,7 @@ async function doctorWindows(root, args) {
     ["typed memory", "node-cli.js", ["doctor", "--project-root", process.cwd(), ...(repair ? ["--repair"] : [])]],
     ["capability", "capability-cli.js", ["doctor", "--json"]],
     ["context pack", "context-pack-cli.js", ["doctor", "--json"]],
+    ["playbook", "playbook-cli.js", ["doctor", "--json"]],
   ]) {
     const entry = join(root, "mcp-memory-server", "dist", file);
     if (!existsSync(entry)) { line("FAIL", `${label} diagnostics are unavailable`); continue; }
@@ -627,9 +635,11 @@ function uninstallWindows(root, args) {
     join(piLive, "extensions", "cairnkeep-memory.ts"),
     join(piLive, "extensions", "cairnkeep-trajectory.ts"),
     join(piLive, "prompts", "graphify.md"),
+    join(piLive, "prompts", "cairn-work.md"),
   );
   const kimiLive = resolve(expandHome(options.get("--kimi-live-root") || process.env.KIMI_CODE_HOME || join(homedir(), ".kimi-code")));
   targets.push(join(kimiLive, "skills", "graphify", "SKILL.md"));
+  targets.push(join(kimiLive, "skills", "cairn-work", "SKILL.md"));
   for (const project of projects) {
     const base = resolve(project);
     for (const [, rel] of BOOTSTRAP_FILES) targets.push(join(base, ...rel.split("/")));
@@ -677,6 +687,16 @@ function uninstallWindows(root, args) {
       console.log(`updated: ${settingsPath}`);
     }
   }
+  for (const project of projects) {
+    const agents = join(resolve(project), "AGENTS.md");
+    if (!existsSync(agents)) continue;
+    const info = lstatSync(agents);
+    if (!info.isFile() || info.isSymbolicLink()) continue;
+    if (!readFileSync(agents, "utf8").includes("<!-- cairnkeep:playbook:v1:start -->")) continue;
+    backupTarget(agents);
+    removePlaybookInstructions(resolve(project));
+    console.log(`removed Cairnkeep playbook block: ${agents}`);
+  }
   for (const target of existing) {
     backupTarget(target);
     rmSync(target, { recursive: true, force: true });
@@ -708,9 +728,10 @@ export function powershellCompletion() {
   const harnesses = HARNESS_IDS.map((id) => `'${id}'`).join(",");
   return `Register-ArgumentCompleter -Native -CommandName cairn -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
-  $commands = 'bootstrap','setup','memory-server','sync','sync-pi','sync-kimi','doctor','trajectory','artifact','evidence','capabilities','mcp-tools','pack','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
+  $commands = 'bootstrap','setup','memory-server','sync','sync-pi','sync-kimi','doctor','trajectory','artifact','evidence','playbook','capabilities','mcp-tools','pack','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
   $setup = '--git','--harness','--memory','--policy','--yes','--json','init','existing','none',${harnesses},'local'
-  $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } else { $commands }
+  $playbook = 'list','status','init','set','enable','disable','reset','check','record','receipts','instructions','doctor','minimal','balanced','strict','must','should','may','off','start','finish','install','remove','context.recall','context.explore','work.plan','verify.tests','review.repository','review.security','docs.update','learning.capture','--project','--json','--enforce','--complexity','--familiarity','--risk','--public-change','--changed','--change-type','--completed','--skipped','--failed','--actor','--actor-kind','--session','--policy','--decision','--event','--action','--outcome','--reason'
+  $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+playbook(?:\\s|$)') { $playbook } else { $commands }
   $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
     [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
   }

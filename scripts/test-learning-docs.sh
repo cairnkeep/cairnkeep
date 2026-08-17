@@ -22,7 +22,7 @@ done
 
 ready=0
 brief=0
-for number in $(seq -w 0 24); do
+for number in $(seq -w 0 25); do
   matches=(docs/learning/lessons/L"$number"-*.md)
   [[ ${#matches[@]} -eq 1 && -f ${matches[0]} ]] || {
     echo "learning path must contain exactly one L$number lesson" >&2
@@ -53,7 +53,7 @@ grep -qF '`cairn sync-kimi --apply`' "$graph_lesson"
 grep -qF '`cairn sync-pi --apply`' "$graph_lesson"
 grep -qF '`graphify-out/`' "$graph_lesson"
 
-[[ $ready -eq 10 && $brief -eq 15 ]] || {
+[[ $ready -eq 11 && $brief -eq 15 ]] || {
   echo "unexpected learning status totals: ready=$ready brief=$brief" >&2
   exit 1
 }
@@ -142,5 +142,26 @@ grep -Eqi 'limited|Git-less' "$l23"
 grep -Eqi 'cancel|shutdown|child process' "$l23"
 grep -Eqi '0\.84\.1' "$l23"
 grep -Eqi 'credentials|secrets|private state' "$l23"
+
+l25=docs/learning/lessons/L25-playbooks.md
+video25=docs/learning/video-scripts/V25-playbooks.md
+for file in "$l25" "$video25"; do
+  [[ -f "$file" ]]
+done
+for phrase in \
+  'cairn playbook check start' \
+  'cairn playbook check finish' \
+  '--enforce' \
+  'cairn playbook record' \
+  'unauthenticated' \
+  'does not run'; do
+  grep -qF -- "$phrase" "$l25" || {
+    echo "L25 missing playbook teaching boundary: $phrase" >&2
+    exit 1
+  }
+done
+grep -qF 'course-13-playbooks' "$coverage"
+grep -qF 'L25-playbooks.md' docs/learning/tracks/practitioner.md
+grep -qF 'L25-playbooks.md' docs/learning/tracks/operator.md
 
 echo "PASS: public learning path structure, readiness, links, and version alignment"

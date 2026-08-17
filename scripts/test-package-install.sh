@@ -48,6 +48,8 @@ bootstrap_output=$(cairn bootstrap "$tmp/project")
 [[ -x "$tmp/project/.ai/start-qwen.sh" ]] || fail "bootstrap did not install an executable Qwen launcher"
 [[ -x "$tmp/project/.ai/start-codex.sh" ]] || fail "bootstrap did not install an executable Codex launcher"
 [[ -f "$tmp/project/.planning/config.json" ]] || fail "bootstrap did not install the planning scaffold"
+[[ -f "$tmp/project/.ai/playbooks.json" ]] || fail "bootstrap did not install the playbook policy"
+grep -qF '<!-- cairnkeep:playbook:v1:start -->' "$tmp/project/AGENTS.md" || fail "bootstrap did not install playbook agent guidance"
 
 (cd "$tmp/project" && cairn doctor) >/dev/null || fail "installed package failed cairn doctor"
 env -u CAIRN_NOTE_DISTILLATION cairn notes --help >/dev/null \
@@ -103,6 +105,30 @@ CAIRN_PACK_BASE_DIR="$tmp/installed-packs" cairn pack list --json >"$tmp/install
   fail "installed package pack CLI failed"
 cairn mcp-tools list --json >"$tmp/installed-mcp-tools.json" || \
   fail "installed package mcp-tools CLI failed"
+
+for required in \
+  schemas/playbook.schema.json \
+  templates/playbooks.json.template \
+  templates/playbook-agent-instructions.md.template \
+  scripts/playbook-instructions.mjs \
+  mcp-memory-server/dist/playbook-schema.js \
+  mcp-memory-server/dist/playbook.js \
+  mcp-memory-server/dist/playbook-receipt.js \
+  mcp-memory-server/dist/playbook-cli.js \
+  claude/commands/cairn-work.md \
+  opencode/command/cairn-work.md \
+  pi/prompts/cairn-work.md \
+  kimi/skills/cairn-work/SKILL.md \
+  docs/design/team-mode.md \
+  docs/learning/lessons/L25-playbooks.md \
+  docs/learning/video-scripts/V25-playbooks.md
+do
+  [[ -f "$installed_root/$required" ]] || fail "npm tarball omitted $required"
+done
+cairn playbook status --project "$tmp/project" --json >"$tmp/installed-playbook-status.json" || \
+  fail "installed package playbook status failed"
+cairn playbook check start --project "$tmp/project" --session installed-playbook --json >"$tmp/installed-playbook-check.json" || \
+  fail "installed package playbook check failed"
 
 for required in \
   schemas/skill-adapter.schema.json \

@@ -9,9 +9,13 @@ fail() { echo "FAIL: $1" >&2; exit 1; }
 
 PI_SOURCE="$ROOT/pi/prompts/graphify.md"
 KIMI_SOURCE="$ROOT/kimi/skills/graphify/SKILL.md"
+PI_PLAYBOOK_SOURCE="$ROOT/pi/prompts/cairn-work.md"
+KIMI_PLAYBOOK_SOURCE="$ROOT/kimi/skills/cairn-work/SKILL.md"
 
 [[ -f "$PI_SOURCE" ]] || fail "Pi /graphify prompt source is missing"
 [[ -f "$KIMI_SOURCE" ]] || fail "Kimi graphify skill source is missing"
+[[ -f "$PI_PLAYBOOK_SOURCE" ]] || fail "Pi cairn-work prompt source is missing"
+[[ -f "$KIMI_PLAYBOOK_SOURCE" ]] || fail "Kimi cairn-work Skill source is missing"
 
 for adapter in "$PI_SOURCE" "$KIMI_SOURCE"; do
   grep -qF 'cairn graph' "$adapter" || fail "adapter does not delegate to cairn graph: $adapter"
@@ -31,16 +35,18 @@ PI_LIVE="$tmp/pi"
 "$ROOT/scripts/sync-pi-assets.sh" --apply --live-root "$PI_LIVE" >"$tmp/pi-first"
 [[ -f "$PI_LIVE/extensions/cairnkeep-trajectory.ts" ]] || fail "Pi sync omitted trajectory extension"
 cmp -s "$PI_SOURCE" "$PI_LIVE/prompts/graphify.md" || fail "Pi sync changed graphify prompt bytes"
+cmp -s "$PI_PLAYBOOK_SOURCE" "$PI_LIVE/prompts/cairn-work.md" || fail "Pi sync changed cairn-work prompt bytes"
 "$ROOT/scripts/sync-pi-assets.sh" --apply --live-root "$PI_LIVE" >"$tmp/pi-second"
-grep -qF 'Applied 0 Pi asset(s); 2 already matched.' "$tmp/pi-second" || fail "Pi sync is not idempotent"
+grep -qF 'Applied 0 Pi asset(s); 3 already matched.' "$tmp/pi-second" || fail "Pi sync is not idempotent"
 
 KIMI_LIVE="$tmp/kimi"
 "$ROOT/scripts/sync-kimi-assets.sh" --apply --live-root "$KIMI_LIVE" >"$tmp/kimi-first"
 cmp -s "$KIMI_SOURCE" "$KIMI_LIVE/skills/graphify/SKILL.md" || fail "Kimi sync changed graphify skill bytes"
+cmp -s "$KIMI_PLAYBOOK_SOURCE" "$KIMI_LIVE/skills/cairn-work/SKILL.md" || fail "Kimi sync changed cairn-work Skill bytes"
 "$ROOT/scripts/sync-kimi-assets.sh" --apply --live-root "$KIMI_LIVE" >"$tmp/kimi-second"
-grep -qF 'Applied 0 Kimi asset(s); 1 already matched.' "$tmp/kimi-second" || fail "Kimi sync is not idempotent"
+grep -qF 'Applied 0 Kimi asset(s); 2 already matched.' "$tmp/kimi-second" || fail "Kimi sync is not idempotent"
 
 "$ROOT/bin/cairn" help | grep -qF 'cairn sync-kimi' || fail "CLI help omits sync-kimi"
 "$ROOT/bin/cairn" sync-kimi --help >/dev/null || fail "CLI does not dispatch sync-kimi"
 
-echo "PASS: thin Pi and Kimi graph adapters delegate only to cairn graph"
+echo "PASS: thin Pi and Kimi graph/playbook adapters are bounded and idempotent"

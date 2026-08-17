@@ -13,6 +13,17 @@ import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const [root, sandbox] = process.argv.slice(2);
+for (const path of [
+  "claude/commands/cairn-work.md",
+  "opencode/command/cairn-work.md",
+  "pi/prompts/cairn-work.md",
+  "kimi/skills/cairn-work/SKILL.md",
+]) {
+  const content = readFileSync(join(root, path), "utf8");
+  assert.match(content, /cairn playbook check/);
+  assert.match(content, /must/);
+  assert.match(content, /approval/);
+}
 const registry = await import(pathToFileURL(join(root, "scripts", "harness-registry.mjs")).href);
 assert.deepEqual(registry.HARNESS_IDS, ["claude", "opencode", "pi", "kimi", "qwen", "codex"]);
 assert.equal(new Set(registry.HARNESS_IDS).size, registry.HARNESS_IDS.length);

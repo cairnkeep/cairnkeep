@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/playbook.schema.json",
+  "title": "Cairnkeep playbook policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile", "overrides"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "profile": { "enum": ["minimal", "balanced", "strict"] },
+    "overrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "context.recall": { "$ref": "#/$defs/mode" },
+        "context.explore": { "$ref": "#/$defs/mode" },
+        "work.plan": { "$ref": "#/$defs/mode" },
+        "verify.tests": { "$ref": "#/$defs/mode" },
+        "review.repository": { "$ref": "#/$defs/mode" },
+        "review.security": { "$ref": "#/$defs/mode" },
+        "docs.update": { "$ref": "#/$defs/mode" },
+        "learning.capture": { "$ref": "#/$defs/mode" }
+      }
+    }
+  },
+  "$defs": {
+    "mode": { "enum": ["must", "should", "may", "off"] }
+  }
+}

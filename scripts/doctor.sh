@@ -230,7 +230,20 @@ try {
   [[ $evidence_status -eq 0 || "$evidence_state" == "broken" ]] || true
 fi
 
-# 10. Typed metadata overlays and canonical-note transaction state. The internal
+# 10. Project playbook policy and private receipts. Absence is healthy because
+#     the built-in balanced profile is the compatibility default.
+playbook_cli="$CAIRN_ROOT/mcp-memory-server/dist/playbook-cli.js"
+if [[ ! -f "$playbook_cli" ]]; then
+  fail "playbook diagnostics unavailable — rebuild mcp-memory-server"
+elif playbook_json=$(node "$playbook_cli" doctor --project "$PWD" --json 2>/dev/null) \
+    && node -e 'const v=JSON.parse(process.argv[1]);if(v.schema_version!==1||v.ok!==true)process.exit(1)' "$playbook_json"; then
+  playbook_count=$(node -e 'const v=JSON.parse(process.argv[1]);process.stdout.write(String(v.receipts.count))' "$playbook_json")
+  pass "playbook policy and private receipts are valid ($playbook_count receipt(s))"
+else
+  fail "playbook policy or receipts failed validation — inspect with: cairn playbook doctor --json"
+fi
+
+# 11. Typed metadata overlays and canonical-note transaction state. The internal
 #    JSON seam enumerates only contained local databases and the one notes root;
 #    raw KV cells and unmarked Markdown bytes are never repair inputs.
 node_cli="$CAIRN_ROOT/mcp-memory-server/dist/node-cli.js"

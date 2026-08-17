@@ -69,7 +69,9 @@ result should survive the restart.
 ## What setup owns
 
 `cairn setup` creates only the selected harness assets plus the common `.ai`,
-`.planning`, and `.agentfs` scaffold. It initializes Git only with explicit
+`.planning`, and `.agentfs` scaffold. It also reconciles Cairnkeep's delimited
+playbook block in `AGENTS.md` while preserving every surrounding user byte and
+file mode. It initializes Git only with explicit
 `--git init`, preserves unrelated files, does not overwrite modified files it
 does not own, and records managed digests in private `.ai/cairnkeep.json`.
 
@@ -80,6 +82,20 @@ cairn setup . --git existing --harness codex --memory local --yes  # reconcile
 cairn doctor                                                       # diagnose
 cairn uninstall --dry-run .                                       # preview removal
 ```
+
+The generated balanced policy helps compatible agents decide which existing
+workflow checks apply. Inspect it directly before relying on agent routing:
+
+```bash
+cairn playbook status
+cairn playbook check start --complexity standard --familiarity mixed
+cairn playbook check finish --changed README.md --completed docs.update --enforce
+```
+
+`must` can produce a non-zero enforcement result; `should` is advisory with a
+recorded reason when skipped; `may` is optional. A decision executes nothing
+and grants no permission. `cairn playbook instructions remove` removes only the
+managed `AGENTS.md` block.
 
 For all harnesses, remote HTTP, storage, profiles, context packs, overlays, and
 recovery details, continue with [Operating Cairnkeep](operating.md) or the

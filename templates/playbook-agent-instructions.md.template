@@ -1,0 +1,14 @@
+<!-- cairnkeep:playbook:v1:start -->
+## Cairnkeep Playbooks
+
+Use Cairnkeep's bounded playbook policy to select workflow steps. It advises or
+enforces existing capabilities; it does not execute a workflow for you.
+
+- At task start, run `cairn playbook check start --session SESSION --complexity LEVEL --familiarity LEVEL` and follow every applicable `must` action. Apply `should` actions unless there is a concrete reason to skip them; use judgment for `may` actions.
+- Re-run `cairn playbook check check` when scope, familiarity, complexity, or risk changes materially.
+- Before claiming completion, run `cairn playbook check finish --session SESSION --changed PATH... --risk LEVEL --public-change --completed ACTION... --skipped ACTION=REASON... --enforce` with accurate signals and evidence.
+- A non-zero enforcement result means applicable `must` evidence is missing. Perform the action and check again; do not relabel a skipped or failed action as completed.
+- Record material outcomes with `cairn playbook record`, using the exact policy and decision digests returned by the check. Actor identity is an unverified local assertion in this release.
+- Existing approval and capability boundaries still apply. A playbook cannot enable a disabled capability, grant approval, write durable memory automatically, run arbitrary commands, or authorize destructive work.
+- If the CLI or an applicable capability is unavailable, state that limitation and follow the policy intent manually; never invent a receipt or successful result.
+<!-- cairnkeep:playbook:v1:end -->

@@ -16,7 +16,7 @@ Options:
 
 Notes:
   - The repo-managed source of truth lives under ./opencode/
-  - This script manages the memory-sync / memory-review / code-review commands,
+  - This script manages the memory-sync / memory-review / code-review / cairn-work commands,
     the code-reviewer agent, and the memory-review workflow. The memory-wakeup
     plugin is handled by sync-opencode-plugin-assets.sh.
 EOF
@@ -33,6 +33,7 @@ ASSETS=(
   "command/code-review.md"
   "command/remember.md"
   "command/recall.md"
+  "command/cairn-work.md"
   "agents/code-reviewer.md"
   "workflows/memory-review-workflow.md"
 )
