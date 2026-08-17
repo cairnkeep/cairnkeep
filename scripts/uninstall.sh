@@ -49,6 +49,7 @@ PROJECT_AI_FILES=(
   env.example
   trajectory-redaction.json
   capabilities.json
+  playbooks.json
 )
 
 usage() {
@@ -150,7 +151,7 @@ if (!exact(state, ["schema_version", "cairnkeep_version", "git", "memory", "harn
     || typeof state.assets !== "object"
     || Array.isArray(state.assets)) process.exit(1);
 const allowed = new Set([
-  ".ai/env.example", ".ai/trajectory-redaction.json", ".ai/capabilities.json",
+  ".ai/env.example", ".ai/trajectory-redaction.json", ".ai/capabilities.json", ".ai/playbooks.json",
   ".agentfs/.gitignore", ".planning/config.json", ".planning/PROJECT-BRIEF.md",
   ".planning/wiki/index.md", ".planning/wiki/policy.md", ".planning/wiki/CONTRADICTIONS.md",
   ".planning/wiki/LOG.md", ".planning/alignment/policy.md", ".planning/alignment/gap-register.yaml",
@@ -213,8 +214,10 @@ echo "Pi adapters:"
 remove_path "$PI_LIVE_ROOT/extensions/cairnkeep-memory.ts"
 remove_path "$PI_LIVE_ROOT/extensions/cairnkeep-trajectory.ts"
 remove_path "$PI_LIVE_ROOT/prompts/graphify.md"
+remove_path "$PI_LIVE_ROOT/prompts/cairn-work.md"
 echo "Kimi adapter:"
 remove_path "$KIMI_LIVE_ROOT/skills/graphify/SKILL.md"
+remove_path "$KIMI_LIVE_ROOT/skills/cairn-work/SKILL.md"
 
 # 2. settings.json hook registrations (back up whole file, then de-register).
 SETTINGS="$LIVE_ROOT/settings.json"
@@ -310,6 +313,18 @@ for proj in "${PROJECTS[@]:-}"; do
   [[ -n "$proj" && -d "$proj" ]] || continue
   proj=$(cd "$proj" && pwd)
   echo "Project scaffold: $proj"
+  if [[ -f "$proj/AGENTS.md" && ! -L "$proj/AGENTS.md" ]] && grep -qF '<!-- cairnkeep:playbook:v1:start -->' "$proj/AGENTS.md" 2>/dev/null; then
+    if [[ $DRY_RUN -eq 1 ]]; then
+      echo "  would remove Cairnkeep playbook block from $proj/AGENTS.md"
+    else
+      back_up "$proj/AGENTS.md"
+      if node "$CAIRN_ROOT/scripts/playbook-instructions.mjs" "$proj" --remove >/dev/null; then
+        echo "  removed Cairnkeep playbook block from $proj/AGENTS.md"
+      else
+        echo "  kept AGENTS.md: playbook markers could not be removed safely"
+      fi
+    fi
+  fi
   # Truthy launchers create this project-local root only for the explicit
   # capability overlay. Back up the complete managed unit so its native Claude
   # hook registrations and OpenCode plugin bytes restore together exactly.

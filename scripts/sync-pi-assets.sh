@@ -24,6 +24,7 @@ ASSETS=(
   "extensions/cairnkeep-memory.ts"
   "extensions/cairnkeep-trajectory.ts"
   "prompts/graphify.md"
+  "prompts/cairn-work.md"
 )
 
 while [[ $# -gt 0 ]]; do
@@ -105,4 +106,4 @@ if ! check_assets; then
   echo "Recovery: sync-pi-assets.sh --apply --live-root PATH" >&2
   exit 1
 fi
-printf 'Pi extension and graph prompt are in sync under %s\n' "$LIVE_ROOT"
+printf 'Pi extensions and managed prompts are in sync under %s\n' "$LIVE_ROOT"

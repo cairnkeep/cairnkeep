@@ -22,6 +22,7 @@ import {
 } from "./setup-core.mjs";
 import { reconcileSetupPlan } from "./setup-reconcile.mjs";
 import { HARNESS_IDS, machineSyncCommand, requiredHarnessAssetPaths } from "./harness-registry.mjs";
+import { reconcilePlaybookInstructions } from "./playbook-instructions.mjs";
 
 const HARNESSES = HARNESS_IDS;
 const GIT_MODES = Object.freeze(["init", "existing", "none"]);
@@ -33,6 +34,7 @@ const COMMON_SETUP_ASSETS = Object.freeze([
   ".ai/env.example",
   ".ai/trajectory-redaction.json",
   ".ai/capabilities.json",
+  ".ai/playbooks.json",
   ".agentfs/.gitignore",
   ".planning/config.json",
   ".planning/PROJECT-BRIEF.md",
@@ -186,6 +188,11 @@ async function executeSetup(args, options) {
   });
   let plan = buildSetupPlan({ target, preflight, choices });
   if (options.augmentPlan) plan = await options.augmentPlan(plan);
+  try {
+    reconcilePlaybookInstructions(plan.target, { check: true });
+  } catch (error) {
+    throw operational("unsafe-instructions", `Project AGENTS.md cannot be reconciled safely: ${error instanceof Error ? error.message : String(error)}`);
+  }
 
   if (interactive && !parsed.confirmed) {
     renderPlan(plan, options.output);
@@ -200,6 +207,7 @@ async function executeSetup(args, options) {
   createTarget(plan.target);
   if (plan.git === "init") initializeGit(plan.target);
   const reconciliation = await reconcileSetupPlan(plan);
+  reconcilePlaybookInstructions(plan.target);
   return resultFor(plan, reconciliation, options.platform);
 }
 

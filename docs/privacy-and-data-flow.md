@@ -43,11 +43,34 @@ request unless the corresponding endpoint and credential are configured.
 | Guided project setup | None | Selected scaffold assets and private `.ai/cairnkeep.json` state in the target; machine sync is never automatic |
 | Codex project setup and launcher | None | Local `.codex/config.toml` starts `cairn memory-server` over stdio only after the operator trusts the project |
 | Pi memory extension | None | Local `cairn memory-server` stdio child; no HTTP transport is inherited |
+| Playbook policy check | None | Reads local `.ai/playbooks.json`; returns bounded action IDs, rationales, commands, and digests without executing them |
+| Explicit playbook receipt | None | Private project-local `.agentfs/playbooks/receipts/`; no prompts, source bodies, diffs, credentials, or environment snapshot |
 
 Model endpoints may be local or remote. Cairnkeep cannot determine a provider's
 retention, training, or logging policy; verify it before sending confidential
 material. Disabling `CAIRN_LLM_API_KEY`, `ANYTHINGLLM_API_KEY`, remote HTTP
 registration, and delegated tools keeps the core memory workflow local.
+
+## Playbook decision and receipt flow
+
+Playbooks are local workflow policy, not model inference. A check reads the
+strict project policy, bounded caller signals, changed-path labels, and explicit
+evidence. It deterministically returns applicable canonical actions and policy
+and decision digests. It performs no network request, tool action, capability
+change, approval, or durable-memory promotion.
+
+Only an explicit `cairn playbook record` writes a receipt. The receipt stores
+project identity, digests, event, canonical action, outcome, bounded reason,
+timestamp, and the supplied actor/session labels. It excludes prompt content,
+file content, patches, command output, secrets, endpoint values, and environment
+snapshots. Changed paths influence a decision but are not copied into receipts.
+
+In v2.15, actor identity is an unauthenticated local assertion even when a
+harness supplies it. Do not use receipts for employee monitoring,
+authorization, non-repudiation, or team access decisions. The future
+[team-mode contract](design/team-mode.md) requires authenticated subjects,
+deny-by-default ACLs, tenant isolation, retention, and append-only auditing
+before shared operation can ship.
 
 ## Data at rest
 

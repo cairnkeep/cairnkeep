@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.14.0
+**Baseline:** Cairnkeep 2.15.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -18,6 +18,8 @@ retention contract.
 Version 2.14 adds OKF 0.1/0.2 import, structured provenance,
 deterministic links, and reviewed OKF 0.2 export; see
 [L24](lessons/L24-okf-exchange.md).
+Version 2.15 adds local bounded playbooks and private outcome receipts; see
+[L25](lessons/L25-playbooks.md).
 
 ## The three-layer model
 
@@ -47,6 +49,7 @@ Run setup in that order, then confirm `cairn doctor`, `cairn sync --check`, and
 | 8 | Validated skill improvement | Repeated resolved hindsight warrants a measured skill change |
 | 9 | Least-authority MCP profiles | A client should receive fewer tools than the default catalog |
 | 10 | Immutable context packs and OKF exchange | Reviewed external context should be pinned or exchanged without becoming memory |
+| 11 | Bounded project playbooks | Agents should select proportional workflow checks under inspectable local policy |
 
 Every stage is independently useful. Stages 4-8 are opt-in and are not
 prerequisites for ordinary memory.
@@ -62,6 +65,7 @@ prerequisites for ordinary memory.
 | Repository quality | `/repo-review`, `/security-audit` | On-demand workflow; findings are hypotheses until reproduced | Require file/line evidence and regression tests | `course-03-quality` |
 | Guided project setup | `cairn setup PATH --git init\|existing\|none --harness LIST --memory local\|none --yes` | Reconciles only selected project assets from one harness registry; private `.ai/cairnkeep.json`; machine sync is never automatic | Repeat deterministically, run doctor, or replay its recovery command; Git-less mode remains limited | `course-12-guided-setup` |
 | Codex project memory | Select `--harness codex --memory local` | Writes `.codex/config.toml` plus POSIX/native Windows launchers; local stdio; user-wide configuration and trust remain untouched | Review the MCP table, accept Codex project trust, run doctor, and relaunch; uninstall is backup-first | `course-01-bootstrap` |
+| Workflow playbooks | `cairn playbook check start|check|finish`; project `minimal`, `balanced`, or `strict` policy | Balanced by default; private `.ai/playbooks.json`; optional receipts in `.agentfs/playbooks/`; checks are offline and execute nothing | Inspect status/digests, enforce truthful `must` evidence, inspect receipts, reset overrides, remove only the managed `AGENTS.md` block | `course-13-playbooks` |
 
 ## Storage and optional topology
 
@@ -93,7 +97,7 @@ prerequisites for ordinary memory.
 | Capability contract | `CAIRN_CAPABILITY_CONTRACT=1` | MCP changes require restart; operating changes apply next invocation | `cairn capabilities list|status|enable|disable|reset|logging`; digest identifies state only | `course-06-governance` |
 | Evaluation | `CAIRN_EVAL=1` for the coordinator process | No harness chosen by Cairnkeep | `validate` before `run`; inspect report, missingness and evidence scope; dry-run prune/delete | `course-07-evaluation` |
 | Validated skill improvement | Reviewed recurring hindsight; proposal adapter; `CAIRN_EVAL=1` for evaluation | No server restart; explicit subprocesses only | `cairn skill list|show`; exact-digest apply; concurrent-edit-safe rollback | `course-09-skill` |
-| General meta-agent loop | Not shipped | Not applicable | Skill-file lifecycle only; no generic configuration loop or scheduler | `course-07-evaluation` |
+| General meta-agent loop | Not shipped | Not applicable | Playbooks select bounded existing actions; no generic configuration loop, command language, or scheduler | `course-07-evaluation` |
 | Pack retrieval and skills | `CAIRN_CONTEXT_PACKS=1`; HTTP needs separate consent; skills need exact-digest approval | Restart MCP server | `cairn pack skills`; revoke approval or disable pack; no automatic execution | `course-10-trust-context` |
 
 ## Harness and maintenance checks
@@ -102,8 +106,8 @@ prerequisites for ordinary memory.
 - For Codex, review `.codex/config.toml` and accept project trust; no machine
   sync is required for the memory-only integration.
 - Run `cairn sync --check` after every core upgrade; apply only reported drift.
-- Run `cairn sync-pi --check` when the Pi memory/trajectory/graph assets are installed.
-- Run `cairn sync-kimi --check` when the optional Kimi graph Skill is installed.
+- Run `cairn sync-pi --check` when the Pi memory/trajectory/graph/playbook assets are installed.
+- Run `cairn sync-kimi --check` when the optional Kimi graph/playbook Skills are installed.
 - Use `cairn doctor --repair` only after preserving the affected store and only
   for repairable derived indexes/metadata.
 - Use `cairn uninstall --dry-run` before uninstall; durable memory is retained

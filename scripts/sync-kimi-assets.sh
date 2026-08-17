@@ -5,7 +5,7 @@ usage() {
   cat <<'EOF'
 Usage: sync-kimi-assets.sh [--check|--apply] [--live-root PATH]
 
-Compare or sync Cairnkeep's thin graph Skill against the live Kimi Code tree.
+Compare or sync Cairnkeep's thin managed Skills against the live Kimi Code tree.
 
 Options:
   --check            Verify managed live assets match the repo copies (default)
@@ -19,7 +19,7 @@ ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SOURCE_ROOT="$ROOT_DIR/kimi"
 LIVE_ROOT="${KIMI_CODE_HOME:-$HOME/.kimi-code}"
 MODE="check"
-ASSETS=("skills/graphify/SKILL.md")
+ASSETS=("skills/graphify/SKILL.md" "skills/cairn-work/SKILL.md")
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -74,4 +74,4 @@ if [[ "$MODE" == "apply" ]]; then
 fi
 
 check_assets
-printf 'Kimi graph Skill is in sync under %s\n' "$LIVE_ROOT"
+printf 'Kimi managed Skills are in sync under %s\n' "$LIVE_ROOT"

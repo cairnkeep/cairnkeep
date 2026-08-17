@@ -13,7 +13,7 @@ _cairn_complete() {
   COMPREPLY=()
   current=${COMP_WORDS[COMP_CWORD]}
   previous=${COMP_WORDS[COMP_CWORD-1]:-}
-  commands="bootstrap setup memory-server sync sync-pi sync-kimi doctor trajectory artifact evidence capabilities mcp-tools pack notes eval skill graph memory audit-timer uninstall completion version help"
+  commands="bootstrap setup memory-server sync sync-pi sync-kimi doctor trajectory artifact evidence playbook capabilities mcp-tools pack notes eval skill graph memory audit-timer uninstall completion version help"
   if (( COMP_CWORD == 1 )); then
     COMPREPLY=( $(compgen -W "$commands" -- "$current") )
     return
@@ -28,6 +28,7 @@ _cairn_complete() {
     trajectory) COMPREPLY=( $(compgen -W "list show prune --json --dry-run" -- "$current") ) ;;
     artifact) COMPREPLY=( $(compgen -W "list show delete prune --kind --session --json --dry-run --include-protected" -- "$current") ) ;;
     evidence) COMPREPLY=( $(compgen -W "list show delete prune doctor --status --json --dry-run --repair" -- "$current") ) ;;
+    playbook) COMPREPLY=( $(compgen -W "list status init set enable disable reset check record receipts instructions doctor minimal balanced strict must should may off start finish install remove context.recall context.explore work.plan verify.tests review.repository review.security docs.update learning.capture --project --json --enforce --complexity --familiarity --risk --public-change --changed --change-type --completed --skipped --failed --actor --actor-kind --session --policy --decision --event --action --outcome --reason" -- "$current") ) ;;
     capabilities)
       case "${COMP_WORDS[2]:-}" in
         enable|disable)
@@ -96,6 +97,7 @@ _cairn() {
     'trajectory:inspect and prune local session trajectories'
     'artifact:inspect, delete, and prune local artifacts'
     'evidence:inspect and manage local Git-linked work evidence'
+    'playbook:evaluate and record bounded agent workflow policy'
     'capabilities:inspect and manage project capability state'
     'mcp-tools:inspect and restrict MCP tool exposure'
     'pack:manage immutable context packs and skill approvals'
@@ -132,6 +134,7 @@ _cairn() {
       esac
       ;;
     evidence) _values 'work evidence command' list show delete prune doctor '--status[filter records]:status:(pending complete)' '--dry-run[report without mutation]' '--repair[remove safe temporary remnants]' '--json[emit JSON]' ;;
+    playbook) _values 'playbook command' list status init set enable disable reset check record receipts instructions doctor minimal balanced strict must should may off start finish install remove context.recall context.explore work.plan verify.tests review.repository review.security docs.update learning.capture '--project[project root]:directory:_files -/' '--json[emit JSON]' '--enforce[fail when must evidence is missing]' '--changed[changed project path]:file:_files' '--change-type[change type]:type:(code tests docs config dependencies security)' '--complexity[task complexity]:level:(trivial standard complex)' '--familiarity[context familiarity]:level:(known mixed unfamiliar)' '--risk[task risk]:level:(low normal high security)' '--public-change[public behavior changed]' '--completed[completed action]:action:' '--skipped[skipped action and reason]:evidence:' '--failed[failed action and reason]:evidence:' '--actor[local actor label]:actor:' '--actor-kind[local actor kind]:kind:(user agent service)' '--session[session label]:session:' '--policy[policy digest]:digest:' '--decision[decision digest]:digest:' '--event[lifecycle event]:event:(start check finish)' '--action[canonical action]:action:(context.recall context.explore work.plan verify.tests review.repository review.security docs.update learning.capture)' '--outcome[outcome]:outcome:(completed skipped failed)' '--reason[bounded reason]:reason:' ;;
     mcp-tools) _values 'MCP tool profile command' list status set reset full read-only custom '--tool[allow an exact tool]:tool:' '--project[project root]:directory:_files -/' '--json[emit JSON]' ;;
     pack) _values 'context pack command' init lock validate install import-okf validate-okf export-okf list show remove enable disable update skills approve-skill revoke-skill '--ref[pinned Git ref]:ref:' '--project[project root]:directory:_files -/' '--project-id[remote project ID]:project ID:' '--output[export output directory]:directory:_files -/' '--file[explicit project Markdown file]:file:_files' '--note[promoted shared note ID]:note ID:' '--check[inspect update or export]' '--apply[apply update or export]' '--confirm[confirm digest]:digest:' '--json[emit JSON]' ;;
     capabilities)
@@ -182,8 +185,8 @@ EOF
   fish)
     sed "s/__CAIRN_HARNESSES__/$harnesses/g" <<'EOF'
 complete -c cairn -f
-for command in bootstrap setup memory-server sync sync-pi sync-kimi doctor trajectory artifact evidence capabilities mcp-tools pack notes eval skill graph memory audit-timer uninstall completion version help
-    complete -c cairn -n "not __fish_seen_subcommand_from bootstrap setup memory-server sync sync-pi sync-kimi doctor trajectory artifact evidence capabilities mcp-tools pack notes eval skill graph memory audit-timer uninstall completion version help" -a $command
+for command in bootstrap setup memory-server sync sync-pi sync-kimi doctor trajectory artifact evidence playbook capabilities mcp-tools pack notes eval skill graph memory audit-timer uninstall completion version help
+    complete -c cairn -n "not __fish_seen_subcommand_from bootstrap setup memory-server sync sync-pi sync-kimi doctor trajectory artifact evidence playbook capabilities mcp-tools pack notes eval skill graph memory audit-timer uninstall completion version help" -a $command
 end
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l apply
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l live-root -r
@@ -212,6 +215,23 @@ complete -c cairn -n "__fish_seen_subcommand_from evidence; and __fish_seen_subc
 complete -c cairn -n "__fish_seen_subcommand_from evidence; and __fish_seen_subcommand_from list show delete prune doctor" -l json
 complete -c cairn -n "__fish_seen_subcommand_from evidence; and __fish_seen_subcommand_from delete prune" -l dry-run
 complete -c cairn -n "__fish_seen_subcommand_from evidence; and __fish_seen_subcommand_from doctor" -l repair
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and not __fish_seen_subcommand_from list status init set enable disable reset check record receipts instructions doctor" -a "list status init set enable disable reset check record receipts instructions doctor"
+complete -c cairn -n "__fish_seen_subcommand_from playbook" -l project -r
+complete -c cairn -n "__fish_seen_subcommand_from playbook" -l json
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from init set" -a "minimal balanced strict"
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from check" -a "start check finish"
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from check" -l enforce
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from check" -l changed -r
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from enable disable reset" -a "context.recall context.explore work.plan verify.tests review.repository review.security docs.update learning.capture"
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from enable" -a "must should may"
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from instructions" -a "install check remove"
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from check" -l complexity -r -a "trivial standard complex"
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from check" -l familiarity -r -a "known mixed unfamiliar"
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from check" -l risk -r -a "low normal high security"
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from check" -l public-change
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from check" -l completed -r
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from check" -l skipped -r
+complete -c cairn -n "__fish_seen_subcommand_from playbook; and __fish_seen_subcommand_from check" -l failed -r
 complete -c cairn -n "__fish_seen_subcommand_from capabilities; and not __fish_seen_subcommand_from list status enable disable reset logging" -a "list status enable disable reset logging"
 complete -c cairn -n "__fish_seen_subcommand_from capabilities; and __fish_seen_subcommand_from enable disable; and not __fish_seen_subcommand_from memory.write memory.search notes.distill wiki graph security.audit route.check context.explore" -a "memory.write memory.search notes.distill wiki graph security.audit route.check context.explore"
 complete -c cairn -n "__fish_seen_subcommand_from capabilities; and __fish_seen_subcommand_from reset; and not __fish_seen_subcommand_from memory.write memory.search notes.distill wiki graph security.audit route.check context.explore" -a "memory.write memory.search notes.distill wiki graph security.audit route.check context.explore"

@@ -16,6 +16,7 @@ const COMMON_ASSETS = Object.freeze([
   ["env.example.template", ".ai/env.example", 0o644],
   ["trajectory-redaction.json.template", ".ai/trajectory-redaction.json", 0o644],
   ["capabilities.json.template", ".ai/capabilities.json", 0o600],
+  ["playbooks.json.template", ".ai/playbooks.json", 0o600],
   ["agentfs-gitignore.template", ".agentfs/.gitignore", 0o644],
   ["planning-config.json.template", ".planning/config.json", 0o644],
   ["project-brief.md.template", ".planning/PROJECT-BRIEF.md", 0o644],

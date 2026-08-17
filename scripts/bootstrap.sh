@@ -40,6 +40,18 @@ if [[ $untracked -eq 1 ]]; then
   exclude_prefix=$(cd "$target" && git rev-parse --show-prefix)
 fi
 
+if [[ $untracked -eq 0 ]]; then
+  set +e
+  node "$CAIRN_ROOT/scripts/playbook-instructions.mjs" "$target" --check >/dev/null 2>&1
+  instructions_check=$?
+  set -e
+  if [[ $instructions_check -gt 1 ]]; then
+    echo "Cannot safely reconcile Cairnkeep playbook instructions in $target/AGENTS.md" >&2
+    echo "Resolve the managed markers, then retry bootstrap." >&2
+    exit 1
+  fi
+fi
+
 install_file() {
   local src="$1" dest="$2" mode="$3"
   if [[ -e "$dest" ]]; then
@@ -59,6 +71,11 @@ done < <(node "$CAIRN_ROOT/scripts/harness-registry.mjs" bootstrap-assets)
 install_file "$TPL/env.example.template"       "$target/.ai/env.example"       0644
 install_file "$TPL/trajectory-redaction.json.template" "$target/.ai/trajectory-redaction.json" 0644
 install_file "$TPL/capabilities.json.template" "$target/.ai/capabilities.json" 0600
+install_file "$TPL/playbooks.json.template" "$target/.ai/playbooks.json" 0600
+
+if [[ $untracked -eq 0 ]]; then
+  node "$CAIRN_ROOT/scripts/playbook-instructions.mjs" "$target" >/dev/null
+fi
 
 # Project-scope memory is private runtime data. Keep it out of version control
 # even before the first .agentfs/project.db is created.

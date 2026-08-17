@@ -8,12 +8,24 @@ A durable, harness-agnostic memory + context layer for coding agents (Claude Cod
 
 Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
 
-## Next Milestone Goals
+## Completed Milestone: v2.15 Cairnkeep Playbooks
 
-Not yet scoped — define via `/gsd-new-milestone`. Known candidates carried forward:
-- Enterprise overlay (private remote only, never in this repo) — the v1.3 routing seam (RT-02) is now frozen for it to drive
-- token-miser routing-proxy surface, full hosting (TMISER-R1 remainder) — private track; the core keeps only the thin `route_check` wire
-- Interactive-TUI confirm of the OpenCode round-trip (carried from v1.1; needs a TTY operator)
+**Goal:** Give agents an opinionated, customizable, and observable workflow for
+context, planning, verification, review, security, documentation, and learning
+without turning Cairnkeep into an agent runtime.
+
+**Delivered features:**
+- Strict `must`/`should`/`may` playbook policies and deterministic evaluation
+- Enforceable completion gates and actor-attributed private receipts
+- A tiny start/check/finish workflow with safe project instruction management
+- Team-ready identity/provenance seams and a future team architecture contract
+
+**Explicit boundary:** This milestone does not ship multi-user authentication,
+ACLs, tenant isolation, shared storage, arbitrary executable playbook steps, or
+an autonomous agent loop.
+
+**Status:** Implementation and release verification completed 2026-08-17;
+v2.15.0 is ready to merge, tag, and publish.
 
 ## Current State
 
