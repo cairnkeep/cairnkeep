@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.13.1
+**Baseline:** Cairnkeep 2.14.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -15,7 +15,7 @@ trust. See [L03](lessons/L03-first-project.md) and
 Version 2.13 adds local Git-linked work evidence around all generated harness
 launchers; [L13](lessons/L13-session-evidence.md) covers its privacy and
 retention contract.
-The current post-2.13 work adds OKF 0.1/0.2 import, structured provenance,
+Version 2.14 adds OKF 0.1/0.2 import, structured provenance,
 deterministic links, and reviewed OKF 0.2 export; see
 [L24](lessons/L24-okf-exchange.md).
 
