@@ -5,6 +5,16 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.15.1] - 2026-08-17
+
+### Fixed
+
+- Make concurrent playbook policy updates tolerate lock handoff races,
+  including transient Windows directory-removal errors, while retaining
+  fail-closed validation for unsafe lock objects.
+- Strengthen the playbook concurrency regression with repeated mixed profile
+  and reset operations across the supported Node and Windows CI matrix.
+
 ## [2.15.0] - 2026-08-17
 
 ### Added
@@ -398,7 +408,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.15.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.15.1...HEAD
+[2.15.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.15.0...v2.15.1
 [2.15.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.13.1...v2.14.0
 [2.13.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.13.0...v2.13.1
