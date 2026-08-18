@@ -5,6 +5,24 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.15.2] - 2026-08-18
+
+### Added
+
+- Add a generic, ownership-safe durable-context protocol to the managed project
+  `AGENTS.md` block. Compatible agents derive one short project-memory query
+  before broad exploration when prior decisions or conventions may matter,
+  verify referenced repository sources, fall back cleanly when retrieval is
+  unavailable, and never promote memory automatically.
+- Extend setup, bootstrap, installed-package, native Windows, uninstall, and
+  documentation coverage for the managed retrieval guidance.
+
+### Fixed
+
+- Serialize same-process playbook configuration mutations before taking the
+  filesystem lock, avoiding Windows CI lock starvation under concurrent
+  profile and reset operations while preserving cross-process exclusion.
+
 ## [2.15.1] - 2026-08-17
 
 ### Fixed

@@ -1,4 +1,20 @@
 <!-- cairnkeep:playbook:v1:start -->
+## Cairnkeep Durable Context
+
+Before broad repository exploration on a nontrivial task that may depend on
+existing project decisions, conventions, constraints, recurring failures, or
+prior work:
+
+- If `memory_search` is available, derive one short query from the task and
+  search `scope: project` once.
+- Treat returned memory as a locator, not authority. Read and verify the
+  maintained repository sources it references before implementing a result.
+- If the tool is unavailable or no relevant result exists, continue with
+  ordinary repository inspection. Do not repeat or broaden searches merely to
+  force a result.
+- Do not write, supersede, or approve durable memory unless the user or an
+  applicable reviewed workflow explicitly requests capture.
+
 ## Cairnkeep Playbooks
 
 Use Cairnkeep's bounded playbook policy to select workflow steps. It advises or

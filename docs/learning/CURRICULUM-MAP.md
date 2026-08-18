@@ -1,7 +1,7 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.15.1
-**Last reviewed:** 2026-08-17
+**Baseline:** Cairnkeep 2.15.2
+**Last reviewed:** 2026-08-18
 
 This map prevents the course from drifting behind the product. It assigns each
 user-facing surface to a lesson and records whether the lesson is complete or
@@ -40,7 +40,7 @@ been rehearsed.
 | Guided project setup, selected harness state, and Git-less limitations | L03 | L03 and L23 | Ready |
 | Pi local stdio memory bridge, trusted annotation details, and explicit lifecycle | L23 | L23 | Ready; Pi 0.84.1 validated minimum |
 | OKF 0.1/0.2 validation/import, provenance, links, regressions, and reviewed 0.2 export | L24 | L24 | Ready; local/offline by default |
-| Bounded project playbooks, managed agent guidance, enforcement, and private receipts | L25 | L25 | Ready; balanced/local by default; actor identity unverified |
+| Bounded project playbooks, generic memory retrieval guidance, enforcement, and private receipts | L25 | L25 | Ready; balanced/local by default; invocation requires runtime evidence; actor identity unverified |
 
 ## Release Review
 

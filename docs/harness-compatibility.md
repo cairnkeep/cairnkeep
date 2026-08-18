@@ -17,18 +17,20 @@ Cairnkeep commands, hooks or native trajectory capture.
 | Claude Code | Memory MCP, commands (including `/cairn-work`), agents, hooks, launcher | Exercised by Cairnkeep tests |
 | OpenCode | Memory MCP, commands (including `/cairn-work`), workflows, plugins, launcher | Exercised by Cairnkeep tests |
 | Kimi Code | Memory MCP, `AGENTS.md`, launcher, opt-in graph and cairn-work Skills | Launcher tested; remote MCP tested with Kimi Code 0.30.0; Skills contract-tested |
-| Qwen Code | Memory MCP, launcher, project `AGENTS.md` playbook guidance | Launcher tested; stdio and remote MCP tested with Qwen Code 0.21.1 |
+| Qwen Code | Memory MCP, launcher, project `AGENTS.md` durable-context and playbook guidance | Launcher tested; stdio and remote MCP tested with Qwen Code 0.21.1 |
 | Pi | Memory MCP through maintained local stdio extension, native opt-in trajectory extension, launcher, graph and cairn-work prompts | Pi 0.84.1 validated minimum; deterministic and real bridge/lifecycle tests |
-| Codex CLI | Project-scoped memory MCP, launcher, and project `AGENTS.md` playbook guidance | Setup and launcher contract-tested on POSIX and simulated native Windows; project trust remains operator-controlled |
+| Codex CLI | Project-scoped memory MCP, launcher, and project `AGENTS.md` durable-context and playbook guidance | Setup and launcher contract-tested on POSIX and simulated native Windows; project trust remains operator-controlled |
 | Other MCP clients | Memory plus optional domain-knowledge and context-pack tools | Protocol-compatible; not automatically runtime-tested |
 
 Only Claude Code and OpenCode currently receive the complete operating layer.
 Kimi receives narrow graph and playbook Skills, while Pi receives matching narrow prompts;
 neither is equivalent to the full commands, agents, hooks, and plugins surface.
 Qwen skills and hooks still require harness-specific adaptation and validation.
-Codex receives a project-local MCP entry, launcher, and portable playbook
-instructions, but not Cairnkeep-specific commands, hooks, agents, or automatic
-skill activation.
+Codex receives a project-local MCP entry, launcher, and portable durable-context
+and playbook instructions, but not Cairnkeep-specific commands, hooks, agents,
+or automatic skill activation. Harness behavior remains probabilistic;
+instruction presence must not be reported as a tool invocation without runtime
+evidence.
 
 Every MCP client receives complete tool annotations and may use a Cairnkeep
 least-authority profile independent of harness assets. Context-pack tools are

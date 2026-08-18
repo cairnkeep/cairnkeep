@@ -9,7 +9,8 @@
    harness remains the agent runtime and every approval remains in force.
 2. Run guided setup in a synthetic project. Show `.ai/playbooks.json` mode and
    the delimited Cairnkeep block inside an `AGENTS.md` that already has user
-   content.
+   content. Point out the generic durable-context protocol: it derives a query
+   from the task, treats memory as a locator, and never writes automatically.
 3. Compare `minimal`, `balanced`, and `strict` with `cairn playbook status`.
    Customize one canonical action and show that an arbitrary command or unknown
    field is rejected.
@@ -23,7 +24,8 @@
    absent.
 7. Show `/cairn-work` in Claude or OpenCode and the portable `AGENTS.md`
    guidance for Codex/Qwen. State that adapters route to the same CLI and do not
-   automatically activate skills.
+   automatically activate skills. Show one real `memory_search` event so the
+   instruction is not mistaken for proof of invocation.
 8. Remove the managed instruction block, prove user instructions remain, and
    close on the design-only team boundary.
 

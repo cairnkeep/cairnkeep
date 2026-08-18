@@ -51,6 +51,9 @@ launchers, including native Windows, without capturing prompts or replacing Git.
 Version 2.15 adds bounded project playbooks that help agents select existing
 recall, planning, verification, review, security, documentation, and learning
 steps without becoming an agent runtime or granting approval.
+Version 2.15.2 adds a generic durable-context protocol to the ownership-safe
+managed project instructions so compatible agents can derive one project
+memory query before broad exploration and verify its repository provenance.
 
 ## Compatibility
 
@@ -203,7 +206,11 @@ The exact command rendering depends on the client. Any MCP client can call
 `memory_write` and `memory_search` directly.
 
 Setup also installs a balanced `.ai/playbooks.json` policy and an ownership-safe
-managed block in `AGENTS.md`. Agents can evaluate it at task boundaries:
+managed block in `AGENTS.md`. The block directs compatible agents to make one
+task-derived, project-scoped memory search for nontrivial work involving prior
+decisions, conventions, constraints, or failures. Results are locators, not
+authority; referenced repository sources must be verified, and memory is never
+promoted automatically. Agents can evaluate the playbook at task boundaries:
 
 ```bash
 cairn playbook check start --complexity standard --familiarity mixed

@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.15.1
+**Baseline:** Cairnkeep 2.15.2
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -20,6 +20,9 @@ deterministic links, and reviewed OKF 0.2 export; see
 [L24](lessons/L24-okf-exchange.md).
 Version 2.15 adds local bounded playbooks and private outcome receipts; see
 [L25](lessons/L25-playbooks.md).
+Version 2.15.2 adds generic task-derived, project-scoped memory guidance to the
+same ownership-safe managed instructions. Retrieval remains a locator and
+actual tool invocation must be verified from runtime evidence.
 
 ## The three-layer model
 
@@ -65,7 +68,7 @@ prerequisites for ordinary memory.
 | Repository quality | `/repo-review`, `/security-audit` | On-demand workflow; findings are hypotheses until reproduced | Require file/line evidence and regression tests | `course-03-quality` |
 | Guided project setup | `cairn setup PATH --git init\|existing\|none --harness LIST --memory local\|none --yes` | Reconciles only selected project assets from one harness registry; private `.ai/cairnkeep.json`; machine sync is never automatic | Repeat deterministically, run doctor, or replay its recovery command; Git-less mode remains limited | `course-12-guided-setup` |
 | Codex project memory | Select `--harness codex --memory local` | Writes `.codex/config.toml` plus POSIX/native Windows launchers; local stdio; user-wide configuration and trust remain untouched | Review the MCP table, accept Codex project trust, run doctor, and relaunch; uninstall is backup-first | `course-01-bootstrap` |
-| Workflow playbooks | `cairn playbook check start|check|finish`; project `minimal`, `balanced`, or `strict` policy | Balanced by default; private `.ai/playbooks.json`; optional receipts in `.agentfs/playbooks/`; checks are offline and execute nothing | Inspect status/digests, enforce truthful `must` evidence, inspect receipts, reset overrides, remove only the managed `AGENTS.md` block | `course-13-playbooks` |
+| Workflow playbooks and durable-context guidance | `cairn playbook check start|check|finish`; project `minimal`, `balanced`, or `strict` policy; managed `AGENTS.md` retrieval protocol | Balanced by default; private `.ai/playbooks.json`; one task-derived project search when applicable; optional receipts in `.agentfs/playbooks/`; checks are offline and execute nothing | Verify the actual memory tool event and maintained source, inspect status/digests, enforce truthful `must` evidence, inspect receipts, reset overrides, remove only the managed `AGENTS.md` block | `course-13-playbooks` |
 
 ## Storage and optional topology
 
