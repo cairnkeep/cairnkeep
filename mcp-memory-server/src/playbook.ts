@@ -28,6 +28,7 @@ const MAX_CONFIG_BYTES = 64 * 1024;
 const LOCK_ATTEMPTS = 200;
 const LOCK_WAIT_MS = 10;
 const SESSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const localLockTails = new Map<string, { tail: Promise<void>; users: number }>();
 
 export type PlaybookActionDefinition = {
     id: PlaybookActionId;
@@ -247,30 +248,64 @@ export async function resolvePlaybookStatus(options: { projectRoot?: string; env
     };
 }
 
-async function acquireLock(lock: string): Promise<() => Promise<void>> {
-    for (let attempt = 0; attempt < LOCK_ATTEMPTS; attempt += 1) {
-        try {
-            await mkdir(lock, { mode: 0o700 });
-            return () => rm(lock, { recursive: true, force: true });
-        } catch (error) {
-            const code = (error as NodeJS.ErrnoException).code;
-            if (code !== "EEXIST" && !(process.platform === "win32" && code === "EPERM")) throw error;
-            try {
-                const info = await lstat(lock);
-                if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("Playbook configuration lock is unsafe.");
-            } catch (inspectionError) {
-                const inspectionCode = (inspectionError as NodeJS.ErrnoException).code;
-                if (inspectionCode === "ENOENT") continue;
-                if (process.platform === "win32" && (inspectionCode === "EPERM" || inspectionCode === "EBUSY")) {
-                    await delay(LOCK_WAIT_MS);
-                    continue;
-                }
-                throw inspectionError;
-            }
-            await delay(LOCK_WAIT_MS);
-        }
+async function acquireLocalLock(lock: string): Promise<() => void> {
+    let state = localLockTails.get(lock);
+    if (!state) {
+        state = { tail: Promise.resolve(), users: 0 };
+        localLockTails.set(lock, state);
     }
-    throw new Error("Playbook configuration is locked; retry after the active update finishes.");
+    const predecessor = state.tail;
+    let releaseGate!: () => void;
+    const gate = new Promise<void>((resolveGate) => { releaseGate = resolveGate; });
+    state.tail = predecessor.then(() => gate);
+    state.users += 1;
+    await predecessor;
+    let released = false;
+    return () => {
+        if (released) return;
+        released = true;
+        releaseGate();
+        state.users -= 1;
+        if (state.users === 0 && localLockTails.get(lock) === state) localLockTails.delete(lock);
+    };
+}
+
+async function acquireLock(lock: string): Promise<() => Promise<void>> {
+    const releaseLocal = await acquireLocalLock(lock);
+    try {
+        for (let attempt = 0; attempt < LOCK_ATTEMPTS; attempt += 1) {
+            try {
+                await mkdir(lock, { mode: 0o700 });
+                return async () => {
+                    try {
+                        await rm(lock, { recursive: true, force: true });
+                    } finally {
+                        releaseLocal();
+                    }
+                };
+            } catch (error) {
+                const code = (error as NodeJS.ErrnoException).code;
+                if (code !== "EEXIST" && !(process.platform === "win32" && code === "EPERM")) throw error;
+                try {
+                    const info = await lstat(lock);
+                    if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("Playbook configuration lock is unsafe.");
+                } catch (inspectionError) {
+                    const inspectionCode = (inspectionError as NodeJS.ErrnoException).code;
+                    if (inspectionCode === "ENOENT") continue;
+                    if (process.platform === "win32" && (inspectionCode === "EPERM" || inspectionCode === "EBUSY")) {
+                        await delay(LOCK_WAIT_MS);
+                        continue;
+                    }
+                    throw inspectionError;
+                }
+                await delay(LOCK_WAIT_MS);
+            }
+        }
+        throw new Error("Playbook configuration is locked; retry after the active update finishes.");
+    } catch (error) {
+        releaseLocal();
+        throw error;
+    }
 }
 
 async function atomicConfigWrite(path: string, value: PlaybookConfig): Promise<void> {

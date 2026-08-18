@@ -17,6 +17,12 @@ All notable user-facing changes are documented here. This project follows
 - Extend setup, bootstrap, installed-package, native Windows, uninstall, and
   documentation coverage for the managed retrieval guidance.
 
+### Fixed
+
+- Serialize same-process playbook configuration mutations before taking the
+  filesystem lock, avoiding Windows CI lock starvation under concurrent
+  profile and reset operations while preserving cross-process exclusion.
+
 ## [2.15.1] - 2026-08-17
 
 ### Fixed
