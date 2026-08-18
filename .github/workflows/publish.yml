@@ -16,6 +16,7 @@ on:
         type: boolean
 
 permissions:
+  actions: read
   contents: write
   id-token: write
   packages: write
@@ -27,24 +28,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  npm:
+  prepare:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.identity.outputs.version }}
       dist_tag: ${{ steps.identity.outputs.dist_tag }}
+      tree: ${{ steps.identity.outputs.tree }}
     steps:
       - name: Check out the released tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.release.tag_name || inputs.release_tag }}
           fetch-depth: 0
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "24"
-          cache: npm
-          registry-url: https://registry.npmjs.org
 
       - name: Verify release identity
         id: identity
@@ -54,6 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           version=$(node -p "require('./package.json').version")
+          tree=$(git rev-parse 'HEAD^{tree}')
           test "$RELEASE_TAG" = "v$version"
           case "$version:$RELEASE_PRERELEASE" in
             *-*:true) dist_tag=next ;;
@@ -63,36 +59,67 @@ jobs:
           esac
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
 
-      - name: Install and verify
-        run: |
-          npm ci
-          npm run check:public
-          npm --prefix mcp-memory-server ci
-          npm --prefix mcp-memory-server test
-
-      - name: Build and validate release artifacts
+      - name: Download the CI-verified release candidate
         env:
+          GH_TOKEN: ${{ github.token }}
+          TREE: ${{ steps.identity.outputs.tree }}
           VERSION: ${{ steps.identity.outputs.version }}
         run: |
           set -euo pipefail
-          mkdir -p artifacts
-          npm pack --pack-destination artifacts >/dev/null
-          ./node_modules/.bin/cyclonedx-npm \
-            --package-lock-only \
-            --omit dev \
-            --output-reproducible \
-            --spec-version 1.6 \
-            --output-format JSON \
-            --output-file "artifacts/cairnkeep-cli-$VERSION.cdx.json" \
-            --validate \
-            package.json
-          (cd artifacts && sha256sum ./* > SHA256SUMS)
+          artifact_name="release-candidate-$TREE"
+          response=$(gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts?name=$artifact_name&per_page=100")
+          run_id=
+          while IFS=$'\t' read -r candidate_run candidate_id; do
+            [[ -n "$candidate_run" && -n "$candidate_id" ]] || continue
+            run=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$candidate_run")
+            if [[ $(jq -r '.name' <<<"$run") == CI && $(jq -r '.conclusion' <<<"$run") == success ]]; then
+              run_id=$candidate_run
+              break
+            fi
+          done < <(jq -r '.artifacts | map(select(.expired == false)) | sort_by(.created_at) | reverse[] | [.workflow_run.id, .id] | @tsv' <<<"$response")
+          [[ -n "$run_id" ]] || {
+            echo "No successful CI release candidate exists for tree $TREE" >&2
+            exit 1
+          }
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
+            --name "$artifact_name" --dir candidate
+          (cd candidate && sha256sum --check SHA256SUMS)
+          node -e '
+            const candidate = require("./candidate/RELEASE-CANDIDATE.json");
+            const [tree, version] = process.argv.slice(1);
+            if (candidate.schema_version !== 1 || candidate.tree !== tree || candidate.version !== version) process.exit(1);
+          ' "$TREE" "$VERSION"
+
+      - name: Stage the verified candidate for publication jobs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-promotion-${{ steps.identity.outputs.tree }}
+          path: candidate/
+          if-no-files-found: error
+          retention-days: 1
+
+  npm:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download verified release payload
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-promotion-${{ needs.prepare.outputs.tree }}
+          path: artifacts
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
 
       - name: Check registry state
         id: registry
         env:
-          VERSION: ${{ steps.identity.outputs.version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           if npm view "@cairnkeep/cli@$VERSION" version >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
@@ -104,18 +131,38 @@ jobs:
         if: steps.registry.outputs.exists != 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          DIST_TAG: ${{ steps.identity.outputs.dist_tag }}
-        run: npm publish --access public --provenance --tag "$DIST_TAG"
+          DIST_TAG: ${{ needs.prepare.outputs.dist_tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: npm publish "artifacts/cairnkeep-cli-$VERSION.tgz" --access public --provenance --tag "$DIST_TAG"
 
       - name: Attach package and SBOM to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
-        run: gh release upload "$RELEASE_TAG" artifacts/* --clobber
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          gh release upload "$RELEASE_TAG" \
+            "artifacts/cairnkeep-cli-$VERSION.tgz" \
+            "artifacts/cairnkeep-cli-$VERSION.cdx.json" \
+            artifacts/SHA256SUMS --clobber
 
   containers:
-    needs: npm
+    needs: prepare
+    name: containers (${{ matrix.target }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: server
+            image: ghcr.io/cairnkeep/cairnkeep
+            title: Cairnkeep memory server
+            description: Durable MCP memory server
+            cache_scope: cairnkeep-server
+          - target: workspace
+            image: ghcr.io/cairnkeep/cairnkeep-workspace
+            title: Cairnkeep workspace
+            description: Base image for managed Cairnkeep workspaces
+            cache_scope: cairnkeep-workspace
     steps:
       - name: Check out the released tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -135,22 +182,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate memory-server image metadata
-        id: server-meta
+      - name: Generate image metadata
+        id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ghcr.io/${{ github.repository_owner }}/cairnkeep
+          images: ${{ matrix.image }}
           tags: |
-            type=raw,value=${{ needs.npm.outputs.version }}
+            type=raw,value=${{ needs.prepare.outputs.version }}
           labels: |
-            org.opencontainers.image.title=Cairnkeep memory server
-            org.opencontainers.image.description=Durable MCP memory server
+            org.opencontainers.image.title=${{ matrix.title }}
+            org.opencontainers.image.description=${{ matrix.description }}
 
-      - name: Check memory-server registry state
-        id: server-registry
+      - name: Check image registry state
+        id: registry
         env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/cairnkeep
-          VERSION: ${{ needs.npm.outputs.version }}
+          IMAGE: ${{ matrix.image }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           if docker buildx imagetools inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
@@ -158,29 +205,28 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build and publish memory-server image
-        if: steps.server-registry.outputs.exists != 'true'
-        id: server
+      - name: Build and publish image
+        if: steps.registry.outputs.exists != 'true'
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: Containerfile
-          target: server
+          target: ${{ matrix.target }}
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.server-meta.outputs.tags }}
-          labels: ${{ steps.server-meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           sbom: true
-          cache-from: type=gha,scope=cairnkeep-server
-          cache-to: type=gha,mode=max,scope=cairnkeep-server
+          cache-from: type=gha,scope=${{ matrix.cache_scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
 
-      - name: Resolve memory-server digest and channel tag
-        id: server-published
+      - name: Resolve image digest and channel tag
+        id: published
         env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/cairnkeep
-          VERSION: ${{ needs.npm.outputs.version }}
-          DIST_TAG: ${{ needs.npm.outputs.dist_tag }}
+          IMAGE: ${{ matrix.image }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          DIST_TAG: ${{ needs.prepare.outputs.dist_tag }}
         run: |
           set -euo pipefail
           digest=$(docker buildx imagetools inspect "$IMAGE:$VERSION" |
@@ -190,71 +236,9 @@ jobs:
             --tag "$IMAGE:$DIST_TAG" "$IMAGE@$digest"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
-      - name: Attest memory-server image
+      - name: Attest image
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-name: ghcr.io/${{ github.repository_owner }}/cairnkeep
-          subject-digest: ${{ steps.server-published.outputs.digest }}
-          push-to-registry: true
-
-      - name: Generate workspace image metadata
-        id: workspace-meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/cairnkeep-workspace
-          tags: |
-            type=raw,value=${{ needs.npm.outputs.version }}
-          labels: |
-            org.opencontainers.image.title=Cairnkeep workspace
-            org.opencontainers.image.description=Base image for managed Cairnkeep workspaces
-
-      - name: Check workspace registry state
-        id: workspace-registry
-        env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/cairnkeep-workspace
-          VERSION: ${{ needs.npm.outputs.version }}
-        run: |
-          if docker buildx imagetools inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Build and publish workspace image
-        if: steps.workspace-registry.outputs.exists != 'true'
-        id: workspace
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: .
-          file: Containerfile
-          target: workspace
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.workspace-meta.outputs.tags }}
-          labels: ${{ steps.workspace-meta.outputs.labels }}
-          provenance: false
-          sbom: true
-          cache-from: type=gha,scope=cairnkeep-workspace
-          cache-to: type=gha,mode=max,scope=cairnkeep-workspace
-
-      - name: Resolve workspace digest and channel tag
-        id: workspace-published
-        env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/cairnkeep-workspace
-          VERSION: ${{ needs.npm.outputs.version }}
-          DIST_TAG: ${{ needs.npm.outputs.dist_tag }}
-        run: |
-          set -euo pipefail
-          digest=$(docker buildx imagetools inspect "$IMAGE:$VERSION" |
-            awk '$1 == "Digest:" && digest == "" { digest = $2 } END { print digest }')
-          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
-          docker buildx imagetools create \
-            --tag "$IMAGE:$DIST_TAG" "$IMAGE@$digest"
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
-
-      - name: Attest workspace image
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-name: ghcr.io/${{ github.repository_owner }}/cairnkeep-workspace
-          subject-digest: ${{ steps.workspace-published.outputs.digest }}
+          subject-name: ${{ matrix.image }}
+          subject-digest: ${{ steps.published.outputs.digest }}
           push-to-registry: true

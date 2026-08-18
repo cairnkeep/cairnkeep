@@ -157,3 +157,56 @@ jobs:
           cairn bootstrap "$RUNNER_TEMP/proj"
           ( cd "$RUNNER_TEMP/proj" && cairn doctor )
           scripts/smoke-mcp-boot.sh
+
+  # Build the exact release payload only after every platform and runtime gate
+  # passes. Release publication promotes this tree-addressed artifact instead
+  # of rebuilding and rerunning the repository suite serially.
+  release-candidate:
+    needs:
+      - memory-server
+      - native-windows
+      - repository
+      - shell-portability
+      - server-boot
+      - container
+      - fresh-install-macos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Build release candidate
+        id: candidate
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build:server
+          version=$(node -p "require('./package.json').version")
+          tree=$(git rev-parse 'HEAD^{tree}')
+          mkdir -p artifacts
+          npm pack --pack-destination artifacts >/dev/null
+          ./node_modules/.bin/cyclonedx-npm \
+            --package-lock-only \
+            --omit dev \
+            --output-reproducible \
+            --spec-version 1.6 \
+            --output-format JSON \
+            --output-file "artifacts/cairnkeep-cli-$version.cdx.json" \
+            --validate \
+            package.json
+          (cd artifacts && sha256sum ./*.tgz ./*.json > SHA256SUMS)
+          node -e '
+            const fs = require("node:fs");
+            const [tree, version] = process.argv.slice(1);
+            fs.writeFileSync("artifacts/RELEASE-CANDIDATE.json", `${JSON.stringify({ schema_version: 1, tree, version }, null, 2)}\n`);
+          ' "$tree" "$version"
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+      - name: Upload verified release candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-candidate-${{ steps.candidate.outputs.tree }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30

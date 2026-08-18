@@ -2,7 +2,8 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-WORKFLOW="$ROOT/.github/workflows/publish.yml"
+CANDIDATE_WORKFLOW="$ROOT/.github/workflows/ci.yml"
+PUBLISH_WORKFLOW="$ROOT/.github/workflows/publish.yml"
 TEMP_DIR=$(mktemp -d)
 trap 'rm -f "$TEMP_DIR/cairnkeep.cdx.json"; rmdir "$TEMP_DIR"' EXIT
 
@@ -11,12 +12,13 @@ fail() {
   exit 1
 }
 
-node - "$ROOT/package.json" "$ROOT/package-lock.json" "$WORKFLOW" <<'NODE'
+node - "$ROOT/package.json" "$ROOT/package-lock.json" "$CANDIDATE_WORKFLOW" "$PUBLISH_WORKFLOW" <<'NODE'
 const fs = require("node:fs");
 
 const manifest = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const lock = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
-const workflow = fs.readFileSync(process.argv[4], "utf8");
+const candidateWorkflow = fs.readFileSync(process.argv[4], "utf8");
+const publishWorkflow = fs.readFileSync(process.argv[5], "utf8");
 const expected = "6.0.0";
 
 if (manifest.devDependencies?.["@cyclonedx/cyclonedx-npm"] !== expected) {
@@ -29,24 +31,44 @@ if (lock.packages?.["node_modules/@cyclonedx/cyclonedx-npm"]?.version !== expect
   throw new Error(`package-lock.json must resolve @cyclonedx/cyclonedx-npm ${expected}`);
 }
 
-const artifactStep = workflow.indexOf("- name: Build and validate release artifacts");
-const publishStep = workflow.indexOf("- name: Publish to npm with provenance");
-const attachStep = workflow.indexOf("- name: Attach package and SBOM to GitHub release");
-if (artifactStep < 0 || publishStep < 0 || attachStep < 0 || !(artifactStep < publishStep && publishStep < attachStep)) {
-  throw new Error("release artifacts must validate before npm publication and attach only after publication");
+if (!candidateWorkflow.includes("release-candidate:")
+  || !candidateWorkflow.includes("- name: Build release candidate")
+  || !candidateWorkflow.includes("name: release-candidate-${{ steps.candidate.outputs.tree }}")) {
+  throw new Error("CI must build and upload a tree-addressed release candidate after its required jobs");
+}
+if (!publishWorkflow.includes("- name: Download the CI-verified release candidate")
+  || !publishWorkflow.includes("jq -r '.conclusion'")
+  || !publishWorkflow.includes("== success")
+  || !publishWorkflow.includes("sha256sum --check SHA256SUMS")
+  || !publishWorkflow.includes("candidate.tree !== tree")) {
+  throw new Error("release publication must verify the successful CI run, checksums, version, and exact tree");
+}
+const publishStep = publishWorkflow.indexOf("- name: Publish to npm with provenance");
+const attachStep = publishWorkflow.indexOf("- name: Attach package and SBOM to GitHub release");
+if (publishStep < 0 || attachStep < 0 || publishStep >= attachStep) {
+  throw new Error("verified artifacts must publish to npm before release attachment");
+}
+if (publishWorkflow.includes("check:public")) {
+  throw new Error("release workflow must promote the verified candidate without repeating the public suite");
+}
+if (!publishWorkflow.includes("name: containers (${{ matrix.target }})")
+  || !publishWorkflow.includes("- target: server")
+  || !publishWorkflow.includes("- target: workspace")
+  || !publishWorkflow.includes("needs: prepare")) {
+  throw new Error("npm and both container targets must fan out after candidate preparation");
 }
 NODE
 
-grep -Fq './node_modules/.bin/cyclonedx-npm' "$WORKFLOW" || fail "release workflow does not use the locked CycloneDX generator"
-grep -Fq -- '--package-lock-only' "$WORKFLOW" || fail "release workflow does not use the package lock"
-grep -Fq -- '--omit dev' "$WORKFLOW" || fail "release workflow does not omit development dependencies"
-grep -Fq -- '--output-reproducible' "$WORKFLOW" || fail "release workflow does not request reproducible output"
-grep -Fq -- '--spec-version 1.6' "$WORKFLOW" || fail "release workflow does not emit CycloneDX 1.6"
-grep -Fq -- '--validate' "$WORKFLOW" || fail "release workflow does not validate the generated SBOM"
-if grep -Fq 'npm sbom' "$WORKFLOW"; then
+grep -Fq './node_modules/.bin/cyclonedx-npm' "$CANDIDATE_WORKFLOW" || fail "candidate workflow does not use the locked CycloneDX generator"
+grep -Fq -- '--package-lock-only' "$CANDIDATE_WORKFLOW" || fail "candidate workflow does not use the package lock"
+grep -Fq -- '--omit dev' "$CANDIDATE_WORKFLOW" || fail "candidate workflow does not omit development dependencies"
+grep -Fq -- '--output-reproducible' "$CANDIDATE_WORKFLOW" || fail "candidate workflow does not request reproducible output"
+grep -Fq -- '--spec-version 1.6' "$CANDIDATE_WORKFLOW" || fail "candidate workflow does not emit CycloneDX 1.6"
+grep -Fq -- '--validate' "$CANDIDATE_WORKFLOW" || fail "candidate workflow does not validate the generated SBOM"
+if grep -Fq 'npm sbom' "$CANDIDATE_WORKFLOW" "$PUBLISH_WORKFLOW"; then
   fail "release workflow still uses npm sbom"
 fi
-if grep -Fqi 'sbomsmith' "$WORKFLOW"; then
+if grep -Fqi 'sbomsmith' "$CANDIDATE_WORKFLOW" "$PUBLISH_WORKFLOW"; then
   fail "release workflow must not depend on an external converter"
 fi
 
