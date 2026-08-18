@@ -1,12 +1,14 @@
 <!-- cairnkeep:playbook:v1:start -->
 ## Cairnkeep Durable Context
 
-Before broad repository exploration on a nontrivial task that may depend on
-existing project decisions, conventions, constraints, recurring failures, or
-prior work:
+At the start of a nontrivial task that may depend on existing project
+decisions, conventions, constraints, recurring failures, or prior work,
+perform this retrieval step before running repository inventory or search
+commands such as `rg --files`, `find`, `tree`, or broad text searches:
 
 - If `memory_search` is available, derive one short query from the task and
-  search `scope: project` once.
+  search `scope: project` once. Derive it from the user's task; do not inspect
+  the repository first merely to formulate the query.
 - Treat returned memory as a locator, not authority. Read and verify the
   maintained repository sources it references before implementing a result.
 - If the tool is unavailable or no relevant result exists, continue with
@@ -24,7 +26,7 @@ enforces existing capabilities; it does not execute a workflow for you.
 - Re-run `cairn playbook check check` when scope, familiarity, complexity, or risk changes materially.
 - Before claiming completion, run `cairn playbook check finish --session SESSION --changed PATH... --risk LEVEL --public-change --completed ACTION... --skipped ACTION=REASON... --enforce` with accurate signals and evidence.
 - A non-zero enforcement result means applicable `must` evidence is missing. Perform the action and check again; do not relabel a skipped or failed action as completed.
-- Record material outcomes with `cairn playbook record`, using the exact policy and decision digests returned by the check. Actor identity is an unverified local assertion in this release.
+- After a successful finish check, record only material outcomes with `cairn playbook record --policy POLICY_DIGEST --decision DECISION_DIGEST --event finish --action ACTION --outcome OUTCOME --session SESSION [--reason REASON]`, using one call per recorded action and the exact digests returned by the check. Run `cairn playbook record --help` for the bounded values. Actor identity is an unverified local assertion in this release.
 - Existing approval and capability boundaries still apply. A playbook cannot enable a disabled capability, grant approval, write durable memory automatically, run arbitrary commands, or authorize destructive work.
 - If the CLI or an applicable capability is unavailable, state that limitation and follow the policy intent manually; never invent a receipt or successful result.
 <!-- cairnkeep:playbook:v1:end -->

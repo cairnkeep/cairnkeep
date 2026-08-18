@@ -62,6 +62,39 @@ and unauthenticated until a future team deployment binds it to authentication.
 `;
 }
 
+function checkUsage(): string {
+    return `Usage:
+  cairn playbook check start|check|finish [signals] [evidence] [--enforce] [--json]
+
+Signals:
+  --complexity trivial|standard|complex   --familiarity known|mixed|unfamiliar
+  --risk low|normal|high|security         --public-change
+  --changed PATH...                       --change-type TYPE...
+
+Evidence and provenance:
+  --completed ACTION...                   --skipped ACTION=REASON...
+  --failed ACTION=REASON...               --actor ID --actor-kind user|agent|service
+  --session ID
+`;
+}
+
+function recordUsage(): string {
+    return `Usage:
+  cairn playbook record --policy DIGEST --decision DIGEST --event start|check|finish \\
+    --action ACTION --outcome completed|skipped|failed [--reason REASON] \\
+    [--actor ID] [--actor-kind user|agent|service] [--session ID] \\
+    [--project PATH] [--json]
+
+Record one material action outcome per call using the exact policy and decision
+digests returned by the corresponding check. Actor identity is caller-supplied
+and unauthenticated in this release.
+
+Actions:
+  context.recall  context.explore  work.plan  verify.tests
+  review.repository  review.security  docs.update  learning.capture
+`;
+}
+
 type Parsed = {
     positional: string[];
     options: Map<string, string[]>;
@@ -241,6 +274,11 @@ async function main(): Promise<void> {
     if (["help", "--help", "-h"].includes(command)) {
         if (raw.length) throw new Error("help accepts no arguments.");
         process.stdout.write(usage());
+        return;
+    }
+    if (["check", "record"].includes(command) && raw.length === 1 && ["--help", "-h"].includes(raw[0])) {
+        if (command === "check") process.stdout.write(checkUsage());
+        else process.stdout.write(recordUsage());
         return;
     }
     const parsed = parse(raw);

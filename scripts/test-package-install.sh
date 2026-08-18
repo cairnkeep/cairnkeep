@@ -51,6 +51,8 @@ bootstrap_output=$(cairn bootstrap "$tmp/project")
 [[ -f "$tmp/project/.ai/playbooks.json" ]] || fail "bootstrap did not install the playbook policy"
 grep -qF '<!-- cairnkeep:playbook:v1:start -->' "$tmp/project/AGENTS.md" || fail "bootstrap did not install playbook agent guidance"
 grep -qF 'derive one short query from the task' "$tmp/project/AGENTS.md" || fail "bootstrap did not install generic memory retrieval guidance"
+grep -qF 'before running repository inventory or search' "$tmp/project/AGENTS.md" || fail "bootstrap did not install retrieval ordering guidance"
+grep -qF 'cairn playbook record --help' "$tmp/project/AGENTS.md" || fail "bootstrap did not install actionable receipt guidance"
 grep -qF 'Treat returned memory as a locator, not authority.' "$tmp/project/AGENTS.md" || fail "bootstrap did not install memory provenance guidance"
 
 (cd "$tmp/project" && cairn doctor) >/dev/null || fail "installed package failed cairn doctor"

@@ -28,6 +28,14 @@ env -u CAIRN_NOTE_DISTILLATION "$cairn" notes --help >/dev/null 2>&1 || fail "ca
 "$cairn" artifact --help | grep -q "cairn artifact list" || fail "cairn artifact dispatch"
 "$cairn" evidence --help | grep -q "cairn evidence list" || fail "cairn evidence dispatch"
 "$cairn" playbook --help | grep -q "cairn playbook list" || fail "cairn playbook dispatch"
+"$cairn" playbook check --help | grep -q "check start|check|finish" || fail "cairn playbook check help"
+"$cairn" playbook record --help >"$tmp/playbook-record-help" || fail "cairn playbook record help"
+grep -qF -- '--event start|check|finish' "$tmp/playbook-record-help" || fail "playbook record help missing events"
+grep -qF -- '--outcome completed|skipped|failed' "$tmp/playbook-record-help" || fail "playbook record help missing outcomes"
+grep -qF 'review.security' "$tmp/playbook-record-help" || fail "playbook record help missing actions"
+if "$cairn" playbook unknown --help >/dev/null 2>&1; then
+  fail "unknown playbook command help should fail"
+fi
 "$cairn" capabilities --help >"$tmp/capabilities-help" 2>/dev/null || fail "cairn capabilities dispatch"
 "$cairn" mcp-tools list --json >"$tmp/mcp-tools.json" || fail "cairn mcp-tools dispatch"
 CAIRN_PACK_BASE_DIR="$tmp/pack-store" "$cairn" pack list --json >"$tmp/packs.json" || fail "cairn pack dispatch"

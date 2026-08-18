@@ -14,8 +14,13 @@ grep -qF 'Keep this line.' "$project/AGENTS.md"
 [[ $(grep -cF '<!-- cairnkeep:playbook:v1:start -->' "$project/AGENTS.md") -eq 1 ]]
 grep -qF 'derive one short query from the task' "$project/AGENTS.md"
 grep -qF 'search `scope: project` once' "$project/AGENTS.md"
+grep -qF 'before running repository inventory or search' "$project/AGENTS.md"
+grep -qF '`rg --files`, `find`, `tree`' "$project/AGENTS.md"
+grep -qF "do not inspect" "$project/AGENTS.md"
 grep -qF 'Treat returned memory as a locator, not authority.' "$project/AGENTS.md"
 grep -qF 'Do not write, supersede, or approve durable memory' "$project/AGENTS.md"
+grep -qF 'cairn playbook record --policy POLICY_DIGEST --decision DECISION_DIGEST' "$project/AGENTS.md"
+grep -qF 'cairn playbook record --help' "$project/AGENTS.md"
 [[ $(stat -c '%a' "$project/AGENTS.md") == 640 ]]
 before=$(sha256sum "$project/AGENTS.md" | cut -d' ' -f1)
 node "$ROOT/scripts/playbook-instructions.mjs" "$project" >/dev/null
