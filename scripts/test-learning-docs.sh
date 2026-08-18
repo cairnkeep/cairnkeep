@@ -153,6 +153,8 @@ for phrase in \
   'cairn playbook check finish' \
   '--enforce' \
   'cairn playbook record' \
+  'cairn playbook record --help' \
+  'before repository inventory or search' \
   'unauthenticated' \
   'does not run'; do
   grep -qF -- "$phrase" "$l25" || {

@@ -93,6 +93,7 @@ workflow checks apply. Inspect it directly before relying on agent routing:
 cairn playbook status
 cairn playbook check start --complexity standard --familiarity mixed
 cairn playbook check finish --changed README.md --completed docs.update --enforce
+cairn playbook record --help
 ```
 
 `must` can produce a non-zero enforcement result; `should` is advisory with a

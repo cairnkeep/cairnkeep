@@ -1,7 +1,7 @@
 # L25 - Bounded workflow playbooks
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.15.2 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.15.3 and Node.js 22 or newer
 **Time:** 35 minutes
 
 ## Outcome
@@ -65,6 +65,10 @@ cairn playbook receipts list
 cairn playbook doctor
 ```
 
+`cairn playbook record --help` prints this command's bounded event, action,
+outcome, identity, session, project, and output options. A receipt records one
+action outcome; use another call only for another material outcome.
+
 Try a bounded customization, then restore the profile behavior:
 
 ```bash
@@ -87,11 +91,11 @@ cairn playbook set balanced
 ## Privacy and trust boundary
 
 The managed `AGENTS.md` block also gives compatible agents a bounded durable
-context protocol: derive one short project query for a nontrivial task, treat
-memory as a locator, and verify the maintained source. It does not contain a
-task-specific query, force a tool call, or authorize an automatic memory write.
-When evaluating the protocol, inspect the actual `memory_search` event rather
-than assuming the instruction was followed.
+context protocol: derive one short project query before repository inventory or search,
+treat memory as a locator, and verify the maintained source. It does not
+contain a task-specific query or authorize an automatic memory write. When
+evaluating the protocol, inspect the actual `memory_search` event rather than
+assuming the instruction was followed.
 
 Checks are offline and store nothing. Explicit receipts contain bounded
 identifiers, digests, event/action/outcome/reason, and a timestamp, but no
