@@ -1,7 +1,7 @@
 # L25 - Bounded workflow playbooks
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.15.1 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.15.2 and Node.js 22 or newer
 **Time:** 35 minutes
 
 ## Outcome
@@ -86,6 +86,13 @@ cairn playbook set balanced
 
 ## Privacy and trust boundary
 
+The managed `AGENTS.md` block also gives compatible agents a bounded durable
+context protocol: derive one short project query for a nontrivial task, treat
+memory as a locator, and verify the maintained source. It does not contain a
+task-specific query, force a tool call, or authorize an automatic memory write.
+When evaluating the protocol, inspect the actual `memory_search` event rather
+than assuming the instruction was followed.
+
 Checks are offline and store nothing. Explicit receipts contain bounded
 identifiers, digests, event/action/outcome/reason, and a timestamp, but no
 prompt, file body, diff, command output, credential, or environment snapshot.
@@ -111,4 +118,6 @@ rm -rf "$lab"
   evidence clears the relevant block.
 - The receipt is private, project-bound, bounded, and visible to `doctor`.
 - Removing managed instructions preserves all surrounding `AGENTS.md` content.
+- The installed memory guidance contains no task-specific query and degrades to
+  ordinary inspection when `memory_search` is unavailable.
 - No check executes an action, contacts a network service, or grants approval.

@@ -838,6 +838,15 @@ project's `AGENTS.md`. `--untracked` bootstrap leaves the shared `AGENTS.md`
 untouched. The policy can select only eight canonical Cairnkeep actions; it
 cannot contain commands, prompts, URLs, or extensions.
 
+The same ownership-safe block contains a generic durable-context protocol. For
+nontrivial work that may depend on existing decisions, conventions,
+constraints, recurring failures, or prior work, compatible agents derive one
+short task query and call `memory_search` with `scope: project` before broad
+exploration. A result is only a locator: the maintained repository source must
+still be read and verified. Missing tools and zero results fall back to normal
+inspection, and the protocol never authorizes an automatic memory write,
+supersede, or approval.
+
 ```bash
 cairn playbook list
 cairn playbook status --project .
@@ -881,8 +890,10 @@ cairn playbook instructions remove
 
 Claude and OpenCode receive `/cairn-work`; Pi and Kimi receive corresponding
 thin prompt/Skill adapters when their explicit machine sync runs. Codex and
-Qwen follow the project `AGENTS.md` block. These surfaces route to the same CLI
-and do not create a Cairnkeep-owned agent loop.
+Qwen follow the project `AGENTS.md` block. Instruction exposure does not prove
+tool invocation, so evaluations and audits should verify the actual
+`memory_search` event. These surfaces route to the same CLI and do not create a
+Cairnkeep-owned agent loop.
 
 ## The workflow
 
