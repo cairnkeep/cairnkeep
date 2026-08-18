@@ -842,8 +842,9 @@ The same ownership-safe block contains a generic durable-context protocol. For
 nontrivial work that may depend on existing decisions, conventions,
 constraints, recurring failures, or prior work, compatible agents derive one
 short query directly from the task and call `memory_search` with
-`scope: project` before repository inventory or search commands such as
-`rg --files`, `find`, `tree`, or broad text search. A result is only a locator:
+`scope: project` as their first tool or command, before `pwd`, `ls`, repository
+inventory, or search commands such as `rg --files`, `find`, `tree`, or broad
+text search. A result is only a locator:
 the maintained repository source must still be read and verified. Missing
 tools and zero results fall back to normal inspection, and the protocol never
 authorizes an automatic memory write, supersede, or approval.

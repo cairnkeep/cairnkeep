@@ -3,8 +3,9 @@
 
 At the start of a nontrivial task that may depend on existing project
 decisions, conventions, constraints, recurring failures, or prior work,
-perform this retrieval step before running repository inventory or search
-commands such as `rg --files`, `find`, `tree`, or broad text searches:
+make this retrieval the first tool or command. Do not run repository location,
+inventory, or search commands such as `pwd`, `ls`, `rg --files`, `find`,
+`tree`, or broad text searches first:
 
 - If `memory_search` is available, derive one short query from the task and
   search `scope: project` once. Derive it from the user's task; do not inspect
@@ -22,9 +23,9 @@ commands such as `rg --files`, `find`, `tree`, or broad text searches:
 Use Cairnkeep's bounded playbook policy to select workflow steps. It advises or
 enforces existing capabilities; it does not execute a workflow for you.
 
-- At task start, run `cairn playbook check start --session SESSION --complexity LEVEL --familiarity LEVEL` and follow every applicable `must` action. Apply `should` actions unless there is a concrete reason to skip them; use judgment for `may` actions.
+- At task start, run `cairn playbook check start --session SESSION --complexity trivial|standard|complex --familiarity known|mixed|unfamiliar` with one value from each bounded set, and follow every applicable `must` action. Apply `should` actions unless there is a concrete reason to skip them; use judgment for `may` actions.
 - Re-run `cairn playbook check check` when scope, familiarity, complexity, or risk changes materially.
-- Before claiming completion, run `cairn playbook check finish --session SESSION --changed PATH... --risk LEVEL --public-change --completed ACTION... --skipped ACTION=REASON... --enforce` with accurate signals and evidence.
+- Before claiming completion, run `cairn playbook check finish --session SESSION --changed PATH... --risk low|normal|high|security --public-change --completed ACTION... --skipped ACTION=REASON... --enforce` with one bounded risk value and accurate signals and evidence.
 - A non-zero enforcement result means applicable `must` evidence is missing. Perform the action and check again; do not relabel a skipped or failed action as completed.
 - After a successful finish check, record only material outcomes with `cairn playbook record --policy POLICY_DIGEST --decision DECISION_DIGEST --event finish --action ACTION --outcome OUTCOME --session SESSION [--reason REASON]`, using one call per recorded action and the exact digests returned by the check. Run `cairn playbook record --help` for the bounded values. Actor identity is an unverified local assertion in this release.
 - Existing approval and capability boundaries still apply. A playbook cannot enable a disabled capability, grant approval, write durable memory automatically, run arbitrary commands, or authorize destructive work.

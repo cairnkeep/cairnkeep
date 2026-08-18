@@ -51,10 +51,11 @@ launchers, including native Windows, without capturing prompts or replacing Git.
 Version 2.15 adds bounded project playbooks that help agents select existing
 recall, planning, verification, review, security, documentation, and learning
 steps without becoming an agent runtime or granting approval.
-Version 2.15.3 tightens the generic durable-context protocol so compatible
-agents derive one project-memory query before repository inventory or search,
-verify its repository provenance, and receive executable playbook receipt
-syntax with command-scoped help.
+Version 2.15.4 makes the generic durable-context retrieval the first tool or
+command for compatible agents, puts bounded playbook signal values inline,
+and supports command- and event-scoped playbook help. Agents still verify
+repository provenance, and instruction presence remains distinct from runtime
+evidence that a tool was called.
 
 ## Compatibility
 

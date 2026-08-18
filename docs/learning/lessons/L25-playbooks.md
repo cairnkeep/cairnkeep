@@ -1,7 +1,7 @@
 # L25 - Bounded workflow playbooks
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.15.3 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.15.4 and Node.js 22 or newer
 **Time:** 35 minutes
 
 ## Outcome
@@ -91,7 +91,7 @@ cairn playbook set balanced
 ## Privacy and trust boundary
 
 The managed `AGENTS.md` block also gives compatible agents a bounded durable
-context protocol: derive one short project query before repository inventory or search,
+context protocol: derive one short project query as the first tool or command,
 treat memory as a locator, and verify the maintained source. It does not
 contain a task-specific query or authorize an automatic memory write. When
 evaluating the protocol, inspect the actual `memory_search` event rather than
