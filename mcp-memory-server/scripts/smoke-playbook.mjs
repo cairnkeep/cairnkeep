@@ -214,6 +214,15 @@ const storedText = readFileSync(receiptPath, "utf8");
 assert.equal(storedText.includes("src/auth/token.ts"), false, "receipts must not store changed paths or source payloads");
 
 const cli = fileURLToPath(new URL("../dist/playbook-cli.js", import.meta.url));
+const checkHelp = spawnSync(process.execPath, [cli, "check", "--help"], { encoding: "utf8" });
+assert.equal(checkHelp.status, 0, checkHelp.stderr);
+assert.match(checkHelp.stdout, /check start\|check\|finish/);
+const recordHelp = spawnSync(process.execPath, [cli, "record", "--help"], { encoding: "utf8" });
+assert.equal(recordHelp.status, 0, recordHelp.stderr);
+assert.match(recordHelp.stdout, /--event start\|check\|finish/);
+assert.match(recordHelp.stdout, /--outcome completed\|skipped\|failed/);
+assert.match(recordHelp.stdout, /Record one material action outcome per call/);
+assert.match(recordHelp.stdout, /review\.security/);
 const pendingCli = spawnSync(process.execPath, [cli, "check", "finish", "--project", project, "--changed", "src/auth/token.ts", "--risk", "security", "--session", "cli-1", "--enforce", "--json"], { encoding: "utf8" });
 assert.equal(pendingCli.status, 3, pendingCli.stderr);
 const pendingValue = JSON.parse(pendingCli.stdout);

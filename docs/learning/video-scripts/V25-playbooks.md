@@ -10,7 +10,8 @@
 2. Run guided setup in a synthetic project. Show `.ai/playbooks.json` mode and
    the delimited Cairnkeep block inside an `AGENTS.md` that already has user
    content. Point out the generic durable-context protocol: it derives a query
-   from the task, treats memory as a locator, and never writes automatically.
+   from the task before repository inventory or search, treats memory as a
+   locator, and never writes automatically.
 3. Compare `minimal`, `balanced`, and `strict` with `cairn playbook status`.
    Customize one canonical action and show that an arbitrary command or unknown
    field is rejected.
@@ -19,9 +20,9 @@
 5. Run a security-sensitive `check finish --enforce` without evidence and show
    exit 3. Perform synthetic verification, then re-run with completed and
    reasoned skipped evidence.
-6. Record one outcome with exact policy and decision digests. Inspect the
-   private receipt and show that changed paths, prompts, source, and output are
-   absent.
+6. Run `cairn playbook record --help`, then record one outcome with exact
+   policy and decision digests. Inspect the private receipt and show that
+   changed paths, prompts, source, and output are absent.
 7. Show `/cairn-work` in Claude or OpenCode and the portable `AGENTS.md`
    guidance for Codex/Qwen. State that adapters route to the same CLI and do not
    automatically activate skills. Show one real `memory_search` event so the

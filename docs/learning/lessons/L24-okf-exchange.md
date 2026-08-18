@@ -1,7 +1,7 @@
 # L24 - Reviewed knowledge exchange
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.15.2 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.15.3 and Node.js 22 or newer
 **Time:** 35 minutes
 
 ## Outcome

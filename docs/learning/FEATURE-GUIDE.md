@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.15.2
+**Baseline:** Cairnkeep 2.15.3
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -20,9 +20,10 @@ deterministic links, and reviewed OKF 0.2 export; see
 [L24](lessons/L24-okf-exchange.md).
 Version 2.15 adds local bounded playbooks and private outcome receipts; see
 [L25](lessons/L25-playbooks.md).
-Version 2.15.2 adds generic task-derived, project-scoped memory guidance to the
-same ownership-safe managed instructions. Retrieval remains a locator and
-actual tool invocation must be verified from runtime evidence.
+Version 2.15.3 makes generic task-derived, project-scoped retrieval precede
+repository inventory or search and adds executable playbook receipt guidance
+with command-scoped help. Retrieval remains a locator and actual tool
+invocation must be verified from runtime evidence.
 
 ## The three-layer model
 

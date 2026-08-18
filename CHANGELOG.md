@@ -5,6 +5,23 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.15.3] - 2026-08-18
+
+### Changed
+
+- Require the generic managed memory step before repository inventory or
+  search commands, with task-derived query guidance that does not need an
+  exploratory file read first.
+- Make the managed playbook receipt guidance directly executable, including
+  the lifecycle event, action, outcome, session, optional reason, and one-call
+  per-action boundary.
+
+### Fixed
+
+- Add successful command-scoped help for `cairn playbook check --help` and
+  `cairn playbook record --help`, including the bounded event, outcome,
+  identity, project, and output options agents need to avoid CLI probing.
+
 ## [2.15.2] - 2026-08-18
 
 ### Added

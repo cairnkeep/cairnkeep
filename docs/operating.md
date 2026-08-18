@@ -841,11 +841,12 @@ cannot contain commands, prompts, URLs, or extensions.
 The same ownership-safe block contains a generic durable-context protocol. For
 nontrivial work that may depend on existing decisions, conventions,
 constraints, recurring failures, or prior work, compatible agents derive one
-short task query and call `memory_search` with `scope: project` before broad
-exploration. A result is only a locator: the maintained repository source must
-still be read and verified. Missing tools and zero results fall back to normal
-inspection, and the protocol never authorizes an automatic memory write,
-supersede, or approval.
+short query directly from the task and call `memory_search` with
+`scope: project` before repository inventory or search commands such as
+`rg --files`, `find`, `tree`, or broad text search. A result is only a locator:
+the maintained repository source must still be read and verified. Missing
+tools and zero results fall back to normal inspection, and the protocol never
+authorizes an automatic memory write, supersede, or approval.
 
 ```bash
 cairn playbook list
@@ -873,12 +874,20 @@ advisory and should carry a concrete `--skipped ACTION=REASON` when omitted.
 Checking never executes the displayed commands, contacts a service, enables a
 capability, or grants approval.
 
-Material outcomes can be stored with `cairn playbook record` using the exact
-policy and decision digests from the check. Inspect them with `cairn playbook
-receipts list|show`; validate state with `cairn playbook doctor`. Actor and
-session options are provenance labels only: v2.15 does not authenticate them
-and does not provide team ACLs. See [team mode](design/team-mode.md) for the
-future admission contract.
+Material outcomes can be stored one action per call using the exact policy and
+decision digests from the check:
+
+```bash
+cairn playbook record --policy POLICY_DIGEST --decision DECISION_DIGEST \
+  --event finish --action verify.tests --outcome completed \
+  --session SESSION --reason 'targeted tests passed'
+cairn playbook record --help
+```
+
+Inspect receipts with `cairn playbook receipts list|show`; validate state with
+`cairn playbook doctor`. Actor and session options are provenance labels only:
+v2.15 does not authenticate them and does not provide team ACLs. See
+[team mode](design/team-mode.md) for the future admission contract.
 
 The managed instruction lifecycle is explicit and ownership-safe:
 
