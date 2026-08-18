@@ -276,9 +276,18 @@ async function main(): Promise<void> {
         process.stdout.write(usage());
         return;
     }
-    if (["check", "record"].includes(command) && raw.length === 1 && ["--help", "-h"].includes(raw[0])) {
-        if (command === "check") process.stdout.write(checkUsage());
-        else process.stdout.write(recordUsage());
+    if (command === "check" && raw.some((value) => ["--help", "-h"].includes(value))) {
+        const helpArguments = raw.filter((value) => !["--help", "-h"].includes(value));
+        if (raw.length !== helpArguments.length + 1
+            || helpArguments.length > 1
+            || (helpArguments.length === 1 && !["start", "check", "finish"].includes(helpArguments[0]))) {
+            throw new Error("check help accepts at most one event: start, check, or finish.");
+        }
+        process.stdout.write(checkUsage());
+        return;
+    }
+    if (command === "record" && raw.length === 1 && ["--help", "-h"].includes(raw[0])) {
+        process.stdout.write(recordUsage());
         return;
     }
     const parsed = parse(raw);

@@ -28,9 +28,10 @@ neither is equivalent to the full commands, agents, hooks, and plugins surface.
 Qwen skills and hooks still require harness-specific adaptation and validation.
 Codex receives a project-local MCP entry, launcher, and portable durable-context
 and playbook instructions, but not Cairnkeep-specific commands, hooks, agents,
-or automatic skill activation. The durable-context protocol places its
-task-derived search before repository inventory or search, and the playbook
-instructions provide executable receipt syntax plus command-scoped help.
+or automatic skill activation. The durable-context protocol makes its
+task-derived search the first tool or command, and the playbook instructions
+provide bounded signal values, executable receipt syntax, and command- or
+event-scoped help.
 Harness behavior remains probabilistic; instruction presence must not be
 reported as a tool invocation without runtime evidence.
 

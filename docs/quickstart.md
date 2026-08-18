@@ -72,8 +72,9 @@ result should survive the restart.
 `.planning`, and `.agentfs` scaffold. It also reconciles Cairnkeep's delimited
 instruction block in `AGENTS.md` while preserving every surrounding user byte
 and file mode. The block tells compatible agents when to make one
-task-derived, project-scoped memory search, to verify maintained repository
-sources, and never to promote memory automatically. It initializes Git only
+task-derived, project-scoped memory search as their first tool or command, to
+verify maintained repository sources, and never to promote memory
+automatically. It initializes Git only
 with explicit
 `--git init`, preserves unrelated files, does not overwrite modified files it
 does not own, and records managed digests in private `.ai/cairnkeep.json`.

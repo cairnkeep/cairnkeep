@@ -5,6 +5,22 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.15.4] - 2026-08-19
+
+### Changed
+
+- Make the managed project-memory retrieval contract explicit that retrieval
+  is the first tool or command, including before `pwd`, `ls`, inventory, or
+  search commands.
+- Put the bounded complexity, familiarity, and risk values directly in the
+  managed playbook commands so agents do not need to guess them.
+
+### Fixed
+
+- Support event-scoped playbook help such as
+  `cairn playbook check start --help` while continuing to reject ambiguous or
+  unknown help forms.
+
 ## [2.15.3] - 2026-08-18
 
 ### Changed

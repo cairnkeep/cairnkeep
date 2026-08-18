@@ -10,7 +10,7 @@
 2. Run guided setup in a synthetic project. Show `.ai/playbooks.json` mode and
    the delimited Cairnkeep block inside an `AGENTS.md` that already has user
    content. Point out the generic durable-context protocol: it derives a query
-   from the task before repository inventory or search, treats memory as a
+   from the task as the first tool or command, treats memory as a
    locator, and never writes automatically.
 3. Compare `minimal`, `balanced`, and `strict` with `cairn playbook status`.
    Customize one canonical action and show that an arbitrary command or unknown

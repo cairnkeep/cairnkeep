@@ -41,7 +41,7 @@ try {
   assert.match(launcherPowerShell(), /CAIRN_WORK_EVIDENCE/);
   assert.match(readFileSync(join(project, "AGENTS.md"), "utf8"), /cairnkeep:playbook:v1:start/);
   assert.match(readFileSync(join(project, "AGENTS.md"), "utf8"), /derive one short query from the task/);
-  assert.match(readFileSync(join(project, "AGENTS.md"), "utf8"), /before running repository inventory or search/);
+  assert.match(readFileSync(join(project, "AGENTS.md"), "utf8"), /make this retrieval the first tool or command/);
   assert.match(readFileSync(join(project, "AGENTS.md"), "utf8"), /cairn playbook record --help/);
   assert.match(readFileSync(join(project, "AGENTS.md"), "utf8"), /Treat returned memory as a locator, not authority\./);
   assert.match(readFileSync(join(project, "AGENTS.md"), "utf8"), /Keep this line\./);

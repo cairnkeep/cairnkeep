@@ -1,7 +1,7 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.15.3
-**Last reviewed:** 2026-08-18
+**Baseline:** Cairnkeep 2.15.4
+**Last reviewed:** 2026-08-19
 
 This map prevents the course from drifting behind the product. It assigns each
 user-facing surface to a lesson and records whether the lesson is complete or
