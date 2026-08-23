@@ -16,7 +16,7 @@ perform a reversible uninstall without relying on WSL or Git Bash.
 From PowerShell:
 
 ```powershell
-npm install --global @cairnkeep/cli@2.14.0
+npm install --global @cairnkeep/cli@2.15.4
 cairn version
 
 $Lab = Join-Path $env:TEMP 'Cairnkeep Windows Lab'
