@@ -47,7 +47,7 @@ sync. Codex project trust remains an explicit operator decision.
 2. Install Cairnkeep:
 
    ```bash
-   npm install --global @cairnkeep/cli@2.14.0
+   npm install --global @cairnkeep/cli@2.15.4
    cairn --version
    ```
 
