@@ -69,7 +69,7 @@ jobs:
           cairn sync --apply --live-root $claude
           cairn sync --check --live-root $claude
       - name: Rehearse the native Windows learning-path lifecycle
-        if: matrix.node == '24'
+        if: false
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -156,7 +156,36 @@ jobs:
             Get-FileHash $transcript -Algorithm SHA256 | Select-Object Algorithm, Hash | Format-Table | Out-String
           }
       - name: Upload native Windows learning-path evidence
-        if: always() && matrix.node == '24'
+        if: false
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-windows-learning-path-evidence
+          path: ${{ runner.temp }}/cairnkeep-windows-evidence/
+          if-no-files-found: error
+          retention-days: 7
+
+  windows-learning-evidence:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Build and install the packed release candidate
+        shell: pwsh
+        run: |
+          npm ci
+          npm --prefix mcp-memory-server ci
+          npm --prefix mcp-memory-server run build
+          npm pack
+          $package = Get-ChildItem -Filter 'cairnkeep-cli-*.tgz' | Select-Object -First 1
+          npm install --global $package.FullName
+      - name: Rehearse the native Windows learning-path lifecycle
+        shell: pwsh
+        run: .github/scripts/episode11-windows-evidence.ps1
+      - name: Upload native Windows learning-path evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: native-windows-learning-path-evidence
