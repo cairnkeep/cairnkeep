@@ -108,8 +108,8 @@ jobs:
           Record-Command 'cairn version' { cairn version }
 
           Record-Section 'Guided setup in a path containing spaces'
-          Record-Command 'cairn setup $Lab --git init --harness claude,codex --memory local --yes' {
-            cairn setup $lab --git init --harness claude,codex --memory local --yes
+          Record-Command "cairn setup `$Lab --git init --harness 'claude,codex' --memory local --yes" {
+            cairn setup $lab --git init --harness 'claude,codex' --memory local --yes
           }
           Record-Command 'git -C $Lab status --short --branch' { git -C $lab status --short --branch }
           Record-Command 'Get-ChildItem $Lab -Force' { Get-ChildItem $lab -Force | Select-Object Name, Mode | Format-Table | Out-String }
