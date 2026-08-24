@@ -84,6 +84,7 @@ jobs:
           }
           function Record-Command([string] $command, [scriptblock] $action) {
             Add-Content -Path $transcript -Value "PS> $command"
+            $global:LASTEXITCODE = 0
             $output = & $action 2>&1 | Out-String
             Add-Content -Path $transcript -Value $output.TrimEnd()
             if ($LASTEXITCODE -ne 0) {
