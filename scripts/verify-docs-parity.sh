@@ -9,8 +9,8 @@ set -euo pipefail
 #
 #   1. Env-key check: every CAIRN_[A-Z_]+/MCP_HTTP_[A-Z_]+ token read in
 #      mcp-memory-server/src/*.ts (the runtime server config surface --
-#      NOT scripts/ or bin/) must be named somewhere in docs/operating.md
-#      or README.md. `comm -23` on two sorted lists -- code-keys-not-in-
+#      NOT scripts/ or bin/) must be named somewhere in the versioned
+#      top-level docs. `comm -23` on two sorted lists -- code-keys-not-in-
 #      docs -- not a symmetric diff.
 #   2. Command check: every claude/commands/*.md basename must appear in
 #      docs/operating.md.
@@ -27,8 +27,8 @@ Usage: verify-docs-parity.sh
        verify-docs-parity.sh -h|--help
 
 Checks that every CAIRN_*/MCP_HTTP_* env key read by the cairn-memory MCP
-server (mcp-memory-server/src/*.ts) is named in docs/operating.md or
-README.md, and that every claude/commands/*.md command is named in
+server (mcp-memory-server/src/*.ts) is named in the versioned docs, and that
+every claude/commands/*.md command is named in
 docs/operating.md. One-directional: doc-only names are not a failure.
 Prints every missing key/command by name, then exits non-zero on any
 drift, or 0 if the docs are fully in sync with the shipped code.
@@ -264,7 +264,7 @@ check_env_keys() {
   local code_keys doc_keys missing
 
   code_keys=$(grep -ohE "\\b${ENV_KEY_PATTERN}\\b" mcp-memory-server/src/*.ts | grep -v '^CAIRN_TEST_' | sort -u)
-  doc_keys=$(grep -ohE "\\b${ENV_KEY_PATTERN}\\b" docs/operating.md README.md | sort -u)
+  doc_keys=$(grep -ohE "\\b${ENV_KEY_PATTERN}\\b" docs/*.md | sort -u)
 
   missing=$(comm -23 <(printf '%s\n' "$code_keys") <(printf '%s\n' "$doc_keys"))
 
@@ -276,7 +276,7 @@ check_env_keys() {
     return 1
   fi
 
-  echo "[env-keys] OK: every mcp-memory-server/src env key is named in docs/operating.md or README.md"
+  echo "[env-keys] OK: every mcp-memory-server/src env key is named in the versioned docs"
   return 0
 }
 
@@ -316,12 +316,12 @@ check_typed_contract() {
       failed=1
     fi
   done <<'EOF'
-CAIRN_TYPED_MEMORY_NODES|README.md docs/operating.md
-memory_import|README.md docs/operating.md docs/privacy-and-data-flow.md
-address_space|README.md docs/operating.md docs/privacy-and-data-flow.md
-node_types|README.md docs/operating.md
-tags_all|README.md docs/operating.md
-tags_any|README.md docs/operating.md
+CAIRN_TYPED_MEMORY_NODES|docs/operating.md
+memory_import|docs/operating.md docs/privacy-and-data-flow.md
+address_space|docs/operating.md docs/privacy-and-data-flow.md
+node_types|docs/operating.md
+tags_all|docs/operating.md
+tags_any|docs/operating.md
 schemas/memory-node.schema.json|docs/storage.md
 cairn_node_metadata_v1|docs/storage.md
 cairn_node_import_replays_v1|docs/storage.md
@@ -350,11 +350,11 @@ check_artifact_contract() {
       echo "FATAL: artifact default '$key=$value' is missing from env.example" >&2
       failed=1
     }
-    grep -qF "$key" README.md docs/operating.md || {
+    grep -qF "$key" docs/operating.md || {
       echo "FATAL: artifact env key '$key' is missing from public configuration docs" >&2
       failed=1
     }
-    grep -qF "$value" README.md docs/operating.md || {
+    grep -qF "$value" docs/operating.md || {
       echo "FATAL: artifact default '$key=$value' is missing from public configuration docs" >&2
       failed=1
     }
@@ -368,7 +368,7 @@ CAIRN_ARTIFACT_GENERATED_FILE_SNAPSHOT_MAX_BYTES|262144|GENERATED_FILE_MAX_SNAPS
 EOF
 
   for key in CAIRN_COMPACTION_CAPTURE CAIRN_ARTIFACT_STORE CAIRN_ARTIFACT_HTTP; do
-    grep -qF "$key" mcp-memory-server/src/artifact-schema.ts README.md docs/operating.md docs/privacy-and-data-flow.md || {
+    grep -qF "$key" mcp-memory-server/src/artifact-schema.ts docs/operating.md docs/privacy-and-data-flow.md || {
       echo "FATAL: artifact feature flag '$key' is not source/docs complete" >&2
       failed=1
     }
@@ -376,13 +376,13 @@ EOF
 
   for source_term in artifact_write artifact_read artifact_list artifact_delete; do
     grep -qF "\"$source_term\"" mcp-memory-server/src/index.ts || failed=1
-    grep -qF "$source_term" README.md docs/operating.md docs/privacy-and-data-flow.md || failed=1
+    grep -qF "$source_term" docs/operating.md docs/privacy-and-data-flow.md || failed=1
   done
   for source_term in 'list [--kind K] [--session REF] [--json]' 'show <artifact-id-or-prefix> [--json]' 'delete <artifact-id-or-prefix> [--dry-run] [--json]' 'prune [--dry-run] [--include-protected] [--json]'; do
     grep -qF "$source_term" mcp-memory-server/src/artifact-cli.ts || failed=1
   done
   grep -qF '.agentfs/artifacts.db' docs/storage.md docs/privacy-and-data-flow.md || failed=1
-  grep -qF 'CAIRN_ARTIFACT_HTTP' mcp-memory-server/src/index.ts README.md docs/operating.md docs/privacy-and-data-flow.md || failed=1
+  grep -qF 'CAIRN_ARTIFACT_HTTP' mcp-memory-server/src/index.ts docs/operating.md docs/privacy-and-data-flow.md || failed=1
   grep -qE 'redact[^.]{0,180}(before|then)[^.]{0,180}(digest|index|write)' docs/privacy-and-data-flow.md || failed=1
   grep -qE 'default uninstall retains|Default uninstall retains' docs/storage.md docs/privacy-and-data-flow.md || failed=1
   grep -qF -- '--purge-memory PROJECT' docs/storage.md || failed=1
@@ -390,10 +390,10 @@ EOF
 
   for version in 2.1.219 2.1.220; do
     grep -qF "version: \"$version\"" mcp-memory-server/src/compaction-normalize.ts || failed=1
-    grep -qF "$version" README.md docs/operating.md docs/privacy-and-data-flow.md || failed=1
+    grep -qF "$version" docs/operating.md docs/privacy-and-data-flow.md || failed=1
   done
   grep -qF 'version: "1.17.20"' mcp-memory-server/src/compaction-normalize.ts || failed=1
-  grep -qF '1.17.20' README.md docs/operating.md docs/privacy-and-data-flow.md || failed=1
+  grep -qF '1.17.20' docs/operating.md docs/privacy-and-data-flow.md || failed=1
 
   [[ "$failed" -eq 0 ]] && echo "[artifact-contract] OK: artifact flags/defaults/tools/paths/privacy/uninstall/version pins match source"
   return "$failed"
@@ -440,8 +440,8 @@ check_work_evidence_contract() {
     grep -qF "$key" mcp-memory-server/src/work-evidence-schema.ts || failed=1
     grep -qF "$source_term" mcp-memory-server/src/work-evidence-schema.ts || failed=1
     grep -qxF "# $key=$value" templates/env.example.template || failed=1
-    grep -qF "$key" README.md docs/operating.md docs/work-evidence.md || failed=1
-    grep -qF "$value" README.md docs/operating.md docs/work-evidence.md || failed=1
+    grep -qF "$key" docs/operating.md docs/work-evidence.md || failed=1
+    grep -qF "$value" docs/operating.md docs/work-evidence.md || failed=1
   done <<'EOF'
 CAIRN_WORK_EVIDENCE_RETENTION_DAYS|30|WORK_EVIDENCE_DEFAULT_RETENTION_DAYS = 30
 CAIRN_WORK_EVIDENCE_STORE_MAX_BYTES|67108864|WORK_EVIDENCE_DEFAULT_STORE_MAX_BYTES = 64 * 1024 * 1024
@@ -450,11 +450,11 @@ CAIRN_WORK_EVIDENCE_PATCH_MAX_BYTES|1048576|WORK_EVIDENCE_DEFAULT_PATCH_MAX_BYTE
 EOF
 
   for key in CAIRN_WORK_EVIDENCE CAIRN_WORK_EVIDENCE_PATCH; do
-    grep -qF "$key" mcp-memory-server/src/work-evidence-schema.ts templates/env.example.template README.md docs/operating.md docs/privacy-and-data-flow.md || failed=1
+    grep -qF "$key" mcp-memory-server/src/work-evidence-schema.ts templates/env.example.template docs/operating.md docs/privacy-and-data-flow.md || failed=1
   done
   for source_term in work_evidence_list work_evidence_read; do
     grep -qF "\"$source_term\"" mcp-memory-server/src/index.ts || failed=1
-    grep -qF "$source_term" README.md docs/operating.md docs/privacy-and-data-flow.md docs/work-evidence.md || failed=1
+    grep -qF "$source_term" docs/operating.md docs/privacy-and-data-flow.md docs/work-evidence.md || failed=1
   done
   for source_term in 'list [--status pending|complete] [--json]' 'show <evidence-id-or-prefix> [--json]' 'delete <evidence-id-or-prefix> [--dry-run] [--json]' 'prune [--dry-run] [--json]' 'doctor [--repair] [--json]'; do
     grep -qF "$source_term" mcp-memory-server/src/work-evidence-cli.ts || failed=1
@@ -478,7 +478,7 @@ check_capability_contract() {
     mcp-memory-server/src/capability-store.ts \
     mcp-memory-server/src/capability-adapter.ts \
     schemas/capability-callback.schema.json \
-    docs/operating.md docs/storage.md docs/privacy-and-data-flow.md README.md; do
+    docs/operating.md docs/storage.md docs/privacy-and-data-flow.md; do
     if [[ ! -f "$file" ]]; then
       echo "FATAL: capability parity input is missing: $file" >&2
       failed=1
@@ -491,11 +491,11 @@ check_capability_contract() {
       echo "FATAL: canonical capability ID is missing from source: $id" >&2
       failed=1
     }
-    grep -qF "$id" README.md docs/operating.md || {
+    grep -qF "$id" docs/operating.md || {
       echo "FATAL: canonical capability ID is undocumented: $id" >&2
       failed=1
     }
-    grep -qF "$env" README.md docs/operating.md templates/env.example.template || {
+    grep -qF "$env" docs/operating.md templates/env.example.template || {
       echo "FATAL: capability environment key is not source/docs complete: $env" >&2
       failed=1
     }
@@ -511,7 +511,7 @@ context.explore|CAIRN_CAPABILITY_CONTEXT_EXPLORE
 EOF
 
   for term in CAIRN_CAPABILITY_CONTRACT CAIRN_CAPABILITY_LOGGING; do
-    grep -qF "$term" mcp-memory-server/src/capability-config.ts README.md docs/operating.md templates/env.example.template || {
+    grep -qF "$term" mcp-memory-server/src/capability-config.ts docs/operating.md templates/env.example.template || {
       echo "FATAL: capability master/logging flag is not source/docs complete: $term" >&2
       failed=1
     }
@@ -520,7 +520,7 @@ EOF
   while IFS='|' read -r id tool; do
     grep -qF "\"$id\"" mcp-memory-server/src/index.ts || failed=1
     grep -qF "\"$tool\"" mcp-memory-server/src/index.ts || failed=1
-    grep -qF "$tool" README.md docs/operating.md || {
+    grep -qF "$tool" docs/operating.md || {
       echo "FATAL: omitted MCP tool is undocumented: $tool" >&2
       failed=1
     }
