@@ -19,6 +19,9 @@ Choose the shortest track that matches your goal:
 
 For a single view of every released surface, its default, storage boundary,
 restart requirement, and rollback path, use the [feature guide](FEATURE-GUIDE.md).
+The public [coding-agent guide](../agents.md) is the concise normative reference
+for retrieval-first behavior, memory authority, playbooks, and graceful
+fallback used throughout the lessons.
 The public [course labs](https://github.com/cairnkeep/cairnkeep-course-labs)
 provide one synthetic project with tagged checkpoints shared by lessons,
 articles, workshops, and videos.

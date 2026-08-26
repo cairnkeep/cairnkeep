@@ -24,6 +24,9 @@ sync command but never runs it automatically. This guide covers all three.
   memory MCP, launcher, and opt-in graph Skill; Qwen Code receives the memory
   MCP and launcher. Pi receives a maintained local stdio MCP extension, native
   trajectory adapter, graph prompt, and launcher after explicit machine sync.
+- Cairnkeep 1.x remains the legacy line for older Node.js runtimes. New
+  installations should use the supported Cairnkeep 2.x and Node.js 22-or-newer
+  matrix.
 - Optional: the `sqlite3` CLI for `cairn memory export`. Runtime memory and
   `cairn memory import` do not require it.
 - Optional: an OpenAI-compatible LLM endpoint for memory extraction and
@@ -889,6 +892,19 @@ Inspect receipts with `cairn playbook receipts list|show`; validate state with
 `cairn playbook doctor`. Actor and session options are provenance labels only:
 v2.15 does not authenticate them and does not provide team ACLs. See
 [team mode](design/team-mode.md) for the future admission contract.
+
+The corresponding process overrides are optional:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `CAIRN_PLAYBOOK_PROFILE` | project policy, then `balanced` | Select `minimal`, `balanced`, or `strict` without changing the project file |
+| `CAIRN_PLAYBOOK_ACTOR` | `local-agent` | Supply the unauthenticated local actor label used by checks and receipts |
+| `CAIRN_PLAYBOOK_ACTOR_KIND` | `agent` | Classify the local actor as `user`, `agent`, or `service` |
+| `CAIRN_PLAYBOOK_SESSION` | `local-<process-id>` | Supply the bounded local session label used by decisions and receipts |
+
+Command-line `--actor`, `--actor-kind`, and `--session` values take precedence
+over these process defaults. None of these labels establish identity or grant
+authority.
 
 The managed instruction lifecycle is explicit and ownership-safe:
 

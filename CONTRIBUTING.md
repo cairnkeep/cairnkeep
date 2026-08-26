@@ -37,6 +37,18 @@ npm run check:public
 Some integration verifiers require optional sibling tools or configured API
 endpoints. They are not part of the default offline test suite.
 
+## Repository map
+
+- `mcp-memory-server/` contains the MCP server, storage owners, schemas, and
+  Node-based CLI implementations.
+- `bin/cairn` is the installed command entry point.
+- `templates/` contains project scaffolding and managed instruction assets.
+- `claude/`, `opencode/`, `pi/`, and `kimi/` contain harness-specific operating
+  assets.
+- `scripts/` contains sync, lifecycle, packaging, and contract checks.
+- `docs/` contains the versioned user and operator references indexed from
+  [the documentation hub](docs/README.md).
+
 ## Pull requests
 
 - Create a focused branch from `main`.

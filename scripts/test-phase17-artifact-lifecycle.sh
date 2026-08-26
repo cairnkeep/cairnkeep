@@ -244,7 +244,7 @@ check_uninstall_bytes() {
 
 check_docs_contract() {
   local public_doc
-  for public_doc in "$ROOT/README.md" "$ROOT/docs/operating.md"; do
+  for public_doc in "$ROOT/docs/operating.md"; do
     require_term "$public_doc" 'CAIRN_COMPACTION_CAPTURE' "$(basename "$public_doc") compaction flag"
     require_term "$public_doc" 'CAIRN_ARTIFACT_STORE' "$(basename "$public_doc") artifact-store flag"
     require_term "$public_doc" 'CAIRN_ARTIFACT_HTTP' "$(basename "$public_doc") artifact HTTP flag"

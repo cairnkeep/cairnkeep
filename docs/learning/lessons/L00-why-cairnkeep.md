@@ -92,4 +92,6 @@ configuration and are taught later.
 - Derived knowledge remains subordinate to canonical sources.
 - Optional services are not prerequisites.
 
+Reference: [Cairnkeep for coding agents](../../agents.md).
+
 Next: [L01 - Try it safely](L01-safe-trial.md).
