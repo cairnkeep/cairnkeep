@@ -64,9 +64,11 @@ Invoke-Expression (& cairn completion powershell | Out-String)
 
 ## Guided project setup
 
-Interactive terminals may run `cairn setup` and answer the target, Git,
-harness, memory, and confirmation questions. Automation must make every choice
-explicit:
+Interactive terminals may run `cairn setup [PATH]`. Use Up/Down and Enter for
+Git and memory, Space to tick one or more harness checkboxes, `a` to toggle all
+harnesses, and the final selectable confirmation before anything is written.
+If the terminal cannot provide raw keyboard input, Cairnkeep falls back to the
+original text questions. Automation must make every choice explicit:
 
 ```bash
 cairn setup /path/to/project --git init --harness claude,pi --memory local --yes

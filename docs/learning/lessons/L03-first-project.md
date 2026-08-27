@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart
 **Time:** 25 minutes
-**Tested with:** Cairnkeep 2.15.4
+**Tested with:** Cairnkeep 2.16.0
 
 ## Outcome
 
@@ -26,19 +26,18 @@ recall it from a new session.
    cd "$HOME/cairnkeep-course/first-project"
    ```
 
-2. Choose one harness and run the deterministic form of guided setup. The
-   explicit flags make the
-   exercise reproducible while exercising the same preflight as interactive
-   `cairn setup`:
+2. Run the interactive setup and choose a harness. Use Up/Down and Enter for
+   Git and memory choices; use Space to tick Claude Code or Codex CLI in the
+   harness checklist. Review the plan before selecting **Yes, apply the plan**:
 
    ```bash
-   # Full operating-layer route from L02:
-   cairn setup "$PWD" --git init --harness claude --memory local --yes
-
-   # Or the self-contained Codex memory route:
-   # cairn setup "$PWD" --git init --harness codex --memory local --yes
+   cairn setup "$PWD"
    cp .ai/env.example .ai/.env
    ```
+
+   For a reproducible non-interactive exercise, the equivalent Claude Code
+   command is `cairn setup "$PWD" --git init --harness claude --memory local
+   --yes`; replace `claude` with `codex` for the self-contained Codex route.
 
    Setup must create the Git repository, generate only the selected harness
    assets, and write the private `.ai/cairnkeep.json` setup record. Codex also

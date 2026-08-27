@@ -30,20 +30,22 @@ autonomous agent runtime.
 
 ## Quick start
 
-Cairnkeep requires Node.js 22 or newer. This example initializes an empty
-project for Codex CLI with local memory:
+Cairnkeep requires Node.js 22 or newer. In an interactive terminal, guided
+setup presents selectable Git and memory choices plus checkboxes for every
+supported coding harness:
 
 ```bash
 npm install --global @cairnkeep/cli
-cairn setup /path/to/project --git init --harness codex --memory local --yes
+cairn setup /path/to/project
 cd /path/to/project
 cairn doctor
 ./.ai/start-codex.sh                 # Windows: .\.ai\start-codex.cmd
 ```
 
-Review `.codex/config.toml` and accept Codex's project-trust prompt on first
-use. For an existing Git repository, use `--git existing` instead of
-`--git init`.
+Select Codex CLI in the harness checklist for this route. Review
+`.codex/config.toml` and accept Codex's project-trust prompt on first use.
+Automation can supply every choice explicitly; the quickstart documents that
+deterministic form.
 
 See the [quickstart](docs/quickstart.md) for Claude Code, the first
 remember/recall cycle, recovery, and setup ownership. See

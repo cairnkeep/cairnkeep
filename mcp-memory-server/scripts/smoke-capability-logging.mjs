@@ -32,6 +32,8 @@ const RECORD_PREFIX = "capability-callback/v1/record/";
 const PENDING_PREFIX = "capability-callback/v1/pending/";
 const OPERATING_RED_MARKER = "PHASE18_RED:OPERATING_FINISH_CONSENT_PROVENANCE";
 const META_KEY = "capability-callback/meta/schema-version";
+const FIXTURE_DAY = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+const fixtureTimestamp = (time) => `${FIXTURE_DAY}T${time}Z`;
 const ALLOWED_FIELDS = [
     "capability_id",
     "configuration_digest",
@@ -135,8 +137,8 @@ function finalRecord(overrides = {}) {
         harness: "claude-code",
         source: "mcp",
         transport: "stdio",
-        started_at: "2026-07-27T08:00:00.000Z",
-        finished_at: "2026-07-27T08:00:00.125Z",
+        started_at: fixtureTimestamp("08:00:00.000"),
+        finished_at: fixtureTimestamp("08:00:00.125"),
         duration_ms: 125,
         outcome: "success",
         state_source: "project",
@@ -205,11 +207,11 @@ function trajectorySession(id) {
         session_id: id,
         harness: "opencode",
         project_root: "/fixture/project",
-        started_at: "2026-07-27T07:00:00.000Z",
-        ended_at: "2026-07-27T07:00:01.000Z",
+        started_at: fixtureTimestamp("07:00:00.000"),
+        ended_at: fixtureTimestamp("07:00:01.000"),
         events: [],
         capture: {
-            captured_at: "2026-07-27T07:00:02.000Z",
+            captured_at: fixtureTimestamp("07:00:02.000"),
             omitted_reasoning_blocks: 0,
             omitted_unknown_records: 0,
             truncated: false,
@@ -481,20 +483,20 @@ async function operatingSequentialChecks() {
 
     const root = mkdtempSync(join(tmpdir(), "cairn-operating-sequential-"));
     try {
-        const first = sequentialIssuance(`cap:${randomUUID()}`, "2026-07-27T08:28:00.000Z");
-        const second = sequentialIssuance(`cap:${randomUUID()}`, "2026-07-27T08:28:01.000Z");
+        const first = sequentialIssuance(`cap:${randomUUID()}`, fixtureTimestamp("08:28:00.000"));
+        const second = sequentialIssuance(`cap:${randomUUID()}`, fixtureTimestamp("08:28:01.000"));
         assert.notEqual(first.invocation_id, second.invocation_id);
         assert.equal(first.correlation_id, second.correlation_id);
 
         assert.equal(await store.issueOperatingCapability(root, first), true, "first invocation was not issued");
         assert.equal(await store.issueOperatingCapability(root, first), false, "duplicate first invocation was reissued");
         assert.equal(
-            await store.settleOperatingCapability(root, first, sequentialFinal(first, "2026-07-27T08:28:00.125Z")),
+            await store.settleOperatingCapability(root, first, sequentialFinal(first, fixtureTimestamp("08:28:00.125"))),
             true,
             "first invocation was not settled",
         );
         assert.equal(
-            await store.settleOperatingCapability(root, first, sequentialFinal(first, "2026-07-27T08:28:00.250Z")),
+            await store.settleOperatingCapability(root, first, sequentialFinal(first, fixtureTimestamp("08:28:00.250"))),
             false,
             "first terminal replay settled twice",
         );
@@ -503,12 +505,12 @@ async function operatingSequentialChecks() {
             "second invocation sharing the session correlation was not issued");
 
         assert.equal(
-            await store.settleOperatingCapability(root, second, sequentialFinal(second, "2026-07-27T08:28:01.125Z")),
+            await store.settleOperatingCapability(root, second, sequentialFinal(second, fixtureTimestamp("08:28:01.125"))),
             true,
             "second invocation was not settled",
         );
         assert.equal(
-            await store.settleOperatingCapability(root, second, sequentialFinal(second, "2026-07-27T08:28:01.250Z")),
+            await store.settleOperatingCapability(root, second, sequentialFinal(second, fixtureTimestamp("08:28:01.250"))),
             false,
             "second terminal replay settled twice",
         );
@@ -552,10 +554,10 @@ async function storeChecks() {
         assert.equal(store.getCapabilityDbPath(root), dbPath);
 
         const records = [
-            finalRecord({ invocation_id: `cap:${randomUUID()}`, finished_at: "2026-07-27T08:00:00.001Z" }),
-            finalRecord({ invocation_id: `cap:${randomUUID()}`, finished_at: "2026-07-27T08:00:00.002Z", outcome: "error", error_code: "result-error" }),
-            finalRecord({ invocation_id: `cap:${randomUUID()}`, finished_at: "2026-07-27T08:00:00.003Z", outcome: "timeout", error_code: "callback-timeout" }),
-            finalRecord({ invocation_id: `cap:${randomUUID()}`, finished_at: "2026-07-27T08:00:00.004Z", outcome: "disabled", error_code: "capability-disabled" }),
+            finalRecord({ invocation_id: `cap:${randomUUID()}`, finished_at: fixtureTimestamp("08:00:00.001") }),
+            finalRecord({ invocation_id: `cap:${randomUUID()}`, finished_at: fixtureTimestamp("08:00:00.002"), outcome: "error", error_code: "result-error" }),
+            finalRecord({ invocation_id: `cap:${randomUUID()}`, finished_at: fixtureTimestamp("08:00:00.003"), outcome: "timeout", error_code: "callback-timeout" }),
+            finalRecord({ invocation_id: `cap:${randomUUID()}`, finished_at: fixtureTimestamp("08:00:00.004"), outcome: "disabled", error_code: "capability-disabled" }),
         ];
         for (const record of records) await store.appendCapabilityRecord(root, record);
         let listed = await store.listCapabilityRecords(root);
@@ -584,7 +586,7 @@ async function storeChecks() {
         try {
             const capped = Array.from({ length: 4 }, (_, index) => finalRecord({
                 invocation_id: `cap:${randomUUID()}`,
-                finished_at: `2026-07-27T08:00:0${index}.000Z`,
+                finished_at: fixtureTimestamp(`08:00:0${index}.000`),
             }));
             for (const record of capped) {
                 await store.appendCapabilityRecord(capRoot, record, { testMaxRecords: 3 });

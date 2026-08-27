@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import {
   existsSync,
   lstatSync,
@@ -20,6 +21,7 @@ const RED_MARKER = "PHASE26_RED:SETUP_CORE_MISSING";
 const here = dirname(fileURLToPath(import.meta.url));
 const setupCorePath = join(here, "setup-core.mjs");
 const setupPath = join(here, "setup.mjs");
+const terminalPromptsPath = join(here, "terminal-prompts.mjs");
 const MANAGED_PATHS = [".ai", ".planning", ".agentfs"];
 
 function assertNoManagedPaths(target, label) {
@@ -79,6 +81,10 @@ async function loadSetupCore() {
 
 async function loadSetup() {
   return import(pathToFileURL(setupPath).href);
+}
+
+async function loadTerminalPrompts() {
+  return import(pathToFileURL(terminalPromptsPath).href);
 }
 
 function assertExports(core) {
@@ -225,6 +231,126 @@ async function runInteractive(setup, args, responses) {
   return { status, prompts, output: output.read(), error: error.read() };
 }
 
+class FakeTTY extends EventEmitter {
+  constructor() {
+    super();
+    this.isTTY = true;
+    this.isRaw = false;
+    this.paused = true;
+  }
+
+  setRawMode(value) { this.isRaw = value; }
+  isPaused() { return this.paused; }
+  resume() { this.paused = false; }
+  pause() { this.paused = true; }
+}
+
+async function testTerminalSelectors(prompts) {
+  const input = new FakeTTY();
+  const output = captureStream();
+  output.stream.isTTY = true;
+  assert.equal(prompts.supportsTerminalPrompts(input, output.stream, { TERM: "xterm-256color" }), true);
+  assert.equal(prompts.supportsTerminalPrompts(input, output.stream, { TERM: "dumb" }), false);
+
+  const multi = prompts.selectManyPrompt({
+    message: "Coding harnesses",
+    choices: [
+      { value: "claude", label: "Claude Code" },
+      { value: "codex", label: "Codex CLI" },
+    ],
+    input,
+    output: output.stream,
+  });
+  setImmediate(() => {
+    input.emit("keypress", " ", { name: "space" });
+    input.emit("keypress", "", { name: "down" });
+    input.emit("keypress", " ", { name: "space" });
+    input.emit("keypress", "", { name: "return" });
+  });
+  assert.deepEqual(await multi, ["claude", "codex"]);
+  assert.equal(input.isRaw, false);
+  assert.equal(input.isPaused(), true);
+  assert.match(output.read(), /\[x\] Claude Code/);
+  assert.match(output.read(), /Coding harnesses: Claude Code, Codex CLI/);
+
+  const single = prompts.selectOnePrompt({
+    message: "Memory mode",
+    choices: [
+      { value: "local", label: "Local" },
+      { value: "none", label: "None" },
+    ],
+    initialValue: "local",
+    input,
+    output: output.stream,
+  });
+  setImmediate(() => {
+    input.emit("keypress", "", { name: "down" });
+    input.emit("keypress", "", { name: "return" });
+  });
+  assert.equal(await single, "none");
+  assert.match(output.read(), /Memory mode: None/);
+
+  const cancelled = prompts.selectOnePrompt({
+    message: "Cancel me",
+    choices: [{ value: "only", label: "Only choice" }],
+    input,
+    output: output.stream,
+  });
+  setImmediate(() => input.emit("keypress", "", { name: "escape" }));
+  await assert.rejects(cancelled, (error) => error?.status === 130 && /cancelled/i.test(error.message));
+  assert.equal(input.isRaw, false);
+  assert.equal(input.isPaused(), true);
+}
+
+async function testStructuredSetupSelectors(setup, fixture) {
+  const selections = [];
+  const output = captureStream();
+  const error = captureStream();
+  const status = await setup.runSetup([fixture.empty], {
+    isTTY: true,
+    input: { isTTY: true },
+    output: output.stream,
+    error: error.stream,
+    selectOne: async (options) => {
+      selections.push(options);
+      if (options.message === "Git integration") return "init";
+      if (options.message === "Memory mode") return "local";
+      return "no";
+    },
+    selectMany: async (options) => {
+      selections.push(options);
+      return ["codex", "opencode"];
+    },
+  });
+  assert.equal(status, 0);
+  assert.equal(error.read(), "");
+  assert.match(output.read(), /Setup cancelled; no files were changed/);
+  assert.deepEqual(selections.map(({ message }) => message), [
+    "Git integration",
+    "Coding harnesses",
+    "Memory mode",
+    "Apply this setup plan?",
+  ]);
+  const harnessPrompt = selections.find(({ message }) => message === "Coding harnesses");
+  assert.deepEqual(harnessPrompt.choices.map(({ value }) => value), ["claude", "opencode", "pi", "kimi", "qwen", "codex"]);
+  assert.match(harnessPrompt.choices.find(({ value }) => value === "codex").label, /Codex CLI/);
+  assertNoManagedPaths(fixture.empty, "cancelled structured setup");
+}
+
+async function testRedirectedOutputIsNoninteractive(setup, fixture) {
+  const output = captureStream();
+  const error = captureStream();
+  const status = await setup.runSetup([fixture.empty, "--yes"], {
+    input: { isTTY: true },
+    output: output.stream,
+    error: error.stream,
+  });
+  assert.equal(status, 2);
+  assert.equal(output.read(), "");
+  assert.match(error.read(), /git|harness|memory|usage/i);
+  assertNoManagedPaths(fixture.empty, "redirected setup output");
+}
+
 async function testInteractiveGitRecommendation(setup, fixture) {
   const accepted = await runInteractive(setup, [], [fixture.missing, "init", "pi", "local", "yes"]);
   assert.equal(accepted.status, 0);
@@ -271,6 +397,10 @@ async function main() {
     testChoiceContract(core, fixture);
     testPreflightContract(core, fixture);
     const setup = await loadSetup();
+    const terminalPrompts = await loadTerminalPrompts();
+    await testTerminalSelectors(terminalPrompts);
+    await testStructuredSetupSelectors(setup, fixture);
+    await testRedirectedOutputIsNoninteractive(setup, fixture);
     await testInteractiveGitRecommendation(setup, fixture);
     console.log("PASS: setup target, Git, syntax, choice, and no-write preflight contract");
   } finally {

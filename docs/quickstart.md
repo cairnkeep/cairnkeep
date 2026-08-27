@@ -7,18 +7,19 @@ the default store stays on this computer.
 ## Codex CLI
 
 Install Cairnkeep, then let guided setup initialize an empty project and write
-Codex's project-scoped MCP entry:
+Codex's project-scoped MCP entry. Select **Initialize a Git repository**,
+tick **Codex CLI** with Space, keep local memory, review the plan, and apply it:
 
 ```bash
 npm install --global @cairnkeep/cli
-cairn setup /path/to/project --git init --harness codex --memory local --yes
+cairn setup /path/to/project
 cd /path/to/project
 cairn doctor
 ./.ai/start-codex.sh
 ```
 
-Use `--git existing` instead when the target is already a Git work tree. On
-native Windows, launch with `.\.ai\start-codex.cmd`.
+The wizard recommends the existing repository mode when the target is already
+a Git work tree. On native Windows, launch with `.\.ai\start-codex.cmd`.
 
 Before the first session, review `.codex/config.toml` and accept Codex's project
 trust prompt. The generated entry runs `cairn memory-server` locally. Setup
@@ -52,6 +53,13 @@ cairn doctor
 
 Setup reports machine-level commands but never executes them. This keeps
 project scaffolding separate from harness-wide changes.
+
+For scripts, CI, or reproducible fleet setup, skip the selector and provide all
+choices explicitly:
+
+```bash
+cairn setup /path/to/project --git init --harness codex --memory local --yes
+```
 
 ## First memory cycle
 

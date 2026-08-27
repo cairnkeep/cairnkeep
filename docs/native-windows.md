@@ -13,6 +13,11 @@ and `--untracked` bootstrap. Explicit `--git none` provides the same documented
 limited mode as POSIX setup.
 The optional `sqlite3.exe` command enables WAL-safe `cairn memory export`.
 
+From an interactive PowerShell or Command Prompt, `cairn setup $Project`
+presents native arrow-key Git and memory selectors plus a Space-toggle harness
+checklist. The explicit form below remains preferable for scripts and fleet
+automation:
+
 ```powershell
 npm install --global @cairnkeep/cli
 cairn version

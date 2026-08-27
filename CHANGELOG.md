@@ -5,6 +5,26 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-08-27
+
+### Added
+
+- Add dependency-free terminal selectors to `cairn setup`: arrow-key choices
+  for Git and memory, Space-toggle checkboxes for harnesses, and a selectable
+  final confirmation. Escape and Ctrl-C cancel safely.
+
+### Changed
+
+- Keep the existing text-question fallback for limited terminals and preserve
+  every deterministic setup flag for scripts, CI, policies, and overlays.
+- Treat redirected output as non-interactive even when standard input is still
+  a TTY, preventing hidden prompts in automation.
+
+### Fixed
+
+- Keep capability-logging smoke fixtures relative to the test date so the
+  retention contract cannot fail merely because a hard-coded date aged out.
+
 ## [2.15.4] - 2026-08-19
 
 ### Changed
