@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.15.4
+**Baseline:** Cairnkeep 2.16.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -67,7 +67,7 @@ prerequisites for ordinary memory.
 | Wiki and alignment | `/wiki-ingest`, `/wiki-query`, `/wiki-lint`, alignment files | Written only when invoked; reviewable `.planning/` artifacts | Re-run lint, inspect source citations, revert tracked changes normally | `course-02-memory` |
 | Local code graph | `cairn graph build|query|status|diff|explain|path`; `/graphify` delegates | Default off; optional isolated `graphify` executable; incremental work under `graphify-out/`, published view under `.planning/graphs/` | Ignore both derived locations; check status and source before trusting a result; use `--force` only after intentional deletion; uninstall adapters separately | `course-08-graph` |
 | Repository quality | `/repo-review`, `/security-audit` | On-demand workflow; findings are hypotheses until reproduced | Require file/line evidence and regression tests | `course-03-quality` |
-| Guided project setup | `cairn setup PATH --git init\|existing\|none --harness LIST --memory local\|none --yes` | Reconciles only selected project assets from one harness registry; private `.ai/cairnkeep.json`; machine sync is never automatic | Repeat deterministically, run doctor, or replay its recovery command; Git-less mode remains limited | `course-12-guided-setup` |
+| Guided project setup | `cairn setup [PATH]` selectors; deterministic `--git`, `--harness`, `--memory`, and `--yes` flags | Arrow-key Git/memory choices and harness checkboxes in capable terminals; text fallback otherwise; reconciles only selected assets; private `.ai/cairnkeep.json`; machine sync is never automatic | Repeat deterministically, run doctor, or replay its recovery command; Git-less mode remains limited | `course-12-guided-setup` |
 | Codex project memory | Select `--harness codex --memory local` | Writes `.codex/config.toml` plus POSIX/native Windows launchers; local stdio; user-wide configuration and trust remain untouched | Review the MCP table, accept Codex project trust, run doctor, and relaunch; uninstall is backup-first | `course-01-bootstrap` |
 | Workflow playbooks and durable-context guidance | `cairn playbook check start|check|finish`; project `minimal`, `balanced`, or `strict` policy; managed `AGENTS.md` retrieval protocol | Balanced by default; private `.ai/playbooks.json`; one task-derived project search when applicable; optional receipts in `.agentfs/playbooks/`; checks are offline and execute nothing | Verify the actual memory tool event and maintained source, inspect status/digests, enforce truthful `must` evidence, inspect receipts, reset overrides, remove only the managed `AGENTS.md` block | `course-13-playbooks` |
 

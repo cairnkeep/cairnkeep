@@ -3,13 +3,14 @@
 **Status:** Ready
 **Track:** Quickstart and Operator
 **Time:** 35 minutes
-**Tested with:** Cairnkeep 2.15.4; Pi 0.84.1; Node.js 22, 24, and 26
+**Tested with:** Cairnkeep 2.16.0; Pi 0.84.1; Node.js 22, 24, and 26
 
 ## Outcome
 
-You can classify a missing or empty target, replay setup without a TTY, explain
-the limitations of Git-less mode, verify Pi's local stdio memory bridge, and
-recover or uninstall every managed asset without hidden machine changes.
+You can use the guided terminal selectors, classify a missing or empty target,
+replay setup without a TTY, explain the limitations of Git-less mode, verify
+Pi's local stdio memory bridge, and recover or uninstall every managed asset
+without hidden machine changes.
 
 The selected harnesses come from Cairnkeep's declarative registry. Codex is a
 supported selection: it receives `.codex/config.toml` and a launcher, while Pi
@@ -23,6 +24,18 @@ continues to require its separate explicit machine sync.
   state, or identifying project data.
 
 ## Exercise
+
+First experience the interactive path:
+
+```bash
+cairn setup /tmp/cairnkeep-guided-selector-lab
+```
+
+Choose Git with Up/Down and Enter, tick Pi with Space in the harness checklist,
+keep local memory, then inspect the plan before confirming. Pressing Escape or
+Ctrl-C cancels; redirected and limited terminals use the documented text-input
+fallback. Remove that disposable selector lab before continuing if you applied
+the plan.
 
 Start with a missing target. The explicit flags make this deterministic and
 safe to replay from a non-interactive or non-TTY process:
@@ -112,7 +125,7 @@ and context packs remain unless their separate purge flags are supplied.
 
 | Symptom | Cause | Recovery |
 |---|---|---|
-| Setup refuses a missing target | The non-interactive command omitted an explicit choice or `--yes` | Supply the target, `--git`, `--harness`, `--memory`, and `--yes` together |
+| Setup refuses a missing target | The non-interactive command omitted an explicit choice or `--yes` | Run `cairn setup PATH` in a terminal, or supply the target, `--git`, `--harness`, `--memory`, and `--yes` together |
 | Setup refuses `--git existing` | The target is not inside a Git work tree | Choose an existing repository, or explicitly authorize `--git init`; use `--git none` only when limited mode is intended |
 | Doctor reports missing or drifted Pi assets | Project setup selected Pi but machine sync is incomplete | Run `cairn sync-pi --apply`, then `cairn sync-pi --check` and `cairn doctor` |
 | A cancelled call ends the session | The Pi/bridge version does not satisfy the per-call cancellation contract | Preserve sanitized diagnostics, close the session, and do not claim release readiness |

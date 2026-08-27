@@ -37,6 +37,7 @@ export const USAGE = `cairn — Cairnkeep CLI
 
 Usage:
   cairn bootstrap [--untracked] [path]
+  cairn setup [PATH]  # interactive Git, harness, memory, and confirmation selectors
   cairn setup PATH --git init|existing|none --harness LIST --memory local|none [--policy PATH] --yes [--json]
   cairn memory-server
   cairn sync [--check|--apply] [--live-root DIR]

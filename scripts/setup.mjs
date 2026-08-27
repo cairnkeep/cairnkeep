@@ -21,8 +21,9 @@ import {
   resolveSetupChoices,
 } from "./setup-core.mjs";
 import { reconcileSetupPlan } from "./setup-reconcile.mjs";
-import { HARNESS_IDS, machineSyncCommand, requiredHarnessAssetPaths } from "./harness-registry.mjs";
+import { HARNESS_IDS, HARNESS_REGISTRY, machineSyncCommand, requiredHarnessAssetPaths } from "./harness-registry.mjs";
 import { reconcilePlaybookInstructions } from "./playbook-instructions.mjs";
+import { selectManyPrompt, selectOnePrompt, supportsTerminalPrompts } from "./terminal-prompts.mjs";
 
 const HARNESSES = HARNESS_IDS;
 const GIT_MODES = Object.freeze(["init", "existing", "none"]);
@@ -70,11 +71,36 @@ function parseInteractiveHarnesses(value) {
 }
 
 export async function promptSetupChoices(parsed, streams) {
-  const terminal = typeof streams.question === "function"
-    ? { question: streams.question, close: streams.closePrompt ?? (() => {}) }
-    : createInterface({ input: streams.input, output: streams.output });
+  let linePrompt = null;
+  let externallyClosed = false;
+  const question = typeof streams.question === "function"
+    ? streams.question
+    : async (message) => {
+      linePrompt ??= createInterface({ input: streams.input, output: streams.output });
+      return linePrompt.question(message);
+    };
+  const closeLinePrompt = () => {
+    if (linePrompt) linePrompt.close();
+    linePrompt = null;
+    if (!externallyClosed) {
+      streams.closePrompt?.();
+      externallyClosed = true;
+    }
+  };
+  const structured = Boolean(streams.selectOne && streams.selectMany)
+    || supportsTerminalPrompts(streams.input, streams.output);
+  const selectOne = streams.selectOne ?? ((options) => selectOnePrompt({
+    ...options,
+    input: streams.input,
+    output: streams.output,
+  }));
+  const selectMany = streams.selectMany ?? ((options) => selectManyPrompt({
+    ...options,
+    input: streams.input,
+    output: streams.output,
+  }));
   try {
-    const target = parsed.target ?? (await terminal.question("Target path: ")).trim();
+    const target = parsed.target ?? (await question("Target path: ")).trim();
     if (!target) throw operational("interactive-input", "A setup target path is required.");
     const preflight = classifySetupTarget(target);
     const gitQuestion = preflight.targetState === "missing" || preflight.targetState === "empty"
@@ -82,12 +108,63 @@ export async function promptSetupChoices(parsed, streams) {
       : preflight.repository === "work-tree"
         ? "Git mode (existing recommended; choices: init, existing, none): "
         : "Git mode (init requires explicit choice for existing non-Git target; choices: init, existing, none): ";
-    const git = parsed.git ?? (await terminal.question(gitQuestion)).trim();
-    const harnesses = parsed.harnesses ?? parseInteractiveHarnesses(await terminal.question(`Harnesses (${HARNESSES.join(", ")}): `));
-    const memory = parsed.memory ?? (await terminal.question("Memory mode (local, none): ")).trim();
-    return { target, git, harnesses, memory, preflight, terminal };
+    if (structured) closeLinePrompt();
+    const gitChoices = preflight.gitExecutable === "missing"
+      ? [{ value: "none", label: "Continue without Git", hint: "Git executable not found; repository features will be limited" }]
+      : preflight.repository === "work-tree"
+        ? [
+          { value: "existing", label: "Use the existing Git repository", hint: "recommended" },
+          { value: "none", label: "Continue without Git integration", hint: "limited" },
+        ]
+        : [
+          { value: "init", label: "Initialize a Git repository", hint: preflight.targetState === "non-empty" ? "review the existing directory first" : "recommended" },
+          { value: "none", label: "Continue without Git integration", hint: "limited" },
+        ];
+    const git = parsed.git ?? (structured
+      ? await selectOne({ message: "Git integration", choices: gitChoices, initialValue: gitChoices[0].value })
+      : (await question(gitQuestion)).trim());
+    const harnesses = parsed.harnesses ?? (structured
+      ? await selectMany({
+        message: "Coding harnesses",
+        choices: HARNESS_REGISTRY.map(({ id, title }) => ({ value: id, label: `${title} (${id})` })),
+      })
+      : parseInteractiveHarnesses(await question(`Harnesses (${HARNESSES.join(", ")}): `)));
+    const memory = parsed.memory ?? (structured
+      ? await selectOne({
+        message: "Memory mode",
+        choices: [
+          { value: "local", label: "Local Cairnkeep memory", hint: "recommended" },
+          { value: "none", label: "No memory server" },
+        ],
+        initialValue: "local",
+      })
+      : (await question("Memory mode (local, none): ")).trim());
+    return {
+      target,
+      git,
+      harnesses,
+      memory,
+      preflight,
+      terminal: {
+        question,
+        close: closeLinePrompt,
+        confirm: structured
+          ? async () => (await selectOne({
+            message: "Apply this setup plan?",
+            choices: [
+              { value: "no", label: "No, cancel" },
+              { value: "yes", label: "Yes, apply the plan" },
+            ],
+            initialValue: "no",
+          })) === "yes"
+          : async () => {
+            const answer = (await question("Apply this setup plan? [y/N] ")).trim().toLowerCase();
+            return answer === "y" || answer === "yes";
+          },
+      },
+    };
   } catch (error) {
-    terminal.close();
+    closeLinePrompt();
     throw error;
   }
 }
@@ -167,7 +244,7 @@ function initializeGit(target) {
 }
 
 async function executeSetup(args, options) {
-  const isTTY = options.isTTY ?? Boolean(options.input.isTTY);
+  const isTTY = options.isTTY ?? Boolean(options.input.isTTY && options.output.isTTY);
   const parsed = parseSetupArgs(args, { isTTY });
   const policy = parsed.policyPath ? readSetupPolicy(parsed.policyPath) : null;
 
@@ -196,9 +273,9 @@ async function executeSetup(args, options) {
 
   if (interactive && !parsed.confirmed) {
     renderPlan(plan, options.output);
-    const answer = (await interactive.terminal.question("Apply this setup plan? [y/N] ")).trim().toLowerCase();
+    const accepted = await interactive.terminal.confirm();
     interactive.terminal.close();
-    if (answer !== "y" && answer !== "yes") {
+    if (!accepted) {
       writeLine(options.output, "Setup cancelled; no files were changed.");
       return null;
     }
@@ -221,6 +298,8 @@ export async function runSetup(args, options = {}) {
     augmentPlan: options.augmentPlan,
     question: options.question,
     closePrompt: options.closePrompt,
+    selectOne: options.selectOne,
+    selectMany: options.selectMany,
   };
   try {
     const result = await executeSetup(args, streams);
