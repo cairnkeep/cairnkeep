@@ -20,6 +20,11 @@ All notable user-facing changes are documented here. This project follows
 - Treat redirected output as non-interactive even when standard input is still
   a TTY, preventing hidden prompts in automation.
 
+### Fixed
+
+- Keep capability-logging smoke fixtures relative to the test date so the
+  retention contract cannot fail merely because a hard-coded date aged out.
+
 ## [2.15.4] - 2026-08-19
 
 ### Changed
