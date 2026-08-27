@@ -51,6 +51,9 @@ if (publishStep < 0 || attachStep < 0 || publishStep >= attachStep) {
 if (!publishWorkflow.includes('npm publish "./artifacts/cairnkeep-cli-$VERSION.tgz"')) {
   throw new Error("npm publication must use an explicit relative tarball path");
 }
+if (!publishWorkflow.includes('gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"')) {
+  throw new Error("release attachment must name the repository outside a checkout");
+}
 if (publishWorkflow.includes("check:public")) {
   throw new Error("release workflow must promote the verified candidate without repeating the public suite");
 }

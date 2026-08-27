@@ -141,7 +141,7 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          gh release upload "$RELEASE_TAG" \
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
             "artifacts/cairnkeep-cli-$VERSION.tgz" \
             "artifacts/cairnkeep-cli-$VERSION.cdx.json" \
             artifacts/SHA256SUMS --clobber
