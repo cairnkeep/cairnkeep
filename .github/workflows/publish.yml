@@ -133,7 +133,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           DIST_TAG: ${{ needs.prepare.outputs.dist_tag }}
           VERSION: ${{ needs.prepare.outputs.version }}
-        run: npm publish "artifacts/cairnkeep-cli-$VERSION.tgz" --access public --provenance --tag "$DIST_TAG"
+        run: npm publish "./artifacts/cairnkeep-cli-$VERSION.tgz" --access public --provenance --tag "$DIST_TAG"
 
       - name: Attach package and SBOM to GitHub release
         env:

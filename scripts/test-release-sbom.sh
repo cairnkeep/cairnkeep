@@ -48,6 +48,9 @@ const attachStep = publishWorkflow.indexOf("- name: Attach package and SBOM to G
 if (publishStep < 0 || attachStep < 0 || publishStep >= attachStep) {
   throw new Error("verified artifacts must publish to npm before release attachment");
 }
+if (!publishWorkflow.includes('npm publish "./artifacts/cairnkeep-cli-$VERSION.tgz"')) {
+  throw new Error("npm publication must use an explicit relative tarball path");
+}
 if (publishWorkflow.includes("check:public")) {
   throw new Error("release workflow must promote the verified candidate without repeating the public suite");
 }
