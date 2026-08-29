@@ -36,11 +36,10 @@ export function privatePathIsSafe(path: string): boolean {
     const script = [
         "$p=$env:CK_INTERNAL_PRIVATE_PATH",
         "$me=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value",
-        "$ok=@($me,'S-1-5-18','S-1-5-32-544')",
+        "$ok=@($me,'SY','BA','S-1-5-18','S-1-5-32-544')",
         "$acl=Get-Acl -LiteralPath $p",
-        "$rules=$acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])",
-        "$allow=[System.Security.AccessControl.AccessControlType]::Allow",
-        "$bad=@($rules | Where-Object { $_.AccessControlType -eq $allow -and $ok -notcontains $_.IdentityReference.Value })",
+        "$aces=[regex]::Matches($acl.Sddl,'\\((?<type>A[^;]*);[^)]*;;;(?<sid>[^;)]+)\\)')",
+        "$bad=@($aces | Where-Object { $ok -notcontains $_.Groups['sid'].Value })",
         "if($bad.Count -ne 0){exit 1}",
         "exit 0",
     ].join(";");
