@@ -51,7 +51,11 @@ export function privatePathIsSafe(path: string): boolean {
             const permissions = body.slice(marker + 1).toUpperCase();
             return !permissions.includes("(DENY)") && !permissions.includes("(NW)");
         });
-        return grants.length > 0 && grants.every((grant) => grant.toLowerCase().includes(`${account}:(`));
+        const safe = grants.length > 0 && grants.every((grant) => grant.toLowerCase().includes(`${account}:(`));
+        if (process.env.CAIRN_TEST_ACL_TRACE === "1") {
+            console.error(JSON.stringify({ path, account, status: result.status, grants, safe }));
+        }
+        return safe;
     } catch {
         return false;
     }
