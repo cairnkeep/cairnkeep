@@ -44,16 +44,14 @@ export function privatePathIsSafe(path: string): boolean {
         const account = currentWindowsAccount().toLowerCase();
         const result = spawnSync("icacls.exe", [path], { encoding: "utf8", windowsHide: true });
         if (result.status !== 0 || !result.stdout) return false;
-        const principals = result.stdout.split(/\r?\n/).flatMap((line) => {
-            const body = line.startsWith(path) ? line.slice(path.length).trim() : line.trim();
+        const grants = result.stdout.split(/\r?\n/).filter((line) => {
+            const body = line.trim();
             const marker = body.indexOf(":(");
-            if (marker < 0) return [];
+            if (marker < 0) return false;
             const permissions = body.slice(marker + 1).toUpperCase();
-            if (permissions.includes("(DENY)") || permissions.includes("(NW)")) return [];
-            return [body.slice(0, marker).trim().toLowerCase()];
+            return !permissions.includes("(DENY)") && !permissions.includes("(NW)");
         });
-        return principals.length > 0
-            && principals.every((principal) => principal === account || principal.endsWith(` ${account}`));
+        return grants.length === 1 && grants[0].toLowerCase().includes(`${account}:(`);
     } catch {
         return false;
     }
