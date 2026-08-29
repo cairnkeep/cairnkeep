@@ -12,10 +12,10 @@ function currentWindowsSid(): string {
 }
 
 function currentWindowsAccount(): string {
-    const result = spawnSync("whoami.exe", [], { encoding: "utf8", windowsHide: true });
-    const account = result.stdout?.trim();
-    if (result.status !== 0 || !account) throw new Error("Could not resolve the current Windows account.");
-    return account;
+    const result = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
+    const match = result.stdout.match(/^"([^"]+)","S-1-[0-9-]+"/im);
+    if (result.status !== 0 || !match) throw new Error("Could not resolve the current Windows account.");
+    return match[1];
 }
 
 export function hardenPrivatePath(path: string): void {
