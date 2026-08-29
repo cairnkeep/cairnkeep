@@ -3,21 +3,22 @@ import { rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
-let cachedWindowsIdentity: { account: string; sid: string; logonSid?: string } | undefined;
+let cachedWindowsIdentity: { account: string; sid: string; logonAccount?: string } | undefined;
 
-function currentWindowsIdentity(): { account: string; sid: string; logonSid?: string } {
+function currentWindowsIdentity(): { account: string; sid: string; logonAccount?: string } {
     if (cachedWindowsIdentity) return cachedWindowsIdentity;
     const result = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
     if (result.status !== 0) throw new Error("Unable to resolve the current Windows security identity.");
     const match = result.stdout.match(/^"([^"]+)","(S-1-[0-9-]+)"/im);
     if (!match) throw new Error("Unable to resolve the current Windows security identity.");
     const groups = spawnSync("whoami.exe", ["/groups", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
-    const logonSid = groups.status === 0 ? groups.stdout.match(/"(S-1-5-5-[0-9-]+)"/i)?.[1] : undefined;
-    cachedWindowsIdentity = { account: match[1], sid: match[2], ...(logonSid ? { logonSid } : {}) };
+    const logonRow = groups.status === 0
+        ? groups.stdout.split(/\r?\n/).find((line) => /"S-1-5-5-[0-9-]+"/i.test(line))
+        : undefined;
+    const logonAccount = logonRow?.match(/^"([^"]+)"/)?.[1];
+    cachedWindowsIdentity = { account: match[1], sid: match[2], ...(logonAccount ? { logonAccount } : {}) };
     return cachedWindowsIdentity;
 }
-
-function currentWindowsAccount(): string { return currentWindowsIdentity().account; }
 
 export function hardenPrivatePath(path: string): void {
     if (process.platform !== "win32") {
@@ -28,24 +29,11 @@ export function hardenPrivatePath(path: string): void {
     const args = [
         path,
         "/inheritance:r",
-        "/remove:g", "*S-1-5-18", "*S-1-5-32-544", ...(identity.logonSid ? [`*${identity.logonSid}`] : []),
+        "/remove:g", "*S-1-5-18", "*S-1-5-32-544",
         "/grant:r", `*${identity.sid}:(F)`,
     ];
     const result = spawnSync("icacls.exe", args, { encoding: "utf8", windowsHide: true });
     if (result.status !== 0) throw new Error("Unable to restrict Windows ACLs for private Cairnkeep state.");
-    const observed = spawnSync("icacls.exe", [path], { encoding: "utf8", windowsHide: true });
-    if (observed.status !== 0) throw new Error("Unable to inspect Windows ACLs for private Cairnkeep state.");
-    const logonPrincipals = observed.stdout.split(/\r?\n/).flatMap((line) => {
-        const body = line.trim();
-        const marker = body.indexOf(":(");
-        if (marker < 0) return [];
-        const principal = body.slice(0, marker).trim();
-        return principal.includes("\\LogonSessionId_") ? [principal] : [];
-    });
-    if (logonPrincipals.length > 0) {
-        const cleanup = spawnSync("icacls.exe", [path, "/remove:g", ...logonPrincipals], { encoding: "utf8", windowsHide: true });
-        if (cleanup.status !== 0) throw new Error("Unable to remove Windows logon-session ACLs from private Cairnkeep state.");
-    }
 }
 
 export function privatePathIsSafe(path: string): boolean {
@@ -54,7 +42,8 @@ export function privatePathIsSafe(path: string): boolean {
     if (info.isSymbolicLink()) return false;
     if (process.platform !== "win32") return (info.mode & 0o077) === 0;
     try {
-        const account = currentWindowsAccount().toLowerCase();
+        const identity = currentWindowsIdentity();
+        const allowedAccounts = [identity.account, identity.logonAccount].filter((value): value is string => Boolean(value)).map((value) => value.toLowerCase());
         const result = spawnSync("icacls.exe", [path], { encoding: "utf8", windowsHide: true });
         if (result.status !== 0 || !result.stdout) return false;
         const grants = result.stdout.split(/\r?\n/).filter((line) => {
@@ -64,7 +53,10 @@ export function privatePathIsSafe(path: string): boolean {
             const permissions = body.slice(marker + 1).toUpperCase();
             return !permissions.includes("(DENY)") && !permissions.includes("(NW)");
         });
-        return grants.length > 0 && grants.every((grant) => grant.toLowerCase().includes(`${account}:(`));
+        return grants.length > 0 && grants.every((grant) => {
+            const normalized = grant.toLowerCase();
+            return allowedAccounts.some((account) => normalized.includes(`${account}:(`));
+        });
     } catch {
         return false;
     }
