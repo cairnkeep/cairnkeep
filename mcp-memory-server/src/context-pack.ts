@@ -557,7 +557,13 @@ async function acquirePointerLock(options: ProjectOptions): Promise<() => Promis
             return () => rm(lock, { recursive: true, force: true });
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-            const info = lstatSync(lock);
+            let info;
+            try {
+                info = lstatSync(lock);
+            } catch (inspectionError) {
+                if ((inspectionError as NodeJS.ErrnoException).code === "ENOENT") continue;
+                throw inspectionError;
+            }
             if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("Context pack project pointer lock is unsafe.");
             await delay(10);
         }
