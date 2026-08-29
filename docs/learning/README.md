@@ -60,6 +60,7 @@ expanded only after their labs are executable.
 | L23 | [Guided setup and Pi memory](lessons/L23-guided-setup.md) | Ready | 35 min |
 | L24 | [Reviewed knowledge exchange](lessons/L24-okf-exchange.md) | Ready | 35 min |
 | L25 | [Bounded workflow playbooks](lessons/L25-playbooks.md) | Ready | 35 min |
+| L26 | [Context intelligence with explicit authority](lessons/L26-context-intelligence.md) | Ready | 45 min |
 
 The [curriculum coverage map](CURRICULUM-MAP.md) records where every public
 feature is introduced, practised, and operated. It also marks design-only work

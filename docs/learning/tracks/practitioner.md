@@ -12,6 +12,7 @@
 6. [L08 - Multiple machines](../lessons/L08-multiple-machines.md)
 7. [L13 - Session evidence and hindsight](../lessons/L13-session-evidence.md)
 8. [L25 - Bounded workflow playbooks](../lessons/L25-playbooks.md)
+9. [L26 - Context intelligence with explicit authority](../lessons/L26-context-intelligence.md)
 
 The track is complete when the learner can decide what should become memory,
 review derived knowledge, run governed repository checks, locate the store, and

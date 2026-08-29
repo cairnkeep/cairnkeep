@@ -1,0 +1,330 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "context-pack-retrieval-v1",
+  "suite_digest": "9b6cb3ef1386d237e997712f7d11d05e875b82032cae08f80cfa7916e42ea8df",
+  "reports": {
+    "substring": {
+      "benchmark_id": "context-pack-retrieval-v1",
+      "cases": [
+        {
+          "estimated_context_tokens": 33,
+          "forbidden": [
+            "engineering-guide@0.9.0:storage/legacy.md",
+            "engineering-guide@1.0.0:skills/deploy.md"
+          ],
+          "forbidden_results": 0,
+          "hit_at_1": 1,
+          "id": "exact-digest",
+          "irrelevant_bytes": 0,
+          "isolation_case": false,
+          "isolation_pass": true,
+          "leaked_results": [],
+          "query": "digest pinned",
+          "recall_at_5": 1,
+          "reciprocal_rank": 1,
+          "relevant": [
+            "engineering-guide@1.0.0:storage/immutability.md"
+          ],
+          "relevant_bytes": 129,
+          "returned": [
+            "engineering-guide@1.0.0:storage/immutability.md"
+          ],
+          "undeclared_results": 0
+        },
+        {
+          "estimated_context_tokens": 59,
+          "forbidden": [
+            "engineering-guide@0.9.0:storage/legacy.md",
+            "engineering-guide@1.0.0:skills/deploy.md"
+          ],
+          "forbidden_results": 0,
+          "hit_at_1": 1,
+          "id": "lexical-distractor",
+          "irrelevant_bytes": 105,
+          "isolation_case": false,
+          "isolation_pass": true,
+          "leaked_results": [],
+          "query": "immutable",
+          "recall_at_5": 1,
+          "reciprocal_rank": 1,
+          "relevant": [
+            "engineering-guide@1.0.0:storage/immutability.md"
+          ],
+          "relevant_bytes": 129,
+          "returned": [
+            "engineering-guide@1.0.0:storage/immutability.md",
+            "engineering-guide@1.0.0:operations/distractor.md"
+          ],
+          "undeclared_results": 0
+        },
+        {
+          "estimated_context_tokens": 98,
+          "forbidden": [
+            "engineering-guide@0.9.0:storage/legacy.md",
+            "engineering-guide@1.0.0:skills/deploy.md"
+          ],
+          "forbidden_results": 0,
+          "hit_at_1": 1,
+          "id": "cross-document",
+          "irrelevant_bytes": 105,
+          "isolation_case": false,
+          "isolation_pass": true,
+          "leaked_results": [],
+          "query": "recovery",
+          "recall_at_5": 1,
+          "reciprocal_rank": 1,
+          "relevant": [
+            "engineering-guide@1.0.0:operations/recovery.md",
+            "engineering-guide@1.0.0:architecture/overview.md"
+          ],
+          "relevant_bytes": 286,
+          "returned": [
+            "engineering-guide@1.0.0:architecture/overview.md",
+            "engineering-guide@1.0.0:operations/recovery.md",
+            "engineering-guide@1.0.0:operations/distractor.md"
+          ],
+          "undeclared_results": 0
+        },
+        {
+          "estimated_context_tokens": 0,
+          "forbidden": [
+            "engineering-guide@0.9.0:storage/legacy.md",
+            "engineering-guide@1.0.0:skills/deploy.md"
+          ],
+          "forbidden_results": 0,
+          "hit_at_1": 0,
+          "id": "semantic-paraphrase",
+          "irrelevant_bytes": 0,
+          "isolation_case": false,
+          "isolation_pass": true,
+          "leaked_results": [],
+          "query": "roll back partial writes",
+          "recall_at_5": 0,
+          "reciprocal_rank": 0,
+          "relevant": [
+            "engineering-guide@1.0.0:storage/immutability.md",
+            "engineering-guide@1.0.0:operations/recovery.md"
+          ],
+          "relevant_bytes": 0,
+          "returned": [],
+          "undeclared_results": 0
+        },
+        {
+          "estimated_context_tokens": 0,
+          "forbidden": [
+            "engineering-guide@0.9.0:storage/legacy.md",
+            "engineering-guide@1.0.0:skills/deploy.md"
+          ],
+          "forbidden_results": 0,
+          "hit_at_1": 0,
+          "id": "hidden-skill",
+          "irrelevant_bytes": 0,
+          "isolation_case": true,
+          "isolation_pass": true,
+          "leaked_results": [],
+          "query": "deployment incantation",
+          "recall_at_5": 0,
+          "reciprocal_rank": 0,
+          "relevant": [],
+          "relevant_bytes": 0,
+          "returned": [],
+          "undeclared_results": 0
+        }
+      ],
+      "metrics": {
+        "cases": 5,
+        "estimated_context_tokens": 190,
+        "filesystem_mutations": 0,
+        "forbidden_results": 0,
+        "hit_at_1": 0.75,
+        "irrelevant_bytes": 210,
+        "mean_reciprocal_rank": 0.75,
+        "median_latency_ms": 0,
+        "negative_case_leaks": 0,
+        "negative_case_pass_rate": 1,
+        "negative_cases": 1,
+        "negative_cases_passed": 1,
+        "network_requests": 0,
+        "p95_latency_ms": 0,
+        "positive_cases": 4,
+        "recall_at_5": 0.75,
+        "relevant_bytes": 544,
+        "undeclared_results": 0
+      },
+      "mode": "substring",
+      "schema_version": 1
+    },
+    "embedding": {
+      "benchmark_id": "context-pack-retrieval-v1",
+      "cases": [
+        {
+          "estimated_context_tokens": 166,
+          "forbidden": [
+            "engineering-guide@0.9.0:storage/legacy.md",
+            "engineering-guide@1.0.0:skills/deploy.md"
+          ],
+          "forbidden_results": 0,
+          "hit_at_1": 1,
+          "id": "exact-digest",
+          "irrelevant_bytes": 532,
+          "isolation_case": false,
+          "isolation_pass": true,
+          "leaked_results": [],
+          "query": "digest pinned",
+          "recall_at_5": 1,
+          "reciprocal_rank": 1,
+          "relevant": [
+            "engineering-guide@1.0.0:storage/immutability.md"
+          ],
+          "relevant_bytes": 129,
+          "returned": [
+            "engineering-guide@1.0.0:storage/immutability.md",
+            "engineering-guide@1.0.0:operations/recovery.md",
+            "engineering-guide@1.0.0:architecture/overview.md",
+            "engineering-guide@1.0.0:operations/distractor.md",
+            "engineering-guide@1.0.0:storage/retries.md"
+          ],
+          "undeclared_results": 0
+        },
+        {
+          "estimated_context_tokens": 166,
+          "forbidden": [
+            "engineering-guide@0.9.0:storage/legacy.md",
+            "engineering-guide@1.0.0:skills/deploy.md"
+          ],
+          "forbidden_results": 0,
+          "hit_at_1": 1,
+          "id": "lexical-distractor",
+          "irrelevant_bytes": 532,
+          "isolation_case": false,
+          "isolation_pass": true,
+          "leaked_results": [],
+          "query": "immutable",
+          "recall_at_5": 1,
+          "reciprocal_rank": 1,
+          "relevant": [
+            "engineering-guide@1.0.0:storage/immutability.md"
+          ],
+          "relevant_bytes": 129,
+          "returned": [
+            "engineering-guide@1.0.0:storage/immutability.md",
+            "engineering-guide@1.0.0:operations/distractor.md",
+            "engineering-guide@1.0.0:operations/recovery.md",
+            "engineering-guide@1.0.0:architecture/overview.md",
+            "engineering-guide@1.0.0:storage/retries.md"
+          ],
+          "undeclared_results": 0
+        },
+        {
+          "estimated_context_tokens": 166,
+          "forbidden": [
+            "engineering-guide@0.9.0:storage/legacy.md",
+            "engineering-guide@1.0.0:skills/deploy.md"
+          ],
+          "forbidden_results": 0,
+          "hit_at_1": 1,
+          "id": "cross-document",
+          "irrelevant_bytes": 375,
+          "isolation_case": false,
+          "isolation_pass": true,
+          "leaked_results": [],
+          "query": "recovery",
+          "recall_at_5": 1,
+          "reciprocal_rank": 1,
+          "relevant": [
+            "engineering-guide@1.0.0:operations/recovery.md",
+            "engineering-guide@1.0.0:architecture/overview.md"
+          ],
+          "relevant_bytes": 286,
+          "returned": [
+            "engineering-guide@1.0.0:architecture/overview.md",
+            "engineering-guide@1.0.0:operations/recovery.md",
+            "engineering-guide@1.0.0:operations/distractor.md",
+            "engineering-guide@1.0.0:storage/immutability.md",
+            "engineering-guide@1.0.0:storage/retries.md"
+          ],
+          "undeclared_results": 0
+        },
+        {
+          "estimated_context_tokens": 166,
+          "forbidden": [
+            "engineering-guide@0.9.0:storage/legacy.md",
+            "engineering-guide@1.0.0:skills/deploy.md"
+          ],
+          "forbidden_results": 0,
+          "hit_at_1": 1,
+          "id": "semantic-paraphrase",
+          "irrelevant_bytes": 404,
+          "isolation_case": false,
+          "isolation_pass": true,
+          "leaked_results": [],
+          "query": "roll back partial writes",
+          "recall_at_5": 1,
+          "reciprocal_rank": 1,
+          "relevant": [
+            "engineering-guide@1.0.0:storage/immutability.md",
+            "engineering-guide@1.0.0:operations/recovery.md"
+          ],
+          "relevant_bytes": 257,
+          "returned": [
+            "engineering-guide@1.0.0:storage/immutability.md",
+            "engineering-guide@1.0.0:operations/recovery.md",
+            "engineering-guide@1.0.0:architecture/overview.md",
+            "engineering-guide@1.0.0:operations/distractor.md",
+            "engineering-guide@1.0.0:storage/retries.md"
+          ],
+          "undeclared_results": 0
+        },
+        {
+          "estimated_context_tokens": 166,
+          "forbidden": [
+            "engineering-guide@0.9.0:storage/legacy.md",
+            "engineering-guide@1.0.0:skills/deploy.md"
+          ],
+          "forbidden_results": 0,
+          "hit_at_1": 0,
+          "id": "hidden-skill",
+          "irrelevant_bytes": 661,
+          "isolation_case": true,
+          "isolation_pass": true,
+          "leaked_results": [],
+          "query": "deployment incantation",
+          "recall_at_5": 0,
+          "reciprocal_rank": 0,
+          "relevant": [],
+          "relevant_bytes": 0,
+          "returned": [
+            "engineering-guide@1.0.0:architecture/overview.md",
+            "engineering-guide@1.0.0:operations/distractor.md",
+            "engineering-guide@1.0.0:operations/recovery.md",
+            "engineering-guide@1.0.0:storage/immutability.md",
+            "engineering-guide@1.0.0:storage/retries.md"
+          ],
+          "undeclared_results": 0
+        }
+      ],
+      "metrics": {
+        "cases": 5,
+        "estimated_context_tokens": 830,
+        "filesystem_mutations": 1,
+        "forbidden_results": 0,
+        "hit_at_1": 1,
+        "irrelevant_bytes": 2504,
+        "mean_reciprocal_rank": 1,
+        "median_latency_ms": 0,
+        "negative_case_leaks": 0,
+        "negative_case_pass_rate": 1,
+        "negative_cases": 1,
+        "negative_cases_passed": 1,
+        "network_requests": 5,
+        "p95_latency_ms": 0,
+        "positive_cases": 4,
+        "recall_at_5": 1,
+        "relevant_bytes": 801,
+        "undeclared_results": 0
+      },
+      "mode": "embedding",
+      "schema_version": 1
+    }
+  }
+}

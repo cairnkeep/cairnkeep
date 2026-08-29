@@ -228,7 +228,13 @@ function assertLeasePolicy(coordinator, project, stateRoot) {
     assert.equal(child === "" || (!child.startsWith("..") && !isAbsolute(child)), true);
     for (const path of allFiles(leaseDir)) {
         if (process.platform === "win32") {
-            assert.equal(coordinator.privatePathIsSafe(path), true, "lease ACL is not restricted");
+            const inspected = spawnSync("icacls.exe", [path], { encoding: "utf8", windowsHide: true });
+            const identity = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
+            assert.equal(
+                coordinator.privatePathIsSafe(path),
+                true,
+                `lease ACL is not restricted (icacls status ${inspected.status}):\nIdentity: ${identity.stdout || identity.stderr}\n${inspected.stdout || inspected.stderr || "ACL inspection failed"}`,
+            );
         } else {
             assert.equal(statSync(path).mode & 0o077, 0, "lease is not mode restricted");
         }

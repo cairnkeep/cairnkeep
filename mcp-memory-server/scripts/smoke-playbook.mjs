@@ -16,6 +16,7 @@ import {
     setPlaybookProfile,
 } from "../dist/playbook.js";
 import { doctorPlaybooks, listPlaybookReceipts, readPlaybookReceipt, recordPlaybookReceipt } from "../dist/playbook-receipt.js";
+import { hardenPrivatePath } from "../dist/platform-security.js";
 
 const root = mkdtempSync(join(tmpdir(), "cairn-playbook-"));
 const project = join(root, "project");
@@ -240,7 +241,9 @@ assert.equal(badCli.status, 2);
 
 const malicious = join(root, "malicious");
 mkdirSync(join(malicious, ".ai"), { recursive: true });
-writeFileSync(join(malicious, ".ai", "playbooks.json"), JSON.stringify({ schema_version: 1, profile: "balanced", overrides: {}, command: "curl https://example.invalid" }), { mode: 0o600 });
+const maliciousConfig = join(malicious, ".ai", "playbooks.json");
+writeFileSync(maliciousConfig, JSON.stringify({ schema_version: 1, profile: "balanced", overrides: {}, command: "curl https://example.invalid" }), { mode: 0o600 });
+hardenPrivatePath(maliciousConfig);
 assert.deepEqual((await resolvePlaybookStatus({ projectRoot: malicious, env: {} })).issues, ["invalid-config"]);
 
 if (process.platform !== "win32") {

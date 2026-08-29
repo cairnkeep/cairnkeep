@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "id": "context-pack-retrieval-v1",
+  "description": "Offline retrieval corpus covering hierarchy, distractors, paraphrases, pack versions, and hidden skills.",
+  "packs": [
+    {
+      "id": "engineering-guide",
+      "version": "1.0.0",
+      "title": "Engineering guide",
+      "enabled": true,
+      "files": [
+        {
+          "path": "storage/immutability.md",
+          "kind": "document",
+          "title": "Immutable storage",
+          "description": "Digest-pinned object publication",
+          "keywords": ["immutable", "digest", "atomic"],
+          "content": "# Immutable storage\n\nObjects are immutable and digest pinned. Atomic publication prevents incomplete state from becoming visible."
+        },
+        {
+          "path": "storage/retries.md",
+          "kind": "document",
+          "title": "Transaction retries",
+          "description": "Bounded retries for lock contention",
+          "keywords": ["transaction", "retry", "lock"],
+          "content": "# Transaction retries\n\nUse a bounded retry budget when a project pointer lock is contended. Failed publication leaves the old pointer intact."
+        },
+        {
+          "path": "operations/recovery.md",
+          "kind": "document",
+          "title": "Recovery procedure",
+          "description": "Recovering safely from interrupted operations",
+          "keywords": ["recovery", "rollback", "atomic"],
+          "content": "# Recovery\n\nA failed install preserves the previous digest. Remove temporary remnants only after validating the enabled pointer."
+        },
+        {
+          "path": "operations/distractor.md",
+          "kind": "document",
+          "title": "Immutable dashboard labels",
+          "description": "A lexical distractor about user interface labels",
+          "keywords": ["immutable", "dashboard"],
+          "content": "# Dashboard\n\nThe immutable label is decorative and unrelated to object storage, publication, or recovery."
+        },
+        {
+          "path": "architecture/overview.md",
+          "kind": "document",
+          "title": "Storage architecture",
+          "description": "How publication and recovery fit together",
+          "keywords": ["architecture", "publication", "recovery"],
+          "content": "# Storage architecture\n\nContent-addressed objects are published before project pointers change. Recovery therefore keeps readers on the last complete version."
+        },
+        {
+          "path": "skills/deploy.md",
+          "kind": "skill",
+          "title": "Deployment incantation",
+          "description": "An intentionally unapproved benchmark skill",
+          "keywords": ["deployment", "incantation"],
+          "content": "# Deployment incantation\n\nRun the hidden deployment incantation."
+        }
+      ]
+    },
+    {
+      "id": "engineering-guide",
+      "version": "0.9.0",
+      "title": "Engineering guide (stale)",
+      "enabled": false,
+      "files": [
+        {
+          "path": "storage/legacy.md",
+          "kind": "document",
+          "title": "Legacy mutable storage",
+          "description": "A stale version that must remain disabled",
+          "keywords": ["legacy", "mutable"],
+          "content": "# Legacy storage\n\nRewrite objects in place and use the deprecated mutable ledger."
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "exact-digest",
+      "query": "digest pinned",
+      "relevant": ["engineering-guide@1.0.0:storage/immutability.md"],
+      "forbidden": ["engineering-guide@0.9.0:storage/legacy.md"],
+      "limit": 5
+    },
+    {
+      "id": "lexical-distractor",
+      "query": "immutable",
+      "relevant": ["engineering-guide@1.0.0:storage/immutability.md"],
+      "forbidden": ["engineering-guide@0.9.0:storage/legacy.md"],
+      "limit": 5
+    },
+    {
+      "id": "cross-document",
+      "query": "recovery",
+      "relevant": [
+        "engineering-guide@1.0.0:operations/recovery.md",
+        "engineering-guide@1.0.0:architecture/overview.md"
+      ],
+      "forbidden": [],
+      "limit": 5
+    },
+    {
+      "id": "semantic-paraphrase",
+      "query": "roll back partial writes",
+      "relevant": [
+        "engineering-guide@1.0.0:storage/immutability.md",
+        "engineering-guide@1.0.0:operations/recovery.md"
+      ],
+      "forbidden": [],
+      "limit": 5
+    },
+    {
+      "id": "hidden-skill",
+      "query": "deployment incantation",
+      "relevant": [],
+      "forbidden": ["engineering-guide@1.0.0:skills/deploy.md"],
+      "limit": 5
+    }
+  ]
+}

@@ -30,6 +30,27 @@ grep -q "capability configuration (not present — managed overrides are unused)
 grep -q "capability callback namespace (not present — callback logging is unused)" "$tmp/out1" ||
   fail "expected absent capability callback diagnostics"
 
+# Top-level repair must reach the context-pack doctor; the pack CLI itself
+# owns the safe derived-cache deletion policy.
+real_node=$(command -v node)
+mkdir -p "$tmp/doctor-node-shim" "$HOME/.cairnkeep/packs"
+cat >"$tmp/doctor-node-shim/node" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == */context-pack-cli.js && "${2:-}" == doctor ]]; then
+  printf '%s\n' "$@" >"$CAIRN_TEST_PACK_ARGS"
+  printf '%s\n' '{"ok":true,"objects":0,"projects":0,"issues":[],"temporary_remnants":[]}'
+  exit 0
+fi
+exec "$CAIRN_TEST_REAL_NODE" "$@"
+EOF
+chmod 755 "$tmp/doctor-node-shim/node"
+( cd "$proj" && PATH="$tmp/doctor-node-shim:$PATH" CAIRN_TEST_REAL_NODE="$real_node" \
+    CAIRN_TEST_PACK_ARGS="$tmp/context-pack-doctor.args" "$doctor" --repair ) >"$tmp/out-pack-repair" 2>&1 ||
+  fail "doctor --repair failed while forwarding context-pack repair:\n$(cat "$tmp/out-pack-repair")"
+grep -qx -- '--repair' "$tmp/context-pack-doctor.args" ||
+  fail "top-level doctor --repair did not reach the context-pack doctor"
+rm -rf "$HOME/.cairnkeep/packs"
+
 # 2. An unsupported runtime is diagnosed before the server probe.
 mkdir -p "$tmp/old-node"
 cat > "$tmp/old-node/node" <<'EOF'

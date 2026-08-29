@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/context-usage-receipt.schema.json",
+  "title": "Cairnkeep context usage receipt v1",
+  "description": "A privacy-minimal link from existing work evidence to a retrieved result. Receipts contain identifiers, digests, outcome labels and a timestamp; never retrieved content, queries, prompts or model output.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "link_id",
+    "evidence_id",
+    "kind",
+    "created_at",
+    "receipt_id",
+    "task_digest",
+    "result_digest",
+    "outcome"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "link_id": {
+      "description": "Equal to receipt_id for context usage links.",
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "evidence_id": {
+      "type": "string",
+      "pattern": "^wev_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "kind": { "const": "context_usage" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "receipt_id": {
+      "description": "SHA-256 of canonical evidence_id, task_digest and result_digest fields. The outcome is deliberately excluded so a changed outcome is a conflict, not a second receipt.",
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "task_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "result_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "outcome": { "enum": ["used", "unused", "unknown"] }
+  }
+}

@@ -5,6 +5,30 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.17.0] - 2026-08-29
+
+### Added
+
+- Frozen, offline retrieval benchmark with substring and deterministic mock-
+  embedding goldens, quality/cost/latency metrics, mutation accounting, and
+  forbidden-result leakage checks.
+- Progressive context-pack hierarchy and derived summary cache, the
+  `context_pack_tree` MCP tool, and opt-in hierarchical search detail and
+  sanitized explanation traces. Compatible flat content search remains the
+  default.
+- Opt-in, privacy-preserving context-usage receipts linked to work evidence.
+- Review-gated `cairn proposals create|list|show|apply|doctor` workflow for
+  promoting redacted trajectory candidates into reviewed durable memory.
+- Provider-neutral domain retrieval with an explicitly gated, read-only
+  OpenViking adapter; AnythingLLM remains the default provider.
+
+### Changed
+
+- Context-pack search can return stable result and chunk digests when requested,
+  without changing the default response shape.
+- `cairn doctor` validates progressive context-cache records while preserving
+  immutable pack objects, project pins, and skill-approval authority.
+
 ## [2.16.0] - 2026-08-27
 
 ### Added

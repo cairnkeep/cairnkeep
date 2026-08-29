@@ -19,6 +19,7 @@ import { hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
 import {
     WORK_EVIDENCE_SCHEMA_VERSION,
     completeWorkEvidenceSchema,
+    contextUsageReceiptInputSchema,
     getWorkEvidenceLimits,
     isWorkEvidenceEnabled,
     isWorkEvidencePatchEnabled,
@@ -27,6 +28,8 @@ import {
     workEvidenceIdSchema,
     workEvidenceLinkSchema,
     type CompleteWorkEvidence,
+    type ContextUsageReceipt,
+    type ContextUsageReceiptInput,
     type GitEvidenceSnapshot,
     type PendingWorkEvidence,
     type StoredWorkEvidence,
@@ -70,6 +73,17 @@ function canonical(value: unknown): string {
             .map(([key, child]) => `${JSON.stringify(key)}:${canonical(child)}`).join(",")}}`;
     }
     return JSON.stringify(value);
+}
+
+function contextUsageReceiptId(
+    evidenceId: string,
+    value: Pick<ContextUsageReceiptInput, "task_digest" | "result_digest">,
+): string {
+    return sha256(canonical({
+        evidence_id: evidenceId,
+        task_digest: value.task_digest,
+        result_digest: value.result_digest,
+    }));
 }
 
 function storeRoot(projectRoot: string): string {
@@ -400,6 +414,57 @@ export async function linkActiveWorkEvidence(
     }
 }
 
+export async function appendContextUsageReceipt(
+    projectRoot: string,
+    evidenceId: string,
+    value: ContextUsageReceiptInput,
+    now = new Date(),
+): Promise<ContextUsageReceipt | null> {
+    if (!isWorkEvidenceEnabled()) return null;
+    const id = workEvidenceIdSchema.parse(evidenceId);
+    const input = contextUsageReceiptInputSchema.parse(value);
+    const root = resolve(projectRoot);
+    if (!ensureStoreHierarchy(root, false) || !existsSync(recordPath(root, id))) {
+        throw new Error(`Work evidence "${id}" not found.`);
+    }
+    readStored(id, root);
+
+    const receiptId = contextUsageReceiptId(id, input);
+    const link = workEvidenceLinkSchema.parse({
+        schema_version: WORK_EVIDENCE_SCHEMA_VERSION,
+        link_id: receiptId,
+        evidence_id: id,
+        kind: "context_usage",
+        created_at: now.toISOString(),
+        receipt_id: receiptId,
+        ...input,
+    }) as ContextUsageReceipt;
+    const path = join(linksRoot(root, id), `${receiptId}.json`);
+    if (existsSync(path)) {
+        const stored = workEvidenceLinkSchema.parse(readJson(path));
+        if (stored.kind !== "context_usage"
+            || stored.receipt_id !== receiptId
+            || stored.task_digest !== input.task_digest
+            || stored.result_digest !== input.result_digest
+            || stored.outcome !== input.outcome) {
+            throw new Error(`Conflicting context usage outcome for receipt "${receiptId}".`);
+        }
+        return stored;
+    }
+    atomicJson(path, link);
+    return link;
+}
+
+export async function linkActiveContextUsageReceipt(
+    projectRoot: string,
+    value: ContextUsageReceiptInput,
+): Promise<ContextUsageReceipt | null> {
+    const evidenceId = process.env.CAIRN_WORK_EVIDENCE_ID?.trim();
+    if (!evidenceId || !isWorkEvidenceEnabled()) return null;
+    const root = process.env.CAIRN_WORK_EVIDENCE_ROOT?.trim() || projectRoot;
+    return appendContextUsageReceipt(resolve(root), evidenceId, value);
+}
+
 function storedWorkEvidenceRows(projectRoot: string, status?: "pending" | "complete"): WorkEvidenceRow[] {
     if (!ensureStoreHierarchy(projectRoot, false)) return [];
     const root = recordsRoot(projectRoot);
@@ -510,6 +575,12 @@ export function doctorWorkEvidence(projectRoot = process.cwd(), repair = false) 
                     try {
                         const link = workEvidenceLinkSchema.parse(readJson(path));
                         if (link.evidence_id !== evidenceId || `${link.link_id}.json` !== name) throw new Error("mismatch");
+                        if (link.kind === "context_usage") {
+                            const expected = contextUsageReceiptId(evidenceId, link);
+                            if (!existsSync(recordPath(projectRoot, evidenceId))
+                                || link.receipt_id !== expected
+                                || link.link_id !== expected) throw new Error("invalid context usage receipt identity");
+                        }
                         links += 1;
                     } catch { issues.push(`invalid link: ${evidenceId}/${name}`); }
                 }

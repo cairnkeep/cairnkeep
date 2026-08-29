@@ -3,12 +3,16 @@ import { rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
-function currentWindowsSid(): string {
+let cachedWindowsIdentity: { account: string; sid: string } | undefined;
+
+function currentWindowsIdentity(): { account: string; sid: string } {
+    if (cachedWindowsIdentity) return cachedWindowsIdentity;
     const result = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
     if (result.status !== 0) throw new Error("Unable to resolve the current Windows security identity.");
-    const match = result.stdout.match(/"(S-1-[0-9-]+)"/i);
+    const match = result.stdout.match(/^"([^"]+)","(S-1-[0-9-]+)"/im);
     if (!match) throw new Error("Unable to resolve the current Windows security identity.");
-    return match[1];
+    cachedWindowsIdentity = { account: match[1], sid: match[2] };
+    return cachedWindowsIdentity;
 }
 
 export function hardenPrivatePath(path: string): void {
@@ -16,13 +20,12 @@ export function hardenPrivatePath(path: string): void {
         chmodSync(path, lstatSync(path).isDirectory() ? 0o700 : 0o600);
         return;
     }
-    const sid = currentWindowsSid();
+    const identity = currentWindowsIdentity();
     const args = [
         path,
         "/inheritance:r",
-        "/grant:r", `*${sid}:(F)`,
-        "/grant:r", "*S-1-5-18:(F)",
-        "/grant:r", "*S-1-5-32-544:(F)",
+        "/remove:g", "*S-1-5-18", "*S-1-5-32-544",
+        "/grant:r", `*${identity.sid}:(F)`,
     ];
     const result = spawnSync("icacls.exe", args, { encoding: "utf8", windowsHide: true });
     if (result.status !== 0) throw new Error("Unable to restrict Windows ACLs for private Cairnkeep state.");
@@ -33,25 +36,25 @@ export function privatePathIsSafe(path: string): boolean {
     const info = lstatSync(path);
     if (info.isSymbolicLink()) return false;
     if (process.platform !== "win32") return (info.mode & 0o077) === 0;
-    const script = [
-        "$p=$env:CK_INTERNAL_PRIVATE_PATH",
-        "$me=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value",
-        "$ok=@($me,'S-1-5-18','S-1-5-32-544')",
-        "$acl=Get-Acl -LiteralPath $p",
-        "foreach($a in $acl.Access){",
-        "if($a.AccessControlType -eq 'Allow'){",
-        "try{$sid=$a.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value}catch{exit 1}",
-        "if($ok -notcontains $sid){exit 1}",
-        "}",
-        "}",
-        "exit 0",
-    ].join(";");
-    const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
-        encoding: "utf8",
-        windowsHide: true,
-        env: { ...process.env, CK_INTERNAL_PRIVATE_PATH: path },
-    });
-    return result.status === 0;
+    try {
+        const account = currentWindowsIdentity().account.toLowerCase();
+        const result = spawnSync("icacls.exe", [path], { encoding: "utf8", windowsHide: true });
+        if (result.status !== 0 || !result.stdout) return false;
+        const grants = result.stdout.split(/\r?\n/).filter((line) => {
+            const body = line.trim();
+            const marker = body.indexOf(":(");
+            if (marker < 0) return false;
+            const permissions = body.slice(marker + 1).toUpperCase();
+            return !permissions.includes("(DENY)") && !permissions.includes("(NW)");
+        });
+        const normalized = grants.map((grant) => grant.toLowerCase());
+        const currentMarker = `${account}:(`;
+        return normalized.some((grant) => grant.includes(currentMarker))
+            && normalized.every((grant) => grant.includes(currentMarker)
+                || /\\logonsessionid_[0-9]+_[0-9]+:\(rx\)$/.test(grant.trim()));
+    } catch {
+        return false;
+    }
 }
 
 function delay(milliseconds: number): Promise<void> {

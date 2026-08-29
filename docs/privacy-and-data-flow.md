@@ -630,3 +630,25 @@ All enabled documents carry pack and file provenance in MCP results. Skill files
 are excluded until the current project approves the exact pack digest, path, and
 file digest. Updating the pack invalidates that approval. Approval only makes a
 skill readable; Cairnkeep never copies it into a harness or executes it.
+
+## Context-intelligence privacy boundaries
+
+- Progressive pack summaries are deterministic local derivatives of currently
+  visible files. Unapproved skills are excluded from trees, summaries, search,
+  and explanation traces.
+- `include_refs: true` produces content-derived digests. A usage receipt stores
+  only evidence/task/result identifiers and `used`, `unused`, or `unknown`; it
+  does not store the query, prompt, retrieved content, or model response.
+- Proposal creation starts from a locally stored trajectory and runs redaction
+  again before configured model extraction. Extraction remains a proposal until
+  an operator or authorized agent reviews and applies its exact digest.
+- AnythingLLM is still the default external domain provider. Selecting
+  OpenViking requires `CAIRN_DOMAIN_RETRIEVAL_PROVIDER=openviking` and
+  `CAIRN_OPENVIKING=1`; remote MCP requires an additional
+  `CAIRN_OPENVIKING_MCP_HTTP=1` consent flag.
+- The OpenViking adapter is query-only. It sends the requested workspace target
+  and query to the configured endpoint, but performs no synchronization, watch,
+  commit, update, or deletion. Non-loopback endpoints must use HTTPS.
+
+Pack digests and proposal digests protect integrity and stale-state detection;
+they do not authenticate a publisher or make extracted statements true.

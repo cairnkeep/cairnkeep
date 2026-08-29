@@ -1,6 +1,6 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.16.0
+**Baseline:** Cairnkeep 2.17.0
 **Last reviewed:** 2026-08-19
 
 This map prevents the course from drifting behind the product. It assigns each
@@ -41,6 +41,7 @@ been rehearsed.
 | Pi local stdio memory bridge, trusted annotation details, and explicit lifecycle | L23 | L23 | Ready; Pi 0.84.1 validated minimum |
 | OKF 0.1/0.2 validation/import, provenance, links, regressions, and reviewed 0.2 export | L24 | L24 | Ready; local/offline by default |
 | Bounded project playbooks, generic memory retrieval guidance, enforcement, and private receipts | L25 | L25 | Ready; balanced/local by default; invocation requires runtime evidence; actor identity unverified |
+| Progressive pack retrieval, frozen benchmark, context-usage receipts, review-gated memory proposals, optional provider adapter | L26 | V26 | Ready; default flat search and AnythingLLM remain compatible; OpenViking and receipt mutation are explicitly gated |
 
 ## Release Review
 
@@ -85,6 +86,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 |---|---|
 | `cairn bootstrap` | L03 compatibility challenge |
 | `cairn setup` | L03 for Claude/Codex; advanced Pi lifecycle in L23 |
+| `cairn proposals` | L26 |
 | `cairn memory-server` | L02 |
 | `cairn sync` | L02 |
 | `cairn sync-pi` | L13 and L23 |

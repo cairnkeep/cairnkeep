@@ -42,9 +42,11 @@ export const MCP_TOOL_CATALOG = {
     context_explore: observation("Explore repository context", true),
     route_check: observation("Check route", true),
     context_pack_list: observation("List context packs"),
+    context_pack_tree: observation("Browse context pack hierarchy"),
     context_pack_search: observation("Search context packs"),
     context_pack_read: observation("Read context pack file"),
     context_pack_related: observation("Traverse context pack links"),
+    context_usage_record: additive("Record context usage"),
     work_evidence_list: observation("List work evidence"),
     work_evidence_read: observation("Read work evidence"),
 } as const satisfies Record<string, CairnToolMetadata>;

@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.16.0
+**Baseline:** Cairnkeep 2.17.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -117,5 +117,24 @@ prerequisites for ordinary memory.
 - Use `cairn uninstall --dry-run` before uninstall; durable memory is retained
   unless purge is explicitly requested.
 - Revisit the [storage guide](../storage.md) and
-  [privacy/data-flow guide](../privacy-and-data-flow.md) before enabling a new
-  network or retention path.
+[privacy/data-flow guide](../privacy-and-data-flow.md) before enabling a new
+network or retention path.
+
+## Context intelligence
+
+L26 joins five related surfaces without collapsing their authority boundaries:
+
+- the frozen retrieval benchmark measures relevance, context cost, latency,
+  mutations, and forbidden leakage offline;
+- context-pack trees and hierarchical summaries support progressive disclosure,
+  while omitted options retain compatible flat content search;
+- opt-in result digests can produce content-free usage receipts linked to work
+  evidence;
+- trajectory extraction creates an immutable proposal that must be reviewed and
+  applied by exact digest before it becomes durable memory;
+- the OpenViking adapter is optional read-only domain retrieval, with
+  AnythingLLM still the default and Cairnkeep still owning memory and evidence.
+
+See [L26](lessons/L26-context-intelligence.md), its
+[video script](video-scripts/V26-context-intelligence.md), and the
+[context-intelligence reference](../context-intelligence.md).

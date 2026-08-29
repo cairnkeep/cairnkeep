@@ -120,8 +120,8 @@ try {
         name: "domain_knowledge_query",
         arguments: { query: "What belongs to alpha?" },
     });
-    check("AnythingLLM default comes from session metadata", answer.structuredContent?.workspace === "alpha-docs");
-    check("AnythingLLM request targets the declared workspace", anythingRequests[0]?.url === "/api/v1/workspace/alpha-docs/chat");
+    check(`AnythingLLM default comes from session metadata (actual ${answer.structuredContent?.workspace ?? "missing"})`, answer.structuredContent?.workspace === "alpha-docs");
+    check(`AnythingLLM request targets the declared workspace (actual ${anythingRequests[0]?.url ?? "missing"})`, anythingRequests[0]?.url === "/api/v1/workspace/alpha-docs/chat");
 
     await alpha.close();
     await beta.close();

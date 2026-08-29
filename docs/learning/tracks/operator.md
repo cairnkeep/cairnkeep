@@ -16,6 +16,7 @@
 10. [L23 - Guided setup and Pi memory](../lessons/L23-guided-setup.md)
 11. [L24 - Reviewed knowledge exchange](../lessons/L24-okf-exchange.md)
 12. [L25 - Bounded workflow playbooks](../lessons/L25-playbooks.md)
+13. [L26 - Context intelligence with explicit authority](../lessons/L26-context-intelligence.md)
 
 All modules are optional. The track is complete when the operator can add and
 remove each integration without breaking the standalone local workflow and can

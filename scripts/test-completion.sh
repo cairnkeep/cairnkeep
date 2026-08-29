@@ -46,7 +46,13 @@ for shell in bash zsh fish; do
   grep -q 'mcp-tools' "$tmp/$shell"
   grep -q 'full.*read-only.*custom\|full read-only custom' "$tmp/$shell"
   grep -q 'pack' "$tmp/$shell"
-  grep -q 'init.*lock.*validate.*install.*list.*show.*remove.*enable.*disable.*update.*skills.*approve-skill.*revoke-skill\|init lock validate install list show remove enable disable update skills approve-skill revoke-skill' "$tmp/$shell"
+  grep -q 'init.*lock.*validate.*install.*list.*show.*remove.*enable.*disable.*update.*skills.*approve-skill.*revoke-skill.*doctor\|init lock validate install list show remove enable disable update skills approve-skill revoke-skill doctor' "$tmp/$shell"
+  grep -q -- '--repair\|-l repair' "$tmp/$shell"
+  grep -q 'proposals' "$tmp/$shell"
+  grep -q 'create.*list.*show.*apply.*doctor\|create list show apply doctor' "$tmp/$shell"
+  for proposal_flag in --session --scope --model --category --project --json; do
+    grep -q -- "$proposal_flag\|-l ${proposal_flag#--}" "$tmp/$shell"
+  done
   grep -q -- '--purge-packs\|-l purge-packs' "$tmp/$shell"
   grep -q 'evidence' "$tmp/$shell"
   grep -q 'list.*show.*delete.*prune.*doctor\|list show delete prune doctor' "$tmp/$shell"
@@ -77,6 +83,7 @@ fi
 grep -qF 'cairn skill <harvest|list|show|review|propose|evaluate|apply|rollback>' "$tmp/root-help"
 grep -qF 'cairn evidence <list|show|delete|prune|doctor>' "$tmp/root-help"
 grep -qF 'cairn playbook <list|status|init|set|enable|disable|reset|check|record|receipts|instructions|doctor>' "$tmp/root-help"
+grep -qF 'cairn proposals <create|list|show|apply|doctor>' "$tmp/root-help"
 node "$ROOT/mcp-memory-server/dist/skill-cli.js" --help >"$tmp/skill-help"
 for command in $skill_commands; do
   grep -q "cairn skill $command" "$tmp/skill-help"

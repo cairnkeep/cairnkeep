@@ -27,6 +27,14 @@ linked guides rather than the project landing page.
 - [Validated skill improvement](skill-improvement.md) describes the reviewed,
   measured, reversible path for changing a live skill.
 
+## Context intelligence
+
+- [Context intelligence](context-intelligence.md) connects progressive context-pack
+  retrieval, the frozen benchmark, usage receipts, review-gated proposals, and
+  the optional read-only OpenViking provider.
+- [Immutable context packs](context-packs.md), [domain knowledge](domain-knowledge.md),
+  and [work evidence](work-evidence.md) document each boundary in depth.
+
 ## Operations, storage, and privacy
 
 - [Operating Cairnkeep](operating.md) is the full CLI and configuration
