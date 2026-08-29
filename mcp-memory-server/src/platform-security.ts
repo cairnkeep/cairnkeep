@@ -42,25 +42,16 @@ export function privatePathIsSafe(path: string): boolean {
     if (process.platform !== "win32") return (info.mode & 0o077) === 0;
     try {
         const account = currentWindowsAccount().toLowerCase();
-        for (let attempt = 0; attempt < 4; attempt += 1) {
-            const result = spawnSync("icacls.exe", [path], { encoding: "utf8", windowsHide: true });
-            if (result.status === 0 && result.stdout) {
-                const grants = result.stdout.split(/\r?\n/).filter((line) => {
-                    const body = line.trim();
-                    const marker = body.indexOf(":(");
-                    if (marker < 0) return false;
-                    const permissions = body.slice(marker + 1).toUpperCase();
-                    return !permissions.includes("(DENY)") && !permissions.includes("(NW)");
-                });
-                const safe = grants.length === 1 && grants[0].toLowerCase().includes(`${account}:(`);
-                if (process.env.CAIRN_TEST_ACL_TRACE === "1") {
-                    console.error(JSON.stringify({ path, account, status: result.status, grants, safe }));
-                }
-                if (safe) return true;
-            }
-            if (attempt < 3) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15);
-        }
-        return false;
+        const result = spawnSync("icacls.exe", [path], { encoding: "utf8", windowsHide: true });
+        if (result.status !== 0 || !result.stdout) return false;
+        const grants = result.stdout.split(/\r?\n/).filter((line) => {
+            const body = line.trim();
+            const marker = body.indexOf(":(");
+            if (marker < 0) return false;
+            const permissions = body.slice(marker + 1).toUpperCase();
+            return !permissions.includes("(DENY)") && !permissions.includes("(NW)");
+        });
+        return grants.length > 0 && grants.every((grant) => grant.toLowerCase().includes(`${account}:(`));
     } catch {
         return false;
     }
