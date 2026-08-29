@@ -13,7 +13,7 @@ REPAIR_STORES=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repair) REPAIR_STORES=1; shift ;;
-    -h|--help) echo "Usage: cairn doctor [--repair]  # repair safe derived caches, metadata/indexes, and interrupted note transactions"; exit 0 ;;
+    -h|--help) echo "Usage: cairn doctor [--repair]  # repair safe derived pack caches, typed metadata/indexes, and interrupted note transactions"; exit 0 ;;
     *) echo "Unknown doctor option: $1" >&2; echo "Usage: cairn doctor [--repair]" >&2; exit 2 ;;
   esac
 done
