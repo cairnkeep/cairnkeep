@@ -3,20 +3,21 @@ import { rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
-function currentWindowsSid(): string {
+let cachedWindowsIdentity: { account: string; sid: string } | undefined;
+
+function currentWindowsIdentity(): { account: string; sid: string } {
+    if (cachedWindowsIdentity) return cachedWindowsIdentity;
     const result = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
     if (result.status !== 0) throw new Error("Unable to resolve the current Windows security identity.");
-    const match = result.stdout.match(/"(S-1-[0-9-]+)"/i);
+    const match = result.stdout.match(/^"([^"]+)","(S-1-[0-9-]+)"/im);
     if (!match) throw new Error("Unable to resolve the current Windows security identity.");
-    return match[1];
+    cachedWindowsIdentity = { account: match[1], sid: match[2] };
+    return cachedWindowsIdentity;
 }
 
-function currentWindowsAccount(): string {
-    const result = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
-    const match = result.stdout.match(/^"([^"]+)","S-1-[0-9-]+"/im);
-    if (result.status !== 0 || !match) throw new Error("Could not resolve the current Windows account.");
-    return match[1];
-}
+function currentWindowsSid(): string { return currentWindowsIdentity().sid; }
+
+function currentWindowsAccount(): string { return currentWindowsIdentity().account; }
 
 export function hardenPrivatePath(path: string): void {
     if (process.platform !== "win32") {
