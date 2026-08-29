@@ -3,20 +3,15 @@ import { rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
-let cachedWindowsIdentity: { account: string; sid: string; logonAccount?: string } | undefined;
+let cachedWindowsIdentity: { account: string; sid: string } | undefined;
 
-function currentWindowsIdentity(): { account: string; sid: string; logonAccount?: string } {
+function currentWindowsIdentity(): { account: string; sid: string } {
     if (cachedWindowsIdentity) return cachedWindowsIdentity;
     const result = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
     if (result.status !== 0) throw new Error("Unable to resolve the current Windows security identity.");
     const match = result.stdout.match(/^"([^"]+)","(S-1-[0-9-]+)"/im);
     if (!match) throw new Error("Unable to resolve the current Windows security identity.");
-    const groups = spawnSync("whoami.exe", ["/groups", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
-    const logonRow = groups.status === 0
-        ? groups.stdout.split(/\r?\n/).find((line) => /\\LogonSessionId_/i.test(line))
-        : undefined;
-    const logonAccount = logonRow?.match(/^"([^"]+)"/)?.[1];
-    cachedWindowsIdentity = { account: match[1], sid: match[2], ...(logonAccount ? { logonAccount } : {}) };
+    cachedWindowsIdentity = { account: match[1], sid: match[2] };
     return cachedWindowsIdentity;
 }
 
@@ -42,8 +37,7 @@ export function privatePathIsSafe(path: string): boolean {
     if (info.isSymbolicLink()) return false;
     if (process.platform !== "win32") return (info.mode & 0o077) === 0;
     try {
-        const identity = currentWindowsIdentity();
-        const allowedAccounts = [identity.account, identity.logonAccount].filter((value): value is string => Boolean(value)).map((value) => value.toLowerCase());
+        const account = currentWindowsIdentity().account.toLowerCase();
         const result = spawnSync("icacls.exe", [path], { encoding: "utf8", windowsHide: true });
         if (result.status !== 0 || !result.stdout) return false;
         const grants = result.stdout.split(/\r?\n/).filter((line) => {
@@ -53,10 +47,11 @@ export function privatePathIsSafe(path: string): boolean {
             const permissions = body.slice(marker + 1).toUpperCase();
             return !permissions.includes("(DENY)") && !permissions.includes("(NW)");
         });
-        return grants.length > 0 && grants.every((grant) => {
-            const normalized = grant.toLowerCase();
-            return allowedAccounts.some((account) => normalized.includes(`${account}:(`));
-        });
+        const normalized = grants.map((grant) => grant.toLowerCase());
+        const currentMarker = `${account}:(`;
+        return normalized.some((grant) => grant.includes(currentMarker))
+            && normalized.every((grant) => grant.includes(currentMarker)
+                || /\\logonsessionid_[0-9]+_[0-9]+:\(rx\)$/.test(grant.trim()));
     } catch {
         return false;
     }
