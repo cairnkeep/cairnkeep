@@ -73,8 +73,9 @@ try {
             "$acl=Get-Acl -LiteralPath $env:CK_TEST_PRIVATE_PATH;$acl.GetSecurityDescriptorSddlForm([System.Security.AccessControl.AccessControlSections]::Access)",
         ], { encoding: "utf8", windowsHide: true, env: { ...process.env, CK_TEST_PRIVATE_PATH: storePath } });
         const inspected = spawnSync("icacls.exe", [storePath], { encoding: "utf8", windowsHide: true });
+        const identity = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
         throw new Error(
-            `Windows proposal creation failed: ${error instanceof Error ? error.message : String(error)}\nSDDL: ${descriptor.stdout || descriptor.stderr}\nACL: ${inspected.stdout || inspected.stderr}`,
+            `Windows proposal creation failed: ${error instanceof Error ? error.message : String(error)}\nIdentity: ${identity.stdout || identity.stderr}\nSDDL: ${descriptor.stdout || descriptor.stderr}\nACL: ${inspected.stdout || inspected.stderr}`,
         );
     }
     assert.doesNotMatch(outbound, /proposal-secret-token/);
