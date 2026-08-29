@@ -3,19 +3,19 @@ import { rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
-let cachedWindowsIdentity: { account: string; sid: string } | undefined;
+let cachedWindowsIdentity: { account: string; sid: string; logonSid?: string } | undefined;
 
-function currentWindowsIdentity(): { account: string; sid: string } {
+function currentWindowsIdentity(): { account: string; sid: string; logonSid?: string } {
     if (cachedWindowsIdentity) return cachedWindowsIdentity;
     const result = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
     if (result.status !== 0) throw new Error("Unable to resolve the current Windows security identity.");
     const match = result.stdout.match(/^"([^"]+)","(S-1-[0-9-]+)"/im);
     if (!match) throw new Error("Unable to resolve the current Windows security identity.");
-    cachedWindowsIdentity = { account: match[1], sid: match[2] };
+    const groups = spawnSync("whoami.exe", ["/groups", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
+    const logonSid = groups.status === 0 ? groups.stdout.match(/"(S-1-5-5-[0-9-]+)"/i)?.[1] : undefined;
+    cachedWindowsIdentity = { account: match[1], sid: match[2], ...(logonSid ? { logonSid } : {}) };
     return cachedWindowsIdentity;
 }
-
-function currentWindowsSid(): string { return currentWindowsIdentity().sid; }
 
 function currentWindowsAccount(): string { return currentWindowsIdentity().account; }
 
@@ -24,12 +24,13 @@ export function hardenPrivatePath(path: string): void {
         chmodSync(path, lstatSync(path).isDirectory() ? 0o700 : 0o600);
         return;
     }
-    const sid = currentWindowsSid();
+    const identity = currentWindowsIdentity();
     const args = [
         path,
         "/inheritance:r",
         "/remove:g", "*S-1-5-18", "*S-1-5-32-544",
-        "/grant:r", `*${sid}:(F)`,
+        ...(identity.logonSid ? ["/remove:g", `*${identity.logonSid}`] : []),
+        "/grant:r", `*${identity.sid}:(F)`,
     ];
     const result = spawnSync("icacls.exe", args, { encoding: "utf8", windowsHide: true });
     if (result.status !== 0) throw new Error("Unable to restrict Windows ACLs for private Cairnkeep state.");
