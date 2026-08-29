@@ -46,7 +46,10 @@ export function privatePathIsSafe(path: string): boolean {
         const principals = result.stdout.split(/\r?\n/).flatMap((line) => {
             const body = line.startsWith(path) ? line.slice(path.length).trim() : line.trim();
             const marker = body.indexOf(":(");
-            return marker < 0 ? [] : [body.slice(0, marker).trim().toLowerCase()];
+            if (marker < 0) return [];
+            const permissions = body.slice(marker + 1).toUpperCase();
+            if (permissions.includes("(DENY)") || permissions.includes("(NW)")) return [];
+            return [body.slice(0, marker).trim().toLowerCase()];
         });
         return principals.length > 0
             && principals.every((principal) => principal === account || principal.endsWith(` ${account}`));
