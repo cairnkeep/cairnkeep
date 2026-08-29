@@ -38,13 +38,10 @@ export function privatePathIsSafe(path: string): boolean {
         "$me=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value",
         "$ok=@($me,'S-1-5-18','S-1-5-32-544')",
         "$acl=Get-Acl -LiteralPath $p",
-        "$rules=$acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])",
-        "foreach($a in $rules){",
-        "if($a.AccessControlType -eq 'Allow'){",
-        "$sid=$a.IdentityReference.Value",
-        "if($ok -notcontains $sid){exit 1}",
-        "}",
-        "}",
+        "$rules=$acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])",
+        "$allow=[System.Security.AccessControl.AccessControlType]::Allow",
+        "$bad=@($rules | Where-Object { $_.AccessControlType -eq $allow -and $ok -notcontains $_.IdentityReference.Value })",
+        "if($bad.Count -ne 0){exit 1}",
         "exit 0",
     ].join(";");
     const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
