@@ -39,9 +39,8 @@ export function privatePathIsSafe(path: string): boolean {
         "$ok=@($me,'SY','BA','S-1-5-18','S-1-5-32-544')",
         "$acl=Get-Acl -LiteralPath $p",
         "$sddl=$acl.GetSecurityDescriptorSddlForm([System.Security.AccessControl.AccessControlSections]::Access)",
-        "$aces=[regex]::Matches($sddl,'\\((?<type>A[^;]*);[^)]*;;;(?<sid>[^;)]+)\\)')",
-        "if($aces.Count -eq 0){exit 1}",
-        "foreach($ace in $aces){$sid=$ace.Groups['sid'].Value;if($ok -notcontains $sid){exit 1}}",
+        "$seen=0;$start=$sddl.IndexOf('(');while($start -ge 0){$end=$sddl.IndexOf(')',$start);if($end -lt 0){exit 1};$fields=$sddl.Substring($start+1,$end-$start-1).Split(';');if($fields.Count -lt 6){exit 1};if($fields[0].StartsWith('A')){$seen++;if($ok -notcontains $fields[5]){exit 1}};$start=$sddl.IndexOf('(',$end+1)}",
+        "if($seen -eq 0){exit 1}",
         "exit 0",
     ].join(";");
     const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
