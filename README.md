@@ -99,6 +99,7 @@ guides. In particular:
 
 - [Quickstart](docs/quickstart.md)
 - [For coding agents](docs/agents.md)
+- [Context intelligence](docs/context-intelligence.md)
 - [Operating guide](docs/operating.md)
 - [Harness compatibility](docs/harness-compatibility.md)
 - [Privacy and data flow](docs/privacy-and-data-flow.md)

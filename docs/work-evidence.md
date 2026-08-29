@@ -52,6 +52,20 @@ bodies are not included. The patch is redacted, bounded by the lower of the
 work-evidence and artifact limits, and stored in the existing artifact store.
 Cairnkeep provides no patch apply, restore or replay command.
 
+## Context-usage receipts
+
+With context packs enabled, `context_pack_search` can return stable references
+when called with `include_refs: true`. With `CAIRN_WORK_EVIDENCE=1` active, set
+`CAIRN_CONTEXT_USAGE=1` as the second gate to expose the
+local-only `context_usage_record` mutation. It links `task_digest`,
+`result_digest`, and an outcome (`used`, `unused`, or `unknown`) to the active
+work-evidence record, or to an explicit `evidence_id`.
+
+Receipts intentionally exclude the query, prompt, retrieved text, and model
+response. Their ID is deterministic, repeat recording is idempotent, conflicting
+outcomes fail, and the normal work-evidence doctor and retention rules apply.
+Because recording changes evidence, the read-only MCP profile excludes the tool.
+
 ## Inspect and maintain
 
 ```sh

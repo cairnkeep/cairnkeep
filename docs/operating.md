@@ -1409,3 +1409,47 @@ read-only related-document traversal. Privacy-reviewed export is an explicit
 `export-okf --check` followed by `--apply --confirm PREVIEW-DIGEST`; only named
 Markdown files and promoted shared notes are eligible. See
 [Open Knowledge Format exchange](open-knowledge-format.md).
+
+## Context-intelligence operations
+
+The v2.17 context-intelligence surfaces are opt-in and independently bounded:
+
+```sh
+# Existing context-pack gate; default search stays flat and compatible.
+CAIRN_CONTEXT_PACKS=1
+
+# Optional local usage-receipt mutation.
+CAIRN_CONTEXT_USAGE=1
+
+# Optional external retrieval provider (AnythingLLM remains the default).
+CAIRN_DOMAIN_RETRIEVAL_PROVIDER=openviking
+CAIRN_OPENVIKING=1
+CAIRN_OPENVIKING_BASE_URL=http://127.0.0.1:1933
+```
+
+For authenticated remote MCP, context packs still require
+`CAIRN_CONTEXT_PACK_HTTP=1`; OpenViking retrieval separately requires
+`CAIRN_OPENVIKING_MCP_HTTP=1`. Neither setting weakens authentication, Host, or
+CORS checks.
+
+Use these source-checkout checks during upgrades and incident diagnosis:
+
+```sh
+npm --prefix mcp-memory-server run check:context-pack-retrieval
+npm --prefix mcp-memory-server run check:context-usage
+npm --prefix mcp-memory-server run check:domain-retrieval
+npm --prefix mcp-memory-server run check:retrieval-benchmark
+cairn proposals doctor --project /path/to/project --json
+(cd /path/to/project && cairn doctor)
+```
+
+Proposal extraction is manual. Create, inspect, and apply the exact digest:
+
+```sh
+cairn proposals create --session SESSION_ID --scope project --project /path/to/project --json
+cairn proposals show PROPOSAL_DIGEST --project /path/to/project --json
+cairn proposals apply PROPOSAL_DIGEST --project /path/to/project --json
+```
+
+No background process synchronizes OpenViking, creates proposals, applies
+memory, enables packs, or approves skills.

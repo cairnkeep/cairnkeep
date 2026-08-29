@@ -95,6 +95,39 @@ Authenticated HTTP deployments need the separate
 project header. Pack digests prove integrity, not publisher authenticity.
 Publisher signatures remain future work.
 
+## Progressive hierarchy and stable result references
+
+The default `context_pack_search` request remains flat content search, preserving
+the established schema and response shape. Agents can opt into progressive
+disclosure without changing pack contents:
+
+```json
+{
+  "query": "deployment rollback",
+  "strategy": "hierarchical",
+  "detail": "overview",
+  "explain": true,
+  "include_refs": true
+}
+```
+
+`strategy` is `flat` or `hierarchical`; `detail` is `abstract`, `overview`, or
+`content`. The optional trace is bounded and sanitized. `context_pack_tree`
+returns the visible hierarchy at `abstract` or `overview` detail, optionally
+limited by pack ID, `id@version`, or digest.
+
+Summaries are deterministic derived cache entries below
+`${CAIRN_PACK_BASE_DIR:-~/.cairnkeep/packs}/cache/context/`. They are bound to the
+pack digest and visible-file-set digest, not stored in immutable objects, and can
+be rebuilt without choosing an enabled version or granting approval. Search with
+`include_refs: true` adds per-result `chunk_digest` values and a response-level
+`result_digest` for optional usage receipts.
+
+Only enabled documents and explicitly approved skills contribute to the tree,
+summary cache, search results, or explanation trace. A skill approval remains
+bound to project identity, pack digest, path, and file digest; a changed pack
+digest cannot inherit it.
+
 ## Open Knowledge Format exchange
 
 Use `cairn pack validate-okf` and `cairn pack import-okf` to consume OKF 0.1 or

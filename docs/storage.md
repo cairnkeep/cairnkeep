@@ -576,3 +576,24 @@ link index is derived data under `cache/graphs/<pack-digest>.json`; corruption
 or deletion does not affect identity and causes a rebuild from the object. OKF
 exports are not stored automatically: `export-okf --apply` creates a new
 operator-selected directory only after its preview digest is confirmed.
+
+## Context-intelligence derived and review state
+
+Progressive context-pack abstracts and overviews live below
+`${CAIRN_PACK_BASE_DIR:-~/.cairnkeep/packs}/cache/context/<pack-digest>/` as
+digest-named JSON. This cache is derived, permission-restricted, outside
+immutable pack objects, and safe to discard or deterministically rebuild.
+Validation rejects symlinks, invalid names, oversized records, digest mismatches,
+and temporary remnants. Repair removes invalid derived entries only; it never
+changes a project pointer or skill approval.
+
+Review-gated memory proposals live under
+`<project>/.agentfs/memory-proposals/<proposal-digest>.json`. The directory is mode
+`0700` and files are mode `0600` on POSIX. Proposals are immutable and include
+the source trajectory digest and base reviewed-memory hashes used to reject stale
+application. Applying a proposal writes through the existing reviewed-memory
+store; it does not turn the proposal directory into a second memory authority.
+
+Context-usage receipts are strict links in the existing work-evidence store.
+They inherit work-evidence inspection, retention, and doctor behavior; there is
+no separate prompt or retrieved-content log.

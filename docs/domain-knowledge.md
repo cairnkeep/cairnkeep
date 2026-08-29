@@ -96,6 +96,35 @@ copy of the example JSON at the default user config path, or set
 and state beside the script retain that legacy behavior. To customize the
 implementation itself, set `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` to the adapted copy.
 
+## Retrieval providers
+
+AnythingLLM remains the default. Selecting it explicitly is optional:
+
+```sh
+CAIRN_DOMAIN_RETRIEVAL_PROVIDER=anythingllm
+```
+
+OpenViking can instead back the existing read-only `domain_knowledge_query`
+tool. It is deliberately double-gated and has no sync or write path:
+
+```sh
+CAIRN_DOMAIN_RETRIEVAL_PROVIDER=openviking
+CAIRN_OPENVIKING=1
+CAIRN_OPENVIKING_BASE_URL=http://127.0.0.1:1933
+# CAIRN_OPENVIKING_API_KEY=...
+# CAIRN_OPENVIKING_TIMEOUT_MS=5000
+```
+
+Plain HTTP is limited to loopback. Use HTTPS for any other host. Credentials in
+the URL, redirects, invalid response shapes, and oversized bodies are rejected.
+Authenticated remote MCP use requires the additional explicit consent setting
+`CAIRN_OPENVIKING_MCP_HTTP=1`.
+
+This adapter queries `/api/v1/search/find` only. Cairnkeep does not synchronize
+documents into OpenViking, start its service, or adopt its session and memory
+model. OpenViking is optional external retrieval; Cairnkeep remains the authority
+for reviewed memory, pack pins, approvals, evidence, and MCP profiles.
+
 ## Not using RAG?
 
 Do nothing. The tools stay inert, cost nothing, and the rest of cairnkeep is

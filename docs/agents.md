@@ -139,6 +139,26 @@ and file digest. Even then, they are discoverable text through MCP—not copied
 into a harness, automatically activated, or executed. A pack update invalidates
 the old approval. See [Immutable context packs](context-packs.md).
 
+## Progressive retrieval and reviewed-memory proposals
+
+When `context_pack_tree` is available, inspect abstracts before requesting full
+content. Use hierarchical search for broad questions, exact path/title retrieval
+for known leaves, and `explain: true` only when the bounded selection trace helps
+debug retrieval. Default flat search remains valid and compatible.
+
+Stable result references are opt-in (`include_refs: true`). If the operator also
+enables `context_usage_record`, record only whether the cited result was used;
+never put prompts or content into digest fields. Treat recording as a mutation.
+
+`cairn proposals create` may suggest reviewed-memory candidates from a stored,
+redacted trajectory, but an agent must inspect the proposal and use
+`cairn proposals apply DIGEST` explicitly. Never treat extraction output as
+reviewed truth, auto-apply it, or work around a stale-source/base-memory failure.
+
+The optional OpenViking provider changes only how `domain_knowledge_query`
+retrieves external context. It does not replace Cairnkeep's memory, evidence,
+pack, or authority model.
+
 ## Graceful fallback
 
 Cairnkeep should never block ordinary engineering merely because optional

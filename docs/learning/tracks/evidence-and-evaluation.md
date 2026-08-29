@@ -11,6 +11,7 @@
 4. [L16 - Evaluation and ablation](../lessons/L16-evaluation.md)
 5. [L17 - The agent boundary](../lessons/L17-agent-boundary.md)
 6. [L19 - Validated skill improvement](../lessons/L19-validated-skill-improvement.md)
+7. [L26 - Context intelligence with explicit authority](../lessons/L26-context-intelligence.md)
 
 The track is complete when the learner can explain each consent boundary,
 inspect and manage every local evidence store, including Git-linked work
