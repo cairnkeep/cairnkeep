@@ -33,6 +33,19 @@ export function hardenPrivatePath(path: string): void {
     ];
     const result = spawnSync("icacls.exe", args, { encoding: "utf8", windowsHide: true });
     if (result.status !== 0) throw new Error("Unable to restrict Windows ACLs for private Cairnkeep state.");
+    const observed = spawnSync("icacls.exe", [path], { encoding: "utf8", windowsHide: true });
+    if (observed.status !== 0) throw new Error("Unable to inspect Windows ACLs for private Cairnkeep state.");
+    const logonPrincipals = observed.stdout.split(/\r?\n/).flatMap((line) => {
+        const body = line.trim();
+        const marker = body.indexOf(":(");
+        if (marker < 0) return [];
+        const principal = body.slice(0, marker).trim();
+        return principal.includes("\\LogonSessionId_") ? [principal] : [];
+    });
+    if (logonPrincipals.length > 0) {
+        const cleanup = spawnSync("icacls.exe", [path, "/remove:g", ...logonPrincipals], { encoding: "utf8", windowsHide: true });
+        if (cleanup.status !== 0) throw new Error("Unable to remove Windows logon-session ACLs from private Cairnkeep state.");
+    }
 }
 
 export function privatePathIsSafe(path: string): boolean {
