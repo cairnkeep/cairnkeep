@@ -173,7 +173,12 @@ try {
     } else {
         const weakened = spawnSync("icacls.exe", [storedPath, "/grant:r", "*S-1-1-0:(R)"], { windowsHide: true });
         assert.equal(weakened.status, 0, "Windows test must be able to weaken the proposal ACL");
-        assert.equal(doctorMemoryProposals(project).ok, false, "doctor must reject a broadly readable Windows proposal ACL");
+        const inspected = spawnSync("icacls.exe", [storedPath], { encoding: "utf8", windowsHide: true });
+        assert.equal(
+            doctorMemoryProposals(project).ok,
+            false,
+            `doctor must reject a broadly readable Windows proposal ACL:\n${inspected.stdout || inspected.stderr || "ACL inspection failed"}`,
+        );
     }
     console.log("PASS: review-gated memory proposals are private, immutable, stale-safe, atomic, and idempotent");
 } finally {
