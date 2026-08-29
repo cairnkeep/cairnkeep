@@ -47,7 +47,8 @@ export function privatePathIsSafe(path: string): boolean {
             const marker = body.indexOf(":(");
             return marker < 0 ? [] : [body.slice(0, marker).trim().toLowerCase()];
         });
-        return principals.length > 0 && principals.every((principal) => principal === account);
+        return principals.length > 0
+            && principals.every((principal) => principal === account || principal.endsWith(` ${account}`));
     } catch {
         return false;
     }
