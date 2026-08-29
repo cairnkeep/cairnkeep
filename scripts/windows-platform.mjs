@@ -452,8 +452,9 @@ async function doctorWindows(root, args) {
     accessSync(store, fsConstants.W_OK);
     line("PASS", `memory store is writable: ${store}`);
   } catch { line("FAIL", `memory store is not writable: ${store}`); }
-  const sqlite = run("where.exe", ["sqlite3.exe"]);
-  line(sqlite.status === 0 ? "PASS" : "WARN", sqlite.status === 0
+  let sqliteStatus = null;
+  try { sqliteStatus = run("where.exe", ["sqlite3.exe"]).status; } catch {}
+  line(sqliteStatus === 0 ? "PASS" : "WARN", sqliteStatus === 0
     ? "sqlite3 is available for WAL-safe memory export"
     : "sqlite3 is not installed; runtime works, but memory export is unavailable");
   for (const [label, file, doctorArgs] of [
@@ -462,7 +463,7 @@ async function doctorWindows(root, args) {
     ["work evidence", "work-evidence-cli.js", ["doctor", "--json", ...(repair ? ["--repair"] : [])]],
     ["typed memory", "node-cli.js", ["doctor", "--project-root", process.cwd(), ...(repair ? ["--repair"] : [])]],
     ["capability", "capability-cli.js", ["doctor", "--json"]],
-    ["context pack", "context-pack-cli.js", ["doctor", "--json"]],
+    ["context pack", "context-pack-cli.js", ["doctor", "--json", ...(repair ? ["--repair"] : [])]],
     ["playbook", "playbook-cli.js", ["doctor", "--json"]],
   ]) {
     const entry = join(root, "mcp-memory-server", "dist", file);
@@ -728,10 +729,12 @@ export function powershellCompletion() {
   const harnesses = HARNESS_IDS.map((id) => `'${id}'`).join(",");
   return `Register-ArgumentCompleter -Native -CommandName cairn -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
-  $commands = 'bootstrap','setup','memory-server','sync','sync-pi','sync-kimi','doctor','trajectory','artifact','evidence','playbook','capabilities','mcp-tools','pack','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
+  $commands = 'bootstrap','setup','memory-server','sync','sync-pi','sync-kimi','doctor','trajectory','artifact','evidence','playbook','capabilities','mcp-tools','pack','proposals','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
   $setup = '--git','--harness','--memory','--policy','--yes','--json','init','existing','none',${harnesses},'local'
   $playbook = 'list','status','init','set','enable','disable','reset','check','record','receipts','instructions','doctor','minimal','balanced','strict','must','should','may','off','start','finish','install','remove','context.recall','context.explore','work.plan','verify.tests','review.repository','review.security','docs.update','learning.capture','--project','--json','--enforce','--complexity','--familiarity','--risk','--public-change','--changed','--change-type','--completed','--skipped','--failed','--actor','--actor-kind','--session','--policy','--decision','--event','--action','--outcome','--reason'
-  $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+playbook(?:\\s|$)') { $playbook } else { $commands }
+  $pack = 'init','lock','validate','install','import-okf','validate-okf','export-okf','list','show','remove','enable','disable','update','skills','approve-skill','revoke-skill','doctor','--repair','--project','--project-id','--json'
+  $proposals = 'create','list','show','apply','doctor','--session','--scope','--model','--category','--project','--json'
+  $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+playbook(?:\\s|$)') { $playbook } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+pack(?:\\s|$)') { $pack } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+proposals(?:\\s|$)') { $proposals } else { $commands }
   $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
     [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
   }

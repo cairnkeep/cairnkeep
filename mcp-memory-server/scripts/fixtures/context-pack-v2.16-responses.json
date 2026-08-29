@@ -1,0 +1,113 @@
+{
+  "fixture": {
+    "cairnkeep_version": "2.16.0",
+    "source_commit": "e2dcc3a0493061d86c72c7f9fbaa153e5124ec3e",
+    "capture": "clean git archive build"
+  },
+  "responses": {
+  "substring": {
+    "schema_version": 1,
+    "query": "immutable",
+    "search_mode": "substring",
+    "results": [
+      {
+        "pack_id": "compat-beta",
+        "version": "2.0.0",
+        "pack_digest": "393972d03da09079f7a86b5078c07de6ccec4ae75cf0f04d69aac89f803a667e",
+        "path": "runbook.md",
+        "kind": "document",
+        "file_digest": "749a4aee0010bcbabc5598bc933c997c6d9e92d507e0a1e1d0f01446e9427776",
+        "offset": 0,
+        "text": "# Beta runbook\n\nshared immutable beta.\n",
+        "score": 1
+      },
+      {
+        "pack_id": "compat-alpha",
+        "version": "1.0.0",
+        "pack_digest": "95633889074321022e4e6c8b74e51c2e7a2ce2ea8dda6083c84f1fd4db85310d",
+        "path": "guide.md",
+        "kind": "document",
+        "file_digest": "8c05197b111bccd6db05154ad5749e002755cbbdc36e7ed219258ba310571c08",
+        "offset": 0,
+        "text": "# Alpha guide\n\nshared immutable gamma.\n",
+        "score": 1
+      }
+    ]
+  },
+  "no_match": {
+    "schema_version": 1,
+    "query": "absent-sentinel",
+    "search_mode": "substring",
+    "results": []
+  },
+  "multipack": {
+    "schema_version": 1,
+    "query": "shared",
+    "search_mode": "substring",
+    "results": [
+      {
+        "pack_id": "compat-beta",
+        "version": "2.0.0",
+        "pack_digest": "393972d03da09079f7a86b5078c07de6ccec4ae75cf0f04d69aac89f803a667e",
+        "path": "runbook.md",
+        "kind": "document",
+        "file_digest": "749a4aee0010bcbabc5598bc933c997c6d9e92d507e0a1e1d0f01446e9427776",
+        "offset": 0,
+        "text": "# Beta runbook\n\nshared immutable beta.\n",
+        "score": 1
+      },
+      {
+        "pack_id": "compat-alpha",
+        "version": "1.0.0",
+        "pack_digest": "95633889074321022e4e6c8b74e51c2e7a2ce2ea8dda6083c84f1fd4db85310d",
+        "path": "guide.md",
+        "kind": "document",
+        "file_digest": "8c05197b111bccd6db05154ad5749e002755cbbdc36e7ed219258ba310571c08",
+        "offset": 0,
+        "text": "# Alpha guide\n\nshared immutable gamma.\n",
+        "score": 1
+      }
+    ]
+  },
+  "embedding": {
+    "schema_version": 1,
+    "query": "gamma",
+    "search_mode": "embedding",
+    "results": [
+      {
+        "pack_id": "compat-alpha",
+        "version": "1.0.0",
+        "pack_digest": "95633889074321022e4e6c8b74e51c2e7a2ce2ea8dda6083c84f1fd4db85310d",
+        "path": "guide.md",
+        "kind": "document",
+        "file_digest": "8c05197b111bccd6db05154ad5749e002755cbbdc36e7ed219258ba310571c08",
+        "offset": 0,
+        "text": "# Alpha guide\n\nshared immutable gamma.\n",
+        "score": 1
+      },
+      {
+        "pack_id": "compat-beta",
+        "version": "2.0.0",
+        "pack_digest": "393972d03da09079f7a86b5078c07de6ccec4ae75cf0f04d69aac89f803a667e",
+        "path": "runbook.md",
+        "kind": "document",
+        "file_digest": "749a4aee0010bcbabc5598bc933c997c6d9e92d507e0a1e1d0f01446e9427776",
+        "offset": 0,
+        "text": "# Beta runbook\n\nshared immutable beta.\n",
+        "score": 0
+      },
+      {
+        "pack_id": "compat-alpha",
+        "version": "1.0.0",
+        "pack_digest": "95633889074321022e4e6c8b74e51c2e7a2ce2ea8dda6083c84f1fd4db85310d",
+        "path": "other.md",
+        "kind": "document",
+        "file_digest": "94cbb01c6951949470c31a5ec34a6f347b0e69961e56a1461b904f0a0feb3709",
+        "offset": 0,
+        "text": "# Other\n\nno match.\n",
+        "score": 0
+      }
+    ]
+  }
+  }
+}

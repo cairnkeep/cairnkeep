@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/cairnkeep/cairnkeep/main/schemas/memory-proposal.schema.json",
+  "title": "Cairnkeep review-gated memory proposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "created_at", "project_root", "scope", "source", "extraction", "candidates", "digest"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "project_root": { "type": "string", "minLength": 1 },
+    "scope": { "type": "string", "pattern": "^(project|[a-z0-9][a-z0-9-]*)$" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "session_id", "digest"],
+      "properties": {
+        "kind": { "const": "trajectory" },
+        "session_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "extraction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model"],
+      "properties": { "model": { "type": "string", "minLength": 1, "maxLength": 256 } }
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": { "$ref": "#/$defs/candidate" }
+    },
+    "digest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "value", "operation", "base_hash", "value_hash"],
+      "$comment": "Runtime verification also requires value_hash to equal SHA-256(value), noop base_hash to equal value_hash, and update base_hash to differ from value_hash.",
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "value": { "type": "string", "maxLength": 65536 },
+        "category": { "type": "string", "maxLength": 64 },
+        "importance": { "type": "number", "minimum": 0, "maximum": 1 },
+        "operation": { "enum": ["create", "update", "noop"] },
+        "base_hash": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "value_hash": { "$ref": "#/$defs/digest" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "operation": { "const": "create" } }, "required": ["operation"] },
+          "then": { "properties": { "base_hash": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "operation": { "enum": ["update", "noop"] } }, "required": ["operation"] },
+          "then": { "properties": { "base_hash": { "$ref": "#/$defs/digest" } } }
+        }
+      ]
+    }
+  }
+}

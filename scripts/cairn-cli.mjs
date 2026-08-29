@@ -9,6 +9,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const NODE_COMMANDS = new Map([
   ["memory-server", "index.js"],
   ["trajectory", "trajectory-cli.js"],
+  ["proposals", "memory-proposal-cli.js"],
   ["artifact", "artifact-cli.js"],
   ["capabilities", "capability-cli.js"],
   ["mcp-tools", "mcp-tool-cli.js"],
@@ -45,6 +46,7 @@ Usage:
   cairn sync-kimi [--check|--apply] [--live-root DIR]
   cairn doctor [--repair]
   cairn trajectory <list|show|prune>
+  cairn proposals <create|list|show|apply|doctor>
   cairn artifact <list|show|delete|prune>
   cairn capabilities <list|status|enable|disable|reset|logging>
   cairn mcp-tools <list|status|set|reset>

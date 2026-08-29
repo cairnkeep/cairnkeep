@@ -10,6 +10,17 @@ import { promisify } from "node:util";
 
 import { z } from "zod";
 import { EmbeddingCache, cosineSimilarity, embedTexts, getEmbeddingConfig, hashText } from "./embeddings.js";
+import {
+    doctorProgressiveContextCache,
+    loadProgressiveContext,
+    publicTree,
+    selectHierarchicalFiles,
+    type ContextRetrievalDetail,
+    type ContextRetrievalStrategy,
+    type ProgressiveContextFile,
+    type ProgressivePack,
+} from "./context-pack-retrieval.js";
+import type { ProgressiveContextFileInput } from "./context-pack-retrieval.js";
 import { indexOkfBundle, validateOkfBundle, type OkfIndex } from "./okf.js";
 import { atomicReplace, hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
 
@@ -773,7 +784,7 @@ export async function listVisibleContext(options: { projectRoot?: string; projec
     return { schema_version: 1, packs: [...grouped.values()] };
 }
 
-export async function searchVisibleContext(query: string, options: { projectRoot?: string; projectId?: string; limit?: number }) {
+async function flatSearchVisibleContext(query: string, options: { projectRoot?: string; projectId?: string; limit?: number }) {
     const normalized = query.trim().toLocaleLowerCase("en");
     if (!normalized) throw new Error("Context pack search query must not be empty.");
     const candidates: Array<{ pack: ValidatedContextPack; file: ContextPackFile; offset: number; text: string; searchable: string; okf: Record<string, unknown> }> = [];
@@ -816,6 +827,180 @@ export async function searchVisibleContext(query: string, options: { projectRoot
     });
     results.sort((a, b) => b.score - a.score || a.pack_digest.localeCompare(b.pack_digest, "en") || a.path.localeCompare(b.path, "en") || a.offset - b.offset);
     return { schema_version: 1, query, search_mode: "substring" as const, results: results.slice(0, options.limit ?? 20) };
+}
+
+type ContextSearchOptions = {
+    projectRoot?: string;
+    projectId?: string;
+    limit?: number;
+    strategy?: ContextRetrievalStrategy;
+    detail?: ContextRetrievalDetail;
+    explain?: boolean;
+    includeRefs?: boolean;
+};
+
+type ContextSearchResult = Record<string, unknown> & {
+    pack_digest: string;
+    path: string;
+    file_digest?: unknown;
+    offset: number;
+    text: string;
+};
+
+function attachContextResultRefs<T extends { results: ContextSearchResult[] }>(payload: T): T & { result_digest: string } {
+    const results = payload.results.map((result) => {
+        if (typeof result.file_digest !== "string") throw new Error("Context search result is missing file provenance.");
+        return {
+            ...result,
+            chunk_digest: sha256(
+                "cairn-context-chunk-v1\0",
+                result.pack_digest,
+                "\0",
+                result.path,
+                "\0",
+                result.file_digest,
+                "\0",
+                String(result.offset),
+                "\0",
+                result.text,
+            ),
+        };
+    });
+    const resultDigest = sha256(
+        "cairn-context-results-v1\n",
+        results.map(({ chunk_digest }) => chunk_digest).join("\n"),
+    );
+    return { ...payload, result_digest: resultDigest, results };
+}
+
+type ContextTreeOptions = {
+    projectRoot?: string;
+    projectId?: string;
+    pack?: string;
+    detail?: Exclude<ContextRetrievalDetail, "content">;
+};
+
+async function progressiveVisibleContext(options: { projectRoot?: string; projectId?: string }): Promise<{
+    packs: ProgressivePack[];
+    visible: Awaited<ReturnType<typeof visiblePackFiles>>;
+}> {
+    const visible = await visiblePackFiles(options);
+    const inputs = await Promise.all(visible.map(async ({ pack, file }) => ({
+        pack_id: pack.manifest.id,
+        version: pack.manifest.version,
+        pack_digest: pack.digest,
+        pack_title: pack.manifest.title,
+        pack_description: pack.manifest.description,
+        path: file.path,
+        kind: file.kind,
+        title: file.title,
+        description: file.description,
+        keywords: file.keywords,
+        file_digest: file.sha256,
+        text: await readFile(join(pack.root, file.path), "utf8"),
+    })));
+    return { packs: await loadProgressiveContext(inputs, join(packBaseDir(), "cache", "context")), visible };
+}
+
+function packMatches(selector: string, pack: ProgressivePack): boolean {
+    return pack.pack_digest === selector || pack.pack_digest.startsWith(selector) || pack.pack_id === selector || `${pack.pack_id}@${pack.version}` === selector;
+}
+
+export async function treeVisibleContext(options: ContextTreeOptions) {
+    const detail = options.detail ?? "abstract";
+    const { packs } = await progressiveVisibleContext(options);
+    const selected = options.pack ? packs.filter((pack) => packMatches(options.pack!, pack)) : packs;
+    if (options.pack && selected.length !== 1) throw new Error(selected.length ? "Context pack selector is ambiguous." : "Context pack is not enabled.");
+    return { schema_version: 1, detail, packs: selected.map((pack) => publicTree(pack, detail)) };
+}
+
+function progressiveFileKey(file: { pack_digest: string; path: string }): string {
+    return `${file.pack_digest}:${file.path}`;
+}
+
+export async function searchVisibleContext(query: string, options: ContextSearchOptions) {
+    const strategy = options.strategy ?? "flat";
+    const detail = options.detail ?? "content";
+    if (strategy === "flat" && detail === "content" && !options.explain) {
+        const payload = await flatSearchVisibleContext(query, options);
+        return options.includeRefs ? attachContextResultRefs(payload) : payload;
+    }
+    const normalized = query.trim().toLocaleLowerCase("en");
+    if (!normalized) throw new Error("Context pack search query must not be empty.");
+    const { packs, visible } = await progressiveVisibleContext(options);
+    const progressiveFiles = packs.flatMap((pack) => pack.files);
+
+    if (strategy === "flat") {
+        // Summary detail is one result per file. Retrieve all matching chunks
+        // before deduplication so a chatty first file cannot consume the public
+        // result limit and hide later matching files.
+        const flat = await flatSearchVisibleContext(query, { ...options, limit: Number.MAX_SAFE_INTEGER });
+        const summaries = new Map(progressiveFiles.map((file) => [progressiveFileKey(file), file]));
+        const seen = new Set<string>();
+        const allResults = flat.results.flatMap((result) => {
+            const key = progressiveFileKey(result);
+            if (detail !== "content" && seen.has(key)) return [];
+            seen.add(key);
+            const summary = summaries.get(key);
+            return [{ ...result, offset: detail === "content" ? result.offset : 0, text: detail === "content" ? result.text : summary?.[detail] ?? result.text }];
+        });
+        const results = allResults.slice(0, options.limit ?? 20);
+        const trace = options.explain ? {
+            exact_leaf_bypass: false,
+            considered_files: progressiveFiles.length,
+            selected_files: new Set(results.map(progressiveFileKey)).size,
+            events: results.slice(0, 64).map((result) => ({ phase: "file", pack_digest: result.pack_digest, path: result.path, score: result.score, reason: "flat-result" })),
+            truncated: allResults.length > results.length || results.length > 64,
+        } : undefined;
+        const payload = { ...flat, strategy, detail, results, ...(trace ? { trace } : {}) };
+        return options.includeRefs ? attachContextResultRefs(payload) : payload;
+    }
+
+    const selection = selectHierarchicalFiles(query, packs);
+    const visibleByKey = new Map(visible.map((entry) => [`${entry.pack.digest}:${entry.file.path}`, entry]));
+    const selectedScores = new Map(selection.events.filter((event) => event.phase === "file" && event.path && event.pack_digest)
+        .map((event) => [`${event.pack_digest}:${event.path}`, event.score ?? 0]));
+    const results: Array<Record<string, unknown> & { pack_digest: string; path: string; offset: number; text: string; score: number }> = [];
+    for (const file of selection.files) {
+        const source = visibleByKey.get(progressiveFileKey(file));
+        if (!source) continue;
+        const base = { ...provenance(source.pack, source.file), ...await okfProvenance(source.pack, source.file) };
+        const summaryScore = selectedScores.get(progressiveFileKey(file)) ?? 0;
+        if (detail !== "content") {
+            results.push({ ...base, offset: 0, text: file[detail], score: summaryScore });
+            continue;
+        }
+        const fileChunks = chunks(file.text);
+        let matched = false;
+        for (const chunk of fileChunks) {
+            const searchable = `${file.title}\n${file.description}\n${file.keywords.join(" ")}\n${chunk.text}`.toLocaleLowerCase("en");
+            const occurrences = searchable.split(normalized).length - 1;
+            if (!occurrences && !selection.exactLeafBypass) continue;
+            matched = true;
+            results.push({ ...base, offset: chunk.offset, text: chunk.text, score: selection.exactLeafBypass ? 100 : occurrences });
+        }
+        if (!matched && fileChunks[0]) results.push({ ...base, offset: fileChunks[0].offset, text: fileChunks[0].text, score: summaryScore });
+    }
+    results.sort((left, right) => right.score - left.score || left.pack_digest.localeCompare(right.pack_digest, "en") || left.path.localeCompare(right.path, "en") || left.offset - right.offset);
+    const limited = results.slice(0, options.limit ?? 20);
+    const trace = options.explain ? {
+        exact_leaf_bypass: selection.exactLeafBypass,
+        considered_packs: packs.length,
+        considered_files: progressiveFiles.length,
+        selected_files: selection.files.length,
+        events: selection.events,
+        truncated: selection.events.length >= 64 || results.length > limited.length,
+    } : undefined;
+    const payload = {
+        schema_version: 1,
+        query,
+        search_mode: "substring" as const,
+        strategy,
+        detail,
+        results: limited,
+        ...(trace ? { trace } : {}),
+    };
+    return options.includeRefs ? attachContextResultRefs(payload) : payload;
 }
 
 export async function readVisibleContext(packSelector: string, path: string, options: { projectRoot?: string; projectId?: string; offset?: number; maxBytes?: number }) {
@@ -863,7 +1048,8 @@ export async function relatedVisibleContext(packSelector: string, path: string, 
     return { schema_version: 1, ...provenance(pack, file), ...await okfProvenance(pack, file), direction, results, diagnostics: index.diagnostics.filter(({ path: diagnosticPath }) => diagnosticPath === file.path) };
 }
 
-export async function doctorContextPacks(): Promise<{ ok: boolean; objects: number; projects: number; issues: string[]; temporary_remnants: string[] }> {
+export async function doctorContextPacks(options: { repair?: boolean } = {}): Promise<{ ok: boolean; objects: number; projects: number; issues: string[]; temporary_remnants: string[] }> {
+    const progressiveCachePacks: Array<{ pack_digest: string; files: ProgressiveContextFileInput[] }> = [];
     const issues: string[] = [];
     const remnants: string[] = [];
     let objects = 0;
@@ -873,6 +1059,23 @@ export async function doctorContextPacks(): Promise<{ ok: boolean; objects: numb
         objects = installed.length;
         for (const item of installed) {
             const pack = await validateContextPack(objectRoot(item.digest));
+            progressiveCachePacks.push({
+                pack_digest: pack.digest,
+                files: await Promise.all(pack.manifest.files.map(async (file) => ({
+                    pack_id: pack.manifest.id,
+                    version: pack.manifest.version,
+                    pack_digest: pack.digest,
+                    pack_title: pack.manifest.title,
+                    pack_description: pack.manifest.description,
+                    path: file.path,
+                    kind: file.kind,
+                    file_digest: file.sha256,
+                    title: file.title,
+                    description: file.description,
+                    keywords: file.keywords,
+                    text: await readFile(join(pack.root, file.path), "utf8"),
+                }))),
+            });
             if (pack.manifest.source_format?.name === "okf") {
                 const graph = await indexOkfBundle(pack.root, pack.manifest.files.map(({ path }) => path), pack.manifest.source_format.version);
                 expectedGraphs.set(pack.digest, JSON.stringify(graph));
@@ -952,6 +1155,19 @@ export async function doctorContextPacks(): Promise<{ ok: boolean; objects: numb
             const pack = packs.get(approval.pack_digest);
             const file = pack?.manifest.files.find((entry) => entry.path === approval.path && entry.kind === "skill");
             if (!file || file.sha256 !== approval.file_digest) issues.push(`Stale context pack skill approval: ${path} -> ${approval.path}`);
+        }
+    }
+    const progressiveCache = await doctorProgressiveContextCache(
+        join(packBaseDir(), "cache", "context"),
+        progressiveCachePacks,
+        { repair: options.repair },
+    );
+    issues.push(...progressiveCache.issues);
+    remnants.push(...progressiveCache.temporary_remnants);
+    if (options.repair) {
+        const contextCacheDirectory = join(packBaseDir(), "cache", "context");
+        for (let index = remnants.length - 1; index >= 0; index -= 1) {
+            if (remnants[index] === contextCacheDirectory || remnants[index].startsWith(`${contextCacheDirectory}${sep}`)) remnants.splice(index, 1);
         }
     }
     return { ok: issues.length === 0 && remnants.length === 0, objects, projects: pointers.length, issues, temporary_remnants: remnants };

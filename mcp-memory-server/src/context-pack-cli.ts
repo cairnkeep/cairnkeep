@@ -42,6 +42,7 @@ function usage(): never {
   cairn pack skills [--project PATH | --project-id ID] [--json]
   cairn pack approve-skill SELECTOR PATH --confirm FILE_DIGEST [--project PATH | --project-id ID]
   cairn pack revoke-skill SELECTOR PATH [--project PATH | --project-id ID]
+  cairn pack doctor [--repair] [--json]
 `);
     process.exit(2);
 }
@@ -210,8 +211,9 @@ async function main(): Promise<void> {
         return;
     }
     if (command === "doctor") {
+        const repair = flag(args, "--repair");
         if (args.length) usage();
-        const result = await doctorContextPacks();
+        const result = await doctorContextPacks({ repair });
         output(result, json, result.ok ? `Context packs healthy (${result.objects} objects, ${result.projects} projects).` : `Context pack problems: ${[...result.issues, ...result.temporary_remnants].join("; ")}`);
         if (!result.ok) process.exitCode = 1;
         return;

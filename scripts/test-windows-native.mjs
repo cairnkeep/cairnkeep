@@ -21,6 +21,7 @@ import { HARNESS_IDS } from "./harness-registry.mjs";
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const sandbox = mkdtempSync(join(tmpdir(), "cairn-windows-native-"));
 const originalBase = process.env.CAIRN_AGENTFS_BASE_DIR;
+const originalPackBase = process.env.CAIRN_PACK_BASE_DIR;
 const originalHome = process.env.HOME;
 const originalProfile = process.env.USERPROFILE;
 try {
@@ -69,6 +70,33 @@ try {
   assert.match(powershellCompletion(), /playbook/);
   assert.match(powershellCompletion(), /review\.security/);
   assert.match(powershellCompletion(), /--enforce/);
+  assert.match(powershellCompletion(), /doctor/);
+  assert.match(powershellCompletion(), /--repair/);
+  assert.match(powershellCompletion(), /proposals/);
+  assert.match(powershellCompletion(), /'create','list','show','apply','doctor'/);
+  assert.match(powershellCompletion(), /--category/);
+
+  const packBase = join(sandbox, "Context Packs");
+  const invalidDerivedPack = join(packBase, "cache", "context", "f".repeat(64));
+  mkdirSync(invalidDerivedPack, { recursive: true });
+  writeFileSync(join(invalidDerivedPack, `${"e".repeat(64)}.json`), "{\"corrupt\":true}\n");
+  process.env.CAIRN_PACK_BASE_DIR = packBase;
+  const inheritedLlmUrl = process.env.CAIRN_LLM_API_URL;
+  const exitCodeBeforeDoctor = process.exitCode;
+  const doctorWrite = process.stdout.write.bind(process.stdout);
+  let doctorOutput = "";
+  delete process.env.CAIRN_LLM_API_URL;
+  process.stdout.write = ((chunk) => { doctorOutput += String(chunk); return true; });
+  try {
+    await runWindowsCommand({ command: "doctor", args: ["--repair"], root });
+  } finally {
+    process.stdout.write = doctorWrite;
+    process.exitCode = exitCodeBeforeDoctor;
+    if (inheritedLlmUrl === undefined) delete process.env.CAIRN_LLM_API_URL;
+    else process.env.CAIRN_LLM_API_URL = inheritedLlmUrl;
+  }
+  assert.equal(existsSync(invalidDerivedPack), false, "native Windows doctor forwards safe context-pack cache repair");
+  assert.match(doctorOutput, /\[PASS\] context pack diagnostics passed/);
 
   let containerArgs = [];
   runNativeContainer(["stdio", "--image", "example/windows:1", "--volume", "windows-data"], root, (_engine, args) => { containerArgs = args; });
@@ -167,6 +195,8 @@ try {
 } finally {
   if (originalBase === undefined) delete process.env.CAIRN_AGENTFS_BASE_DIR;
   else process.env.CAIRN_AGENTFS_BASE_DIR = originalBase;
+  if (originalPackBase === undefined) delete process.env.CAIRN_PACK_BASE_DIR;
+  else process.env.CAIRN_PACK_BASE_DIR = originalPackBase;
   if (originalHome === undefined) delete process.env.HOME; else process.env.HOME = originalHome;
   if (originalProfile === undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE = originalProfile;
   rmSync(sandbox, { recursive: true, force: true });

@@ -13,7 +13,7 @@ REPAIR_STORES=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repair) REPAIR_STORES=1; shift ;;
-    -h|--help) echo "Usage: cairn doctor [--repair]  # repair derived trajectory/artifact/typed metadata, indexes, and interrupted note transactions"; exit 0 ;;
+    -h|--help) echo "Usage: cairn doctor [--repair]  # repair safe derived caches, metadata/indexes, and interrupted note transactions"; exit 0 ;;
     *) echo "Unknown doctor option: $1" >&2; echo "Usage: cairn doctor [--repair]" >&2; exit 2 ;;
   esac
 done
@@ -470,11 +470,13 @@ fi
 pack_cli="$CAIRN_ROOT/mcp-memory-server/dist/context-pack-cli.js"
 pack_base="${CAIRN_PACK_BASE_DIR:-$HOME/.cairnkeep/packs}"
 pack_base="${pack_base/#\~/$HOME}"
+pack_args=(doctor --json)
+if [[ "$REPAIR_STORES" == 1 ]]; then pack_args+=(--repair); fi
 if [[ ! -e "$pack_base" ]]; then
   skip "context packs (not installed)"
 elif [[ ! -f "$pack_cli" ]]; then
   fail "context-pack checker is missing from the installed package"
-elif pack_json=$(node "$pack_cli" doctor --json 2>/dev/null) && node -e 'const v=JSON.parse(process.argv[1]); if(v.ok!==true)process.exit(1)' "$pack_json"; then
+elif pack_json=$(node "$pack_cli" "${pack_args[@]}" 2>/dev/null) && node -e 'const v=JSON.parse(process.argv[1]); if(v.ok!==true)process.exit(1)' "$pack_json"; then
   pack_counts=$(node -e 'const v=JSON.parse(process.argv[1]); process.stdout.write(`${v.objects} object(s), ${v.projects} project pointer(s)`)' "$pack_json")
   pass "context packs healthy ($pack_counts)"
 else

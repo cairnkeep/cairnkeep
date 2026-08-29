@@ -74,6 +74,14 @@ export const completeWorkEvidenceSchema = z.object({
     patch: workEvidencePatchSchema,
 }).strict();
 
+export const CONTEXT_USAGE_OUTCOMES = ["used", "unused", "unknown"] as const;
+
+export const contextUsageReceiptInputSchema = z.object({
+    task_digest: digestSchema,
+    result_digest: digestSchema,
+    outcome: z.enum(CONTEXT_USAGE_OUTCOMES),
+}).strict();
+
 export const workEvidenceLinkSchema = z.discriminatedUnion("kind", [
     z.object({
         schema_version: z.literal(WORK_EVIDENCE_SCHEMA_VERSION),
@@ -101,6 +109,17 @@ export const workEvidenceLinkSchema = z.discriminatedUnion("kind", [
         review_id: safeRefSchema,
         key: safeRefSchema,
     }).strict(),
+    z.object({
+        schema_version: z.literal(WORK_EVIDENCE_SCHEMA_VERSION),
+        link_id: digestSchema,
+        evidence_id: workEvidenceIdSchema,
+        kind: z.literal("context_usage"),
+        created_at: z.iso.datetime(),
+        receipt_id: digestSchema,
+        task_digest: digestSchema,
+        result_digest: digestSchema,
+        outcome: z.enum(CONTEXT_USAGE_OUTCOMES),
+    }).strict(),
 ]);
 
 export const storedWorkEvidenceSchema = z.discriminatedUnion("status", [pendingWorkEvidenceSchema, completeWorkEvidenceSchema]);
@@ -111,6 +130,8 @@ export type CompleteWorkEvidence = z.infer<typeof completeWorkEvidenceSchema>;
 export type StoredWorkEvidence = z.infer<typeof storedWorkEvidenceSchema>;
 export type WorkEvidenceLink = z.infer<typeof workEvidenceLinkSchema>;
 export type WorkEvidenceHarness = z.infer<typeof workEvidenceHarnessSchema>;
+export type ContextUsageReceiptInput = z.infer<typeof contextUsageReceiptInputSchema>;
+export type ContextUsageReceipt = Extract<WorkEvidenceLink, { kind: "context_usage" }>;
 
 export type WorkEvidenceLimits = {
     retentionDays: number;

@@ -41,6 +41,7 @@ import {
     getEmbeddingConfig,
     hashText,
 } from "./embeddings.js";
+import { queryDomainKnowledge, resolveDomainRetrievalProvider } from "./domain-retrieval-provider.js";
 import {
     type ExploreEvidence,
     computeRepoState,
@@ -59,21 +60,21 @@ import {
 } from "./node-schema.js";
 import {
     attachNodeMetadata,
-    applyReviewedTypedNode,
     commitMemoryImport,
     createTypedNode,
     deleteTypedNode,
     getTypedNode,
-    invalidateReviewedTypedNode,
     listTypedHistory,
     planMemoryImport,
     supersedeTypedNode,
 } from "./node-store.js";
 import type { NoteAddressSpace } from "./note-store.js";
-import { contextPackHttpEnabled, contextPacksEnabled, listVisibleContext, readVisibleContext, relatedVisibleContext, searchVisibleContext } from "./context-pack.js";
+import { contextPackHttpEnabled, contextPacksEnabled, listVisibleContext, readVisibleContext, relatedVisibleContext, searchVisibleContext, treeVisibleContext } from "./context-pack.js";
 import { metadataForTool } from "./mcp-tool-catalog.js";
 import { profileAllowsTool, resolveMcpToolProfile, type McpToolProfileStatus } from "./mcp-tool-profile.js";
 import { isWorkEvidenceEnabled } from "./work-evidence-schema.js";
+import { extractMemoryCandidates as extractMemoryCandidatesFromProvider } from "./memory-extraction.js";
+import { applyReviewedMemory, invalidateReviewedMemory } from "./reviewed-memory-store.js";
 
 type CapabilityWrapper = typeof import("./capability-adapter.js").withCapability;
 type AsyncToolCallback<Args extends AnySchema> = (
@@ -117,13 +118,6 @@ type MemoryEntry = {
     address_space?: "memory";
     node_type?: NodeType;
     tags?: string[];
-};
-
-type ExtractionCandidate = {
-    key: string;
-    value: string;
-    category?: string;
-    importance?: number;
 };
 
 type CommandResult = {
@@ -386,39 +380,6 @@ function historySnapshotKey(baseKey: string, timestamp: string): string {
     return `${historyPrefix(baseKey)}${timestamp}-${randomUUID()}`;
 }
 
-const reviewedRecordSchema = z.object({
-    schema_version: z.literal(1),
-    review_id: z.string(),
-    key: z.string(),
-    value_hash: z.string(),
-    state: z.enum(["active", "superseded", "invalidated"]),
-    applied_at: z.string(),
-    superseded_at: z.string().optional(),
-    superseded_by: z.string().optional(),
-    invalidated_at: z.string().optional(),
-    invalidation_reason: z.string().optional(),
-});
-
-type ReviewedRecord = z.infer<typeof reviewedRecordSchema>;
-
-function reviewedRecordKey(reviewId: string): string {
-    return `${REVIEWED_NAMESPACE}/${reviewId}`;
-}
-
-function parseReviewedRecord(value: unknown): ReviewedRecord {
-    const parsed = reviewedRecordSchema.safeParse(value);
-    if (!parsed.success) {
-        throw new Error("Stored reviewed-memory provenance is invalid; refusing to continue.");
-    }
-    return parsed.data;
-}
-
-async function inImmediateScopeTransaction<T>(agent: AgentFS, operation: () => Promise<T>): Promise<T> {
-    const transaction = agent.getDatabase().transaction(operation);
-    const immediate = (transaction as typeof transaction & { immediate: typeof transaction }).immediate;
-    return immediate();
-}
-
 function visibleEntries(entries: MemoryEntry[], includeHistory: boolean): MemoryEntry[] {
     if (includeHistory) {
         return entries;
@@ -531,136 +492,6 @@ function truncateOutput(value: string, maxLength: number = 12000): string {
     return `${value.slice(0, maxLength)}\n...[truncated ${value.length - maxLength} chars]`;
 }
 
-function stripMarkdownFences(value: string): string {
-    return value
-        .trim()
-        .replace(/^```(?:json)?\s*/i, "")
-        .replace(/\s*```$/, "")
-        .trim();
-}
-
-function parseJsonResponse<T>(value: string): T {
-    const stripped = stripMarkdownFences(value);
-
-    try {
-        return JSON.parse(stripped) as T;
-    } catch {
-        const firstBrace = stripped.indexOf("{");
-        const lastBrace = stripped.lastIndexOf("}");
-        if (firstBrace !== -1 && lastBrace > firstBrace) {
-            return JSON.parse(stripped.slice(firstBrace, lastBrace + 1)) as T;
-        }
-        throw new Error(`Failed to parse JSON response: ${truncateOutput(stripped, 1000)}`);
-    }
-}
-
-function sanitizeExtractionCandidates(
-    value: unknown,
-    fallbackCategory?: string,
-): ExtractionCandidate[] {
-    if (!Array.isArray(value)) {
-        return [];
-    }
-
-    return value
-        .map((item): ExtractionCandidate | null => {
-            if (!item || typeof item !== "object") {
-                return null;
-            }
-
-            const raw = item as Record<string, unknown>;
-            const key = typeof raw.key === "string" ? raw.key.trim() : "";
-            const candidateValue = typeof raw.value === "string" ? raw.value.trim() : "";
-            if (!key || !candidateValue) {
-                return null;
-            }
-
-            const category = typeof raw.category === "string" && raw.category.trim()
-                ? raw.category.trim()
-                : fallbackCategory;
-            const importance = typeof raw.importance === "number"
-                ? Math.max(0, Math.min(1, raw.importance))
-                : undefined;
-
-            return {
-                key,
-                value: candidateValue,
-                category,
-                importance,
-            };
-        })
-        .filter((candidate): candidate is ExtractionCandidate => candidate !== null);
-}
-
-async function extractMemoryCandidates(
-    content: string,
-    modelOverride?: string,
-    category?: string,
-): Promise<{ model: string; candidates: ExtractionCandidate[] }> {
-    const apiKey = process.env.CAIRN_LLM_API_KEY;
-    if (!apiKey) {
-        throw new Error("CAIRN_LLM_API_KEY is not set.");
-    }
-
-    const rawUrl = process.env.CAIRN_LLM_API_URL;
-    if (!rawUrl) {
-        throw new Error("CAIRN_LLM_API_URL is not set.");
-    }
-    const apiUrl = rawUrl.trim().replace(/\/+$/, "");
-    const model = (modelOverride ?? process.env.CAIRN_LLM_EXTRACTION_MODEL)?.trim();
-    if (!model) {
-        throw new Error("CAIRN_LLM_EXTRACTION_MODEL is not set.");
-    }
-
-    const systemPrompt = [
-        "You extract durable memory candidates from development notes.",
-        "Return ONLY valid JSON, no markdown fences.",
-        "Schema: {\"candidates\":[{\"key\":\"decisions/cache-rule\",\"value\":\"...\",\"category\":\"decision\",\"importance\":0.92}]}",
-        "Only include genuinely reusable knowledge.",
-        "Skip trivial status notes, temporary branch details, and duplicated points.",
-        "Prefer short kebab-case keys with a useful prefix such as decisions/, pitfalls/, patterns/, bugs/, constraints/, preferences/, conventions/.",
-        "Do not invent dates unless they are explicitly present in the source text.",
-        category ? `Bias extraction toward category: ${category}.` : "",
-    ].filter(Boolean).join(" ");
-
-    const response = await fetch(`${apiUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            model,
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content },
-            ],
-            temperature: 0.1,
-            max_tokens: 1200,
-        }),
-        signal: AbortSignal.timeout(120000),
-    });
-
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Extraction request failed with ${response.status}: ${text}`);
-    }
-
-    const payload = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
-    };
-    const rawContent = payload.choices?.[0]?.message?.content;
-    if (!rawContent) {
-        throw new Error("Extraction model returned no content.");
-    }
-
-    const parsed = parseJsonResponse<{ candidates?: unknown }>(rawContent);
-    return {
-        model,
-        candidates: sanitizeExtractionCandidates(parsed.candidates, category),
-    };
-}
-
 async function runCommand(
     command: string,
     args: string[],
@@ -718,46 +549,6 @@ async function readStdin(): Promise<string> {
 
 function defaultAnythingLLMWorkspace(config: MemoryConfig): string | undefined {
     return config.anythingllm_workspaces?.find((workspace) => workspace !== "engineering-patterns");
-}
-
-async function callAnythingLLM(workspace: string, query: string): Promise<string> {
-    const apiKey = process.env.ANYTHINGLLM_API_KEY;
-    if (!apiKey) {
-        throw new Error("ANYTHINGLLM_API_KEY is not set.");
-    }
-
-    const baseUrl = process.env.ANYTHINGLLM_BASE_URL ?? "http://localhost:3001";
-    const response = await fetch(`${baseUrl}/api/v1/workspace/${encodeURIComponent(workspace)}/chat`, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            message: query,
-            mode: "query",
-        }),
-        signal: AbortSignal.timeout(120000),
-    });
-
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`AnythingLLM request failed with ${response.status}: ${text}`);
-    }
-
-    const payload = (await response.json()) as Record<string, unknown>;
-    const directText = [
-        payload.textResponse,
-        payload.response,
-        payload.message,
-        payload.text,
-    ].find((value) => typeof value === "string");
-
-    if (typeof directText === "string") {
-        return directText;
-    }
-
-    return JSON.stringify(payload, null, 2);
 }
 
 type ScoredEntry = MemoryEntry & { score: number };
@@ -1185,6 +976,7 @@ function buildMemoryServer(
     const artifactToolsEnabled = isArtifactStoreEnabled() && (!context.remote || isArtifactHttpEnabled());
     const contextPackToolsEnabled = contextPacksEnabled() && (!context.remote || contextPackHttpEnabled());
     const workEvidenceToolsEnabled = isWorkEvidenceEnabled() && !context.remote;
+    const contextUsageToolsEnabled = process.env.CAIRN_CONTEXT_USAGE === "1" && workEvidenceToolsEnabled;
     if (artifactToolsEnabled && context.remote && !context.projectId) {
         throw new ClientContextError("Remote artifact access requires X-Cairn-Project.");
     }
@@ -1691,7 +1483,7 @@ registerTool(
         }),
     },
     async ({ scope, content, model, category }) => {
-        const extracted = await extractMemoryCandidates(content, model, category);
+        const extracted = await extractMemoryCandidatesFromProvider(content, model, category);
         const payload = {
             scope,
             model: extracted.model,
@@ -1811,106 +1603,17 @@ registerTool(
         }),
     },
     async ({ scope, review_id, key, value }) => {
-        assertWritableMemoryKey(key);
-        const agent = await openScope(scope, true, scopeOptions);
-        if (!agent) {
-            throw new Error(`Unable to open scope ${scope}.`);
-        }
-
-        try {
-            const payload = await inImmediateScopeTransaction(agent, async () => {
-                const recordKey = reviewedRecordKey(review_id);
-                const valueHash = hashText(value);
-                const stored = await agent.kv.get(recordKey);
-                if (stored !== undefined) {
-                    const existing = parseReviewedRecord(stored);
-                    if (existing.key !== key || existing.value_hash !== valueHash) {
-                        throw new Error(`Review id ${review_id} was already used with different content.`);
-                    }
-                    if (existing.state !== "active") {
-                        throw new Error(`Review id ${review_id} is ${existing.state} and cannot be reapplied.`);
-                    }
-                    return {
-                        ok: true,
-                        scope,
-                        review_id,
-                        key,
-                        applied: false,
-                        idempotent: true,
-                        snapshot_key: null,
-                    };
-                }
-
-                const appliedAt = new Date().toISOString();
-                const provenance = await agent.kv.list(`${REVIEWED_NAMESPACE}/`);
-                for (const entry of provenance) {
-                    const previousRecord = parseReviewedRecord(entry.value);
-                    if (previousRecord.state === "active" && previousRecord.key === key) {
-                        await agent.kv.set(entry.key, {
-                            ...previousRecord,
-                            state: "superseded",
-                            superseded_at: appliedAt,
-                            superseded_by: review_id,
-                        } satisfies ReviewedRecord);
-                    }
-                }
-
-                let snapshotKey: string | null = null;
-                if (typedNodesEnabled) {
-                    const changed = await applyReviewedTypedNode({
-                        agent,
-                        scope,
-                        review_id,
-                        key,
-                        value,
-                        node_type: "memory",
-                        tags: [],
-                        in_transaction: true,
-                    });
-                    snapshotKey = changed.snapshot_key;
-                } else {
-                    const previous = await agent.kv.get(key);
-                    const previousValue = previous === undefined ? undefined : normalizeValue(previous);
-                    if (previousValue !== undefined && previousValue !== value) {
-                        snapshotKey = historySnapshotKey(key, appliedAt);
-                        await agent.kv.set(snapshotKey, {
-                            value: previousValue,
-                            superseded_at: appliedAt,
-                            superseded_reason: `reviewed memory ${review_id}`,
-                        });
-                    }
-                    await agent.kv.set(key, value);
-                }
-                await agent.kv.set(recordKey, {
-                    schema_version: 1,
-                    review_id,
-                    key,
-                    value_hash: valueHash,
-                    state: "active",
-                    applied_at: appliedAt,
-                } satisfies ReviewedRecord);
-
-                return {
-                    ok: true,
-                    scope,
-                    review_id,
-                    key,
-                    applied: true,
-                    idempotent: false,
-                    snapshot_key: snapshotKey,
-                };
-            });
-
-            const { linkActiveWorkEvidence } = await import("./work-evidence-store.js");
-            await linkActiveWorkEvidence(process.cwd(), { kind: "reviewed_memory", scope, review_id, key });
-
-            return {
-                content: [{ type: "text", text: asToolText(payload) }],
-                structuredContent: payload,
-            };
-        } finally {
-            await agent.close();
-        }
+        const payload = await applyReviewedMemory(scope, review_id, key, value, {
+            cwd: process.cwd(),
+            projectId: context.projectId,
+            typed: typedNodesEnabled,
+        });
+        const { linkActiveWorkEvidence } = await import("./work-evidence-store.js");
+        await linkActiveWorkEvidence(process.cwd(), { kind: "reviewed_memory", scope, review_id, key });
+        return {
+            content: [{ type: "text", text: asToolText(payload) }],
+            structuredContent: payload,
+        };
     },
 );
 
@@ -1926,124 +1629,15 @@ registerTool(
         }),
     },
     async ({ scope, review_id, key, reason }) => {
-        assertWritableMemoryKey(key);
-        const agent = await openScope(scope, true, scopeOptions);
-        if (!agent) {
-            throw new Error(`Unable to open scope ${scope}.`);
-        }
-
-        try {
-            const payload = await inImmediateScopeTransaction(agent, async () => {
-                const recordKey = reviewedRecordKey(review_id);
-                const stored = await agent.kv.get(recordKey);
-                if (stored === undefined) {
-                    const invalidatedAt = new Date().toISOString();
-                    await agent.kv.set(recordKey, {
-                        schema_version: 1,
-                        review_id,
-                        key,
-                        value_hash: "",
-                        state: "invalidated",
-                        applied_at: invalidatedAt,
-                        invalidated_at: invalidatedAt,
-                        ...(reason ? { invalidation_reason: reason } : {}),
-                    } satisfies ReviewedRecord);
-                    return {
-                        ok: true,
-                        scope,
-                        review_id,
-                        key,
-                        invalidated: true,
-                        idempotent: false,
-                        missing: true,
-                        removed: false,
-                        current_changed: false,
-                        snapshot_key: null,
-                    };
-                }
-
-                const record = parseReviewedRecord(stored);
-                if (record.key !== key) {
-                    throw new Error(`Review id ${review_id} belongs to a different memory key.`);
-                }
-                if (record.state === "invalidated") {
-                    return {
-                        ok: true,
-                        scope,
-                        review_id,
-                        key: record.key,
-                        invalidated: false,
-                        idempotent: true,
-                        missing: record.value_hash === "",
-                        removed: false,
-                        current_changed: false,
-                        snapshot_key: null,
-                    };
-                }
-
-                const invalidatedAt = new Date().toISOString();
-                let currentChanged = false;
-                let removed = false;
-                let snapshotKey: string | null = null;
-                if (record.state === "active") {
-                    const current = await agent.kv.get(record.key);
-                    if (current !== undefined) {
-                        const currentValue = normalizeValue(current);
-                        if (hashText(currentValue) === record.value_hash) {
-                            if (typedNodesEnabled) {
-                                const changed = await invalidateReviewedTypedNode({
-                                    agent,
-                                    scope,
-                                    review_id,
-                                    key: record.key,
-                                    reason,
-                                    in_transaction: true,
-                                });
-                                snapshotKey = changed.snapshot_key;
-                            } else {
-                                snapshotKey = historySnapshotKey(record.key, invalidatedAt);
-                                await agent.kv.set(snapshotKey, {
-                                    value: currentValue,
-                                    superseded_at: invalidatedAt,
-                                    superseded_reason: reason ?? `reviewed memory ${review_id} invalidated`,
-                                });
-                                await agent.kv.delete(record.key);
-                            }
-                            removed = true;
-                        } else {
-                            currentChanged = true;
-                        }
-                    }
-                }
-
-                await agent.kv.set(recordKey, {
-                    ...record,
-                    state: "invalidated",
-                    invalidated_at: invalidatedAt,
-                    ...(reason ? { invalidation_reason: reason } : {}),
-                } satisfies ReviewedRecord);
-
-                return {
-                    ok: true,
-                    scope,
-                    review_id,
-                    key: record.key,
-                    invalidated: true,
-                    idempotent: false,
-                    missing: false,
-                    removed,
-                    current_changed: currentChanged,
-                    snapshot_key: snapshotKey,
-                };
-            });
-
-            return {
-                content: [{ type: "text", text: asToolText(payload) }],
-                structuredContent: payload,
-            };
-        } finally {
-            await agent.close();
-        }
+        const payload = await invalidateReviewedMemory(scope, review_id, key, reason, {
+            cwd: process.cwd(),
+            projectId: context.projectId,
+            typed: typedNodesEnabled,
+        });
+        return {
+            content: [{ type: "text", text: asToolText(payload) }],
+            structuredContent: payload,
+        };
     },
 );
 
@@ -2167,7 +1761,7 @@ if (typedNodesEnabled) {
 registerTool(
     "domain_knowledge_query",
     {
-        description: "Query an AnythingLLM workspace in query mode for domain knowledge.",
+        description: "Query the configured read-only domain retrieval provider for domain knowledge.",
         inputSchema: z.object({
             workspace: z.string().min(1).optional(),
             query: z.string().min(1),
@@ -2181,7 +1775,11 @@ registerTool(
         if (!workspaceSlug) {
             throw new Error("No AnythingLLM workspace provided and no project workspace found in memory config.");
         }
-        const answer = await callAnythingLLM(workspaceSlug, query);
+        const answer = await queryDomainKnowledge({
+            workspace: workspaceSlug,
+            query,
+            remote: context.remote,
+        });
 
         return {
             content: [{ type: "text", text: answer }],
@@ -2202,6 +1800,9 @@ registerTool(
         }),
     },
     async ({ workspace, mode, confirm_replace, timeout_seconds }) => {
+        if (resolveDomainRetrievalProvider() === "openviking") {
+            throw new Error("domain_knowledge_sync is unavailable for the read-only OpenViking provider.");
+        }
         const syncMode = mode ?? "incremental";
         const config = memoryConfig();
         const workspaceSlug = workspace ?? defaultAnythingLLMWorkspace(config);
@@ -2359,16 +1960,34 @@ if (contextPackToolsEnabled) {
         },
     );
     registerTool(
+        "context_pack_tree",
+        {
+            description: "Browse a deterministic abstract or overview hierarchy of enabled context-pack files and approved skills.",
+            inputSchema: z.object({
+                pack: z.string().min(1).max(128).optional(),
+                detail: z.enum(["abstract", "overview"]).optional(),
+            }).strict(),
+        },
+        async ({ pack, detail }) => {
+            const payload = await treeVisibleContext({ ...contextPackProject, pack, detail });
+            return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
+        },
+    );
+    registerTool(
         "context_pack_search",
         {
             description: "Search documents and explicitly approved skills in context packs enabled for this project.",
             inputSchema: z.object({
                 query: z.string().min(1).max(4096),
                 limit: z.number().int().min(1).max(100).optional(),
+                strategy: z.enum(["flat", "hierarchical"]).optional(),
+                detail: z.enum(["abstract", "overview", "content"]).optional(),
+                explain: z.boolean().optional(),
+                include_refs: z.boolean().optional(),
             }).strict(),
         },
-        async ({ query, limit }) => {
-            const payload = await searchVisibleContext(query, { ...contextPackProject, limit });
+        async ({ query, limit, strategy, detail, explain, include_refs }) => {
+            const payload = await searchVisibleContext(query, { ...contextPackProject, limit, strategy, detail, explain, includeRefs: include_refs });
             return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
         },
     );
@@ -2405,6 +2024,31 @@ if (contextPackToolsEnabled) {
         },
     );
 }
+
+    if (contextUsageToolsEnabled) {
+        registerTool(
+            "context_usage_record",
+            {
+                description: "Record a privacy-minimized context result receipt against work evidence.",
+                inputSchema: z.object({
+                    evidence_id: z.string().min(4).max(40).regex(/^wev_[0-9a-f-]*$/i).optional(),
+                    task_digest: z.string().regex(/^[a-f0-9]{64}$/),
+                    result_digest: z.string().regex(/^[a-f0-9]{64}$/),
+                    outcome: z.enum(["used", "unused", "unknown"]),
+                }).strict(),
+            },
+            async ({ evidence_id, task_digest, result_digest, outcome }) => {
+                const { appendContextUsageReceipt, linkActiveContextUsageReceipt } = await import("./work-evidence-store.js");
+                const receipt = evidence_id
+                    ? await appendContextUsageReceipt(process.cwd(), evidence_id, { task_digest, result_digest, outcome })
+                    : await linkActiveContextUsageReceipt(process.cwd(), { task_digest, result_digest, outcome });
+                const payload = receipt
+                    ? { schema_version: 1 as const, recorded: true as const, receipt }
+                    : { schema_version: 1 as const, recorded: false as const, receipt: null };
+                return { content: [{ type: "text", text: asToolText(payload) }], structuredContent: payload };
+            },
+        );
+    }
 
     if (workEvidenceToolsEnabled) {
         registerTool(
@@ -2499,7 +2143,7 @@ if (cliCommand === "extract") {
             throw new Error("No input provided on stdin.");
         }
 
-        const extracted = await extractMemoryCandidates(content, model, category);
+        const extracted = await extractMemoryCandidatesFromProvider(content, model, category);
         output.write(`${JSON.stringify({
             model: extracted.model,
             count: extracted.candidates.length,
