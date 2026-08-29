@@ -62,7 +62,21 @@ try {
         return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200, headers: { "content-type": "application/json" } });
     };
 
-    const proposal = await createMemoryProposal({ projectRoot: project, sessionId: "proposal-session-1", scope: "identity" });
+    let proposal;
+    try {
+        proposal = await createMemoryProposal({ projectRoot: project, sessionId: "proposal-session-1", scope: "identity" });
+    } catch (error) {
+        if (process.platform !== "win32") throw error;
+        const storePath = join(project, ".agentfs", "memory-proposals");
+        const descriptor = spawnSync("powershell.exe", [
+            "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+            "$acl=Get-Acl -LiteralPath $env:CK_TEST_PRIVATE_PATH;$acl.GetSecurityDescriptorSddlForm([System.Security.AccessControl.AccessControlSections]::Access)",
+        ], { encoding: "utf8", windowsHide: true, env: { ...process.env, CK_TEST_PRIVATE_PATH: storePath } });
+        const inspected = spawnSync("icacls.exe", [storePath], { encoding: "utf8", windowsHide: true });
+        throw new Error(
+            `Windows proposal creation failed: ${error instanceof Error ? error.message : String(error)}\nSDDL: ${descriptor.stdout || descriptor.stderr}\nACL: ${inspected.stdout || inspected.stderr}`,
+        );
+    }
     assert.doesNotMatch(outbound, /proposal-secret-token/);
     assert.deepEqual(proposal.candidates.map(({ operation }) => operation), ["create", "update", "noop"]);
     const storedPath = join(project, ".agentfs", "memory-proposals", `${proposal.digest}.json`);
