@@ -13,7 +13,7 @@ function currentWindowsIdentity(): { account: string; sid: string; logonAccount?
     if (!match) throw new Error("Unable to resolve the current Windows security identity.");
     const groups = spawnSync("whoami.exe", ["/groups", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
     const logonRow = groups.status === 0
-        ? groups.stdout.split(/\r?\n/).find((line) => /"S-1-5-5-[0-9-]+"/i.test(line))
+        ? groups.stdout.split(/\r?\n/).find((line) => /\\LogonSessionId_/i.test(line))
         : undefined;
     const logonAccount = logonRow?.match(/^"([^"]+)"/)?.[1];
     cachedWindowsIdentity = { account: match[1], sid: match[2], ...(logonAccount ? { logonAccount } : {}) };
