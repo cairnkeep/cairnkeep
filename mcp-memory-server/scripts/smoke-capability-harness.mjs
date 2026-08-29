@@ -230,11 +230,8 @@ function assertLeasePolicy(coordinator, project, stateRoot) {
         if (process.platform === "win32") {
             const inspected = spawnSync("icacls.exe", [path], { encoding: "utf8", windowsHide: true });
             const identity = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
-            process.env.CAIRN_TEST_ACL_TRACE = "1";
-            const safe = coordinator.privatePathIsSafe(path);
-            delete process.env.CAIRN_TEST_ACL_TRACE;
             assert.equal(
-                safe,
+                coordinator.privatePathIsSafe(path),
                 true,
                 `lease ACL is not restricted (icacls status ${inspected.status}):\nIdentity: ${identity.stdout || identity.stderr}\n${inspected.stdout || inspected.stderr || "ACL inspection failed"}`,
             );
