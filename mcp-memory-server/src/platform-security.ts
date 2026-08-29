@@ -27,6 +27,7 @@ export function hardenPrivatePath(path: string): void {
     const args = [
         path,
         "/inheritance:r",
+        "/remove:g", "*S-1-5-18", "*S-1-5-32-544",
         "/grant:r", `*${sid}:(F)`,
     ];
     const result = spawnSync("icacls.exe", args, { encoding: "utf8", windowsHide: true });
