@@ -1,7 +1,9 @@
-import { chmodSync, existsSync, lstatSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, readFileSync, rmSync } from "node:fs";
 import { rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 function currentWindowsSid(): string {
     const result = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
@@ -33,22 +35,23 @@ export function privatePathIsSafe(path: string): boolean {
     const info = lstatSync(path);
     if (info.isSymbolicLink()) return false;
     if (process.platform !== "win32") return (info.mode & 0o077) === 0;
-    const script = [
-        "$p=$env:CK_INTERNAL_PRIVATE_PATH",
-        "$me=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value",
-        "$ok=@($me,'SY','BA','S-1-5-18','S-1-5-32-544')",
-        "$acl=Get-Acl -LiteralPath $p",
-        "$sddl=$acl.GetSecurityDescriptorSddlForm([System.Security.AccessControl.AccessControlSections]::Access)",
-        "$seen=0;$start=$sddl.IndexOf('(');while($start -ge 0){$end=$sddl.IndexOf(')',$start);if($end -lt 0){exit 1};$fields=$sddl.Substring($start+1,$end-$start-1).Split(';');if($fields.Count -lt 6){exit 1};if($fields[0].StartsWith('A')){$seen++;if($ok -notcontains $fields[5]){exit 1}};$start=$sddl.IndexOf('(',$end+1)}",
-        "if($seen -eq 0){exit 1}",
-        "exit 0",
-    ].join(";");
-    const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
-        encoding: "utf8",
-        windowsHide: true,
-        env: { ...process.env, CK_INTERNAL_PRIVATE_PATH: path },
-    });
-    return result.status === 0;
+    const dumpPath = join(tmpdir(), `cairn-private-acl-${randomUUID()}.txt`);
+    try {
+        const result = spawnSync("icacls.exe", [path, "/save", dumpPath], { encoding: "utf8", windowsHide: true });
+        if (result.status !== 0 || !existsSync(dumpPath)) return false;
+        const bytes = readFileSync(dumpPath);
+        const text = bytes[0] === 0xff && bytes[1] === 0xfe
+            ? bytes.subarray(2).toString("utf16le")
+            : bytes.toString("utf8");
+        const allowed = new Set([currentWindowsSid(), "SY", "BA", "S-1-5-18", "S-1-5-32-544"]);
+        const aces = [...text.matchAll(/\(([^)]+)\)/g)].map((match) => match[1].split(";"));
+        const allowAces = aces.filter((fields) => fields.length >= 6 && fields[0].startsWith("A"));
+        return allowAces.length > 0 && allowAces.every((fields) => allowed.has(fields[5]));
+    } catch {
+        return false;
+    } finally {
+        rmSync(dumpPath, { force: true });
+    }
 }
 
 function delay(milliseconds: number): Promise<void> {
