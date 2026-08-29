@@ -1,9 +1,7 @@
-import { chmodSync, existsSync, lstatSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, rmSync } from "node:fs";
 import { rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 function currentWindowsSid(): string {
     const result = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
@@ -11,6 +9,13 @@ function currentWindowsSid(): string {
     const match = result.stdout.match(/"(S-1-[0-9-]+)"/i);
     if (!match) throw new Error("Unable to resolve the current Windows security identity.");
     return match[1];
+}
+
+function currentWindowsAccount(): string {
+    const result = spawnSync("whoami.exe", [], { encoding: "utf8", windowsHide: true });
+    const account = result.stdout?.trim();
+    if (result.status !== 0 || !account) throw new Error("Could not resolve the current Windows account.");
+    return account;
 }
 
 export function hardenPrivatePath(path: string): void {
@@ -23,8 +28,6 @@ export function hardenPrivatePath(path: string): void {
         path,
         "/inheritance:r",
         "/grant:r", `*${sid}:(F)`,
-        "/grant:r", "*S-1-5-18:(F)",
-        "/grant:r", "*S-1-5-32-544:(F)",
     ];
     const result = spawnSync("icacls.exe", args, { encoding: "utf8", windowsHide: true });
     if (result.status !== 0) throw new Error("Unable to restrict Windows ACLs for private Cairnkeep state.");
@@ -35,22 +38,18 @@ export function privatePathIsSafe(path: string): boolean {
     const info = lstatSync(path);
     if (info.isSymbolicLink()) return false;
     if (process.platform !== "win32") return (info.mode & 0o077) === 0;
-    const dumpPath = join(tmpdir(), `cairn-private-acl-${randomUUID()}.txt`);
     try {
-        const result = spawnSync("icacls.exe", [path, "/save", dumpPath], { encoding: "utf8", windowsHide: true });
-        if (result.status !== 0 || !existsSync(dumpPath)) return false;
-        const bytes = readFileSync(dumpPath);
-        const text = bytes[0] === 0xff && bytes[1] === 0xfe
-            ? bytes.subarray(2).toString("utf16le")
-            : bytes.toString("utf8");
-        const allowed = new Set([currentWindowsSid(), "SY", "BA", "S-1-5-18", "S-1-5-32-544"]);
-        const aces = [...text.matchAll(/\(([^)]+)\)/g)].map((match) => match[1].split(";"));
-        const allowAces = aces.filter((fields) => fields.length >= 6 && fields[0].startsWith("A"));
-        return allowAces.length > 0 && allowAces.every((fields) => allowed.has(fields[5]));
+        const account = currentWindowsAccount().toLowerCase();
+        const result = spawnSync("icacls.exe", [path], { encoding: "utf8", windowsHide: true });
+        if (result.status !== 0 || !result.stdout) return false;
+        const principals = result.stdout.split(/\r?\n/).flatMap((line) => {
+            const body = line.startsWith(path) ? line.slice(path.length).trim() : line.trim();
+            const marker = body.indexOf(":(");
+            return marker < 0 ? [] : [body.slice(0, marker).trim().toLowerCase()];
+        });
+        return principals.length > 0 && principals.every((principal) => principal === account);
     } catch {
         return false;
-    } finally {
-        rmSync(dumpPath, { force: true });
     }
 }
 
