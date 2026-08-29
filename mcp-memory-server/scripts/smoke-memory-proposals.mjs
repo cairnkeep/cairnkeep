@@ -62,6 +62,7 @@ try {
         return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200, headers: { "content-type": "application/json" } });
     };
 
+    if (process.platform === "win32") process.env.CAIRN_TEST_ACL_TRACE = "1";
     let proposal;
     try {
         proposal = await createMemoryProposal({ projectRoot: project, sessionId: "proposal-session-1", scope: "identity" });

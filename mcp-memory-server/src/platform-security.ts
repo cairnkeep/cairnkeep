@@ -52,7 +52,11 @@ export function privatePathIsSafe(path: string): boolean {
                     const permissions = body.slice(marker + 1).toUpperCase();
                     return !permissions.includes("(DENY)") && !permissions.includes("(NW)");
                 });
-                if (grants.length === 1 && grants[0].toLowerCase().includes(`${account}:(`)) return true;
+                const safe = grants.length === 1 && grants[0].toLowerCase().includes(`${account}:(`);
+                if (process.env.CAIRN_TEST_ACL_TRACE === "1") {
+                    console.error(JSON.stringify({ path, account, status: result.status, grants, safe }));
+                }
+                if (safe) return true;
             }
             if (attempt < 3) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15);
         }
