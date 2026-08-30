@@ -5,6 +5,11 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep the context-usage receipt smoke fixture relative to the test run so its
+  doctor assertion cannot fail merely because a hard-coded timestamp aged out.
+
 ## [2.17.0] - 2026-08-29
 
 ### Added

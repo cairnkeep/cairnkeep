@@ -47,6 +47,10 @@ const priorEnv = { ...process.env };
 process.env.CAIRN_WORK_EVIDENCE = "1";
 process.env.CAIRN_PACK_BASE_DIR = join(root, "packs");
 
+const evidenceStartedAt = new Date(Date.now() - 120_000);
+const firstReceiptAt = new Date(evidenceStartedAt.getTime() + 60_000);
+const replayReceiptAt = new Date(firstReceiptAt.getTime() + 60_000);
+
 try {
     const packSource = join(root, "pack-source");
     mkdirSync(packSource);
@@ -73,14 +77,14 @@ try {
     assert.equal(replayedSearch.result_digest, referencedSearch.result_digest, "result references are deterministic");
     assert.equal(replayedSearch.results[0].chunk_digest, referencedSearch.results[0].chunk_digest, "chunk references are deterministic");
 
-    const evidence = startWorkEvidence(project, "codex", new Date("2026-08-29T09:00:00.000Z"));
+    const evidence = startWorkEvidence(project, "codex", evidenceStartedAt);
     const taskDigest = "1".repeat(64);
     const resultDigest = "2".repeat(64);
     const first = await appendContextUsageReceipt(project, evidence.evidence_id, {
         task_digest: taskDigest,
         result_digest: resultDigest,
         outcome: "used",
-    }, new Date("2026-08-29T09:01:00.000Z"));
+    }, firstReceiptAt);
 
     assert.ok(first);
     assert.equal(first.kind, "context_usage");
@@ -94,7 +98,7 @@ try {
         task_digest: taskDigest,
         result_digest: resultDigest,
         outcome: "used",
-    }, new Date("2026-08-29T10:00:00.000Z"));
+    }, replayReceiptAt);
     assert.deepEqual(replay, first, "an exact replay must return the immutable stored receipt");
 
     await assert.rejects(
