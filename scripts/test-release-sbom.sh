@@ -19,7 +19,7 @@ const manifest = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const lock = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 const candidateWorkflow = fs.readFileSync(process.argv[4], "utf8");
 const publishWorkflow = fs.readFileSync(process.argv[5], "utf8");
-const expected = "6.0.0";
+const expected = "6.0.1";
 
 if (manifest.devDependencies?.["@cyclonedx/cyclonedx-npm"] !== expected) {
   throw new Error(`package.json must pin @cyclonedx/cyclonedx-npm exactly to ${expected}`);
