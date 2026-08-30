@@ -1,5 +1,35 @@
 # Milestones
 
+## v2.17 Context Intelligence (Shipped: 2026-08-29)
+
+**Delivered:** Frozen retrieval benchmarks, progressive context-pack hierarchy
+and explainability, private usage receipts linked to work evidence, reviewed
+trajectory-to-memory proposals, and an optional read-only OpenViking provider.
+
+**Closeout:** Release commit `350849e800399da105afbfb349b53b5179bf90b0`;
+Node 22/24/26, native Windows, Bash 3.2, repository, package, container,
+compatibility, documentation, privacy, and publication gates passed.
+
+---
+
+## v2.16 Guided Setup Selectors (Shipped: 2026-08-27)
+
+**Delivered:** Dependency-free terminal selectors for Git, memory, harnesses,
+and confirmation, with safe cancellation and deterministic automation fallback.
+
+---
+
+## v2.15 Cairnkeep Playbooks (Shipped: 2026-08-17)
+
+**Delivered:** Strict local playbook profiles, deterministic workflow decisions,
+must-action enforcement, private receipts, ownership-safe agent guidance, thin
+harness adapters, and an implementation-ready future team-mode contract.
+
+**Closeout:** 13/13 requirements verified; release and follow-up fixes shipped
+through v2.15.4.
+
+---
+
 ## v1.3 Routing Seam & Context Maturation (Shipped: 2026-07-08)
 
 **Delivered:** A thin, frozen routing seam to token-miser, a self-consistent public story (token-miser live as a public sibling, zero-drift docs, guard-verified hygiene), a matured `context_explore` (cached, memory/wiki-aware, auto-invoked), and a headless OpenCode harness that reproduces the `/remember`→`/recall` round-trip reliably — closing the v1.1 OCP-06 gap.

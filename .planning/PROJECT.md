@@ -8,24 +8,25 @@ A durable, harness-agnostic memory + context layer for coding agents (Claude Cod
 
 Drop-in parity: a fresh `cairn bootstrap` plus the carved commands, agents, and hooks reproduce the originating private workflow end-to-end, verified against the `cairn-memory` MCP server.
 
-## Completed Milestone: v2.15 Cairnkeep Playbooks
+## Completed Milestone: v2.17 Context Intelligence
 
-**Goal:** Give agents an opinionated, customizable, and observable workflow for
-context, planning, verification, review, security, documentation, and learning
-without turning Cairnkeep into an agent runtime.
+**Goal:** Improve context retrieval quality, progressive disclosure, usage
+evidence, and reviewed learning without weakening Cairnkeep's local authority or
+turning it into an agent runtime.
 
 **Delivered features:**
-- Strict `must`/`should`/`may` playbook policies and deterministic evaluation
-- Enforceable completion gates and actor-attributed private receipts
-- A tiny start/check/finish workflow with safe project instruction management
-- Team-ready identity/provenance seams and a future team architecture contract
+- Frozen offline retrieval benchmarks and deterministic golden corpora
+- Progressive context-pack hierarchy, derived summaries, and explanation traces
+- Private context-usage receipts linked to work evidence
+- Review-gated trajectory-to-memory proposals
+- An optional, explicitly consented, read-only OpenViking search provider
 
-**Explicit boundary:** This milestone does not ship multi-user authentication,
-ACLs, tenant isolation, shared storage, arbitrary executable playbook steps, or
-an autonomous agent loop.
+**Explicit boundary:** OpenViking does not replace Cairnkeep or gain mutation
+authority. Team authentication, ACLs, tenant isolation, shared storage,
+publisher signatures, and an autonomous agent loop remain deferred.
 
-**Status:** Implementation and release verification completed 2026-08-17;
-v2.15.0 is ready to merge, tag, and publish.
+**Status:** Released as v2.17.0 on 2026-08-29; package, CI, native Windows,
+container, compatibility, documentation, and learning gates passed.
 
 ## Current State
 
@@ -64,7 +65,7 @@ v2.15.0 is ready to merge, tag, and publish.
 
 ### Active
 
-(none — v1.3 scope fully validated)
+(none — v2.17 scope fully validated and released)
 
 ### Out of Scope
 

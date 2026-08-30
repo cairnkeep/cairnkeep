@@ -10,6 +10,9 @@
 - v2.12: harness registry and Codex setup
 - v2.13: Git-linked work evidence and CycloneDX 1.6 SBOM
 - v2.14: reviewed OKF knowledge exchange
+- v2.15: bounded workflow playbooks and future team-mode design
+- v2.16: dependency-free guided setup selectors
+- v2.17: measured context intelligence and guarded memory proposals
 
 The public Git tag and package version are the release authority. Older detailed
 GSD milestone archives remain under `.planning/milestones/`.
@@ -52,3 +55,45 @@ runtime or weakening approval boundaries.
 | Phase | Milestone | Status | Plans |
 |-------|-----------|--------|-------|
 | 27. Playbooks Workflow Kernel | v2.15 | Complete | 5/5 |
+
+## Completed release: v2.16 Guided Setup Selectors
+
+**Goal:** Make interactive onboarding clear and efficient without changing the
+deterministic setup contract used by scripts, CI, policies, and overlays.
+
+**Delivered:** Dependency-free terminal selectors for Git and memory choices,
+Space-toggle harness checkboxes, selectable confirmation, safe cancellation,
+limited-terminal fallback, and non-interactive output detection.
+
+**Status:** Released as v2.16.0 on 2026-08-27.
+
+## Completed release: v2.17 Context Intelligence
+
+**Goal:** Improve retrieval quality and explainability while retaining local
+authority, response compatibility, explicit consent, and review-before-write
+memory boundaries.
+
+**Delivered:**
+
+- A frozen offline retrieval benchmark with quality, latency, cost, mutation,
+  and forbidden-leakage measurements.
+- Progressive context-pack tree, summary cache, opt-in hierarchical search,
+  stable result digests, and sanitized explanation traces.
+- Privacy-preserving context-usage receipts linked to work evidence.
+- Digest-bound trajectory-derived memory proposals with explicit review and
+  apply steps.
+- A gated, read-only OpenViking retrieval adapter that cannot replace or mutate
+  Cairnkeep authority.
+- Complete Node 22/24/26, native Windows, Bash 3.2, package, container,
+  compatibility, documentation, learning, and release verification.
+
+**Status:** Released as v2.17.0 on 2026-08-29 from
+`350849e800399da105afbfb349b53b5179bf90b0`.
+
+## Next milestone gate
+
+Do not select another large feature solely from architecture comparisons. First
+complete overlay/fleet adoption and run a bounded private pilot that measures
+retrieval usefulness, forbidden-result isolation, receipt quality, proposal
+acceptance/rejection, and operational friction. Use that evidence to choose the
+smallest next milestone.
