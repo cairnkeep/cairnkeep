@@ -5,8 +5,13 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.17.1] - 2026-08-31
+
 ### Fixed
 
+- Release TTY stdin after every interactive `cairn setup` selector so setup
+  returns to the shell after completion, including through SSH terminals that
+  report stdin as already flowing.
 - Keep the context-usage receipt smoke fixture relative to the test run so its
   doctor assertion cannot fail merely because a hard-coded timestamp aged out.
 

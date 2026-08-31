@@ -300,6 +300,19 @@ async function testTerminalSelectors(prompts) {
   await assert.rejects(cancelled, (error) => error?.status === 130 && /cancelled/i.test(error.message));
   assert.equal(input.isRaw, false);
   assert.equal(input.isPaused(), true);
+
+  const flowingInput = new FakeTTY();
+  flowingInput.paused = false;
+  const flowing = prompts.selectOnePrompt({
+    message: "Release flowing input",
+    choices: [{ value: "done", label: "Done" }],
+    input: flowingInput,
+    output: output.stream,
+  });
+  setImmediate(() => flowingInput.emit("keypress", "", { name: "return" }));
+  assert.equal(await flowing, "done");
+  assert.equal(flowingInput.isRaw, false);
+  assert.equal(flowingInput.isPaused(), true, "terminal prompt must release flowing stdin so the CLI can exit");
 }
 
 async function testStructuredSetupSelectors(setup, fixture) {
