@@ -37,7 +37,6 @@ async function runKeypressPrompt({ input, output, draw, accept }) {
   let settled = false;
   let keypressHandler = null;
   let rawChanged = false;
-  let resumed = false;
   let cursorHidden = false;
 
   const render = () => {
@@ -59,7 +58,6 @@ async function runKeypressPrompt({ input, output, draw, accept }) {
     }
     if (wasPaused && typeof input.resume === "function") {
       input.resume();
-      resumed = true;
     }
     output.write("\x1b[?25l");
     cursorHidden = true;
@@ -92,7 +90,11 @@ async function runKeypressPrompt({ input, output, draw, accept }) {
     clear();
     if (cursorHidden) output.write("\x1b[?25h");
     if (rawChanged) input.setRawMode(false);
-    if (resumed && typeof input.pause === "function") input.pause();
+    // A TTY can report itself as already flowing before the first prompt (for
+    // example through an SSH pseudo-terminal). Leaving it flowing keeps Node's
+    // event loop alive after setup has printed its final result. Always pause
+    // prompt input after removing our listener; the next selector resumes it.
+    if (typeof input.pause === "function") input.pause();
   }
 }
 
