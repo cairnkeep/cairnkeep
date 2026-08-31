@@ -14,7 +14,6 @@ graph workflows have their own explicit companion requirements.
 
 | Tool | What it adds | Integration |
 |---|---|---|
-| [lean-ctx](https://github.com/yvgude/lean-ctx) | Compressed file reads, searches, shell output, and directory maps | Register it as an MCP server in the chosen harness |
 | [token-miser](https://github.com/cairnkeep/token-miser) | Model routing and compact codebase exploration | Configure `CAIRN_ROUTE_ENDPOINT` and/or `CAIRN_EXPLORE_BINARY` |
 | [rtk](https://github.com/rtk-ai/rtk) | Token-reduced output for common Git, npm, and Cargo commands | Install as a shell-level proxy; Cairnkeep wiring is not required |
 

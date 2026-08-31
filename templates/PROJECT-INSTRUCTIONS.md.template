@@ -38,5 +38,4 @@ Scopes defined in `.opencode/memory.json`:
 ## Tool Roles
 - AgentFS is the durable structured memory layer.
 - AnythingLLM is the long-form document retrieval layer.
-- `lean-ctx` is the default context layer (reads, search, exploration), not durable project memory.
 - RTK is a recommended companion for shell-heavy sessions (git, listings, failing builds); Token Savior is not default.
