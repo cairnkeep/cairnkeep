@@ -10,6 +10,7 @@ import {
   readFileSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as defaultInput, stdout as defaultOutput, stderr as defaultError } from "node:process";
@@ -353,31 +354,61 @@ function readPrivateState(path) {
   }
 }
 
-function hasCodexMemoryConfig(project) {
-  const path = join(project, ".codex", "config.toml");
-  if (!existsSync(path)) return false;
+function readTomlConfig(path) {
+  if (!existsSync(path)) return null;
   const info = lstatSync(path);
-  if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024) return false;
+  if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024) return null;
   let descriptor;
-  let text;
   try {
     descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
     const opened = fstatSync(descriptor);
-    if (!opened.isFile() || opened.dev !== info.dev || opened.ino !== info.ino || opened.size > 1024 * 1024) return false;
-    text = readFileSync(descriptor, "utf8");
+    if (!opened.isFile() || opened.dev !== info.dev || opened.ino !== info.ino || opened.size > 1024 * 1024) return null;
+    return readFileSync(descriptor, "utf8");
   } finally {
     if (descriptor !== undefined) closeSync(descriptor);
   }
+}
+
+function codexMemorySection(text, id) {
   const lines = text.split(/\r?\n/);
   const headers = lines.flatMap((line, index) => (
-    ["[mcp_servers.cairn-memory]", "[mcp_servers.\"cairn-memory\"]"].includes(line.trim()) ? [index] : []
+    [`[mcp_servers.${id}]`, `[mcp_servers."${id}"]`].includes(line.trim()) ? [index] : []
   ));
-  if (headers.length !== 1) return false;
+  if (headers.length !== 1) return null;
   const [start] = headers;
   const next = lines.findIndex((line, index) => index > start && /^\s*\[[^\]]+\]\s*$/.test(line));
-  const section = lines.slice(start + 1, next < 0 ? lines.length : next).join("\n");
+  return lines.slice(start + 1, next < 0 ? lines.length : next).join("\n");
+}
+
+function isLocalMemorySection(section) {
   return (section.match(/^\s*command\s*=\s*["']cairn["']\s*$/gm) ?? []).length === 1
     && (section.match(/^\s*args\s*=\s*\[\s*["']memory-server["']\s*\]\s*$/gm) ?? []).length === 1;
+}
+
+function hasCodexMemoryConfig(project) {
+  const text = readTomlConfig(join(project, ".codex", "config.toml"));
+  if (text === null) return false;
+  // `cairn-memory-local` is the current template id; the bare `cairn-memory`
+  // stdio form is accepted so pre-existing setups still diagnose complete.
+  return ["cairn-memory-local", "cairn-memory"].some((id) => {
+    const section = codexMemorySection(text, id);
+    return section !== null && isLocalMemorySection(section);
+  });
+}
+
+// Codex merges the user-wide and project mcp_servers tables field by field, so
+// a legacy project stdio `cairn-memory` collides with a user-wide remote (url)
+// entry of the same id and Codex >= 0.152 refuses to start at all.
+function hasCodexRemoteMemoryConflict(project) {
+  const projectText = readTomlConfig(join(project, ".codex", "config.toml"));
+  if (projectText === null) return false;
+  const legacy = codexMemorySection(projectText, "cairn-memory");
+  if (legacy === null || !isLocalMemorySection(legacy)) return false;
+  const userHome = process.env.CODEX_HOME || join(homedir(), ".codex");
+  const userText = readTomlConfig(join(userHome, "config.toml"));
+  if (userText === null) return false;
+  const remote = codexMemorySection(userText, "cairn-memory");
+  return remote !== null && /^\s*url\s*=/m.test(remote);
 }
 
 export function diagnoseSetup(target = ".") {
@@ -414,8 +445,11 @@ export function diagnoseSetup(target = ".") {
     }
     const requiredAssets = [...COMMON_SETUP_ASSETS, ...requiredHarnessAssetPaths(state.harnesses, state.memory)];
     if (requiredAssets.some((path) => !Object.hasOwn(state.assets, path))) return incompleteDiagnosis(recovery);
-    if (state.memory === "local" && state.harnesses.includes("codex") && !hasCodexMemoryConfig(project)) {
-      return incompleteDiagnosis(recovery);
+    if (state.memory === "local" && state.harnesses.includes("codex")) {
+      if (!hasCodexMemoryConfig(project)) return incompleteDiagnosis(recovery);
+      if (hasCodexRemoteMemoryConflict(project)) {
+        return incompleteDiagnosis(`rename the project table to [mcp_servers.cairn-memory-local] in .codex/config.toml (Codex >= 0.152 rejects a project stdio 'cairn-memory' when the user-wide config defines a remote 'cairn-memory'), or delete the file and re-run: ${recovery}`);
+      }
     }
     return Object.freeze({
       schema_version: 1,

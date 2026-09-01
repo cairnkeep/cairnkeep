@@ -22,16 +22,19 @@ The wizard recommends the existing repository mode when the target is already
 a Git work tree. On native Windows, launch with `.\.ai\start-codex.cmd`.
 
 Before the first session, review `.codex/config.toml` and accept Codex's project
-trust prompt. The generated entry runs `cairn memory-server` locally. Setup
-does not edit the user-wide Codex configuration and does not enable networking,
-telemetry, embeddings, session capture, or context packs.
+trust prompt. The generated entry runs `cairn memory-server` locally under the
+server id `cairn-memory-local`: Codex merges the user-wide and project
+`mcp_servers` tables by id, so a project entry named `cairn-memory` collides
+with a user-wide remote (url) entry of the same id and Codex >= 0.152 refuses
+to start. Setup does not edit the user-wide Codex configuration and does not
+enable networking, telemetry, embeddings, session capture, or context packs.
 
 If `.codex/config.toml` already exists and differs, setup reports it as
 `skipped` and preserves it byte-for-byte. Merge this table into the existing
 file, then run `cairn doctor`:
 
 ```toml
-[mcp_servers.cairn-memory]
+[mcp_servers.cairn-memory-local]
 command = "cairn"
 args = ["memory-server"]
 ```

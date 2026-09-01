@@ -5,6 +5,18 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.17.2] - 2026-09-02
+
+### Fixed
+
+- Generate the project Codex memory entry as `mcp_servers.cairn-memory-local`
+  instead of `cairn-memory`: Codex merges the user-wide and project MCP server
+  tables by id, so a project stdio entry collided with a user-wide remote
+  (url) entry of the same id and Codex >= 0.152 refused to start ("url is not
+  supported for stdio"). `cairn doctor` now diagnoses that legacy conflict
+  with a targeted recovery, and still accepts the old id on machines without
+  a user-wide remote entry.
+
 ## [2.17.1] - 2026-08-31
 
 ### Fixed

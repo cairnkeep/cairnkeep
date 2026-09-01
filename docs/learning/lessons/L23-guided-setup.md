@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart and Operator
 **Time:** 35 minutes
-**Tested with:** Cairnkeep 2.17.1; Pi 0.84.1; Node.js 22, 24, and 26
+**Tested with:** Cairnkeep 2.17.2; Pi 0.84.1; Node.js 22, 24, and 26
 
 ## Outcome
 

@@ -127,7 +127,7 @@ cairn doctor
 
 Review `.codex/config.toml` and accept Codex's project-trust prompt before use.
 An existing different file is preserved and reported as skipped; merge the
-generated `mcp_servers.cairn-memory` table into it, then run `cairn doctor`.
+generated `mcp_servers.cairn-memory-local` table into it, then run `cairn doctor`.
 Uninstall leaves that operator-owned file intact. Selecting
 `--memory none` creates the launcher but deliberately omits the MCP entry.
 

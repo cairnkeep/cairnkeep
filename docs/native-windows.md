@@ -54,7 +54,7 @@ cairn doctor
 Review `.codex\config.toml` and accept Codex's project-trust prompt. Setup does
 not edit the user-wide Codex configuration or grant trust. It preserves a
 different existing project configuration and doctor verifies a manually merged
-`mcp_servers.cairn-memory` table.
+`mcp_servers.cairn-memory-local` table.
 
 Setup and bootstrap write both the established Unix launchers and native Windows
 launchers. Each `.cmd` file enters `start-harness.ps1`, loads `.ai/.env`, changes
