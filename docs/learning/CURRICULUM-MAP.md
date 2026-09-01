@@ -1,6 +1,6 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.17.1
+**Baseline:** Cairnkeep 2.17.2
 **Last reviewed:** 2026-08-19
 
 This map prevents the course from drifting behind the product. It assigns each
