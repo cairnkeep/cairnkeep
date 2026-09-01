@@ -57,7 +57,7 @@ const result = JSON.parse(setup.stdout);
 assert.deepEqual(result.harnesses, ["codex"]);
 assert.equal(result.machine_sync.command, null);
 assert.deepEqual(result.launch_commands, [".ai/start-codex.sh"]);
-assert.match(readFileSync(join(target, ".codex", "config.toml"), "utf8"), /\[mcp_servers\.cairn-memory\][\s\S]*command = "cairn"[\s\S]*args = \["memory-server"\]/);
+assert.match(readFileSync(join(target, ".codex", "config.toml"), "utf8"), /\[mcp_servers\.cairn-memory-local\][\s\S]*command = "cairn"[\s\S]*args = \["memory-server"\]/);
 
 const fakeBin = join(sandbox, "bin");
 mkdirSync(fakeBin);
@@ -94,7 +94,21 @@ assert.equal(setupModule.diagnoseSetup(collision).status, "incomplete");
 writeFileSync(join(collision, ".codex", "config.toml"), [
   "[features]", "fixture = true", "", "[mcp_servers.cairn-memory]", 'command = "cairn"', 'args = ["memory-server"]', "",
 ].join("\n"));
+// Isolate the user-wide Codex config: the legacy stdio id only conflicts when
+// the user-wide layer defines a remote (url) cairn-memory.
+const codexHome = join(sandbox, "codex-home");
+mkdirSync(codexHome);
+process.env.CODEX_HOME = codexHome;
 assert.equal(setupModule.diagnoseSetup(collision).status, "complete");
+writeFileSync(join(codexHome, "config.toml"), '[mcp_servers.cairn-memory]\nurl = "http://127.0.0.1:8788/mcp"\n');
+const conflict = setupModule.diagnoseSetup(collision);
+assert.equal(conflict.status, "incomplete");
+assert.match(conflict.recovery[0], /cairn-memory-local/);
+writeFileSync(join(collision, ".codex", "config.toml"), [
+  "[features]", "fixture = true", "", "[mcp_servers.cairn-memory-local]", 'command = "cairn"', 'args = ["memory-server"]', "",
+].join("\n"));
+assert.equal(setupModule.diagnoseSetup(collision).status, "complete");
+delete process.env.CODEX_HOME;
 const uninstall = spawnSync(join(root, "bin", "cairn"), ["uninstall", "--yes", collision], {
   encoding: "utf8", shell: false, env: { ...process.env, HOME: join(sandbox, "home") },
 });

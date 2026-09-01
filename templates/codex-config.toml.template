@@ -1,5 +1,10 @@
 # Cairnkeep project-scoped memory server. Codex loads project configuration only
 # after the project has been trusted.
-[mcp_servers.cairn-memory]
+#
+# The id is `cairn-memory-local`, not `cairn-memory`: Codex merges the user-wide
+# and project mcp_servers tables field by field, so a project stdio entry named
+# `cairn-memory` collides with a user-wide remote (url) entry of the same id and
+# Codex >= 0.152 refuses to start ("url is not supported for stdio").
+[mcp_servers.cairn-memory-local]
 command = "cairn"
 args = ["memory-server"]

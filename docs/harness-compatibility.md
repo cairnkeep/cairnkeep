@@ -229,10 +229,15 @@ Native Windows uses `.\.ai\start-codex.cmd`. The generated
 `.codex/config.toml` contains only:
 
 ```toml
-[mcp_servers.cairn-memory]
+[mcp_servers.cairn-memory-local]
 command = "cairn"
 args = ["memory-server"]
 ```
+
+The id is `cairn-memory-local`, not `cairn-memory`: Codex merges the user-wide
+and project `mcp_servers` tables by id, so a project stdio entry named
+`cairn-memory` collides with a user-wide remote (url) entry of the same id and
+Codex >= 0.152 refuses to start.
 
 Review this file before accepting Codex's project-trust prompt. Cairnkeep does
 not grant trust, edit the user-wide Codex configuration, or start Codex during
@@ -252,10 +257,10 @@ writes during setup. An operator who has explicitly authorized a bounded,
 unattended workflow may add narrow per-tool policy to the isolated Codex config:
 
 ```toml
-[mcp_servers.cairn-memory.tools.memory_write]
+[mcp_servers.cairn-memory-local.tools.memory_write]
 approval_mode = "approve"
 
-[mcp_servers.cairn-memory.tools.memory_supersede]
+[mcp_servers.cairn-memory-local.tools.memory_supersede]
 approval_mode = "approve"
 ```
 
