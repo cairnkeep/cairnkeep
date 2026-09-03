@@ -5,6 +5,15 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.17.3] - 2026-09-03
+
+### Security
+
+- Refresh the production dependency locks to `fast-uri` 3.1.7 and `qs`
+  6.16.0 so published server and workspace containers do not retain the URI
+  parsing, SSRF, host-confusion, or denial-of-service advisories affecting the
+  versions locked by 2.17.2. Runtime APIs and command behavior are unchanged.
+
 ## [2.17.2] - 2026-09-02
 
 ### Fixed
