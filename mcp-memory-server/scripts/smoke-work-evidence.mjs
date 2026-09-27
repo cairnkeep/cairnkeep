@@ -45,11 +45,15 @@ const cleanB = inspectGitState(project);
 assert.deepEqual(cleanA, cleanB, "unchanged Git state must be deterministic");
 assert.equal(cleanA.snapshot.dirty, false);
 
-const started = startWorkEvidence(project, "codex", new Date("2026-08-17T10:00:00.000Z"));
+// Relative timestamps: a prior fixed date (2026-08-17) aged past the 30-day
+// retention window and made the age-prune assertion a time bomb.
+const MIN = 60_000;
+const t0 = Date.now();
+const started = startWorkEvidence(project, "codex", new Date(t0 - 5 * MIN));
 assert.equal(started.start.head_commit, git(["rev-parse", "HEAD"]));
 writeFileSync(join(project, "tracked.txt"), "changed\n");
 writeFileSync(join(project, "new.txt"), "new\n");
-const completed = await finishWorkEvidence(project, started.evidence_id, 7, { now: new Date("2026-08-17T10:05:00.000Z") });
+const completed = await finishWorkEvidence(project, started.evidence_id, 7, { now: new Date(t0 - 4 * MIN) });
 assert.equal(completed.status, "complete");
 assert.equal(completed.exit_status, 7);
 assert.deepEqual(completed.touched_paths, ["new.txt", "tracked.txt"]);
@@ -57,8 +61,8 @@ assert.equal(completed.patch.artifact_id, null);
 assert.equal(completed.patch.unavailable_reason, "not-requested");
 assert.match(completed.change_digest, /^[a-f0-9]{64}$/);
 
-const trajectory = await appendWorkEvidenceLink(project, completed.evidence_id, { kind: "trajectory", trajectory_id: "session-1" }, new Date("2026-08-17T10:06:00.000Z"));
-const duplicate = await appendWorkEvidenceLink(project, completed.evidence_id, { kind: "trajectory", trajectory_id: "session-1" }, new Date("2026-08-17T10:07:00.000Z"));
+const trajectory = await appendWorkEvidenceLink(project, completed.evidence_id, { kind: "trajectory", trajectory_id: "session-1" }, new Date(t0 - 3 * MIN));
+const duplicate = await appendWorkEvidenceLink(project, completed.evidence_id, { kind: "trajectory", trajectory_id: "session-1" }, new Date(t0 - 2 * MIN));
 assert.equal(trajectory?.link_id, duplicate?.link_id, "links must be idempotent by exact reference");
 await appendWorkEvidenceLink(project, completed.evidence_id, { kind: "reviewed_memory", scope: "project", review_id: "review-1", key: "patterns/evidence" });
 assert.deepEqual(readWorkEvidence(completed.evidence_id, project).links.map(({ kind }) => kind).sort(), ["reviewed_memory", "trajectory"]);
