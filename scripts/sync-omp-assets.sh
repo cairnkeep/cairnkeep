@@ -22,6 +22,7 @@ LIVE_ROOT="${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}"
 MODE="check"
 ASSETS=(
   "extensions/cairnkeep-memory.ts"
+  "extensions/cairnkeep-capture.ts"
 )
 
 while [[ $# -gt 0 ]]; do

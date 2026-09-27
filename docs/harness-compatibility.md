@@ -81,7 +81,8 @@ registry-current release.
 ## oh-my-pi (omp)
 
 Run `cairn sync-omp --apply` explicitly to install
-`extensions/cairnkeep-memory.ts` under the omp agent root (default
+`extensions/cairnkeep-memory.ts` and `extensions/cairnkeep-capture.ts` under
+the omp agent root (default
 `~/.omp/agent`; `PI_CODING_AGENT_DIR` overrides it, matching omp's agent
 directory resolution). Use `--check` for drift. Uninstall removes only that
 owned path, backup-first.
@@ -104,6 +105,24 @@ context-pack skills, create an autonomous loop, or add a remote transport.
 installed extension against a supervised memory server, including catalog
 parity, the result shape, cancellation, shutdown, orphan-freedom, and
 tool-name collision refusal.
+
+Sync also installs `extensions/cairnkeep-capture.ts`, the omp port of the
+Claude SessionEnd/SessionStart `memory-capture` + `memory-wakeup` hook pair.
+On the first `session_stop` of a main session (the event never fires for
+task/subagent sessions), it converts the persisted branch to transcript text
+(user/assistant text only, capped at 12000 characters keeping the most recent
+turns) and pipes it to a detached staging child that runs the shared
+extraction and writes candidates to `.planning/memory-staging/` — one file
+per session, retention capped at 5 — so staging completes even if the agent
+process exits first. Candidates are staged for review only: writes to AgentFS
+stay agent-gated via the `memory_write` tool. On `session_start` of the main
+session, staged candidates are surfaced through a UI notification and a
+`deliverAs: "nextTurn"` context message injected at the next user turn; the
+`/cairn-staged` command lists the staged files on demand. Both halves are
+fail-open and skip ephemeral side-turn runtimes whose extension actions are
+not initialized. `bun scripts/verify-omp-capture.mjs` exercises the guards,
+transcript shaping, staging contract, retention cap, session de-dupe, wakeup
+injection, and the skip paths.
 
 ## Kimi Code
 
