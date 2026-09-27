@@ -19,6 +19,7 @@
     "opencode/",
     "pi/",
     "kimi/",
+    "omp/",
     "examples/anythingllm/",
     "examples/overlay-distribution/",
     "examples/eval/",

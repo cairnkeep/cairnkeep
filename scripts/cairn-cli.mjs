@@ -30,6 +30,7 @@ const POSIX_COMMANDS = new Map([
   ["sync", "sync-claude-assets.sh"],
   ["sync-pi", "sync-pi-assets.sh"],
   ["sync-kimi", "sync-kimi-assets.sh"],
+  ["sync-omp", "sync-omp-assets.sh"],
   ["audit-timer", "install-audit-timer.sh"],
   ["completion", "completion.sh"],
 ]);
@@ -44,6 +45,7 @@ Usage:
   cairn sync [--check|--apply] [--live-root DIR]
   cairn sync-pi [--check|--apply] [--live-root DIR]
   cairn sync-kimi [--check|--apply] [--live-root DIR]
+  cairn sync-omp [--check|--apply] [--live-root DIR]
   cairn doctor [--repair]
   cairn trajectory <list|show|prune>
   cairn proposals <create|list|show|apply|doctor>
