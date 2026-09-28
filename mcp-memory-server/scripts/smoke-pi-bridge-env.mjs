@@ -2,10 +2,10 @@
 
 import assert from "node:assert/strict";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { childEnvironment } = await import(join(resolve(here, ".."), "dist", "pi-mcp-bridge.js"));
+const { childEnvironment } = await import(pathToFileURL(join(resolve(here, ".."), "dist", "pi-mcp-bridge.js")).href);
 
 const cleaned = childEnvironment({
     PATH: [
