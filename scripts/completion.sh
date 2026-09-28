@@ -13,7 +13,7 @@ _cairn_complete() {
   COMPREPLY=()
   current=${COMP_WORDS[COMP_CWORD]}
   previous=${COMP_WORDS[COMP_CWORD-1]:-}
-  commands="bootstrap setup memory-server sync sync-pi sync-kimi doctor trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help"
+  commands="bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help"
   if (( COMP_CWORD == 1 )); then
     COMPREPLY=( $(compgen -W "$commands" -- "$current") )
     return
@@ -24,6 +24,7 @@ _cairn_complete() {
     sync) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
     sync-pi) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
     sync-kimi) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
+    sync-omp) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
     doctor) COMPREPLY=( $(compgen -W "--repair" -- "$current") ) ;;
     trajectory) COMPREPLY=( $(compgen -W "list show prune --json --dry-run" -- "$current") ) ;;
     artifact) COMPREPLY=( $(compgen -W "list show delete prune --kind --session --json --dry-run --include-protected" -- "$current") ) ;;
@@ -94,6 +95,7 @@ _cairn() {
     'sync:install the Claude operating layer'
     'sync-pi:install the Pi trajectory extension and graph prompt'
     'sync-kimi:install the Kimi graph Skill'
+    'sync-omp:install the oh-my-pi memory extension'
     'doctor:check runtime dependencies and endpoints'
     'trajectory:inspect and prune local session trajectories'
     'artifact:inspect, delete, and prune local artifacts'
@@ -124,6 +126,7 @@ _cairn() {
     sync) _arguments '--apply[apply changes]' '--live-root[project Claude root]:directory:_files -/' ;;
     sync-pi) _arguments '--apply[apply changes]' '--live-root[Pi agent root]:directory:_files -/' ;;
     sync-kimi) _arguments '--apply[apply changes]' '--live-root[Kimi Code root]:directory:_files -/' ;;
+    sync-omp) _arguments '--apply[apply changes]' '--live-root[omp agent root]:directory:_files -/' ;;
     doctor) _arguments '--repair[repair trajectory metadata and indexes]' ;;
     trajectory) _values 'trajectory command' list show prune ;;
     artifact)
@@ -188,8 +191,8 @@ EOF
   fish)
     sed "s/__CAIRN_HARNESSES__/$harnesses/g" <<'EOF'
 complete -c cairn -f
-for command in bootstrap setup memory-server sync sync-pi sync-kimi doctor trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help
-complete -c cairn -n "not __fish_seen_subcommand_from bootstrap setup memory-server sync sync-pi sync-kimi doctor trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help" -a $command
+for command in bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help
+complete -c cairn -n "not __fish_seen_subcommand_from bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help" -a $command
 end
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l apply
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l live-root -r
@@ -197,6 +200,8 @@ complete -c cairn -n "__fish_seen_subcommand_from sync-pi" -l apply
 complete -c cairn -n "__fish_seen_subcommand_from sync-pi" -l live-root -r
 complete -c cairn -n "__fish_seen_subcommand_from sync-kimi" -l apply
 complete -c cairn -n "__fish_seen_subcommand_from sync-kimi" -l live-root -r
+complete -c cairn -n "__fish_seen_subcommand_from sync-omp" -l apply
+complete -c cairn -n "__fish_seen_subcommand_from sync-omp" -l live-root -r
 complete -c cairn -n "__fish_seen_subcommand_from bootstrap" -l untracked
 complete -c cairn -n "__fish_seen_subcommand_from setup" -l git -r -a "init existing none"
 complete -c cairn -n "__fish_seen_subcommand_from setup" -l harness -r -a "__CAIRN_HARNESSES__"

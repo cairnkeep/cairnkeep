@@ -60,10 +60,23 @@ function positiveInteger(value: number | undefined, fallback: number, name: stri
     return selected;
 }
 
-function childEnvironment(source: NodeJS.ProcessEnv): Record<string, string> {
+// Bun-hosted agents (pi, omp) prepend a /tmp/bun-node-* dir whose `node` is
+// Bun itself; grandchildren like `cairn memory-server` spawn real node
+// subprocesses, so those shim dirs must not shadow it.
+const BUN_NODE_SHIM = /\/tmp\/bun-node-[^/:]+$/;
+
+export function childEnvironment(source: NodeJS.ProcessEnv): Record<string, string> {
     const env: Record<string, string> = {};
     for (const [name, value] of Object.entries(source)) {
-        if (value !== undefined && name !== "MCP_HTTP_PORT") env[name] = value;
+        if (value === undefined || name === "MCP_HTTP_PORT") continue;
+        if (name === "PATH") {
+            env[name] = value
+                .split(":")
+                .filter((entry) => !BUN_NODE_SHIM.test(entry))
+                .join(":");
+            continue;
+        }
+        env[name] = value;
     }
     return env;
 }

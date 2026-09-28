@@ -1,78 +1,79 @@
 {
-  "name": "@cairnkeep/cli",
-  "version": "2.17.3",
-  "description": "A durable, harness-agnostic memory + context layer for coding agents and MCP clients.",
-  "license": "Apache-2.0",
-  "type": "module",
-  "publishConfig": {
-    "access": "public"
-  },
-  "bin": {
-    "cairn": "bin/cairn",
-    "cairn-container": "bin/cairn-container"
-  },
-  "files": [
-    "bin/",
-    "scripts/",
-    "templates/",
-    "claude/",
-    "opencode/",
-    "pi/",
-    "kimi/",
-    "examples/anythingllm/",
-    "examples/overlay-distribution/",
-    "examples/eval/",
-    "containers/",
-    "schemas/",
-    "docs/",
-    "CHANGELOG.md",
-    "CONTRIBUTING.md",
-    "SECURITY.md",
-    "mcp-memory-server/dist/",
-    "mcp-memory-server/scripts/fixtures/compaction-*.json",
-    "mcp-memory-server/package.json",
-    "AGENTS.md"
-  ],
-  "engines": {
-    "node": ">=22"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
-    "agentfs-sdk": "^0.6.4",
-    "yaml": "2.9.0",
-    "zod": "^4.4.3"
-  },
-  "scripts": {
-    "build:server": "npm --prefix mcp-memory-server ci --include=dev --global=false --dry-run=false && npm --prefix mcp-memory-server run build --global=false --dry-run=false",
-    "fix:perms": "node scripts/fix-permissions.mjs",
-    "prepack": "npm run build:server && npm run fix:perms",
-    "test": "node scripts/run-repository-tests.mjs",
-    "test:windows": "node scripts/test-windows-native.mjs",
-    "audit:runtime": "node scripts/verify-dependency-security.mjs && npm audit --omit=dev --audit-level=high && npm --prefix mcp-memory-server audit --omit=dev --audit-level=high",
-    "check:public": "scripts/verify-no-private-references.sh && scripts/verify-docs-parity.sh && npm run audit:runtime && npm run build:server && npm test",
-    "prepublishOnly": "npm run check:public && npm --prefix mcp-memory-server test --global=false --dry-run=false"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/cairnkeep/cairnkeep.git"
-  },
-  "homepage": "https://github.com/cairnkeep/cairnkeep#readme",
-  "bugs": {
-    "url": "https://github.com/cairnkeep/cairnkeep/issues"
-  },
-  "keywords": [
-    "mcp",
-    "memory",
-    "agent",
-    "claude-code",
-    "codex-cli",
-    "opencode",
-    "qwen-code",
-    "pi-coding-agent",
-    "context",
-    "rag"
-  ],
-  "devDependencies": {
-    "@cyclonedx/cyclonedx-npm": "6.0.1"
-  }
+    "name": "@cairnkeep/cli",
+    "version": "2.18.0",
+    "description": "A durable, harness-agnostic memory + context layer for coding agents and MCP clients.",
+    "license": "Apache-2.0",
+    "type": "module",
+    "publishConfig": {
+        "access": "public"
+    },
+    "bin": {
+        "cairn": "bin/cairn",
+        "cairn-container": "bin/cairn-container"
+    },
+    "files": [
+        "bin/",
+        "scripts/",
+        "templates/",
+        "claude/",
+        "opencode/",
+        "pi/",
+        "kimi/",
+        "omp/",
+        "examples/anythingllm/",
+        "examples/overlay-distribution/",
+        "examples/eval/",
+        "containers/",
+        "schemas/",
+        "docs/",
+        "CHANGELOG.md",
+        "CONTRIBUTING.md",
+        "SECURITY.md",
+        "mcp-memory-server/dist/",
+        "mcp-memory-server/scripts/fixtures/compaction-*.json",
+        "mcp-memory-server/package.json",
+        "AGENTS.md"
+    ],
+    "engines": {
+        "node": ">=22"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.30.0",
+        "agentfs-sdk": "^0.6.4",
+        "yaml": "2.9.0",
+        "zod": "^4.4.3"
+    },
+    "scripts": {
+        "build:server": "npm --prefix mcp-memory-server ci --include=dev --global=false --dry-run=false && npm --prefix mcp-memory-server run build --global=false --dry-run=false",
+        "fix:perms": "node scripts/fix-permissions.mjs",
+        "prepack": "npm run build:server && npm run fix:perms",
+        "test": "node scripts/run-repository-tests.mjs",
+        "test:windows": "node scripts/test-windows-native.mjs",
+        "audit:runtime": "node scripts/verify-dependency-security.mjs && npm audit --omit=dev --audit-level=high && npm --prefix mcp-memory-server audit --omit=dev --audit-level=high",
+        "check:public": "scripts/verify-no-private-references.sh && scripts/verify-docs-parity.sh && npm run audit:runtime && npm run build:server && npm test",
+        "prepublishOnly": "npm run check:public && npm --prefix mcp-memory-server test --global=false --dry-run=false"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/cairnkeep/cairnkeep.git"
+    },
+    "homepage": "https://github.com/cairnkeep/cairnkeep#readme",
+    "bugs": {
+        "url": "https://github.com/cairnkeep/cairnkeep/issues"
+    },
+    "keywords": [
+        "mcp",
+        "memory",
+        "agent",
+        "claude-code",
+        "codex-cli",
+        "opencode",
+        "qwen-code",
+        "pi-coding-agent",
+        "context",
+        "rag"
+    ],
+    "devDependencies": {
+        "@cyclonedx/cyclonedx-npm": "6.0.1"
+    }
 }

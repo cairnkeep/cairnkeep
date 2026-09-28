@@ -5,6 +5,33 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.18.0] - 2026-09-28
+
+### Added
+
+- oh-my-pi (omp) integration: `omp/extensions/cairnkeep-memory.ts` registers
+  the cairn-memory MCP tools as native omp tools (collision-guarded), and
+  `omp/extensions/cairnkeep-capture.ts` stages durable-memory candidates at
+  session stop and surfaces them on the next session start, with a
+  `/cairn-staged` review command. The bridge runs as a node child process so
+  it also works under compiled Bun standalone binaries.
+- `cairn sync-omp` command, bash/zsh/fish completion entries, and
+  `verify-omp-mcp-bridge.mjs` / `verify-omp-capture.mjs` verification gates.
+- Smoke gates for the pi-mcp-bridge child environment: Bun node-shim PATH
+  stripping, `MCP_HTTP_PORT` isolation, and the node child bridge protocol.
+
+### Fixed
+
+- `pi-mcp-bridge` strips Bun `/tmp/bun-node-*` shim dirs from the stdio child
+  environment; grandchildren like `cairn memory-server` spawn a real node.
+- Work-evidence smoke used fixed calendar dates that aged past the retention
+  window; timestamps are relative to the run.
+
+### Documentation
+
+- `docs/harness-compatibility.md`: oh-my-pi (omp) section.
+- `docs/operating.md`: `CAIRN_PI_BRIDGE_COMMAND` / `CAIRN_PI_BRIDGE_ARGS`.
+
 ## [2.17.3] - 2026-09-03
 
 ### Security
@@ -534,7 +561,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.15.1...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.18.0...HEAD
+[2.18.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.17.3...v2.18.0
 [2.15.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.15.0...v2.15.1
 [2.15.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.13.1...v2.14.0

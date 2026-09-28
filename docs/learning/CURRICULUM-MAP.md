@@ -1,6 +1,6 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.17.3
+**Baseline:** Cairnkeep 2.18.0
 **Last reviewed:** 2026-08-19
 
 This map prevents the course from drifting behind the product. It assigns each
@@ -91,6 +91,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn sync` | L02 |
 | `cairn sync-pi` | L13 and L23 |
 | `cairn sync-kimi` | L02 |
+| `cairn sync-omp` | L02 |
 | `cairn doctor` | L03; advanced repair in L13-L14 |
 | `cairn playbook` | L25 |
 | `cairn trajectory` | L13 |

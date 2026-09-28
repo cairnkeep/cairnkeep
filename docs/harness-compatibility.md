@@ -19,6 +19,7 @@ Cairnkeep commands, hooks or native trajectory capture.
 | Kimi Code | Memory MCP, `AGENTS.md`, launcher, opt-in graph and cairn-work Skills | Launcher tested; remote MCP tested with Kimi Code 0.30.0; Skills contract-tested |
 | Qwen Code | Memory MCP, launcher, project `AGENTS.md` durable-context and playbook guidance | Launcher tested; stdio and remote MCP tested with Qwen Code 0.21.1 |
 | Pi | Memory MCP through maintained local stdio extension, native opt-in trajectory extension, launcher, graph and cairn-work prompts | Pi 0.84.1 validated minimum; deterministic and real bridge/lifecycle tests |
+| oh-my-pi (omp) | Memory MCP through maintained local stdio extension (Pi-successor API) | Smoke-tested against the local omp checkout with the deterministic bridge verification |
 | Codex CLI | Project-scoped memory MCP, launcher, and project `AGENTS.md` durable-context and playbook guidance | Setup and launcher contract-tested on POSIX and simulated native Windows; project trust remains operator-controlled |
 | Other MCP clients | Memory plus optional domain-knowledge and context-pack tools | Protocol-compatible; not automatically runtime-tested |
 
@@ -76,6 +77,52 @@ installations for that minimum and the explicitly versioned registry-current Pi
 release, together with Node.js 22/24/26, Bash 3.2, and native Windows. The
 executable paths were distinct; both reported 0.84.1 because that was also the
 registry-current release.
+
+## oh-my-pi (omp)
+
+Run `cairn sync-omp --apply` explicitly to install
+`extensions/cairnkeep-memory.ts` and `extensions/cairnkeep-capture.ts` under
+the omp agent root (default
+`~/.omp/agent`; `PI_CODING_AGENT_DIR` overrides it, matching omp's agent
+directory resolution). Use `--check` for drift. Uninstall removes only that
+owned path, backup-first.
+
+The extension is the Pi memory extension ported to omp's successor extension
+API: it supervises `cairn memory-server` as a local stdio child through the
+same bridge, discovers the effective MCP catalog dynamically, and registers
+each tool natively with omp under its bare MCP name. omp accepts the MCP input
+schema as a plain JSON Schema document and normalizes results to its
+`AgentToolResult` shape, preserving the trusted call metadata in `details`. A
+`cairn-memory` entry in the omp MCP config coexists without collision:
+config-served MCP tools are minted with an `mcp__` name prefix, so the two
+surfaces never claim the same tool name. Server feature gates, capability
+state, and least-authority profiles continue to decide which tools exist.
+
+Startup, calls, results, stderr retention, cancellation, and shutdown are
+bounded. The extension adds tools only: it does not run prompts, activate
+context-pack skills, create an autonomous loop, or add a remote transport.
+`bun scripts/verify-omp-mcp-bridge.mjs` renders, loads, and exercises the
+installed extension against a supervised memory server, including catalog
+parity, the result shape, cancellation, shutdown, orphan-freedom, and
+tool-name collision refusal.
+
+Sync also installs `extensions/cairnkeep-capture.ts`, the omp port of the
+Claude SessionEnd/SessionStart `memory-capture` + `memory-wakeup` hook pair.
+On the first `session_stop` of a main session (the event never fires for
+task/subagent sessions), it converts the persisted branch to transcript text
+(user/assistant text only, capped at 12000 characters keeping the most recent
+turns) and pipes it to a detached staging child that runs the shared
+extraction and writes candidates to `.planning/memory-staging/` — one file
+per session, retention capped at 5 — so staging completes even if the agent
+process exits first. Candidates are staged for review only: writes to AgentFS
+stay agent-gated via the `memory_write` tool. On `session_start` of the main
+session, staged candidates are surfaced through a UI notification and a
+`deliverAs: "nextTurn"` context message injected at the next user turn; the
+`/cairn-staged` command lists the staged files on demand. Both halves are
+fail-open and skip ephemeral side-turn runtimes whose extension actions are
+not initialized. `bun scripts/verify-omp-capture.mjs` exercises the guards,
+transcript shaping, staging contract, retention cap, session de-dupe, wakeup
+injection, and the skip paths.
 
 ## Kimi Code
 

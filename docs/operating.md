@@ -461,6 +461,8 @@ vendor or host.
 | `CAIRN_LLM_API_KEY` | API key for the extraction / embeddings endpoint (unset → substring-only memory) |
 | `CAIRN_LLM_API_URL` | Base URL of the OpenAI-compatible endpoint |
 | `CAIRN_LLM_EXTRACTION_MODEL` | Chat model for `memory-capture` extraction |
+| `CAIRN_PI_BRIDGE_COMMAND` | Memory-server command for the `pi-bridge-child` stdio host (default `cairn`) |
+| `CAIRN_PI_BRIDGE_ARGS` | JSON argument array for the bridge child server command (default `["memory-server"]`) |
 | `CAIRN_MEMORY_EMBEDDING_URL` | Embeddings endpoint (falls back to `CAIRN_LLM_API_URL`) |
 | `CAIRN_MEMORY_EMBEDDING_MODEL` | Embedding model name (required for semantic search) |
 | `CAIRN_MEMORY_EMBEDDING_TIMEOUT_MS` | Embedding request timeout before substring fallback (default `15000`) |
