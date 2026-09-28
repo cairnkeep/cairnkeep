@@ -171,12 +171,14 @@ async function main() {
   };
   try {
     const pidFile = join(sandbox, "children.txt");
+    const childPidFile = join(sandbox, "bridge-children.txt");
     const env = cleanEnvironment({
       CAIRN_AGENTFS_BASE_DIR: join(sandbox, "memory"),
       CAIRN_MCP_TOOL_PROFILE: "full",
       CAIRN_EXPLORE_BINARY: join(sandbox, "delayed-explore.mjs"),
       CAIRN_EXPLORE_CACHE: "0",
       CAIRN_OMP_SMOKE_PIDS: pidFile,
+      CAIRN_BRIDGE_CHILD_PID_LOG: childPidFile,
       PATH: `${writeCairnWrapper(sandbox)}${process.platform === "win32" ? ";" : ":"}${process.env.PATH ?? ""}`,
     });
     writeFileSync(
@@ -260,6 +262,7 @@ async function main() {
 
     await fire("session_shutdown", { type: "session_shutdown" }, ctx);
     await requireNoOrphans(pidFile);
+    await requireNoOrphans(childPidFile);
 
     // A colliding pre-existing tool name must refuse startup and close the bridge.
     const colliding = createMockPi([expected[0].name]);
@@ -273,9 +276,11 @@ async function main() {
     assert.ok(collisionRefused, "omp extension did not refuse a tool-name collision");
     await colliding.fire("session_shutdown", { type: "session_shutdown" }, ctx);
     await requireNoOrphans(pidFile);
+    await requireNoOrphans(childPidFile);
 
     // An uninitialized host runtime (omp ephemeral side turns) must be a no-op.
     const pidsBefore = existsSync(pidFile) ? readFileSync(pidFile, "utf8").split(/\s+/).filter(Boolean).length : 0;
+    const childPidsBefore = existsSync(childPidFile) ? readFileSync(childPidFile, "utf8").split(/\s+/).filter(Boolean).length : 0;
     const uninitialized = createMockPi();
     const throwingPi = new Proxy(uninitialized.pi, {
       get(target, property, receiver) {
@@ -293,6 +298,8 @@ async function main() {
     await uninitialized.fire("session_shutdown", { type: "session_shutdown" }, ctx);
     const pidsAfter = existsSync(pidFile) ? readFileSync(pidFile, "utf8").split(/\s+/).filter(Boolean).length : 0;
     assert.equal(pidsAfter, pidsBefore, "omp extension spawned a server for an uninitialized runtime");
+    const childPidsAfter = existsSync(childPidFile) ? readFileSync(childPidFile, "utf8").split(/\s+/).filter(Boolean).length : 0;
+    assert.equal(childPidsAfter, childPidsBefore, "omp extension spawned a bridge child for an uninitialized runtime");
 
     output({
       schema_version: 1,
@@ -306,6 +313,7 @@ async function main() {
         "cancellation",
         "shutdown",
         "orphan-free",
+        "bridge-child-orphan-free",
         "collision-refusal",
         "uninitialized-runtime-noop",
       ],
