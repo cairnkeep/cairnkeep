@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Cairnkeep launcher for oh-my-pi (OMP). Loads this repo's private .ai/.env,
+# runs the optional pre/post seams, and launches OMP from the project root.
+set -euo pipefail
+ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+
+if [[ -f "$ROOT_DIR/.ai/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/.env"
+  set +a
+fi
+if [[ -f "$ROOT_DIR/.ai/pre-launch.sh" ]]; then
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/pre-launch.sh"
+fi
+
+cd "$ROOT_DIR"
+
+case "${CAIRN_WORK_EVIDENCE:-}" in
+  1|true|TRUE|yes|YES|on|ON)
+    if command -v cairn >/dev/null 2>&1 && cairn evidence --help >/dev/null 2>&1; then
+      set +e
+      cairn evidence run --harness omp -- omp "$@"
+      CAIRN_EXIT_STATUS=$?
+      set -e
+      export CAIRN_EXIT_STATUS
+      if [[ -f "$ROOT_DIR/.ai/post-exit.sh" ]]; then
+        # shellcheck disable=SC1091
+        . "$ROOT_DIR/.ai/post-exit.sh" || true
+      fi
+      exit "$CAIRN_EXIT_STATUS"
+    fi
+    echo "cairn: compatible evidence command unavailable; launching without capture" >&2
+    ;;
+esac
+if [[ -f "$ROOT_DIR/.ai/post-exit.sh" ]]; then
+  set +e
+  omp "$@"
+  CAIRN_EXIT_STATUS=$?
+  set -e
+  export CAIRN_EXIT_STATUS
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.ai/post-exit.sh" || true
+  exit "$CAIRN_EXIT_STATUS"
+fi
+exec omp "$@"

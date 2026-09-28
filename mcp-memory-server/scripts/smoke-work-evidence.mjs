@@ -88,6 +88,20 @@ assert.equal(artifact.kind, "diff");
 assert.match(artifact.content.text, /tracked\.txt/);
 assert.ok(readWorkEvidence(patched.evidence_id, project).links.some((link) => link.kind === "artifact" && link.artifact_id === patched.patch.artifact_id));
 
+const ompProject = join(root, "omp-project");
+mkdirSync(ompProject);
+git(["init", "--quiet"], ompProject);
+git(["config", "user.email", "fixture@example.invalid"], ompProject);
+git(["config", "user.name", "Fixture"], ompProject);
+writeFileSync(join(ompProject, "omp.txt"), "start\n");
+git(["add", "omp.txt"], ompProject);
+git(["commit", "--quiet", "-m", "start"], ompProject);
+const ompStarted = startWorkEvidence(ompProject, "omp");
+writeFileSync(join(ompProject, "omp.txt"), "changed\n");
+const ompCompleted = await finishWorkEvidence(ompProject, ompStarted.evidence_id, 0);
+const ompArtifact = await readArtifact(ompCompleted.patch.artifact_id, ompProject);
+assert.equal(ompArtifact.provenance.harness, "omp", "OMP work evidence should preserve harness provenance");
+
 const listed = listWorkEvidence(project);
 assert.equal(listed.evidence.length, 3);
 assert.equal(doctorWorkEvidence(project).ok, true);
@@ -162,6 +176,18 @@ const off = spawnSync(process.execPath, [cli, "run", "--harness", "codex", "--",
 assert.equal(off.status, 13, off.stderr);
 assert.equal(existsSync(gitMarker), false, "disabled wrapper must not invoke Git");
 assert.equal(existsSync(getWorkEvidenceStorePath(disabled)), false, "disabled wrapper must not create storage");
+
+const ompLauncherProject = join(root, "omp-launcher-project");
+mkdirSync(ompLauncherProject);
+git(["init", "--quiet"], ompLauncherProject);
+git(["config", "user.email", "fixture@example.invalid"], ompLauncherProject);
+git(["config", "user.name", "Fixture"], ompLauncherProject);
+writeFileSync(join(ompLauncherProject, "tracked.txt"), "start\n");
+git(["add", "tracked.txt"], ompLauncherProject);
+git(["commit", "--quiet", "-m", "start"], ompLauncherProject);
+const ompEvidence = spawnSync(process.execPath, [cli, "run", "--harness", "omp", "--", process.execPath, "-e", "process.exit(0)"], { cwd: ompLauncherProject, env: { ...priorEnv, CAIRN_WORK_EVIDENCE: "1" }, encoding: "utf8" });
+assert.equal(ompEvidence.status, 0, ompEvidence.stderr);
+assert.equal(listWorkEvidence(ompLauncherProject).evidence[0]?.harness, "omp", "OMP work-evidence launcher should be accepted");
 
 // Missing Git is fail-open for launcher execution.
 const missing = join(root, "missing-git");

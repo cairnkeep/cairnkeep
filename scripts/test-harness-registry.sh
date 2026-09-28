@@ -25,7 +25,7 @@ for (const path of [
   assert.match(content, /approval/);
 }
 const registry = await import(pathToFileURL(join(root, "scripts", "harness-registry.mjs")).href);
-assert.deepEqual(registry.HARNESS_IDS, ["claude", "opencode", "pi", "kimi", "qwen", "codex"]);
+assert.deepEqual(registry.HARNESS_IDS, ["claude", "opencode", "pi", "omp", "kimi", "qwen", "codex"]);
 assert.equal(new Set(registry.HARNESS_IDS).size, registry.HARNESS_IDS.length);
 for (const id of registry.HARNESS_IDS) {
   const definition = registry.harnessDefinition(id);
@@ -40,6 +40,14 @@ assert.deepEqual(registry.harnessProjectAssets("codex", "local").map(({ path }) 
 assert.deepEqual(registry.requiredHarnessAssetPaths(["codex"], "local"), [".ai/start-codex.sh"]);
 assert.deepEqual(registry.requiredHarnessAssetPaths(["codex"], "none"), [".ai/start-codex.sh"]);
 assert.equal(registry.machineSyncCommand(["codex"]), null);
+assert.deepEqual(registry.machineSyncCommands(["claude", "opencode", "pi", "omp", "kimi"]), [
+  "cairn sync --apply",
+  "cairn sync-pi --apply",
+  "cairn sync-omp --apply",
+  "cairn sync-kimi --apply",
+]);
+assert.equal(registry.machineSyncCommand(["claude", "pi"]), "cairn sync-pi --apply", "legacy singular machine sync should retain its Pi preference");
+assert.deepEqual(registry.machineSyncCommands(["codex"]), []);
 
 const schema = JSON.parse(readFileSync(join(root, "schemas", "cairnkeep-setup.schema.json"), "utf8"));
 assert.deepEqual(schema.properties.harnesses.items.enum, registry.HARNESS_IDS, "setup schema drifted from harness registry");
@@ -56,6 +64,7 @@ assert.equal(setup.status, 0, setup.stderr);
 const result = JSON.parse(setup.stdout);
 assert.deepEqual(result.harnesses, ["codex"]);
 assert.equal(result.machine_sync.command, null);
+assert.deepEqual(result.machine_sync.commands, []);
 assert.deepEqual(result.launch_commands, [".ai/start-codex.sh"]);
 assert.match(readFileSync(join(target, ".codex", "config.toml"), "utf8"), /\[mcp_servers\.cairn-memory-local\][\s\S]*command = "cairn"[\s\S]*args = \["memory-server"\]/);
 
@@ -72,6 +81,24 @@ const launch = spawnSync(join(target, ".ai", "start-codex.sh"), ["--fixture"], {
 });
 assert.equal(launch.status, 0, launch.stderr);
 assert.deepEqual(launch.stdout.trim().split("\n"), [target, "loaded", "--fixture"]);
+
+const ompTarget = join(sandbox, "omp-project");
+const ompSetup = spawnSync(join(root, "bin", "cairn"), [
+  "setup", ompTarget, "--git", "init", "--harness", "omp", "--memory", "local", "--yes", "--json",
+], { encoding: "utf8", shell: false });
+assert.equal(ompSetup.status, 0, ompSetup.stderr);
+assert.deepEqual(JSON.parse(ompSetup.stdout).harnesses, ["omp"]);
+const fakeOmp = join(fakeBin, "omp");
+writeFileSync(fakeOmp, "#!/bin/sh\nprintf '%s\\n' \"$PWD\" \"${CAIRN_REGISTRY_TEST:-}\" \"$*\"\n");
+chmodSync(fakeOmp, 0o755);
+writeFileSync(join(ompTarget, ".ai", ".env"), "CAIRN_REGISTRY_TEST=omp-loaded\n", { mode: 0o600 });
+const ompLaunch = spawnSync(join(ompTarget, ".ai", "start-omp.sh"), ["--fixture"], {
+  encoding: "utf8",
+  shell: false,
+  env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` },
+});
+assert.equal(ompLaunch.status, 0, ompLaunch.stderr);
+assert.deepEqual(ompLaunch.stdout.trim().split("\n"), [ompTarget, "omp-loaded", "--fixture"]);
 
 const noMemory = join(sandbox, "codex-no-memory");
 const noMemorySetup = spawnSync(join(root, "bin", "cairn"), [

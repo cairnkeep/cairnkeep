@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.18.0
+**Baseline:** Cairnkeep 2.19.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -86,6 +86,7 @@ prerequisites for ordinary memory.
 | Context packs | Manual local or commit-pinned Git install plus project enablement | Immutable objects and atomic pointers under `CAIRN_PACK_BASE_DIR`; no background sync | Validate, inspect digest, check/apply update, disable/remove | `course-10-trust-context` |
 | OKF exchange | `cairn pack validate-okf`, `import-okf`, and preview-confirm `export-okf` | Local import/export by default; explicit file/shared-note allowlist; redacted output | Inspect diagnostics/provenance/output list; exact-digest apply; disable/remove imported pack | `course-10-trust-context` |
 | Pi local stdio memory | Select Pi during setup, then explicitly run `cairn sync-pi --apply` | Local memory-server child; dynamic effective tool catalog; annotations retained in trusted details, not a native Pi field | `cairn sync-pi --check`, `cairn doctor`, cancel one call, then observe awaited shutdown with no orphan | `course-12-guided-setup` |
+| OMP local stdio memory | Select OMP during setup, then explicitly run `cairn sync-omp --apply` | Local memory-server child; dynamic effective tool catalog; capture stages candidates for review | `cairn sync-omp --check`, `cairn doctor`, cancel one call, then verify session-stop staging and no orphan | `course-12-guided-setup` |
 
 ## Evidence, governance, and measurement
 

@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart and Operator
 **Time:** 35 minutes
-**Tested with:** Cairnkeep 2.18.0; Pi 0.84.1; Node.js 22, 24, and 26
+**Tested with:** Cairnkeep 2.19.0; Pi 0.84.1; Node.js 22, 24, and 26
 
 ## Outcome
 
@@ -13,13 +13,14 @@ Pi's local stdio memory bridge, and recover or uninstall every managed asset
 without hidden machine changes.
 
 The selected harnesses come from Cairnkeep's declarative registry. Codex is a
-supported selection: it receives `.codex/config.toml` and a launcher, while Pi
-continues to require its separate explicit machine sync.
+supported selection: it receives `.codex/config.toml` and a launcher. Pi and
+OMP receive project launchers and each require a separate, explicit machine
+sync; selecting both reports both sync commands.
 
 ## Prerequisites
 
 - Node.js 22 or newer, npm, and Git for the main exercise.
-- Pi 0.84.1 or newer.
+- Pi 0.84.1 or newer; OMP is optional.
 - A disposable parent directory containing no credentials, secrets, private
   state, or identifying project data.
 
@@ -32,7 +33,7 @@ cairn setup /tmp/cairnkeep-guided-selector-lab
 ```
 
 Choose Git with Up/Down and Enter, tick Pi with Space in the harness checklist,
-keep local memory, then inspect the plan before confirming. Pressing Escape or
+optionally tick OMP as well, keep local memory, then inspect the plan before confirming. Pressing Escape or
 Ctrl-C cancels; redirected and limited terminals use the documented text-input
 fallback. Remove that disposable selector lab before continuing if you applied
 the plan.
@@ -61,6 +62,14 @@ cairn sync-pi --apply
 cairn sync-pi --check
 cairn doctor
 ./.ai/start-pi.sh
+```
+
+If OMP was selected, run its separate sync and use the generated launcher:
+
+```bash
+cairn sync-omp --apply
+cairn sync-omp --check
+./.ai/start-omp.sh
 ```
 
 In the disposable Pi session, list the registered Cairnkeep tools and make one
@@ -107,9 +116,10 @@ cairn sync-pi --check
 cairn doctor
 ```
 
-Doctor reports project-state drift separately from missing or drifted Pi
+Doctor reports project-state drift separately from missing or drifted harness
 machine assets. Setup repairs only recorded project assets; `cairn sync-pi
---apply` repairs only the package-owned Pi extension and prompt paths.
+--apply` and `cairn sync-omp --apply` repair only their respective package-owned
+machine paths.
 
 Preview backup-first removal before confirming it:
 
@@ -128,6 +138,7 @@ and context packs remain unless their separate purge flags are supplied.
 | Setup refuses a missing target | The non-interactive command omitted an explicit choice or `--yes` | Run `cairn setup PATH` in a terminal, or supply the target, `--git`, `--harness`, `--memory`, and `--yes` together |
 | Setup refuses `--git existing` | The target is not inside a Git work tree | Choose an existing repository, or explicitly authorize `--git init`; use `--git none` only when limited mode is intended |
 | Doctor reports missing or drifted Pi assets | Project setup selected Pi but machine sync is incomplete | Run `cairn sync-pi --apply`, then `cairn sync-pi --check` and `cairn doctor` |
+| OMP is missing an extension | Project setup selected OMP but its explicit machine sync was not applied | Run `cairn sync-omp --apply`, then `cairn sync-omp --check` and `cairn doctor` |
 | A cancelled call ends the session | The Pi/bridge version does not satisfy the per-call cancellation contract | Preserve sanitized diagnostics, close the session, and do not claim release readiness |
 | Pi exits but a child process remains | Shutdown did not complete or the tested extension drifted | Preserve process-state evidence, run the sync check, and treat the release gate as failed |
 | A client expects native annotation hints | Pi's public tool API has no annotations field | Inspect trusted bridge metadata/result `details`; never claim native propagation |

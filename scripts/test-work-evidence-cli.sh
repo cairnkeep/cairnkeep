@@ -16,7 +16,7 @@ exec node "$ROOT/bin/cairn" "\$@"
 EOF
 chmod +x "$fake_bin/cairn"
 
-for harness in claude opencode pi kimi qwen codex; do
+for harness in claude opencode pi omp kimi qwen codex; do
   project="$tmp/$harness"
   mkdir -p "$project/.ai" "$project/.agentfs"
   cp "$ROOT/templates/start-$harness.sh.template" "$project/.ai/start-$harness.sh"

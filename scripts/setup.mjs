@@ -22,7 +22,7 @@ import {
   resolveSetupChoices,
 } from "./setup-core.mjs";
 import { reconcileSetupPlan } from "./setup-reconcile.mjs";
-import { HARNESS_IDS, HARNESS_REGISTRY, machineSyncCommand, requiredHarnessAssetPaths } from "./harness-registry.mjs";
+import { HARNESS_IDS, HARNESS_REGISTRY, machineSyncCommand, machineSyncCommands, requiredHarnessAssetPaths } from "./harness-registry.mjs";
 import { reconcilePlaybookInstructions } from "./playbook-instructions.mjs";
 import { selectManyPrompt, selectOnePrompt, supportsTerminalPrompts } from "./terminal-prompts.mjs";
 
@@ -189,6 +189,7 @@ function setupRecovery(plan) {
 }
 
 function resultFor(plan, reconciliation, platform) {
+  const machineCommands = machineSyncCommands(plan.harnesses);
   const machineCommand = machineSyncCommand(plan.harnesses);
   return Object.freeze({
     schema_version: 1,
@@ -203,7 +204,7 @@ function resultFor(plan, reconciliation, platform) {
     launch_commands: Object.freeze(launchCommands(plan, platform)),
     recovery: Object.freeze(setupRecovery(plan)),
     limitations: Object.freeze(plan.limited ? ["Git integration is disabled; repository-aware features are limited."] : []),
-    machine_sync: Object.freeze({ automatic: false, command: machineCommand }),
+    machine_sync: Object.freeze({ automatic: false, command: machineCommand, commands: machineCommands }),
   });
 }
 
@@ -223,9 +224,13 @@ export function renderSetupResult(result, stream) {
   if (result.harnesses.includes("codex") && result.memory === "local") {
     writeLine(stream, "Codex: review .codex/config.toml and accept the project trust prompt before use");
   }
-  writeLine(stream, result.machine_sync.command
-    ? `Machine sync: ${result.machine_sync.command} (not run automatically)`
-    : "Machine sync: not required for the selected harnesses");
+  if (result.machine_sync.commands.length > 0) {
+    for (const command of result.machine_sync.commands) {
+      writeLine(stream, `Machine sync: ${command} (not run automatically)`);
+    }
+  } else {
+    writeLine(stream, "Machine sync: not required for the selected harnesses");
+  }
 }
 
 function createTarget(target) {

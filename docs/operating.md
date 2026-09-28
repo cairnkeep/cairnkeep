@@ -75,7 +75,7 @@ cairn setup /path/to/project --git init --harness claude,pi --memory local --yes
 ```
 
 The deterministic form accepts `--git init|existing|none`, a comma-separated
-subset of `claude,opencode,pi,kimi,qwen,codex`, and `--memory local|none`. `--git
+subset of `claude,opencode,pi,omp,kimi,qwen,codex`, and `--memory local|none`. `--git
 existing` requires the target to be in an existing work tree. `--git init`
 requires Git and is the only non-interactive authorization to initialize a
 repository. `--git none` is an explicit limited mode: repository-aware features
@@ -95,16 +95,21 @@ selected harnesses, and digests/modes/template identifiers for setup-owned
 assets. It contains no credentials, endpoints, or absolute paths.
 
 Setup never installs or refreshes machine-level harness assets. Its
-`machine_sync.automatic` field is always false, and the human output labels the
-reported command as not run automatically. For selections such as Codex and
-Qwen that need no machine sync, `machine_sync.command` is `null` and the human
-output says that sync is not required. Apply any reported command explicitly,
-check it, then diagnose and launch:
+`machine_sync.automatic` field is always false, and the human output labels each
+reported command as not run automatically. The JSON result's
+`machine_sync.commands` lists every required command; the older singular
+`machine_sync.command` field remains as the first command for compatibility.
+For selections such as Codex and Qwen that need no machine sync,
+`machine_sync.commands` is empty and the human output says that sync is not
+required. Apply each reported command explicitly, check the corresponding
+assets, then diagnose and launch:
 
 ```bash
 cairn sync --apply                    # Claude Code operating assets
 cairn sync-pi --apply                 # Pi extension and prompt
 cairn sync-pi --check
+cairn sync-omp --apply                # OMP extensions
+cairn sync-omp --check
 cd /path/to/project && cairn doctor
 ./.ai/start-pi.sh
 ```

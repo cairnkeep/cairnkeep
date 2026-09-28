@@ -5,6 +5,17 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-09-28
+
+### Added
+
+- Include oh-my-pi (OMP) in guided setup with a project launcher and explicit,
+  opt-in machine sync instructions.
+- Report every required machine sync command when multiple harnesses are
+  selected, while retaining the singular JSON field for compatibility.
+- Support OMP in opt-in Git-linked work evidence and preserve its diff-artifact
+  provenance.
+
 ## [2.18.0] - 2026-09-28
 
 ### Added
@@ -561,7 +572,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.18.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.19.0...HEAD
+[2.19.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.17.3...v2.18.0
 [2.15.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.15.0...v2.15.1
 [2.15.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.14.0...v2.15.0

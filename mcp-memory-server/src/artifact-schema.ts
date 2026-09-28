@@ -39,7 +39,7 @@ export const artifactNodeRefSchema = z.object({
 export const artifactProvenanceSchema = z.object({
     producer: z.string().min(1).max(256).refine((value) => !/[\u0000-\u001f\u007f]/.test(value)),
     source_event: z.string().min(1).max(256).optional(),
-    harness: z.enum(["claude-code", "opencode", "pi"]).optional(),
+    harness: z.enum(["claude-code", "opencode", "pi", "omp"]).optional(),
     harness_version: z.string().min(1).max(128).optional(),
     native_id: z.string().min(1).max(256).optional(),
 }).strict();

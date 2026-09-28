@@ -43,7 +43,7 @@ endpoints. They are not part of the default offline test suite.
   Node-based CLI implementations.
 - `bin/cairn` is the installed command entry point.
 - `templates/` contains project scaffolding and managed instruction assets.
-- `claude/`, `opencode/`, `pi/`, and `kimi/` contain harness-specific operating
+- `claude/`, `opencode/`, `pi/`, `omp/`, and `kimi/` contain harness-specific operating
   assets.
 - `scripts/` contains sync, lifecycle, packaging, and contract checks.
 - `docs/` contains the versioned user and operator references indexed from
