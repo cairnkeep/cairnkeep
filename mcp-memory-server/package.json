@@ -72,7 +72,7 @@
         "@modelcontextprotocol/sdk": "^1.30.0",
         "agentfs-sdk": "^0.6.4",
         "yaml": "2.9.0",
-        "zod": "^4.4.3"
+        "zod": "^4.6.5"
     },
     "devDependencies": {
         "@types/node": "^22.20.1",
