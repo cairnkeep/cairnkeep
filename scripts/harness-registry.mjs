@@ -29,6 +29,13 @@ const DEFINITIONS = [
     machine_sync: "cairn sync-pi --apply",
   },
   {
+    id: "omp",
+    title: "Oh My Pi (OMP)",
+    launcher: { template: "start-omp.sh.template", path: ".ai/start-omp.sh", mode: 0o755 },
+    project_assets: [],
+    machine_sync: "cairn sync-omp --apply",
+  },
+  {
     id: "kimi",
     title: "Kimi Code",
     launcher: { template: "start-kimi.sh.template", path: ".ai/start-kimi.sh", mode: 0o755 },
@@ -90,9 +97,14 @@ export function requiredHarnessAssetPaths(harnesses, memory = "local") {
 }
 
 export function machineSyncCommand(harnesses) {
-  const commands = harnesses.map(harnessDefinition).map((definition) => definition?.machine_sync).filter(Boolean);
-  if (commands.includes("cairn sync-pi --apply")) return "cairn sync-pi --apply";
-  return commands[0] ?? null;
+  const commands = machineSyncCommands(harnesses);
+  return commands.find((command) => command === "cairn sync-pi --apply") ?? commands[0] ?? null;
+}
+
+export function machineSyncCommands(harnesses) {
+  return Object.freeze([...new Set(
+    harnesses.map(harnessDefinition).map((definition) => definition?.machine_sync).filter(Boolean),
+  )]);
 }
 
 function validateRegistry() {

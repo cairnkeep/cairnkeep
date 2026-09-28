@@ -165,7 +165,7 @@ if [[ "$completion_surface_complete" != true ]]; then
 fi
 
 setup_flags='--git --harness --memory --policy --yes --json'
-setup_values='init existing none claude opencode pi kimi qwen local'
+setup_values='init existing none claude opencode pi omp kimi qwen codex local'
 for shell in bash zsh fish powershell; do
   for flag in $setup_flags; do
     grep -q -- "$flag\|${flag#--}" "$tmp/$shell" || {

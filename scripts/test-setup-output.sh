@@ -68,6 +68,7 @@ assert.equal(result.launch_commands.some((line) => /start-pi\.sh/.test(line)), t
 assert.equal(Array.isArray(result.recovery), true);
 assert.equal(result.machine_sync.automatic, false);
 assert.match(result.machine_sync.command, /^cairn sync(?:-pi)? --(?:check|apply)/);
+assert.deepEqual(result.machine_sync.commands, ["cairn sync --apply", "cairn sync-pi --apply"]);
 NODE
 
 complete_human="$tmp/complete.txt"
@@ -86,7 +87,25 @@ for expected in \
   "Recovery:"; do
   grep -qF "$expected" "$complete_human" || fail "human output missing $expected"
 done
-grep -qE 'cairn sync(-pi)? --(check|apply)' "$complete_human" || fail "human output omitted explicit machine sync direction"
+grep -qF 'Machine sync: cairn sync --apply (not run automatically)' "$complete_human" || fail "human output omitted Claude machine sync"
+grep -qF 'Machine sync: cairn sync-pi --apply (not run automatically)' "$complete_human" || fail "human output omitted Pi machine sync"
+
+omp_json="$tmp/omp.json"
+"$ROOT/bin/cairn" setup "$tmp/omp target" \
+  --git init --harness omp --memory local --yes --json >"$omp_json"
+node --input-type=module - "$omp_json" <<'NODE'
+import assert from "node:assert/strict";
+import fs from "node:fs";
+
+const result = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+assert.deepEqual(result.harnesses, ["omp"]);
+assert.deepEqual(result.launch_commands, [".ai/start-omp.sh"]);
+assert.equal(result.machine_sync.automatic, false);
+assert.equal(result.machine_sync.command, "cairn sync-omp --apply");
+assert.deepEqual(result.machine_sync.commands, ["cairn sync-omp --apply"]);
+NODE
+[[ -x "$tmp/omp target/.ai/start-omp.sh" ]] || fail "OMP launcher missing"
+grep -qF 'cairn evidence run --harness omp -- omp' "$tmp/omp target/.ai/start-omp.sh" || fail "OMP launcher work-evidence integration missing"
 
 limited_json="$tmp/limited.json"
 "$ROOT/bin/cairn" setup "$tmp/limited target" \

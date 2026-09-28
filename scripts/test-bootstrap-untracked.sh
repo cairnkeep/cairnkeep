@@ -90,7 +90,7 @@ grep -qxF "/.agentfs/" "$tmp/repo/.git/info/exclude" || fail "missing /.agentfs/
 printf '%s\n' '{"schema_version":1,"capabilities":{"wiki":false},"logging":{"callbacks":true}}' >"$tmp/repo/.ai/capabilities.json"
 chmod 600 "$tmp/repo/.ai/capabilities.json"
 printf '%s\n' '# operator-owned environment' >"$tmp/repo/.ai/env.example"
-asset_paths='.ai/start-claude.sh .ai/start-opencode.sh .ai/start-pi.sh .ai/start-kimi.sh .ai/start-qwen.sh .ai/start-codex.sh .ai/env.example .ai/trajectory-redaction.json .ai/capabilities.json .agentfs/.gitignore .planning/config.json .planning/wiki/index.md .planning/wiki/policy.md .planning/wiki/CONTRADICTIONS.md .planning/wiki/LOG.md .planning/alignment/policy.md .planning/alignment/gap-register.yaml .planning/graphs/policy.md .planning/graphs/.gitignore .planning/security/policy.md'
+asset_paths='.ai/start-claude.sh .ai/start-opencode.sh .ai/start-pi.sh .ai/start-omp.sh .ai/start-kimi.sh .ai/start-qwen.sh .ai/start-codex.sh .ai/env.example .ai/trajectory-redaction.json .ai/capabilities.json .agentfs/.gitignore .planning/config.json .planning/wiki/index.md .planning/wiki/policy.md .planning/wiki/CONTRADICTIONS.md .planning/wiki/LOG.md .planning/alignment/policy.md .planning/alignment/gap-register.yaml .planning/graphs/policy.md .planning/graphs/.gitignore .planning/security/policy.md'
 mkdir -p "$tmp/assets-before"
 for path in $asset_paths; do
   cp "$tmp/repo/$path" "$tmp/assets-before/${path//\//__}"

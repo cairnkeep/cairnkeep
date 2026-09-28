@@ -80,7 +80,8 @@ registry-current release.
 
 ## oh-my-pi (omp)
 
-Run `cairn sync-omp --apply` explicitly to install
+Select OMP in `cairn setup` to create the project launcher, then run
+`cairn sync-omp --apply` explicitly to install
 `extensions/cairnkeep-memory.ts` and `extensions/cairnkeep-capture.ts` under
 the omp agent root (default
 `~/.omp/agent`; `PI_CODING_AGENT_DIR` overrides it, matching omp's agent

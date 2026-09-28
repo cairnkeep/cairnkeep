@@ -342,7 +342,7 @@ export async function finishWorkEvidence(
             provenance: {
                 producer: "cairn-work-evidence",
                 source_event: "launcher-exit",
-                harness: start.harness === "claude" ? "claude-code" : ["opencode", "pi"].includes(start.harness) ? start.harness : undefined,
+                harness: start.harness === "claude" ? "claude-code" : ["opencode", "pi", "omp"].includes(start.harness) ? start.harness : undefined,
             },
             content: { text: patchCapture.text },
         }, { ...artifactLimits, artifactMaxBytes: Math.min(artifactLimits.artifactMaxBytes, limits.patchMaxBytes) });

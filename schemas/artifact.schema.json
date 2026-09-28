@@ -27,7 +27,7 @@
       "properties": {
         "producer": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[^\\u0000-\\u001f\\u007f]+$" },
         "source_event": { "type": "string", "minLength": 1, "maxLength": 256 },
-        "harness": { "enum": ["claude-code", "opencode", "pi"] },
+        "harness": { "enum": ["claude-code", "opencode", "pi", "omp"] },
         "harness_version": { "type": "string", "minLength": 1, "maxLength": 128 },
         "native_id": { "type": "string", "minLength": 1, "maxLength": 256 }
       }

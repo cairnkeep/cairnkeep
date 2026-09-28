@@ -345,7 +345,7 @@ async function testStructuredSetupSelectors(setup, fixture) {
     "Apply this setup plan?",
   ]);
   const harnessPrompt = selections.find(({ message }) => message === "Coding harnesses");
-  assert.deepEqual(harnessPrompt.choices.map(({ value }) => value), ["claude", "opencode", "pi", "kimi", "qwen", "codex"]);
+  assert.deepEqual(harnessPrompt.choices.map(({ value }) => value), ["claude", "opencode", "pi", "omp", "kimi", "qwen", "codex"]);
   assert.match(harnessPrompt.choices.find(({ value }) => value === "codex").label, /Codex CLI/);
   assertNoManagedPaths(fixture.empty, "cancelled structured setup");
 }

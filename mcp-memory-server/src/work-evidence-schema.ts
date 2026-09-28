@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const WORK_EVIDENCE_SCHEMA_VERSION = 1 as const;
-export const WORK_EVIDENCE_HARNESSES = ["claude", "opencode", "pi", "kimi", "qwen", "codex"] as const;
+export const WORK_EVIDENCE_HARNESSES = ["claude", "opencode", "pi", "omp", "kimi", "qwen", "codex"] as const;
 export const WORK_EVIDENCE_DEFAULT_RETENTION_DAYS = 30;
 export const WORK_EVIDENCE_DEFAULT_STORE_MAX_BYTES = 64 * 1024 * 1024;
 export const WORK_EVIDENCE_DEFAULT_MAX_TOUCHED_PATHS = 4096;

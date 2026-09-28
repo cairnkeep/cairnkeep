@@ -43,6 +43,7 @@ PROJECT_AI_FILES=(
   start-claude.sh
   start-opencode.sh
   start-pi.sh
+  start-omp.sh
   start-kimi.sh
   start-qwen.sh
   start-codex.sh
