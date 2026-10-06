@@ -64,7 +64,7 @@ export function windowsPrivateAclHardeningPlan(
     ];
 }
 
-function windowsAclSnapshot(path: string): WindowsAclSnapshot | undefined {
+function windowsAclSnapshot(path: string): WindowsAclSnapshot {
     const script = [
         "$ErrorActionPreference='Stop'",
         "$acl=Get-Acl -LiteralPath $env:CK_INTERNAL_ACL_PATH",
@@ -78,12 +78,22 @@ function windowsAclSnapshot(path: string): WindowsAclSnapshot | undefined {
         windowsHide: true,
         env: { ...process.env, CK_INTERNAL_ACL_PATH: path },
     });
-    if (result.status !== 0 || !result.stdout.trim()) return undefined;
-    const parsed = JSON.parse(result.stdout) as Partial<WindowsAclSnapshot>;
-    if (typeof parsed.owner_sid !== "string" || typeof parsed.protected !== "boolean" || !Array.isArray(parsed.access)) return undefined;
+    if (result.status !== 0 || !result.stdout.trim()) {
+        const detail = result.stderr.trim();
+        throw new Error(`Unable to inspect Windows ACL${detail ? `: ${detail}` : "."}`);
+    }
+    let parsed: Partial<WindowsAclSnapshot>;
+    try {
+        parsed = JSON.parse(result.stdout) as Partial<WindowsAclSnapshot>;
+    } catch {
+        throw new Error("Unable to parse the Windows ACL inspection result.");
+    }
+    if (typeof parsed.owner_sid !== "string" || typeof parsed.protected !== "boolean" || !Array.isArray(parsed.access)) {
+        throw new Error("Windows ACL inspection returned an invalid structure.");
+    }
     const access = parsed.access.filter((ace): ace is { sid: string; type: string; rights: number } => Boolean(ace)
         && typeof ace.sid === "string" && typeof ace.type === "string" && Number.isSafeInteger(ace.rights));
-    if (access.length !== parsed.access.length) return undefined;
+    if (access.length !== parsed.access.length) throw new Error("Windows ACL inspection returned an invalid access rule.");
     return { owner_sid: parsed.owner_sid, protected: parsed.protected, access };
 }
 
@@ -104,8 +114,13 @@ export function hardenPrivatePath(path: string): void {
     }
     const identity = currentWindowsIdentity();
     const directory = lstatSync(path).isDirectory();
-    const snapshot = windowsAclSnapshot(path);
-    if (!snapshot) throw new Error("Unable to inspect Windows ACLs before hardening private Cairnkeep state.");
+    let snapshot: WindowsAclSnapshot;
+    try {
+        snapshot = windowsAclSnapshot(path);
+    } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        throw new Error(`Unable to inspect Windows ACLs before hardening private Cairnkeep state: ${detail}`);
+    }
     for (const operation of windowsPrivateAclHardeningPlan(snapshot, identity, directory)) {
         const args = [path, ...operation];
         const result = spawnSync("icacls.exe", args, { encoding: "utf8", windowsHide: true });
