@@ -5,6 +5,16 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.20.1] - 2026-10-06
+
+### Maintenance
+
+- Consolidate the remaining dependency updates into one verified patch:
+  YAML 2.9.1, Zod 4.6.5, Node 22 type definitions 22.20.5, and current
+  digest-pinned Docker build, Buildx, and QEMU actions.
+- Retain zero production audit findings and the existing Node 22/24/26,
+  native-Windows, macOS, container, and release-candidate gates.
+
 ## [2.20.0] - 2026-10-06
 
 ### Added

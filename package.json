@@ -1,6 +1,6 @@
 {
     "name": "@cairnkeep/cli",
-    "version": "2.20.0",
+    "version": "2.20.1",
     "description": "A durable, harness-agnostic memory + context layer for coding agents and MCP clients.",
     "license": "Apache-2.0",
     "type": "module",
@@ -40,8 +40,8 @@
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.32.1",
         "agentfs-sdk": "^0.6.4",
-        "yaml": "2.9.0",
-        "zod": "^4.4.3"
+        "yaml": "2.9.1",
+        "zod": "^4.6.5"
     },
     "scripts": {
         "build:server": "npm --prefix mcp-memory-server ci --include=dev --global=false --dry-run=false && npm --prefix mcp-memory-server run build --global=false --dry-run=false",
