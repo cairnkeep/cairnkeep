@@ -1,4 +1,4 @@
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { privatePathIsSafe } from "./platform-security.js";
@@ -50,6 +50,17 @@ export function normalizeHostAuthority(raw: string | undefined, defaultPort?: nu
     }
 }
 
+function readBoundedDescriptor(descriptor: number, approvedSize: number): Buffer {
+    const buffer = Buffer.allocUnsafe(approvedSize + 1);
+    let offset = 0;
+    while (offset < buffer.byteLength) {
+        const bytesRead = readSync(descriptor, buffer, offset, buffer.byteLength - offset, null);
+        if (bytesRead === 0) break;
+        offset += bytesRead;
+    }
+    return buffer.subarray(0, offset);
+}
+
 export function resolveHttpToken(env: NodeJS.ProcessEnv, options: { baseDirectory?: string } = {}): HttpTokenResolution {
     const direct = env.CAIRN_MEMORY_HTTP_TOKEN?.trim();
     const rawFile = env.CAIRN_MEMORY_HTTP_TOKEN_FILE?.trim();
@@ -61,15 +72,18 @@ export function resolveHttpToken(env: NodeJS.ProcessEnv, options: { baseDirector
     const file = resolve(options.baseDirectory ?? process.cwd(), rawFile);
     let descriptor: number | undefined;
     try {
-        descriptor = openSync(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+        const nonBlocking = process.platform === "win32" ? 0 : (constants.O_NONBLOCK ?? 0);
+        descriptor = openSync(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | nonBlocking);
         const opened = fstatSync(descriptor);
         if (!opened.isFile() || opened.size > 64 * 1024) return { ok: false, reason: "file-unsafe", file };
-        const tokenBytes = readFileSync(descriptor);
+        const tokenBytes = readBoundedDescriptor(descriptor, opened.size);
         const afterRead = fstatSync(descriptor);
         const named = lstatSync(file);
         if (named.isSymbolicLink() || !named.isFile()
             || opened.dev !== afterRead.dev || opened.ino !== afterRead.ino || opened.size !== afterRead.size
-            || opened.dev !== named.dev || opened.ino !== named.ino || tokenBytes.byteLength !== afterRead.size) {
+            || opened.mtimeMs !== afterRead.mtimeMs || opened.ctimeMs !== afterRead.ctimeMs
+            || opened.dev !== named.dev || opened.ino !== named.ino
+            || tokenBytes.byteLength !== afterRead.size || tokenBytes.byteLength > 64 * 1024) {
             return { ok: false, reason: "file-changed", file };
         }
         if (!privatePathIsSafe(file)) return { ok: false, reason: "file-unsafe", file };

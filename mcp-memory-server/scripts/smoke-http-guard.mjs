@@ -3,7 +3,7 @@
 // 403 on an unexpected Host header (DNS-rebinding), 413 on an oversized body,
 // and 200 when authorized.
 // Run: node scripts/smoke-http-guard.mjs   (after `npm run build`)
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
@@ -222,6 +222,10 @@ try {
 const tokenRoot = mkdtempSync(join(tmpdir(), "cairn-http-token-"));
 const tokenPath = join(tokenRoot, "token");
 writeFileSync(tokenPath, `${TOKEN}\n`, { mode: 0o600 });
+if (process.platform === "win32") {
+    const plantedAce = spawnSync("icacls.exe", [tokenPath, "/grant", "*S-1-1-0:(R)"], { encoding: "utf8", windowsHide: true });
+    if (plantedAce.status !== 0) throw new Error(`could not create adversarial Windows token ACL: ${plantedAce.stderr}`);
+}
 hardenPrivatePath(tokenPath);
 const filePort = PORT + 2;
 const fileServer = spawn("node", ["dist/index.js"], {

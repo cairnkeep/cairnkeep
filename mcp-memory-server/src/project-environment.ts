@@ -1,10 +1,21 @@
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { parentReplacementBoundaryIsSafe, posixPrivateMetadataIsSafe, privatePathIsSafe, replacementBoundaryIsSafe } from "./platform-security.js";
 
 const ASSIGNMENT = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/;
 const MAX_PROJECT_ENV_BYTES = 64 * 1024;
+
+function readBoundedDescriptor(descriptor: number, approvedSize: number): Buffer {
+    const buffer = Buffer.allocUnsafe(approvedSize + 1);
+    let offset = 0;
+    while (offset < buffer.byteLength) {
+        const bytesRead = readSync(descriptor, buffer, offset, buffer.byteLength - offset, null);
+        if (bytesRead === 0) break;
+        offset += bytesRead;
+    }
+    return buffer.subarray(0, offset);
+}
 
 function literalValue(raw: string, line: number): string {
     if (/[\x00-\x1f\x7f]/.test(raw)) throw new Error(`.ai/.env line ${line} contains a control character`);
@@ -61,16 +72,19 @@ export function projectEnvironment(projectRoot: string, ambient: NodeJS.ProcessE
     let text: string;
     let descriptor: number | undefined;
     try {
-        descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+        const nonBlocking = process.platform === "win32" ? 0 : (constants.O_NONBLOCK ?? 0);
+        descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | nonBlocking);
         const opened = fstatSync(descriptor);
         if (!opened.isFile() || opened.size > MAX_PROJECT_ENV_BYTES) return { env: { ...ambient }, issue: ".ai/.env must be a private regular file no larger than 64 KiB" };
-        const bytes = readFileSync(descriptor);
+        const bytes = readBoundedDescriptor(descriptor, opened.size);
         const afterRead = fstatSync(descriptor);
         const named = lstatSync(path);
         const descriptorPrivate = process.platform === "win32" || posixPrivateMetadataIsSafe(opened);
         if (!descriptorPrivate || named.isSymbolicLink() || !named.isFile()
             || opened.dev !== afterRead.dev || opened.ino !== afterRead.ino || opened.size !== afterRead.size
-            || named.dev !== opened.dev || named.ino !== opened.ino || bytes.byteLength !== afterRead.size) {
+            || opened.mtimeMs !== afterRead.mtimeMs || opened.ctimeMs !== afterRead.ctimeMs
+            || named.dev !== opened.dev || named.ino !== opened.ino
+            || bytes.byteLength !== afterRead.size || bytes.byteLength > MAX_PROJECT_ENV_BYTES) {
             return { env: { ...ambient }, issue: ".ai/.env changed while it was being inspected" };
         }
         if (process.platform === "win32") {

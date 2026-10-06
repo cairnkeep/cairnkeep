@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync,
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { generatedFilePathLabelSchema } from "../dist/artifact-schema.js";
 import { evalRelativePathSchema, evalTaskSourceSchema } from "../dist/eval-schema.js";
@@ -197,6 +197,25 @@ try {
     }
 
     if (process.platform !== "win32") {
+        const fifoProject = join(root, "fifo-project");
+        mkdirSync(join(fifoProject, ".ai"), { recursive: true });
+        chmodSync(fifoProject, 0o755);
+        chmodSync(join(fifoProject, ".ai"), 0o700);
+        const envFifo = join(fifoProject, ".ai", ".env");
+        const tokenFifo = join(fifoProject, ".ai", "token");
+        spawnSync("mkfifo", [envFifo, tokenFifo], { encoding: "utf8" });
+        const environmentModule = pathToFileURL(fileURLToPath(new URL("../dist/project-environment.js", import.meta.url))).href;
+        const httpModule = pathToFileURL(fileURLToPath(new URL("../dist/http-security.js", import.meta.url))).href;
+        const fifoProbe = spawnSync(process.execPath, ["--input-type=module", "--eval", [
+            `const environment = await import(${JSON.stringify(environmentModule)});`,
+            `const http = await import(${JSON.stringify(httpModule)});`,
+            `const loaded = environment.projectEnvironment(${JSON.stringify(fifoProject)}, {});`,
+            `const token = http.resolveHttpToken({ CAIRN_MEMORY_HTTP_TOKEN_FILE: ${JSON.stringify(tokenFifo)} });`,
+            "if (!loaded.issue || token.ok || token.reason !== 'file-unsafe') process.exit(2);",
+        ].join("\n")], { encoding: "utf8", timeout: 2_000 });
+        assert.notEqual(fifoProbe.error?.code, "ETIMEDOUT", "FIFO configuration probes must never block");
+        assert.equal(fifoProbe.status, 0, fifoProbe.stderr);
+
         const bootstrappedProject = mkdtempSync(join(root, "bootstrapped-project-"));
         const bootstrap = fileURLToPath(new URL("../../scripts/bootstrap.sh", import.meta.url));
         const bootstrapped = spawnSync(bootstrap, [bootstrappedProject], { encoding: "utf8" });

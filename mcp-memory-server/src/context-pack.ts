@@ -201,9 +201,7 @@ export async function validateContextPack(directory: string): Promise<ValidatedC
     const rootInfo = await stat(root);
     if (!rootInfo.isDirectory() || lstatSync(root).isSymbolicLink()) throw new Error("Context pack source must be a real directory.");
     const manifestPath = join(root, CONTEXT_PACK_MANIFEST);
-    const manifestInfo = lstatSync(manifestPath);
-    if (!manifestInfo.isFile() || manifestInfo.isSymbolicLink() || manifestInfo.size > CONTEXT_PACK_MAX_FILE_BYTES) throw new Error("Context pack manifest is unsafe.");
-    const manifestBytes = await readFile(manifestPath);
+    const manifestBytes = await readBoundedPackFile(manifestPath, CONTEXT_PACK_MANIFEST);
     assertUtf8(manifestBytes, CONTEXT_PACK_MANIFEST);
     const manifest = contextPackManifestSchema.parse(JSON.parse(manifestBytes.toString("utf8")) as unknown);
     const inventory = await physicalPackInventory(root);
@@ -226,9 +224,7 @@ export async function validateContextPack(directory: string): Promise<ValidatedC
         if (!physical) throw new Error(`Context pack file declaration mismatch; missing: ${normalized}`);
         const absolute = physicalPath(root, physical);
         if (!contained(root, absolute)) throw new Error(`Unsafe context pack path: ${normalized}`);
-        const info = lstatSync(absolute);
-        if (!info.isFile() || info.isSymbolicLink() || info.size > CONTEXT_PACK_MAX_FILE_BYTES) throw new Error(`Context pack file is unsafe or too large: ${normalized}`);
-        const bytes = await readFile(absolute);
+        const bytes = await readBoundedPackFile(absolute, normalized);
         assertUtf8(bytes, normalized);
         if (sha256(bytes) !== file.sha256) throw new Error(`Context pack digest mismatch: ${normalized}`);
         totalBytes += bytes.byteLength;
@@ -275,17 +271,30 @@ async function atomicJson(path: string, value: unknown): Promise<void> {
 }
 
 async function readBoundedPackFile(path: string, label: string): Promise<Buffer> {
+    const unsafeMessage = label === CONTEXT_PACK_MANIFEST
+        ? "Context pack manifest is unsafe or too large."
+        : `Context pack file is unsafe or too large: ${label}`;
     let handle;
     try {
-        handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+        const nonBlocking = process.platform === "win32" ? 0 : (constants.O_NONBLOCK ?? 0);
+        handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | nonBlocking);
         const opened = await handle.stat();
-        if (!opened.isFile() || opened.size > CONTEXT_PACK_MAX_FILE_BYTES) throw new Error(`Context pack file is unsafe or too large: ${label}`);
-        const bytes = await handle.readFile();
+        if (!opened.isFile() || opened.size > CONTEXT_PACK_MAX_FILE_BYTES) throw new Error(unsafeMessage);
+        const buffer = Buffer.allocUnsafe(opened.size + 1);
+        let offset = 0;
+        while (offset < buffer.byteLength) {
+            const { bytesRead } = await handle.read(buffer, offset, buffer.byteLength - offset, null);
+            if (bytesRead === 0) break;
+            offset += bytesRead;
+        }
+        const bytes = buffer.subarray(0, offset);
         const afterRead = await handle.stat();
         const named = lstatSync(path);
         if (named.isSymbolicLink() || !named.isFile()
             || opened.dev !== afterRead.dev || opened.ino !== afterRead.ino || opened.size !== afterRead.size
-            || opened.dev !== named.dev || opened.ino !== named.ino || bytes.byteLength !== afterRead.size) {
+            || opened.mtimeMs !== afterRead.mtimeMs || opened.ctimeMs !== afterRead.ctimeMs
+            || opened.dev !== named.dev || opened.ino !== named.ino
+            || bytes.byteLength !== afterRead.size || bytes.byteLength > CONTEXT_PACK_MAX_FILE_BYTES) {
             throw new Error(`Context pack file changed while it was being read: ${label}`);
         }
         return bytes;

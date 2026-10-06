@@ -4,7 +4,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { linkSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -38,7 +38,27 @@ await lockContextPack(source);
 const valid = await validateContextPack(source);
 assert.match(valid.digest, /^[a-f0-9]{64}$/);
 
+const compactPack = join(root, "compact-pack");
+mkdirSync(compactPack);
+for (let index = 0; index < 128; index += 1) writeFileSync(join(compactPack, `f${String(index).padStart(3, "0")}.md`), "x");
+await initializeContextPack(compactPack, { id: "compact-pack", version: "1.0.0", title: "Compact", description: "Small-file memory bound", license: "none" });
+const externalBeforeCompactValidation = process.memoryUsage().external;
+const compactValidated = await validateContextPack(compactPack);
+const compactExternalGrowth = process.memoryUsage().external - externalBeforeCompactValidation;
+assert.equal(compactValidated.manifest.files.length, 128);
+assert.ok(compactExternalGrowth < 16 * 1024 * 1024, `small pack retained excessive external memory: ${compactExternalGrowth}`);
+
 if (process.platform !== "win32") {
+    const fifoPack = join(root, "fifo-pack");
+    mkdirSync(fifoPack);
+    execFileSync("mkfifo", [join(fifoPack, "context-pack.json")]);
+    const contextPackModule = pathToFileURL(fileURLToPath(new URL("../dist/context-pack.js", import.meta.url))).href;
+    const fifoProbe = execFileSync(process.execPath, ["--input-type=module", "--eval", [
+        `const packs = await import(${JSON.stringify(contextPackModule)});`,
+        `try { await packs.validateContextPack(${JSON.stringify(fifoPack)}); process.exit(2); } catch {}`,
+    ].join("\n")], { encoding: "utf8", timeout: 2_000 });
+    assert.equal(fifoProbe, "", "FIFO manifest is rejected without output or blocking");
+
     const invalidInitCases = [
         ["forbidden-init", [["a?.md", "bad\n"]]],
         ["reserved-init", [["NUL.txt", "bad\n"]]],

@@ -80,14 +80,25 @@ export function hardenPrivatePath(path: string): void {
         return;
     }
     const identity = currentWindowsIdentity();
-    const args = [
-        path,
-        "/inheritance:r",
-        "/remove:g", "*S-1-5-18", "*S-1-5-32-544",
-        "/grant:r", `*${identity.sid}:(F)`,
-    ];
-    const result = spawnSync("icacls.exe", args, { encoding: "utf8", windowsHide: true });
-    if (result.status !== 0) throw new Error("Unable to restrict Windows ACLs for private Cairnkeep state.");
+    const script = [
+        "$ErrorActionPreference='Stop'",
+        "$sid=[System.Security.Principal.SecurityIdentifier]::new($env:CK_INTERNAL_ACL_SID)",
+        "$item=Get-Item -LiteralPath $env:CK_INTERNAL_ACL_PATH -Force",
+        "$acl=Get-Acl -LiteralPath $env:CK_INTERNAL_ACL_PATH",
+        "$acl.SetAccessRuleProtection($true,$false)",
+        "foreach($rule in @($acl.Access)){$acl.PurgeAccessRules($rule.IdentityReference)}",
+        "$acl.SetOwner($sid)",
+        "$inherit=if($item.PSIsContainer){[System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'}else{[System.Security.AccessControl.InheritanceFlags]::None}",
+        "$rule=[System.Security.AccessControl.FileSystemAccessRule]::new($sid,[System.Security.AccessControl.FileSystemRights]::FullControl,$inherit,[System.Security.AccessControl.PropagationFlags]::None,[System.Security.AccessControl.AccessControlType]::Allow)",
+        "$acl.AddAccessRule($rule)",
+        "Set-Acl -LiteralPath $env:CK_INTERNAL_ACL_PATH -AclObject $acl",
+    ].join(";");
+    const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
+        encoding: "utf8",
+        windowsHide: true,
+        env: { ...process.env, CK_INTERNAL_ACL_PATH: path, CK_INTERNAL_ACL_SID: identity.sid },
+    });
+    if (result.status !== 0 || !privatePathIsSafe(path)) throw new Error("Unable to restrict Windows ACLs for private Cairnkeep state.");
 }
 
 export function privatePathIsSafe(path: string): boolean {
