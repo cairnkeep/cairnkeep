@@ -229,10 +229,11 @@ writeFileSync(tokenPath, `${TOKEN}\n`, { mode: 0o600 });
 if (process.platform === "win32") {
     const plantedAce = spawnSync("icacls.exe", [tokenPath, "/grant", "*S-1-1-0:(R)"], { encoding: "utf8", windowsHide: true });
     if (plantedAce.status !== 0) throw new Error(`could not create adversarial Windows token ACL: ${plantedAce.stderr}`);
-    const plantedDeny = spawnSync("icacls.exe", [tokenPath, "/deny", "*S-1-1-0:(R)"], { encoding: "utf8", windowsHide: true });
+    const plantedDeny = spawnSync("icacls.exe", [tokenPath, "/deny", "*S-1-1-0:(W)"], { encoding: "utf8", windowsHide: true });
     if (plantedDeny.status !== 0) throw new Error(`could not create adversarial Windows token deny ACL: ${plantedDeny.stderr}`);
 }
 hardenPrivatePath(tokenPath);
+writeFileSync(tokenPath, `${TOKEN}\n`, { mode: 0o600 });
 const filePort = PORT + 2;
 const fileServer = spawn("node", ["dist/index.js"], {
     env: (() => {
