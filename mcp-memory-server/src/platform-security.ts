@@ -67,7 +67,8 @@ export function windowsPrivateAclHardeningPlan(
 function windowsAclSnapshot(path: string): WindowsAclSnapshot {
     const script = [
         "$ErrorActionPreference='Stop'",
-        "$acl=Get-Acl -LiteralPath $env:CK_INTERNAL_ACL_PATH",
+        "$sections=[System.Security.AccessControl.AccessControlSections]::Owner -bor [System.Security.AccessControl.AccessControlSections]::Access",
+        "$acl=if([System.IO.Directory]::Exists($env:CK_INTERNAL_ACL_PATH)){[System.Security.AccessControl.DirectorySecurity]::new($env:CK_INTERNAL_ACL_PATH,$sections)}else{[System.Security.AccessControl.FileSecurity]::new($env:CK_INTERNAL_ACL_PATH,$sections)}",
         "$owner=$acl.Owner",
         "try{$owner=([System.Security.Principal.NTAccount]$owner).Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{}",
         "$access=@($acl.Access|ForEach-Object{$sid=$_.IdentityReference.Value;try{$sid=$_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{};[pscustomobject]@{sid=$sid;type=$_.AccessControlType.ToString();rights=[int64]$_.FileSystemRights}})",
