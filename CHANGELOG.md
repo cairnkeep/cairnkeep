@@ -5,6 +5,17 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.19.1] - 2026-10-06
+
+### Security
+
+- Upgrade the MCP SDK floor to 1.32.1 and refresh both production lock graphs
+  so `fast-uri` 3.1.8, `hono` 4.13.13, `ip-address` 10.7.3, and
+  `proxy-addr` 2.0.8 exclude the newly disclosed URI-normalization, request
+  parsing, SSRF, denial-of-service, XSS, and proxy-trust advisories.
+- Extend the dependency-security gate to reject future lockfile regressions
+  below those patched transitive versions.
+
 ## [2.19.0] - 2026-09-28
 
 ### Added
@@ -572,7 +583,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.19.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.19.1...HEAD
+[2.19.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.19.0...v2.19.1
 [2.19.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.17.3...v2.18.0
 [2.15.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.15.0...v2.15.1

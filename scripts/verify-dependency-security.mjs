@@ -4,8 +4,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const ROOT = resolve(process.cwd());
-const MINIMUM_SDK = [1, 30, 0];
+const MINIMUM_SDK = [1, 32, 1];
 const MINIMUM_NODE_SERVER = [2, 0, 5];
+const TRANSITIVE_MINIMUMS = new Map([
+  ["fast-uri", [3, 1, 8]],
+  ["hono", [4, 13, 13]],
+  ["ip-address", [10, 7, 3]],
+  ["proxy-addr", [2, 0, 8]],
+]);
 const DIRECT_HONO_PACKAGES = new Set(["hono", "@hono/node-server"]);
 const PACKAGE_ROOTS = [
   { label: "root", directory: "." },
@@ -110,11 +116,23 @@ function verifyPackageRoot({ label, directory }) {
       `${label} resolved @hono/node-server`,
     );
   }
+
+  for (const [packageName, minimum] of TRANSITIVE_MINIMUMS) {
+    const packages = resolvedPackages(lock, packageName);
+    assert.ok(packages.length > 0, `${label}: resolved ${packageName} is missing`);
+    for (const [path, packageValue] of packages) {
+      assertMinimum(
+        parseVersion(packageValue.version, `${label} ${path}`),
+        minimum,
+        `${label} resolved ${packageName}`,
+      );
+    }
+  }
 }
 
 try {
   PACKAGE_ROOTS.forEach(verifyPackageRoot);
-  process.stdout.write("PASS: dependency manifests and lock graphs use the patched MCP Hono transport\n");
+  process.stdout.write("PASS: dependency manifests and lock graphs exclude known MCP transport advisories\n");
 } catch (error) {
   process.stderr.write(`FAIL: dependency security policy: ${error instanceof Error ? error.message : String(error)}\n`);
   process.exitCode = 1;
