@@ -12,6 +12,8 @@ export type WindowsAclSnapshot = {
     access: Array<{ sid: string; type: string; rights: number }>;
 };
 
+export type WindowsAclOperation = readonly string[];
+
 const WINDOWS_SYSTEM_SIDS = new Set(["S-1-5-18", "S-1-5-32-544"]);
 const WINDOWS_REPLACEMENT_RIGHTS = 2 | 4 | 16 | 64 | 256 | 65_536 | 262_144 | 524_288;
 
@@ -39,6 +41,27 @@ export function windowsReplacementAclIsSafe(snapshot: WindowsAclSnapshot, curren
     return snapshot.access.every(({ sid, type, rights }) => type.toLowerCase() !== "allow"
         || trustedWindowsSid(sid, currentSid)
         || (rights & WINDOWS_REPLACEMENT_RIGHTS) === 0);
+}
+
+export function windowsPrivateAclHardeningPlan(
+    snapshot: WindowsAclSnapshot,
+    identity: { account: string; sid: string },
+    directory: boolean,
+): WindowsAclOperation[] {
+    const grant = directory ? `*${identity.sid}:(OI)(CI)(F)` : `*${identity.sid}:(F)`;
+    const untrustedAllows = [...new Set(snapshot.access
+        .filter(({ sid, type }) => type.toLowerCase() === "allow" && !trustedWindowsSid(sid, identity.sid))
+        .map(({ sid }) => sid.toUpperCase()))];
+    const denies = [...new Set(snapshot.access
+        .filter(({ type }) => type.toLowerCase() === "deny")
+        .map(({ sid }) => sid.toUpperCase()))];
+    return [
+        ["/grant:r", grant],
+        ["/inheritance:r"],
+        ...untrustedAllows.map((sid) => ["/remove:g", `*${sid}`] as const),
+        ...denies.map((sid) => ["/remove:d", `*${sid}`] as const),
+        ["/setowner", identity.account],
+    ];
 }
 
 function windowsAclSnapshot(path: string): WindowsAclSnapshot | undefined {
@@ -80,25 +103,18 @@ export function hardenPrivatePath(path: string): void {
         return;
     }
     const identity = currentWindowsIdentity();
-    const script = [
-        "$ErrorActionPreference='Stop'",
-        "$sid=[System.Security.Principal.SecurityIdentifier]::new($env:CK_INTERNAL_ACL_SID)",
-        "$item=Get-Item -LiteralPath $env:CK_INTERNAL_ACL_PATH -Force",
-        "$acl=Get-Acl -LiteralPath $env:CK_INTERNAL_ACL_PATH",
-        "$acl.SetAccessRuleProtection($true,$false)",
-        "foreach($rule in @($acl.Access)){$acl.PurgeAccessRules($rule.IdentityReference)}",
-        "$acl.SetOwner($sid)",
-        "$inherit=if($item.PSIsContainer){[System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'}else{[System.Security.AccessControl.InheritanceFlags]::None}",
-        "$rule=[System.Security.AccessControl.FileSystemAccessRule]::new($sid,[System.Security.AccessControl.FileSystemRights]::FullControl,$inherit,[System.Security.AccessControl.PropagationFlags]::None,[System.Security.AccessControl.AccessControlType]::Allow)",
-        "$acl.AddAccessRule($rule)",
-        "Set-Acl -LiteralPath $env:CK_INTERNAL_ACL_PATH -AclObject $acl",
-    ].join(";");
-    const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
-        encoding: "utf8",
-        windowsHide: true,
-        env: { ...process.env, CK_INTERNAL_ACL_PATH: path, CK_INTERNAL_ACL_SID: identity.sid },
-    });
-    if (result.status !== 0 || !privatePathIsSafe(path)) throw new Error("Unable to restrict Windows ACLs for private Cairnkeep state.");
+    const directory = lstatSync(path).isDirectory();
+    const snapshot = windowsAclSnapshot(path);
+    if (!snapshot) throw new Error("Unable to inspect Windows ACLs before hardening private Cairnkeep state.");
+    for (const operation of windowsPrivateAclHardeningPlan(snapshot, identity, directory)) {
+        const args = [path, ...operation];
+        const result = spawnSync("icacls.exe", args, { encoding: "utf8", windowsHide: true });
+        if (result.status !== 0) {
+            const detail = result.stderr.trim() || result.stdout.trim();
+            throw new Error(`Unable to restrict Windows ACLs for private Cairnkeep state${detail ? `: ${detail}` : "."}`);
+        }
+    }
+    if (!privatePathIsSafe(path)) throw new Error("Unable to verify private Windows ACLs after hardening.");
 }
 
 export function privatePathIsSafe(path: string): boolean {

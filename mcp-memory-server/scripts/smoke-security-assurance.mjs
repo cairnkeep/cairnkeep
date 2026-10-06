@@ -9,7 +9,7 @@ import { generatedFilePathLabelSchema } from "../dist/artifact-schema.js";
 import { evalRelativePathSchema, evalTaskSourceSchema } from "../dist/eval-schema.js";
 import { formatHostAuthority, normalizeHostAuthority, normalizeHttpHost, parseHttpPort } from "../dist/http-security.js";
 import { portablePathCollisionKey, portableRelativePathIssue } from "../dist/path-security.js";
-import { hardenPrivatePath, posixOwnerIsTrusted, posixPrivateMetadataIsSafe, windowsPrivateAclIsSafe, windowsReplacementAclIsSafe } from "../dist/platform-security.js";
+import { hardenPrivatePath, posixOwnerIsTrusted, posixPrivateMetadataIsSafe, windowsPrivateAclHardeningPlan, windowsPrivateAclIsSafe, windowsReplacementAclIsSafe } from "../dist/platform-security.js";
 import { projectEnvironment } from "../dist/project-environment.js";
 import { securityDoctor } from "../dist/security-doctor.js";
 
@@ -297,6 +297,27 @@ try {
     assert.equal(windowsPrivateAclIsSafe(baseAcl, currentSid), true);
     assert.equal(windowsPrivateAclIsSafe({ ...baseAcl, access: [...baseAcl.access, { sid: "S-1-5-21-9999", type: "Allow", rights: 131241 }] }, currentSid), false);
     assert.equal(windowsPrivateAclIsSafe({ ...baseAcl, access: [...baseAcl.access, { sid: "NOT-S-1-5-32-544", type: "Allow", rights: 2032127 }] }, currentSid), false);
+    const hardeningPlan = windowsPrivateAclHardeningPlan({
+        ...baseAcl,
+        protected: false,
+        access: [
+            ...baseAcl.access,
+            { sid: "S-1-1-0", type: "Allow", rights: 131241 },
+            { sid: "S-1-5-21-9999", type: "Deny", rights: 131241 },
+        ],
+    }, { account: "HOST\\agent", sid: currentSid }, false);
+    assert.deepEqual(hardeningPlan, [
+        ["/grant:r", `*${currentSid}:(F)`],
+        ["/inheritance:r"],
+        ["/remove:g", "*S-1-1-0"],
+        ["/remove:d", "*S-1-5-21-9999"],
+        ["/setowner", "HOST\\agent"],
+    ]);
+    assert.equal(hardeningPlan.some((operation) => operation.includes("/reset")), false, "hardening must never broaden access from the parent ACL");
+    assert.equal(hardeningPlan.findIndex((operation) => operation.includes("/inheritance:r"))
+        < hardeningPlan.findIndex((operation) => operation.includes("/remove:g")), true, "inherited access is removed before explicit grants");
+    assert.equal(hardeningPlan.findIndex((operation) => operation.includes("/remove:g"))
+        < hardeningPlan.findIndex((operation) => operation.includes("/remove:d")), true, "denies are removed only after untrusted grants");
     assert.equal(windowsReplacementAclIsSafe({ ...baseAcl, protected: false, access: [...baseAcl.access, { sid: "S-1-5-21-9999", type: "Allow", rights: 131241 }] }, currentSid), true);
     assert.equal(windowsReplacementAclIsSafe({ ...baseAcl, access: [...baseAcl.access, { sid: "S-1-5-21-9999", type: "Allow", rights: 2 }] }, currentSid), false);
     assert.equal(posixOwnerIsTrusted(1000, 1000), true);
