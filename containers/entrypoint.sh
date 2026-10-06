@@ -17,6 +17,7 @@ load_secret() {
     fi
     value=$(cat "$file")
     export "$name=$value"
+    unset "${name}_FILE"
   fi
 }
 
@@ -34,7 +35,7 @@ case "$mode" in
     exec cairn memory-server "$@"
     ;;
   http)
-    if [ -z "${CAIRN_MEMORY_HTTP_TOKEN:-}" ]; then
+    if [ -z "${CAIRN_MEMORY_HTTP_TOKEN:-}" ] && [ -z "${CAIRN_MEMORY_HTTP_TOKEN_FILE:-}" ]; then
       echo "cairnkeep: HTTP mode requires CAIRN_MEMORY_HTTP_TOKEN or CAIRN_MEMORY_HTTP_TOKEN_FILE" >&2
       exit 64
     fi

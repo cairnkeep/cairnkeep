@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import { isAbsolute } from "node:path";
 import { z } from "zod";
 
 import { nodePathSchema } from "./node-schema.js";
+import { portableRelativePathIssue } from "./path-security.js";
 
 export const ARTIFACT_SCHEMA_VERSION = 1 as const;
 export const ARTIFACT_KINDS = [
@@ -75,13 +75,8 @@ export const testOutputContentSchema = z.object({
 }).strict();
 
 export const generatedFilePathLabelSchema = z.string().min(1).max(1024).superRefine((value, context) => {
-    if (isAbsolute(value) || value.startsWith("/") || value.endsWith("/") || value.includes("\\") || /[\u0000-\u001f\u007f]/.test(value)) {
+    if (portableRelativePathIssue(value)) {
         context.addIssue({ code: "custom", message: "Generated-file path label must be project-relative." });
-        return;
-    }
-    const segments = value.split("/");
-    if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
-        context.addIssue({ code: "custom", message: "Generated-file path label contains an invalid segment." });
     }
 });
 

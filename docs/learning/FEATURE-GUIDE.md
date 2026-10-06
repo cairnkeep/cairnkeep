@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.20.1
+**Baseline:** Cairnkeep 2.21.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -27,6 +27,9 @@ locator and actual tool invocation must be verified from runtime evidence.
 Version 2.20 adds OpenCode 2.0.24 plugin and compaction compatibility plus
 operator-invoked ecosystem evidence runners; see
 [L27](lessons/L27-ecosystem-evidence.md).
+Version 2.21 adds the formal threat model, a read-only local security posture
+check, portable-path adversarial coverage, bounded HTTP requests, and repository
+supply-chain gates; see [L28](lessons/L28-security-assurance.md).
 
 ## The three-layer model
 
@@ -70,6 +73,7 @@ prerequisites for ordinary memory.
 | Wiki and alignment | `/wiki-ingest`, `/wiki-query`, `/wiki-lint`, alignment files | Written only when invoked; reviewable `.planning/` artifacts | Re-run lint, inspect source citations, revert tracked changes normally | `course-02-memory` |
 | Local code graph | `cairn graph build|query|status|diff|explain|path`; `/graphify` delegates | Default off; optional isolated `graphify` executable; incremental work under `graphify-out/`, published view under `.planning/graphs/` | Ignore both derived locations; check status and source before trusting a result; use `--force` only after intentional deletion; uninstall adapters separately | `course-08-graph` |
 | Repository quality | `/repo-review`, `/security-audit` | On-demand workflow; findings are hypotheses until reproduced | Require file/line evidence and regression tests | `course-03-quality` |
+| Security posture | `cairn security doctor [--project PATH] [--json]` | Read-only local configuration and permission inspection; no network; token values never emitted | Resolve failures, decide warnings explicitly, and re-run after exposure or authority changes | Disposable source checkout, L28 |
 | Guided project setup | `cairn setup [PATH]` selectors; deterministic `--git`, `--harness`, `--memory`, and `--yes` flags | Arrow-key Git/memory choices and harness checkboxes in capable terminals; text fallback otherwise; reconciles only selected assets; private `.ai/cairnkeep.json`; machine sync is never automatic | Repeat deterministically, run doctor, or replay its recovery command; Git-less mode remains limited | `course-12-guided-setup` |
 | Codex project memory | Select `--harness codex --memory local` | Writes `.codex/config.toml` plus POSIX/native Windows launchers; local stdio; user-wide configuration and trust remain untouched | Review the MCP table, accept Codex project trust, run doctor, and relaunch; uninstall is backup-first | `course-01-bootstrap` |
 | Workflow playbooks and durable-context guidance | `cairn playbook check start|check|finish`; project `minimal`, `balanced`, or `strict` policy; managed `AGENTS.md` retrieval protocol | Balanced by default; private `.ai/playbooks.json`; one task-derived project search when applicable; optional receipts in `.agentfs/playbooks/`; checks are offline and execute nothing | Verify the actual memory tool event and maintained source, inspect status/digests, enforce truthful `must` evidence, inspect receipts, reset overrides, remove only the managed `AGENTS.md` block | `course-13-playbooks` |
@@ -108,6 +112,7 @@ prerequisites for ordinary memory.
 | General meta-agent loop | Not shipped | Not applicable | Playbooks select bounded existing actions; no generic configuration loop, command language, or scheduler | `course-07-evaluation` |
 | Pack retrieval and skills | `CAIRN_CONTEXT_PACKS=1`; HTTP needs separate consent; skills need exact-digest approval | Restart MCP server | `cairn pack skills`; revoke approval or disable pack; no automatic execution | `course-10-trust-context` |
 | Ecosystem evidence runners | Explicit script invocation plus caller-supplied binaries/model configuration | None; disposable processes only | Temporary state is removed by default; inspect the JSON report and pinned evidence | Disposable source checkout, L27 |
+| Security assurance | `cairn security doctor`; repository security workflows and offline gates | No restart for diagnostics; runtime HTTP bounds apply after server restart | Inspect failures/warnings, run security baseline and smoke gates, read residual risks | Disposable source checkout, L28 |
 
 ## Harness and maintenance checks
 

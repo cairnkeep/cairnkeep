@@ -16,7 +16,7 @@ import {
     relatedVisibleContext,
     searchVisibleContext,
 } from "../dist/context-pack.js";
-import { applyOkfExport, planOkfExport, validateOkfBundle } from "../dist/okf.js";
+import { applyOkfExport, indexOkfBundle, planOkfExport, validateOkfBundle } from "../dist/okf.js";
 
 const root = mkdtempSync(join(tmpdir(), "cairn-okf-"));
 process.env.CAIRN_PACK_BASE_DIR = join(root, "store");
@@ -182,6 +182,36 @@ Legacy OKF v0.1 content.
     mkdirSync(aliases);
     write(join(aliases, "bad.md"), "---\ntype: Reference\ntags: &tags [one]\nalso: *tags\n---\nBad.\n");
     await assert.rejects(() => validateOkfBundle(aliases), /alias/i);
+
+    const collision = join(root, "collision");
+    mkdirSync(collision);
+    write(join(collision, "docs.md"), "portable\n");
+    await assert.rejects(
+        () => indexOkfBundle(collision, ["docs.md", "Docs.md"]),
+        /duplicate portable/i,
+    );
+    if (process.platform !== "win32") {
+        const unicodeCollision = join(root, "unicode-collision");
+        mkdirSync(unicodeCollision);
+        write(join(unicodeCollision, "σ.md"), "sigma\n");
+        write(join(unicodeCollision, "ς.md"), "final sigma\n");
+        await assert.rejects(() => indexOkfBundle(unicodeCollision), /duplicate portable/i);
+
+        const decomposedOnly = join(root, "decomposed-only");
+        mkdirSync(decomposedOnly);
+        write(join(decomposedOnly, "cafe\u0301.md"), `---
+type: Reference
+title: Canonical cafe
+---
+Validated through its retained physical path.
+`);
+        const decomposedBundle = await validateOkfBundle(decomposedOnly);
+        assert.equal(decomposedBundle.files[0].path, "café.md");
+        const decomposedInstalled = await installOkfContextPack(decomposedOnly, {
+            id: "decomposed-okf", version: "1.0.0", title: "Decomposed OKF", description: "Raw path fixture", license: "none",
+        });
+        assert.equal(decomposedInstalled.pack.manifest.files[0].path, "café.md");
+    }
 
     if (process.platform !== "win32") {
         const linked = join(root, "linked");

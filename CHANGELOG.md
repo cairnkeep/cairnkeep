@@ -5,6 +5,41 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-10-07
+
+### Added
+
+- Add `cairn security doctor [--project PATH] [--json]`, a read-only posture
+  check for private managed files, MCP authority, authenticated HTTP exposure,
+  Host allowlisting, token strength, and remote transport encryption.
+- Add a maintained threat model and security-assurance learning lesson with
+  explicit assets, trust boundaries, residual risks, and verification evidence.
+- Add CodeQL, pull-request dependency review, advisory OpenSSF Scorecard, and a
+  repository baseline gate that rejects unpinned external Actions and
+  `pull_request_target` workflows.
+
+### Security
+
+- Apply one portable-path contract across context packs, OKF, artifacts, and
+  evaluation paths, rejecting Windows drive/UNC paths, alternate separators,
+  ADS/device aliases and forbidden characters, traversal, invalid Unicode, and
+  case collisions while normalizing enumerated macOS filenames.
+- Bound authenticated MCP HTTP request bodies to 8 MiB and set header, request,
+  and keep-alive timeouts; direct and container servers now share private
+  token-file resolution, strict decimal port parsing, canonical IPv4/DNS/IPv6
+  Host authorities, and empty hosts normalize to loopback.
+- Bind relative HTTP token files to the selected project, verify project and
+  parent replacement boundaries, and parse private `.ai/.env` files through a
+  descriptor-bound 64 KiB limit.
+- Require trusted POSIX ownership in addition to safe mode bits, preserve
+  explicit HTTP ports including 80/443, and apply the same raw/canonical
+  portable inventory to context-pack initialization, locking, and validation.
+- Reject header-unsafe Bearer values, preserve ambient-over-project launcher
+  precedence, retain validated OKF bytes through import, and enforce portable
+  collisions at evaluation-bundle admission.
+- Add deterministic adversarial path cases, token non-disclosure checks, and
+  HTTP authorization, Host, and request-limit regression coverage.
+
 ## [2.20.1] - 2026-10-06
 
 ### Maintenance

@@ -72,6 +72,7 @@ install_file "$TPL/env.example.template"       "$target/.ai/env.example"       0
 install_file "$TPL/trajectory-redaction.json.template" "$target/.ai/trajectory-redaction.json" 0644
 install_file "$TPL/capabilities.json.template" "$target/.ai/capabilities.json" 0600
 install_file "$TPL/playbooks.json.template" "$target/.ai/playbooks.json" 0600
+chmod 700 "$target/.ai"
 
 if [[ $untracked -eq 0 ]]; then
   node "$CAIRN_ROOT/scripts/playbook-instructions.mjs" "$target" >/dev/null

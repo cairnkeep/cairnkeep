@@ -42,6 +42,7 @@ import {
     hashText,
 } from "./embeddings.js";
 import { queryDomainKnowledge, resolveDomainRetrievalProvider } from "./domain-retrieval-provider.js";
+import { formatHostAuthority, normalizeHostAuthority, normalizeHttpHost, parseHttpPort, resolveHttpToken } from "./http-security.js";
 import {
     type ExploreEvidence,
     computeRepoState,
@@ -2179,31 +2180,43 @@ if (cliCommand === "explore") {
     }
 }
 
-const httpPort = parseInt(process.env.MCP_HTTP_PORT ?? "", 10);
+const httpPortResolution = parseHttpPort(process.env.MCP_HTTP_PORT);
+const MAX_HTTP_REQUEST_BYTES = 8 * 1024 * 1024;
 
-if (httpPort > 0) {
-    const httpHost = process.env.MCP_HTTP_HOST ?? "127.0.0.1";
+if ("error" in httpPortResolution) {
+    process.stderr.write("cairn-memory: MCP_HTTP_PORT must be a canonical decimal integer from 1 through 65535.\n");
+    process.exit(1);
+}
+
+if (httpPortResolution.enabled) {
+    const httpPort = httpPortResolution.port;
+    const httpHost = normalizeHttpHost(process.env.MCP_HTTP_HOST);
 
     // HTTP mode exposes every memory tool over the network, so it is guarded:
     // a bearer token is mandatory (fail closed), CORS is opt-in per origin, and
     // the Host header is validated to block DNS-rebinding. See docs/operating.md.
-    const httpToken = process.env.CAIRN_MEMORY_HTTP_TOKEN?.trim();
-    if (!httpToken) {
+    const tokenResolution = resolveHttpToken(process.env, { baseDirectory: process.cwd() });
+    if (!tokenResolution.ok || !tokenResolution.token) {
         process.stderr.write(
-            "cairn-memory: HTTP mode requires CAIRN_MEMORY_HTTP_TOKEN — refusing to start an unauthenticated network server.\n",
+            `cairn-memory: HTTP token resolution failed (${tokenResolution.ok ? "empty" : tokenResolution.reason}) — refusing to start an unauthenticated network server.\n`,
         );
         process.exit(1);
     }
+    const httpToken = tokenResolution.token;
 
     const allowedOrigins = (process.env.CAIRN_MEMORY_HTTP_ALLOWED_ORIGINS ?? "")
         .split(",").map((value) => value.trim()).filter(Boolean);
     const configuredHosts = (process.env.CAIRN_MEMORY_HTTP_ALLOWED_HOSTS ?? "")
         .split(",").map((value) => value.trim()).filter(Boolean);
-    const allowedHosts = new Set(
-        configuredHosts.length > 0
-            ? configuredHosts
-            : [`${httpHost}:${httpPort}`, `localhost:${httpPort}`, `127.0.0.1:${httpPort}`],
-    );
+    const hostCandidates = configuredHosts.length > 0
+        ? configuredHosts
+        : [formatHostAuthority(httpHost, httpPort), formatHostAuthority("localhost", httpPort), formatHostAuthority("127.0.0.1", httpPort)];
+    const normalizedHosts = hostCandidates.map(normalizeHostAuthority);
+    if (normalizedHosts.some((value) => !value)) {
+        process.stderr.write("cairn-memory: CAIRN_MEMORY_HTTP_ALLOWED_HOSTS contains an invalid host:port authority.\n");
+        process.exit(1);
+    }
+    const allowedHosts = new Set(normalizedHosts as string[]);
 
     const tokenMatches = (header: string | undefined): boolean => {
         const prefix = "Bearer ";
@@ -2243,7 +2256,12 @@ if (httpPort > 0) {
         return transport.handleRequest(request);
     };
 
-    const httpServer = createServer(async (req, res) => {
+    const httpServer = createServer({
+        headersTimeout: 10_000,
+        requestTimeout: 30_000,
+        keepAliveTimeout: 5_000,
+        maxHeaderSize: 32 * 1024,
+    }, async (req, res) => {
         const allowOrigin = originAllowed(req.headers.origin);
         if (allowOrigin) {
             res.setHeader("Access-Control-Allow-Origin", allowOrigin);
@@ -2254,10 +2272,21 @@ if (httpPort > 0) {
                 "Content-Type, mcp-session-id, Accept, Authorization, X-Cairn-Project, X-Cairn-Scopes, X-Cairn-AnythingLLM-Workspaces",
             );
         }
+        const declaredLength = Number(req.headers["content-length"] ?? "0");
+        if (Number.isFinite(declaredLength) && declaredLength > MAX_HTTP_REQUEST_BYTES) {
+            res.writeHead(413, { "X-Cairn-Rejection": "request-body-limit" }).end("request body too large");
+            return;
+        }
+        const bodyForbidden = req.method === "GET" || req.method === "DELETE" || req.method === "OPTIONS";
+        if (bodyForbidden && (declaredLength > 0 || req.headers["transfer-encoding"])) {
+            res.writeHead(400).end("request body not allowed for this method");
+            return;
+        }
         if (req.method === "OPTIONS") { res.writeHead(allowOrigin ? 204 : 403).end(); return; }
 
         // DNS-rebinding protection: only serve requests whose Host we expect.
-        if (!req.headers.host || !allowedHosts.has(req.headers.host)) {
+        const requestAuthority = normalizeHostAuthority(req.headers.host, httpPort);
+        if (!requestAuthority || !allowedHosts.has(requestAuthority)) {
             res.writeHead(403).end("host not allowed");
             return;
         }
@@ -2271,10 +2300,19 @@ if (httpPort > 0) {
             let body: BodyInit | null = null;
             if (req.method !== "GET" && req.method !== "DELETE") {
                 const chunks: Buffer[] = [];
-                for await (const chunk of req) chunks.push(chunk as Buffer);
+                let receivedBytes = 0;
+                for await (const rawChunk of req) {
+                    const chunk = Buffer.isBuffer(rawChunk) ? rawChunk : Buffer.from(rawChunk);
+                    receivedBytes += chunk.byteLength;
+                    if (receivedBytes > MAX_HTTP_REQUEST_BYTES) {
+                        res.writeHead(413, { "X-Cairn-Rejection": "request-body-limit" }).end("request body too large");
+                        return;
+                    }
+                    chunks.push(chunk);
+                }
                 body = Buffer.concat(chunks);
             }
-            const request = new Request(`http://${req.headers.host}${req.url}`, {
+            const request = new Request(`http://${requestAuthority}${req.url}`, {
                 method: req.method!,
                 headers,
                 body,

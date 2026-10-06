@@ -275,6 +275,7 @@ export function bootstrapWindows(root, args) {
   if (!existsSync(modulePath)) atomicWrite(modulePath, launcherModule(), 0o755);
   const powershellPath = join(target, ".ai", "start-harness.ps1");
   if (!existsSync(powershellPath)) atomicWrite(powershellPath, launcherPowerShell(), 0o600);
+  hardenWindowsAcl(join(target, ".ai"));
   if (!options.has("--untracked")) {
     reconcilePlaybookInstructions(target);
   }
@@ -729,12 +730,13 @@ export function powershellCompletion() {
   const harnesses = HARNESS_IDS.map((id) => `'${id}'`).join(",");
   return `Register-ArgumentCompleter -Native -CommandName cairn -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
-  $commands = 'bootstrap','setup','memory-server','sync','sync-pi','sync-kimi','doctor','trajectory','artifact','evidence','playbook','capabilities','mcp-tools','pack','proposals','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
+  $commands = 'bootstrap','setup','memory-server','sync','sync-pi','sync-kimi','doctor','security','trajectory','artifact','evidence','playbook','capabilities','mcp-tools','pack','proposals','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
   $setup = '--git','--harness','--memory','--policy','--yes','--json','init','existing','none',${harnesses},'local'
   $playbook = 'list','status','init','set','enable','disable','reset','check','record','receipts','instructions','doctor','minimal','balanced','strict','must','should','may','off','start','finish','install','remove','context.recall','context.explore','work.plan','verify.tests','review.repository','review.security','docs.update','learning.capture','--project','--json','--enforce','--complexity','--familiarity','--risk','--public-change','--changed','--change-type','--completed','--skipped','--failed','--actor','--actor-kind','--session','--policy','--decision','--event','--action','--outcome','--reason'
   $pack = 'init','lock','validate','install','import-okf','validate-okf','export-okf','list','show','remove','enable','disable','update','skills','approve-skill','revoke-skill','doctor','--repair','--project','--project-id','--json'
   $proposals = 'create','list','show','apply','doctor','--session','--scope','--model','--category','--project','--json'
-  $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+playbook(?:\\s|$)') { $playbook } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+pack(?:\\s|$)') { $pack } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+proposals(?:\\s|$)') { $proposals } else { $commands }
+  $security = 'doctor','--project','--json'
+  $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+playbook(?:\\s|$)') { $playbook } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+pack(?:\\s|$)') { $pack } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+proposals(?:\\s|$)') { $proposals } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+security(?:\\s|$)') { $security } else { $commands }
   $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
     [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
   }

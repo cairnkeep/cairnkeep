@@ -263,6 +263,7 @@ export async function writeSetupStateAtomic(path, state, options = {}) {
   if (!existsSync(target)) throw new Error("Setup state target does not exist.");
   assertExistingAncestors(target, path);
   safeMkdirChain(target, directory);
+  hardenPrivatePath(directory);
   const bytes = Buffer.from(`${JSON.stringify(normalized, null, 2)}\n`, "utf8");
   if (existsSync(path) && readFileSync(path).equals(bytes) && (statSync(path).mode & 0o777) === 0o600) return normalized;
   await atomicWrite(path, bytes, 0o600, options.atomicReplace ?? defaultAtomicReplace, true);
@@ -285,6 +286,8 @@ export async function reconcileSetupPlan(plan, options = {}) {
   for (const asset of selected) assertExistingAncestors(target, asset.destination);
   const statePath = join(target, ".ai", "cairnkeep.json");
   assertExistingAncestors(target, statePath);
+  safeMkdirChain(target, dirname(statePath));
+  hardenPrivatePath(dirname(statePath));
   const previousState = options.previousState === undefined ? readPriorState(statePath) : options.previousState === null ? null : normalizeState(options.previousState);
 
   const decisions = selected.map((asset) => {

@@ -7,6 +7,7 @@ import { AgentFS } from "agentfs-sdk";
 
 import { createMemoryProposal, applyMemoryProposal, doctorMemoryProposals, listMemoryProposals, showMemoryProposal } from "../dist/memory-proposal-store.js";
 import { digestValue } from "../dist/memory-proposal-schema.js";
+import { hardenPrivatePath } from "../dist/platform-security.js";
 import { applyProposalCandidates } from "../dist/reviewed-memory-store.js";
 import { redactTrajectory } from "../dist/trajectory-redaction.js";
 import { putTrajectory } from "../dist/trajectory-store.js";
@@ -98,6 +99,7 @@ try {
     const resealedHash = correctlyReseal(invalidHash);
     const resealedHashPath = join(project, ".agentfs", "memory-proposals", `${resealedHash.digest}.json`);
     writeFileSync(resealedHashPath, `${JSON.stringify(resealedHash)}\n`, { mode: 0o600 });
+    hardenPrivatePath(resealedHashPath);
     assert.throws(() => showMemoryProposal(resealedHash.digest, project), /value hash mismatch/,
         "a valid outer digest must not conceal an inconsistent candidate value hash");
     assert.equal(doctorMemoryProposals(project).ok, false, "doctor must detect correctly resealed candidate hash inconsistency");
@@ -108,6 +110,7 @@ try {
     const resealedOperation = correctlyReseal(invalidOperation);
     const resealedOperationPath = join(project, ".agentfs", "memory-proposals", `${resealedOperation.digest}.json`);
     writeFileSync(resealedOperationPath, `${JSON.stringify(resealedOperation)}\n`, { mode: 0o600 });
+    hardenPrivatePath(resealedOperationPath);
     assert.throws(() => showMemoryProposal(resealedOperation.digest, project), /operation is inconsistent/,
         "a valid outer digest must not conceal an operation inconsistent with its base hash");
     await assert.rejects(

@@ -8,7 +8,8 @@ from a workstation.
 1. Update the root `package.json` version and `CHANGELOG.md` on a pull request.
 2. Run `npm ci`, `npm run check:public`, and
    `npm --prefix mcp-memory-server test`.
-3. Merge only after every required CI check passes.
+3. Merge only after every required CI and security check passes. CodeQL and
+   dependency review are blocking; OpenSSF Scorecard is advisory evidence.
 4. Publish a GitHub Release whose tag is exactly `v<package.json version>`.
 5. After every platform and runtime job passes, CI builds one release candidate
    keyed by the exact Git tree. It contains the npm tarball, reproducible
@@ -58,3 +59,10 @@ automatic. Confirm an unauthenticated pull after changing visibility.
 
 Treat a published version as immutable. If a release is wrong, fix it in a new
 version rather than moving its tag or replacing the npm package.
+
+Repository Actions are restricted to the maintained allowlist and every
+non-local action reference must use a full commit SHA. `npm run
+security:baseline` enforces that contract, rejects `pull_request_target`, and
+asserts that CodeQL, dependency review, and advisory Scorecard workflows remain
+present. See [Security assurance and threat model](security-assurance.md) for
+the wider threat model and residual risks.

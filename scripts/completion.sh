@@ -13,7 +13,7 @@ _cairn_complete() {
   COMPREPLY=()
   current=${COMP_WORDS[COMP_CWORD]}
   previous=${COMP_WORDS[COMP_CWORD-1]:-}
-  commands="bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help"
+  commands="bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor security trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help"
   if (( COMP_CWORD == 1 )); then
     COMPREPLY=( $(compgen -W "$commands" -- "$current") )
     return
@@ -26,6 +26,7 @@ _cairn_complete() {
     sync-kimi) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
     sync-omp) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
     doctor) COMPREPLY=( $(compgen -W "--repair" -- "$current") ) ;;
+    security) COMPREPLY=( $(compgen -W "doctor --project --json" -- "$current") ) ;;
     trajectory) COMPREPLY=( $(compgen -W "list show prune --json --dry-run" -- "$current") ) ;;
     artifact) COMPREPLY=( $(compgen -W "list show delete prune --kind --session --json --dry-run --include-protected" -- "$current") ) ;;
     evidence) COMPREPLY=( $(compgen -W "list show delete prune doctor --status --json --dry-run --repair" -- "$current") ) ;;
@@ -97,6 +98,7 @@ _cairn() {
     'sync-kimi:install the Kimi graph Skill'
     'sync-omp:install the oh-my-pi memory extension'
     'doctor:check runtime dependencies and endpoints'
+    'security:audit local security posture'
     'trajectory:inspect and prune local session trajectories'
     'artifact:inspect, delete, and prune local artifacts'
     'evidence:inspect and manage local Git-linked work evidence'
@@ -128,6 +130,7 @@ _cairn() {
     sync-kimi) _arguments '--apply[apply changes]' '--live-root[Kimi Code root]:directory:_files -/' ;;
     sync-omp) _arguments '--apply[apply changes]' '--live-root[omp agent root]:directory:_files -/' ;;
     doctor) _arguments '--repair[repair trajectory metadata and indexes]' ;;
+    security) _values 'security command' doctor '--project[project root]:directory:_files -/' '--json[emit JSON]' ;;
     trajectory) _values 'trajectory command' list show prune ;;
     artifact)
       case $words[3] in
@@ -191,8 +194,8 @@ EOF
   fish)
     sed "s/__CAIRN_HARNESSES__/$harnesses/g" <<'EOF'
 complete -c cairn -f
-for command in bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help
-complete -c cairn -n "not __fish_seen_subcommand_from bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help" -a $command
+for command in bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor security trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help
+complete -c cairn -n "not __fish_seen_subcommand_from bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor security trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help" -a $command
 end
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l apply
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l live-root -r
@@ -211,6 +214,9 @@ complete -c cairn -n "__fish_seen_subcommand_from setup" -l yes
 complete -c cairn -n "__fish_seen_subcommand_from setup" -l json
 complete -c cairn -n "__fish_seen_subcommand_from memory" -a "path export import"
 complete -c cairn -n "__fish_seen_subcommand_from doctor" -l repair
+complete -c cairn -n "__fish_seen_subcommand_from security" -a "doctor"
+complete -c cairn -n "__fish_seen_subcommand_from security" -l project -r
+complete -c cairn -n "__fish_seen_subcommand_from security" -l json
 complete -c cairn -n "__fish_seen_subcommand_from trajectory" -a "list show prune"
 complete -c cairn -n "__fish_seen_subcommand_from artifact" -a "list show delete prune"
 complete -c cairn -n "__fish_seen_subcommand_from artifact; and __fish_seen_subcommand_from list" -l kind -r

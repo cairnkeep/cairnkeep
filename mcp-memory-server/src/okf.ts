@@ -5,6 +5,7 @@ import { basename, dirname, extname, isAbsolute, join, posix, relative, resolve,
 
 import { parseDocument, stringify } from "yaml";
 import { z } from "zod";
+import { portablePathCollisionKey, portableRelativePathIssue } from "./path-security.js";
 
 import { hardenPrivatePath } from "./platform-security.js";
 import { readSharedNoteForExport, type SharedNoteExport } from "./note-store.js";
@@ -97,6 +98,8 @@ export type ValidatedOkfBundle = OkfIndex & {
     concepts: OkfConcept[];
     total_bytes: number;
 };
+const okfIndexContent = new WeakMap<OkfIndex, ReadonlyMap<string, Buffer>>();
+const validatedOkfContent = new WeakMap<ValidatedOkfBundle, ReadonlyMap<string, Buffer>>();
 
 export type OkfExportOptions = {
     projectRoot: string;
@@ -138,8 +141,7 @@ function canonical(value: unknown): string {
 }
 
 function normalizedPath(value: string): string {
-    if (!value || value.includes("\\") || isAbsolute(value)
-        || value.split("/").some((part) => part === "" || part === "." || part === "..")) {
+    if (portableRelativePathIssue(value)) {
         throw new Error(`Unsafe OKF path: ${value}`);
     }
     return value;
@@ -161,20 +163,23 @@ function utf8(bytes: Buffer, path: string): string {
     return text;
 }
 
-async function walk(root: string, directory = root): Promise<string[]> {
+type PhysicalOkfFile = { path: string; raw_path: string };
+
+async function walk(root: string, directory = root): Promise<PhysicalOkfFile[]> {
     const info = lstatSync(directory);
     if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("OKF bundles may not contain symlink directories.");
-    const files: string[] = [];
+    const files: PhysicalOkfFile[] = [];
     for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name, "en"))) {
         if (directory === root && entry.name === ".git") {
             if (entry.isSymbolicLink()) throw new Error("OKF repository metadata may not be a symlink.");
             if (entry.isDirectory() || entry.isFile()) continue;
         }
         const absolute = join(directory, entry.name);
-        const path = relative(root, absolute).split(sep).join("/");
+        const rawPath = relative(root, absolute).split(sep).join("/");
+        const path = rawPath.normalize("NFC");
         if (entry.isSymbolicLink()) throw new Error(`OKF bundles may not contain symlinks: ${path}`);
         if (entry.isDirectory()) files.push(...await walk(root, absolute));
-        else if (entry.isFile()) files.push(normalizedPath(path));
+        else if (entry.isFile()) files.push({ path: normalizedPath(path), raw_path: rawPath });
         else throw new Error(`OKF bundles may contain regular files only: ${path}`);
         if (files.length > MAX_ENTRIES) throw new Error("OKF bundle exceeds the entry limit.");
     }
@@ -294,18 +299,30 @@ export async function indexOkfBundle(directory: string, selectedPaths?: string[]
     const requestedInfo = lstatSync(requested);
     if (!requestedInfo.isDirectory() || requestedInfo.isSymbolicLink()) throw new Error("OKF source must be a real directory.");
     const root = requested;
-    const paths = selectedPaths ? selectedPaths.map(normalizedPath).sort((a, b) => a.localeCompare(b, "en")) : await walk(root);
+    const entries = selectedPaths
+        ? selectedPaths.map(normalizedPath).sort((a, b) => a.localeCompare(b, "en")).map((path) => ({ path, raw_path: path }))
+        : await walk(root);
+    const portablePaths = new Set<string>();
+    for (const entry of entries) {
+        const key = portablePathCollisionKey(entry.path);
+        if (portablePaths.has(key)) throw new Error(`Duplicate portable OKF path: ${entry.path}`);
+        portablePaths.add(key);
+    }
+    const paths = entries.map(({ path }) => path);
     const existing = new Set(paths);
     const files: OkfIndexedFile[] = [];
+    const content = new Map<string, Buffer>();
     const diagnostics: OkfDiagnostic[] = [];
     let version = declaredVersion ?? "";
     let sawV02 = false;
-    for (const path of paths) {
-        const absolute = resolve(root, ...path.split("/"));
+    for (const entry of entries) {
+        const path = entry.path;
+        const absolute = resolve(root, ...entry.raw_path.split("/"));
         if (!contained(root, absolute)) throw new Error(`Unsafe OKF path: ${path}`);
         const info = lstatSync(absolute);
         if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_FILE_BYTES) throw new Error(`OKF file is unsafe or too large: ${path}`);
         const bytes = await readFile(absolute);
+        content.set(path, bytes);
         const text = utf8(bytes, path);
         const name = basename(path);
         const markdown = extname(path).toLowerCase() === ".md";
@@ -347,7 +364,9 @@ export async function indexOkfBundle(directory: string, selectedPaths?: string[]
     }
     if (!version) version = sawV02 ? "0.2" : "0.1";
     if (!/^0\.(?:1|2)$/.test(version)) diagnostics.unshift({ severity: "warning", code: "unsupported-version", path: "index.md", message: `OKF version ${version} is not explicitly supported; consumed on a best-effort basis.` });
-    return { schema_version: 1, version, files, diagnostics };
+    const index = { schema_version: 1 as const, version, files, diagnostics };
+    okfIndexContent.set(index, content);
+    return index;
 }
 
 export async function validateOkfBundle(directory: string): Promise<ValidatedOkfBundle> {
@@ -355,7 +374,15 @@ export async function validateOkfBundle(directory: string): Promise<ValidatedOkf
     const index = await indexOkfBundle(root);
     const totalBytes = index.files.reduce((sum, file) => sum + file.bytes, 0);
     if (totalBytes > MAX_TOTAL_BYTES) throw new Error("OKF bundle exceeds the total size limit.");
-    return { ...index, root, concepts: index.files.flatMap((file) => file.concept ? [file.concept] : []), total_bytes: totalBytes };
+    const bundle = { ...index, root, concepts: index.files.flatMap((file) => file.concept ? [file.concept] : []), total_bytes: totalBytes };
+    validatedOkfContent.set(bundle, okfIndexContent.get(index) ?? new Map());
+    return bundle;
+}
+
+export function validatedOkfFileContent(bundle: ValidatedOkfBundle, path: string): Buffer {
+    const bytes = validatedOkfContent.get(bundle)?.get(path);
+    if (!bytes) throw new Error(`Validated OKF bytes are unavailable: ${path}`);
+    return bytes;
 }
 
 function normalizeExportSource(value: string): string {

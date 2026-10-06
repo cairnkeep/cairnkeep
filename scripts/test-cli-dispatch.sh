@@ -22,6 +22,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 "$cairn" help | grep -q "cairn mcp-tools <list|status|set|reset>" || fail "help missing mcp-tools"
 "$cairn" help | grep -q "cairn pack <init|lock|validate|install|list|show|remove|enable|disable|update|skills|approve-skill|revoke-skill>" || fail "help missing pack"
 "$cairn" help | grep -q "cairn graph <build|query|status|diff|explain|path>" || fail "help missing graph"
+"$cairn" help | grep -q "cairn security doctor" || fail "help missing security doctor"
 "$cairn" sync --help >/dev/null 2>&1 || fail "cairn sync dispatch"
 "$cairn" sync-pi --help >/dev/null 2>&1 || fail "cairn sync-pi dispatch"
 "$cairn" sync-kimi --help >/dev/null 2>&1 || fail "cairn sync-kimi dispatch"
@@ -48,6 +49,20 @@ CAIRN_PACK_BASE_DIR="$tmp/pack-store" "$cairn" pack list --json >"$tmp/packs.jso
 node -e 'const v=require(process.argv[1]);if(v.schema_version!==1||!Array.isArray(v.tools))process.exit(1)' "$tmp/mcp-tools.json" || fail "mcp-tools JSON contract"
 node -e 'const v=require(process.argv[1]);if(v.schema_version!==1||!Array.isArray(v.packs))process.exit(1)' "$tmp/packs.json" || fail "pack JSON contract"
 "$cairn" graph --help | grep -q "cairn graph explain <symbol>" || fail "cairn graph dispatch"
+( cd "$tmp" && "$cairn" security doctor --json ) >"$tmp/security.json" || fail "cairn security doctor dispatch"
+node -e 'const v=require(process.argv[1]);if(v.schema_version!==1||v.ok!==true||!Array.isArray(v.checks))process.exit(1)' "$tmp/security.json" || fail "security doctor JSON contract"
+mkdir -m 700 "$tmp/security-project" "$tmp/security-project/.ai"
+printf '%s\n' 'MCP_HTTP_PORT=7801' 'MCP_HTTP_HOST=0.0.0.0' 'CAIRN_MEMORY_HTTP_TOKEN=short' >"$tmp/security-project/.ai/.env"
+chmod 600 "$tmp/security-project/.ai/.env"
+set +e
+env -u MCP_HTTP_PORT -u MCP_HTTP_HOST -u CAIRN_MEMORY_HTTP_TOKEN -u CAIRN_MEMORY_HTTP_TOKEN_FILE \
+  "$cairn" security doctor --project "$tmp/security-project" --json >"$tmp/security-project.json"
+security_status=$?
+set -e
+[[ "$security_status" -eq 1 ]] || fail "project .ai/.env weak token should fail security doctor"
+node -e 'const v=require(process.argv[1]);if(v.checks.find((x)=>x.id==="http-token")?.state!=="FAIL")process.exit(1)' "$tmp/security-project.json" || fail "security doctor ignored project .ai/.env"
+CAIRN_MEMORY_HTTP_TOKEN=ambient-synthetic-token-0123456789abcdef \
+  "$cairn" security doctor --project "$tmp/security-project" --json >"$tmp/security-override.json" || fail "ambient environment should override project .ai/.env"
 grep -qxF 'MCP capability changes require a memory-server restart. Operating capability' "$tmp/capabilities-help" || fail "capability help missing exact restart wording"
 grep -qxF 'changes apply on the next invocation.' "$tmp/capabilities-help" || fail "capability help missing exact invocation wording"
 if grep -Eq '^  cairn capabilities (guard|start|finish|doctor)' "$tmp/capabilities-help"; then
@@ -88,4 +103,4 @@ CAIRN_AGENTFS_BASE_DIR="$tmp/store" "$cairn" memory path | grep -qx "$tmp/store"
 "$cairn" audit-timer --render-only "$tmp/u" >/dev/null || fail "cairn audit-timer dispatch"
 [[ -f "$tmp/u/memory-wiki-audit.timer" ]] || fail "audit-timer render via cairn produced no units"
 
-echo "PASS: cairn dispatch (doctor, memory, artifact, evidence, audit-timer)"
+echo "PASS: cairn dispatch (doctor, security, memory, artifact, evidence, audit-timer)"

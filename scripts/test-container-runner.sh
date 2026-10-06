@@ -65,6 +65,13 @@ fi
 grep -Fq "mode 400 or 600" "$tmp/err"
 chmod 600 "$token"
 
+env -u CAIRN_MEMORY_HTTP_TOKEN CAIRN_MEMORY_HTTP_TOKEN_FILE="$token" \
+  "$ROOT/containers/entrypoint.sh" sh -c \
+  'test "$CAIRN_MEMORY_HTTP_TOKEN" = token && test -z "${CAIRN_MEMORY_HTTP_TOKEN_FILE:-}"' || {
+    echo "FAIL: container entrypoint did not canonicalize the token source" >&2
+    exit 1
+  }
+
 run_launcher workspace --repo "$repo" --image example/workspace:1 \
   --workspace-volume example-workspace -- echo sandbox
 has_arg "$repo:/source:ro,Z"
