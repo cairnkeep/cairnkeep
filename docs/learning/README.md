@@ -61,6 +61,7 @@ expanded only after their labs are executable.
 | L24 | [Reviewed knowledge exchange](lessons/L24-okf-exchange.md) | Ready | 35 min |
 | L25 | [Bounded workflow playbooks](lessons/L25-playbooks.md) | Ready | 35 min |
 | L26 | [Context intelligence with explicit authority](lessons/L26-context-intelligence.md) | Ready | 45 min |
+| L27 | [Evaluate context companions without moving authority](lessons/L27-ecosystem-evidence.md) | Ready | 30 min |
 
 The [curriculum coverage map](CURRICULUM-MAP.md) records where every public
 feature is introduced, practised, and operated. It also marks design-only work

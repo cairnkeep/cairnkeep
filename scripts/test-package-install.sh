@@ -163,12 +163,17 @@ for required in \
   examples/eval/task-set.json \
   examples/eval/bundled-fake.json \
   examples/eval/adapter.json \
+  examples/eval/ecosystem-decisions.json \
   examples/eval/README.md
 do
   [[ -f "$installed_root/$required" ]] || fail "npm tarball omitted $required"
 done
 [[ -x "$installed_root/scripts/fake-eval-adapter.mjs" ]] || \
   fail "installed fake adapter is not executable"
+for runner in run-memfork-evaluation.mjs run-clm-pi-evaluation.mjs run-ollaya-decision-evaluation.mjs; do
+  [[ -x "$installed_root/scripts/spikes/$runner" ]] || \
+    fail "installed ecosystem runner is missing or not executable: $runner"
+done
 for asset in \
   schemas/eval-task-set.schema.json \
   schemas/eval-adapter.schema.json \
@@ -177,13 +182,14 @@ for asset in \
   examples/eval/task-set.json \
   examples/eval/bundled-fake.json \
   examples/eval/adapter.json \
+  examples/eval/ecosystem-decisions.json \
   examples/eval/README.md
 do
   [[ ! -x "$installed_root/$asset" ]] || \
     fail "installed public eval data asset is unexpectedly executable: $asset"
 done
 eval_assets=$(cd "$installed_root/examples/eval" && find . -type f -print | LC_ALL=C sort)
-[[ "$eval_assets" == $'./README.md\n./adapter.json\n./bundled-fake.json\n./task-set.json' ]] || \
+[[ "$eval_assets" == $'./README.md\n./adapter.json\n./bundled-fake.json\n./ecosystem-decisions.json\n./task-set.json' ]] || \
   fail "installed eval examples contain an unexpected path"
 
 node - "$installed_root/examples/eval/adapter.json" <<'NODE'

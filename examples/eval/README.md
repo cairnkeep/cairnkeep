@@ -40,3 +40,10 @@ Run only in a disposable checkout when exercising the fixture directly. The
 result is always scoped as `offline-framework`; it cannot authorize a README or
 release claim. No provider, endpoint, credential, model service, or network
 default is included.
+
+`ecosystem-decisions.json` is a separate balanced, labelled fixture for the
+operator-invoked Ollaya comparison in
+`scripts/spikes/run-ollaya-decision-evaluation.mjs`. It is not a coordinator
+task set and contains no provider or endpoint. The offline
+`scripts/test-ecosystem-spikes.sh` contract recomputes every expected label
+from explicit policy signals before an optional learned model is measured.

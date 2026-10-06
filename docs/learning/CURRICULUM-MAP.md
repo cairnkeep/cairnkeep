@@ -1,7 +1,7 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.19.1
-**Last reviewed:** 2026-08-19
+**Baseline:** Cairnkeep 2.20.0
+**Last reviewed:** 2026-10-06
 
 This map prevents the course from drifting behind the product. It assigns each
 user-facing surface to a lesson and records whether the lesson is complete or
@@ -42,6 +42,7 @@ been rehearsed.
 | OKF 0.1/0.2 validation/import, provenance, links, regressions, and reviewed 0.2 export | L24 | L24 | Ready; local/offline by default |
 | Bounded project playbooks, generic memory retrieval guidance, enforcement, and private receipts | L25 | L25 | Ready; balanced/local by default; invocation requires runtime evidence; actor identity unverified |
 | Progressive pack retrieval, frozen benchmark, context-usage receipts, review-gated memory proposals, optional provider adapter | L26 | V26 | Ready; default flat search and AnythingLLM remain compatible; OpenViking and receipt mutation are explicitly gated |
+| Branchable agent state, model-managed context, and learned decision-model comparisons | L27 | V27 | Ready; evidence runners are operator-invoked and no companion is a runtime dependency or authority |
 
 ## Release Review
 
@@ -76,6 +77,7 @@ repository remains the canonical source for explanations and scripts.
 | `course-11-windows` | L22 | Native PowerShell lifecycle, ACL inspection, and reversible uninstall |
 | `course-12-guided-setup` | L23 | Deterministic setup, Pi local stdio, recovery, and backup-first uninstall |
 | `course-13-playbooks` | L25 | Policy profiles, lifecycle decisions, enforcement, receipts, and ownership-safe instructions |
+| Disposable source checkout | L26-L27 | Context retrieval and ecosystem evidence without modifying course projects |
 
 ## Command Ownership
 

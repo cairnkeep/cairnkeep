@@ -294,6 +294,17 @@ subprocess, file/database, network, stdout/stderr, or context-injection work.
 Credentials never imply either flag. No model call, telemetry, automatic
 remote discovery, or default egress is introduced.
 
+### Ecosystem evaluation runners
+
+The scripts under `scripts/spikes/` are operator-invoked research tools, not
+runtime features or CI jobs. The MemFork runner uses only a caller-supplied
+binary and a temporary local store. The CLM/Pi runner creates disposable
+projects and may send their synthetic briefing text to the explicitly chosen
+model provider. The Ollaya runner sends the public labelled fixture to a
+caller-supplied local Ollaya runtime. No runner discovers credentials, installs
+packages, changes harness configuration, or retains its temporary state by
+default. `--keep-workspaces` and `--keep-data` are explicit debugging choices.
+
 Claude local capture:
 
 ```text
@@ -308,7 +319,7 @@ OpenCode local capture:
 
 ```text
 session.compacted session ID
-  → local SDK get(session) + messages(session)
+  → local SDK get(session) + context(session)
   → select the pinned completed summary shape
   → recursive redaction
   → truncate / digest / index / write
@@ -316,7 +327,7 @@ session.compacted session ID
 ```
 
 Only Claude Code `PostCompact` 2.1.219 and 2.1.220 and OpenCode
-`session.compacted` 1.17.20 are pinned. Unknown versions/shapes fail open. Their payload is not logged, serialized,
+`session.compacted` 1.17.20 and 2.0.24 are pinned. Unknown versions/shapes fail open. Their payload is not logged, serialized,
 temporarily copied, digested, indexed, or retained; doctor receives only a
 bounded value-free reason. Artifact candidates are redacted before digest, index, temporary storage, or any Cairnkeep write.
 Truncation also happens only after redaction. The same recursive

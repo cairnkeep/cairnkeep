@@ -63,6 +63,9 @@ linked guides rather than the project landing page.
   and exporting portable knowledge bundles.
 - [Companion tools and related projects](ecosystem.md) lists optional tools that
   complement Cairnkeep without becoming runtime dependencies.
+- [Ecosystem evaluation evidence](research/ecosystem-evidence-2026-10.md)
+  records the reproducible MemFork, CLM/Pi, and Ollaya comparison behind those
+  boundaries.
 
 ## Overlays and teams
 
