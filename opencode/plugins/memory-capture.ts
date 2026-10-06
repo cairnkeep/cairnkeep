@@ -31,13 +31,10 @@ import path from "node:path"
 // object. The V2 event stream carries `session.idle` / `session.compacted`
 // under `event.data` (V1 used `event.properties`), and V2 transcripts are a
 // message union (user/assistant/compaction variants), not the V1
-// { info, parts } shape the mcp-memory-server normalizers parse — so V2
-// payloads are normalized back to the legacy transcript shape below. The
-// CLI-side compaction adapter stays version-pinned to the V1 harness
-// (mcp-memory-server compaction-normalize gates on harness/session version
-// 1.17.20): under V2 that path fails closed into its stderr skip (D-03
-// fail-open). Follow-up lives in cairnkeep to teach the adapter the V2
-// payload; never fake version fields in this plugin.
+// { info, parts } shape. Trajectory/extraction capture maps that union to the
+// legacy transcript contract, while native compaction capture passes the V2
+// shape unchanged to the exact 2.0.24 adapter. Unknown future shapes still
+// fail open in the version-pinned CLI normalizer.
 
 const SERVER_ENTRY = "@@INFRA_ROOT@@/mcp-memory-server/dist/index.js"
 const TRAJECTORY_ENTRY = "@@INFRA_ROOT@@/mcp-memory-server/dist/trajectory-cli.js"
@@ -209,10 +206,14 @@ async function fetchSession(ctx: V2.Context, sessionID: string) {
     | undefined
 }
 
-async function fetchLegacyMessages(ctx: V2.Context, sessionID: string): Promise<SessionMessage[]> {
+async function fetchV2Messages(ctx: V2.Context, sessionID: string): Promise<unknown[]> {
   const res = (await ctx.session.context({ sessionID })) as unknown
   const list = Array.isArray(res) ? res : ((res as { data?: unknown })?.data ?? [])
-  return toLegacyMessages(sessionID, Array.isArray(list) ? list : [])
+  return Array.isArray(list) ? list : []
+}
+
+async function fetchLegacyMessages(ctx: V2.Context, sessionID: string): Promise<SessionMessage[]> {
+  return toLegacyMessages(sessionID, await fetchV2Messages(ctx, sessionID))
 }
 
 // Shared V1/V2 staging contract (identical to claude/hooks/memory-capture.sh,
@@ -257,19 +258,13 @@ async function handleV2Event(
       if (!session || session.parentID) return
       if (session.location?.directory && session.location.directory !== repo) return
 
-      const messages = await fetchLegacyMessages(ctx, sessionID)
+      const messages = await fetchV2Messages(ctx, sessionID)
       if (!fs.existsSync(ARTIFACT_ENTRY)) return
 
-      // The adapter keeps reading V1-shaped `event.properties.sessionID`, so
-      // carry both spellings; `session.version` is honestly absent under V2,
-      // which makes the adapter's pinned version gate fail closed into a
-      // stderr skip (fail-open, see header note + cairnkeep adapter
-      // follow-up).
-      const payloadEvent = { type: "session.compacted", properties: { sessionID }, data: event.data }
       const capture = await runNode(
         ARTIFACT_ENTRY,
         ["capture-opencode", repo],
-        JSON.stringify({ event: payloadEvent, session, messages, harness_version: "1.17.20" }),
+        JSON.stringify({ event, session, messages, harness_version: "2.0.24" }),
         3000,
       )
       if (capture.stderr.trim()) {

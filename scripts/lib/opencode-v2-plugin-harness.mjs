@@ -3,10 +3,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const [capturePath, recallPath, wakeupPath, repo, trajectoryCli] = process.argv.slice(2);
+const [capturePath, recallPath, wakeupPath, repo, trajectoryCli, artifactCli] = process.argv.slice(2);
 assert.ok(
-  capturePath && recallPath && wakeupPath && repo && trajectoryCli,
-  "usage: harness <capture.ts> <recall.ts> <wakeup.ts> <repo> <trajectory-cli.js>",
+  capturePath && recallPath && wakeupPath && repo && trajectoryCli && artifactCli,
+  "usage: harness <capture.ts> <recall.ts> <wakeup.ts> <repo> <trajectory-cli.js> <artifact-cli.js>",
 );
 
 mkdirSync(join(repo, ".planning", "wiki", "sources"), { recursive: true });
@@ -82,6 +82,7 @@ const captureContext = {
     subscribe: async function* ({ signal }) {
       subscribed = true;
       assert.equal(signal instanceof AbortSignal, true);
+      yield { type: "session.compacted", data: { sessionID: "v2-session" } };
       yield { type: "session.idle", data: { sessionID: "v2-session" } };
     },
   },
@@ -93,6 +94,14 @@ const captureContext = {
     }),
     context: async ({ sessionID }) => [
       { type: "user", id: "v2-user", text: "Inspect the release ledger.", time: { created: now + 100 } },
+      {
+        type: "compaction",
+        id: "v2-compaction",
+        reason: "manual",
+        summary: "# Objective\nKeep the v2 release ledger consistent.\n\nDecision: Use the native OpenCode v2 compaction payload.\n\n# Next Move\nVerify recovery before release.",
+        recent: "The most recent transcript window.",
+        time: { created: now + 150 },
+      },
       {
         type: "assistant",
         id: "v2-assistant",
@@ -133,4 +142,15 @@ const trajectory = JSON.parse(shown.stdout);
 assert.equal(trajectory.session_id, "v2-session");
 assert.match(readFileSync(db).toString("utf8"), /SQLite format 3/);
 
-console.log("PASS: OpenCode V2 default exports, context, recall, event translation, and V1 compatibility");
+const recovered = spawnSync(process.execPath, [artifactCli, "recover", repo, "--session-ref", "opencode:v2-session", "--json"], {
+  cwd: repo,
+  encoding: "utf8",
+});
+assert.equal(recovered.status, 0, recovered.stderr);
+const compaction = JSON.parse(recovered.stdout);
+assert.equal(compaction.session_ref, "opencode:v2-session");
+assert.deepEqual(compaction.projection.task_goals, ["Keep the v2 release ledger consistent."]);
+assert.deepEqual(compaction.projection.decisions_made, ["Use the native OpenCode v2 compaction payload."]);
+assert.deepEqual(compaction.projection.open_todos, ["Verify recovery before release."]);
+
+console.log("PASS: OpenCode V2 exports, context, recall, trajectory, compaction recovery, and V1 compatibility");

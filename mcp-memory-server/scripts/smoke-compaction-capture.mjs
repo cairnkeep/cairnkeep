@@ -97,10 +97,20 @@ function validateFixtureSelfConsistency() {
     assert.match(newestText, /Error:/);
     assert.doesNotMatch(newestText, /IGNORED_SUMMARY_SECRET/);
 
+    const opencodeV2 = loadFixture("compaction-opencode-2.0.24.json");
+    strictObject(opencodeV2, ["event", "session", "messages"], "OpenCode v2 compaction fixture");
+    strictObject(opencodeV2.event, ["type", "data"], "OpenCode v2 compacted event");
+    assert.equal(opencodeV2.event.type, "session.compacted");
+    assert.equal(opencodeV2.event.data.sessionID, opencodeV2.session.id);
+    assert.equal(opencodeV2.session.location.directory, "/workspace/project");
+    assert.ok(Array.isArray(opencodeV2.messages));
+    assert.equal(opencodeV2.messages.at(-1).type, "compaction");
+    assert.equal(typeof opencodeV2.messages.at(-1).summary, "string");
+
     const unknown = loadFixture("compaction-unknown-version.json");
     assert.equal(unknown.harness_version, "99.0.0");
     for (const sentinel of UNKNOWN_SENTINELS) assert.match(JSON.stringify(unknown), new RegExp(sentinel));
-    return { claude219, claude220, event, envelope, unknown };
+    return { claude219, claude220, event, envelope, opencodeV2, unknown };
 }
 
 function assertExactProjection(projection) {
@@ -133,6 +143,7 @@ function assertExports(adapter) {
         { harness: "claude-code", version: "2.1.219", event: "PostCompact" },
         { harness: "claude-code", version: "2.1.220", event: "PostCompact" },
         { harness: "opencode", version: "1.17.20", event: "session.compacted" },
+        { harness: "opencode", version: "2.0.24", event: "session.compacted" },
     ]);
     for (const name of [
         "normalizeClaudePostCompact",
@@ -196,6 +207,30 @@ function opencodeContract(adapter, fixtures) {
     assert.deepEqual(normalized.projection.decisions_made, ["Pin adapter behavior to the documented session.compacted family."]);
     assert.deepEqual(normalized.projection.open_todos, ["Implement the local immutable compaction adapter."]);
     assert.match(normalized.projection.critical_error_traces[0], /^TypeError: recovery pointer invalid/);
+
+    const selectedV2 = adapter.selectOpenCodeCompactionSummary(
+        fixtures.opencodeV2.event,
+        fixtures.opencodeV2.session,
+        fixtures.opencodeV2.messages,
+        { harnessVersion: "2.0.24" },
+    );
+    assert.equal(selectedV2.message_id, "msg_compact_new");
+    assert.equal(selectedV2.parent_id, undefined);
+    assert.equal(selectedV2.completed_at, new Date(1785052809000).toISOString());
+    const normalizedV2 = adapter.normalizeOpenCodeCompaction(
+        fixtures.opencodeV2.event,
+        fixtures.opencodeV2.session,
+        fixtures.opencodeV2.messages,
+        { harnessVersion: "2.0.24" },
+    );
+    assert.equal(normalizedV2.session_ref, "opencode:opencode-v2-compaction-session-001");
+    assert.equal(normalizedV2.harness_version, "2.0.24");
+    assert.equal(normalizedV2.native_id, "msg_compact_new");
+    assert.doesNotMatch(JSON.stringify(normalizedV2), /\/workspace\/project|sk-opencode-v2-secret/);
+    assert.deepEqual(normalizedV2.projection.task_goals, ["Preserve OpenCode v2 compaction state across sessions."]);
+    assert.deepEqual(normalizedV2.projection.decisions_made, ["Pin the adapter to the verified 2.0.24 payload."]);
+    assert.deepEqual(normalizedV2.projection.open_todos, ["Recover the reviewed v2 summary on the next turn."]);
+    assert.match(normalizedV2.projection.critical_error_traces[0], /^SchemaError:/);
     return normalized;
 }
 

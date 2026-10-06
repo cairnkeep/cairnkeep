@@ -14,13 +14,14 @@ render "$ROOT/opencode/plugins/memory-capture.ts" "$tmp/rendered/memory-capture.
 render "$ROOT/opencode/plugins/memory-recall.ts" "$tmp/rendered/memory-recall.ts"
 render "$ROOT/opencode/plugins/memory-wakeup.ts" "$tmp/rendered/memory-wakeup.ts"
 
-CAIRN_TRAJECTORY_CAPTURE=1 node --experimental-strip-types \
+CAIRN_TRAJECTORY_CAPTURE=1 CAIRN_COMPACTION_CAPTURE=1 node --experimental-strip-types \
   "$ROOT/scripts/lib/opencode-v2-plugin-harness.mjs" \
   "$tmp/rendered/memory-capture.ts" \
   "$tmp/rendered/memory-recall.ts" \
   "$tmp/rendered/memory-wakeup.ts" \
   "$tmp/project" \
-  "$ROOT/mcp-memory-server/dist/trajectory-cli.js"
+  "$ROOT/mcp-memory-server/dist/trajectory-cli.js" \
+  "$ROOT/mcp-memory-server/dist/artifact-cli.js"
 
 # When a V2 binary is available, also exercise the real loader in a sterile
 # config/data tree. CI remains deterministic without installing an unrelated
