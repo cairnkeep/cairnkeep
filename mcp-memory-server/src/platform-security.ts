@@ -5,6 +5,8 @@ import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 
 let cachedWindowsIdentity: { account: string; sid: string } | undefined;
+const WINDOWS_COMMAND_TIMEOUT_MS = 10_000;
+const WINDOWS_COMMAND_MAX_BUFFER = 1024 * 1024;
 
 export type WindowsAclSnapshot = {
     owner_sid: string;
@@ -77,10 +79,12 @@ function windowsAclSnapshot(path: string): WindowsAclSnapshot {
     const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
         encoding: "utf8",
         windowsHide: true,
+        timeout: WINDOWS_COMMAND_TIMEOUT_MS,
+        maxBuffer: WINDOWS_COMMAND_MAX_BUFFER,
         env: { ...process.env, CK_INTERNAL_ACL_PATH: path },
     });
     if (result.status !== 0 || !result.stdout.trim()) {
-        const detail = result.stderr.trim();
+        const detail = result.error?.message || result.stderr.trim();
         throw new Error(`Unable to inspect Windows ACL${detail ? `: ${detail}` : "."}`);
     }
     let parsed: Partial<WindowsAclSnapshot>;
@@ -100,7 +104,12 @@ function windowsAclSnapshot(path: string): WindowsAclSnapshot {
 
 function currentWindowsIdentity(): { account: string; sid: string } {
     if (cachedWindowsIdentity) return cachedWindowsIdentity;
-    const result = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
+    const result = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], {
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: WINDOWS_COMMAND_TIMEOUT_MS,
+        maxBuffer: WINDOWS_COMMAND_MAX_BUFFER,
+    });
     if (result.status !== 0) throw new Error("Unable to resolve the current Windows security identity.");
     const match = result.stdout.match(/^"([^"]+)","(S-1-[0-9-]+)"/im);
     if (!match) throw new Error("Unable to resolve the current Windows security identity.");
@@ -124,9 +133,14 @@ export function hardenPrivatePath(path: string): void {
     }
     for (const operation of windowsPrivateAclHardeningPlan(snapshot, identity, directory)) {
         const args = [path, ...operation];
-        const result = spawnSync("icacls.exe", args, { encoding: "utf8", windowsHide: true });
+        const result = spawnSync("icacls.exe", args, {
+            encoding: "utf8",
+            windowsHide: true,
+            timeout: WINDOWS_COMMAND_TIMEOUT_MS,
+            maxBuffer: WINDOWS_COMMAND_MAX_BUFFER,
+        });
         if (result.status !== 0) {
-            const detail = result.stderr.trim() || result.stdout.trim();
+            const detail = result.error?.message || result.stderr.trim() || result.stdout.trim();
             throw new Error(`Unable to restrict Windows ACLs for private Cairnkeep state${detail ? `: ${detail}` : "."}`);
         }
     }
@@ -195,6 +209,8 @@ export async function atomicReplace(source: string, destination: string): Promis
                 ], {
                     encoding: "utf8",
                     windowsHide: true,
+                    timeout: WINDOWS_COMMAND_TIMEOUT_MS,
+                    maxBuffer: WINDOWS_COMMAND_MAX_BUFFER,
                     env: {
                         ...process.env,
                         CK_INTERNAL_ATOMIC_SOURCE: source,
