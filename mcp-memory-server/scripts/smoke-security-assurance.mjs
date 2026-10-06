@@ -26,6 +26,7 @@ try {
 
     const privateEnv = join(project, ".ai", ".env");
     writeFileSync(privateEnv, "CAIRN_CONTEXT_PACKS=1\n", { mode: 0o600 });
+    hardenPrivatePath(privateEnv);
 
     const safeEnvironment = [
         "SAFE_UNQUOTED=alpha-1.2:/path,@value=ok",

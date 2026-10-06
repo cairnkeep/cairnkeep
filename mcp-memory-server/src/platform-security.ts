@@ -110,7 +110,10 @@ function currentWindowsIdentity(): { account: string; sid: string } {
         timeout: WINDOWS_COMMAND_TIMEOUT_MS,
         maxBuffer: WINDOWS_COMMAND_MAX_BUFFER,
     });
-    if (result.status !== 0) throw new Error("Unable to resolve the current Windows security identity.");
+    if (result.status !== 0) {
+        const detail = result.error?.message || result.stderr.trim();
+        throw new Error(`Unable to resolve the current Windows security identity${detail ? `: ${detail}` : "."}`);
+    }
     const match = result.stdout.match(/^"([^"]+)","(S-1-[0-9-]+)"/im);
     if (!match) throw new Error("Unable to resolve the current Windows security identity.");
     cachedWindowsIdentity = { account: match[1], sid: match[2] };
@@ -223,7 +226,8 @@ export async function atomicReplace(source: string, destination: string): Promis
                     return;
                 }
                 rmSync(backup, { force: true });
-                lastError = result.stderr.trim() || result.stdout.trim() || lastError;
+                if (result.error) throw new Error(`Windows atomic replacement failed: ${result.error.message}`);
+                lastError = result.stderr?.trim() || result.stdout?.trim() || lastError;
             }
             await delay(25 * (attempt + 1));
         }

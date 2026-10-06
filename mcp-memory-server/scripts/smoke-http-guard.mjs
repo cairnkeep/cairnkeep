@@ -19,6 +19,7 @@ function check(name, cond) {
 
 const PORT = 8000 + (process.pid % 1500);
 const TOKEN = "smoke-secret-token-with-at-least-32-bytes";
+const WINDOWS_COMMAND_OPTIONS = { encoding: "utf8", windowsHide: true, timeout: 10_000, maxBuffer: 1024 * 1024 };
 const INIT_BODY = JSON.stringify({
     jsonrpc: "2.0",
     id: 1,
@@ -222,15 +223,15 @@ try {
 const tokenRoot = mkdtempSync(join(tmpdir(), "cairn-http-token-"));
 const tokenPath = join(tokenRoot, "token");
 if (process.platform === "win32") {
-    const inheritedAce = spawnSync("icacls.exe", [tokenRoot, "/grant", "*S-1-1-0:(OI)(CI)(R)"], { encoding: "utf8", windowsHide: true });
-    if (inheritedAce.status !== 0) throw new Error(`could not create adversarial Windows parent ACL: ${inheritedAce.stderr}`);
+    const inheritedAce = spawnSync("icacls.exe", [tokenRoot, "/grant", "*S-1-1-0:(OI)(CI)(R)"], WINDOWS_COMMAND_OPTIONS);
+    if (inheritedAce.status !== 0) throw new Error(`could not create adversarial Windows parent ACL: ${inheritedAce.error?.message || inheritedAce.stderr}`);
 }
 writeFileSync(tokenPath, `${TOKEN}\n`, { mode: 0o600 });
 if (process.platform === "win32") {
-    const plantedAce = spawnSync("icacls.exe", [tokenPath, "/grant", "*S-1-1-0:(R)"], { encoding: "utf8", windowsHide: true });
-    if (plantedAce.status !== 0) throw new Error(`could not create adversarial Windows token ACL: ${plantedAce.stderr}`);
-    const plantedDeny = spawnSync("icacls.exe", [tokenPath, "/deny", "*S-1-1-0:(W)"], { encoding: "utf8", windowsHide: true });
-    if (plantedDeny.status !== 0) throw new Error(`could not create adversarial Windows token deny ACL: ${plantedDeny.stderr}`);
+    const plantedAce = spawnSync("icacls.exe", [tokenPath, "/grant", "*S-1-1-0:(R)"], WINDOWS_COMMAND_OPTIONS);
+    if (plantedAce.status !== 0) throw new Error(`could not create adversarial Windows token ACL: ${plantedAce.error?.message || plantedAce.stderr}`);
+    const plantedDeny = spawnSync("icacls.exe", [tokenPath, "/deny", "*S-1-1-0:(W)"], WINDOWS_COMMAND_OPTIONS);
+    if (plantedDeny.status !== 0) throw new Error(`could not create adversarial Windows token deny ACL: ${plantedDeny.error?.message || plantedDeny.stderr}`);
 }
 hardenPrivatePath(tokenPath);
 writeFileSync(tokenPath, `${TOKEN}\n`, { mode: 0o600 });
