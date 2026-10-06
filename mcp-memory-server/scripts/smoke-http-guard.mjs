@@ -4,10 +4,12 @@
 // and 200 when authorized.
 // Run: node scripts/smoke-http-guard.mjs   (after `npm run build`)
 import { spawn } from "node:child_process";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+import { hardenPrivatePath } from "../dist/platform-security.js";
 
 let failures = 0;
 function check(name, cond) {
@@ -218,7 +220,7 @@ try {
 const tokenRoot = mkdtempSync(join(tmpdir(), "cairn-http-token-"));
 const tokenPath = join(tokenRoot, "token");
 writeFileSync(tokenPath, `${TOKEN}\n`, { mode: 0o600 });
-chmodSync(tokenPath, 0o600);
+hardenPrivatePath(tokenPath);
 const filePort = PORT + 2;
 const fileServer = spawn("node", ["dist/index.js"], {
     env: (() => {
