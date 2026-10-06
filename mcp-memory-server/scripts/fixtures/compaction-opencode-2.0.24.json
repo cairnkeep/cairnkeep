@@ -1,0 +1,40 @@
+{
+  "event": {
+    "type": "session.compacted",
+    "data": {
+      "sessionID": "opencode-v2-compaction-session-001"
+    }
+  },
+  "session": {
+    "id": "opencode-v2-compaction-session-001",
+    "time": {
+      "created": 1785052800000,
+      "updated": 1785052810000
+    },
+    "location": {
+      "directory": "/workspace/project"
+    }
+  },
+  "messages": [
+    {
+      "type": "compaction",
+      "reason": "auto",
+      "summary": "# Objective\nSuperseded state.\n\n# Next Move\nDo not select this summary.",
+      "recent": "Earlier transcript window.",
+      "id": "msg_compact_old",
+      "time": {
+        "created": 1785052805000
+      }
+    },
+    {
+      "type": "compaction",
+      "reason": "manual",
+      "summary": "# Objective\nPreserve OpenCode v2 compaction state across sessions.\n\nDecision: Pin the adapter to the verified 2.0.24 payload.\nError: SchemaError: legacy plugin export rejected.\n\n# Next Move\nRecover the reviewed v2 summary on the next turn.",
+      "recent": "The local checkout path is /workspace/project and token sk-opencode-v2-secret must be redacted.",
+      "id": "msg_compact_new",
+      "time": {
+        "created": 1785052809000
+      }
+    }
+  ]
+}

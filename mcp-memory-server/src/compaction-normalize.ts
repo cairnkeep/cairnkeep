@@ -4,6 +4,7 @@ export const SUPPORTED_COMPACTION_ADAPTERS = [
     { harness: "claude-code", version: "2.1.219", event: "PostCompact" },
     { harness: "claude-code", version: "2.1.220", event: "PostCompact" },
     { harness: "opencode", version: "1.17.20", event: "session.compacted" },
+    { harness: "opencode", version: "2.0.24", event: "session.compacted" },
 ] as const;
 
 export type CompactionProjection = {
@@ -41,7 +42,7 @@ function stripLabel(value: string, label: "Decision" | "TODO" | "Error"): string
 
 export function projectCompactionSummary(
     summary: string,
-    options: { template: "claude-code-2.1.219" | "claude-code-2.1.220" | "opencode-1.17.20" },
+    options: { template: "claude-code-2.1.219" | "claude-code-2.1.220" | "opencode-1.17.20" | "opencode-2.0.24" },
 ): CompactionProjection {
     const result: CompactionProjection = {
         task_goals: [],
@@ -154,12 +155,40 @@ export function selectOpenCodeCompactionSummary(
     sessionRaw: unknown,
     messagesRaw: unknown,
     options: { harnessVersion: string },
-): { message_id: string; parent_id: string; completed_at: string; raw_summary: string } {
-    if (options.harnessVersion !== "1.17.20") throw new Error("Unsupported OpenCode compaction adapter.");
+): { message_id: string; parent_id?: string; completed_at: string; raw_summary: string } {
+    if (options.harnessVersion !== "1.17.20" && options.harnessVersion !== "2.0.24") {
+        throw new Error("Unsupported OpenCode compaction adapter.");
+    }
     const event = object(eventRaw);
-    const properties = object(event?.properties);
     const session = object(sessionRaw);
     const sessionId = string(session?.id);
+    if (options.harnessVersion === "2.0.24") {
+        const data = object(event?.data);
+        if (event?.type !== "session.compacted" || !sessionId || data?.sessionID !== sessionId
+            || session?.parentID !== undefined || !Array.isArray(messagesRaw)) {
+            throw new Error("OpenCode compaction shape is invalid.");
+        }
+        const candidates = messagesRaw.flatMap((rawMessage) => {
+            const message = object(rawMessage);
+            const id = string(message?.id);
+            const summary = string(message?.summary);
+            const time = object(message?.time);
+            const timestamp = typeof time?.created === "number" ? time.created : NaN;
+            if (message?.type !== "compaction" || !id || !summary || !Number.isFinite(timestamp)
+                || (message.reason !== "auto" && message.reason !== "manual") || typeof message.recent !== "string") return [];
+            return [{ message_id: id, completed_at: new Date(timestamp).toISOString(), time: timestamp, raw_summary: summary }];
+        });
+        candidates.sort((left, right) => right.time - left.time || right.message_id.localeCompare(left.message_id));
+        const selected = candidates[0];
+        if (!selected) throw new Error("OpenCode compaction did not contain a usable summary.");
+        return {
+            message_id: selected.message_id,
+            completed_at: selected.completed_at,
+            raw_summary: selected.raw_summary,
+        };
+    }
+
+    const properties = object(event?.properties);
     if (event?.type !== "session.compacted" || !sessionId || properties?.sessionID !== sessionId
         || session?.version !== "1.17.20" || session.parentID !== undefined || !Array.isArray(messagesRaw)) {
         throw new Error("OpenCode compaction shape is invalid.");
@@ -225,9 +254,11 @@ export function normalizeOpenCodeCompaction(
     raw_summary: string;
     projection: CompactionProjection;
 } | null {
-    if (options.harnessVersion !== "1.17.20") return diagnostic(options);
+    if (options.harnessVersion !== "1.17.20" && options.harnessVersion !== "2.0.24") return diagnostic(options);
     const session = object(sessionRaw);
-    const projectRoot = string(session?.directory);
+    const projectRoot = options.harnessVersion === "2.0.24"
+        ? string(object(session?.location)?.directory)
+        : string(session?.directory);
     if (!projectRoot) return diagnostic(options);
     try {
         const redacted = redactLocalValue({ event: eventRaw, session: sessionRaw, messages: messagesRaw }, projectRoot).value as UnknownRecord;
@@ -236,12 +267,12 @@ export function normalizeOpenCodeCompaction(
         return {
             session_ref: `opencode:${String(redactedSession?.id)}`,
             harness: "opencode",
-            harness_version: "1.17.20",
+            harness_version: options.harnessVersion,
             source_event: "session.compacted",
             native_id: selected.message_id,
             trigger: "native",
             raw_summary: selected.raw_summary,
-            projection: projectCompactionSummary(selected.raw_summary, { template: "opencode-1.17.20" }),
+            projection: projectCompactionSummary(selected.raw_summary, { template: `opencode-${options.harnessVersion}` }),
         };
     } catch {
         return diagnostic(options);

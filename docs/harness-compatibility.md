@@ -15,7 +15,7 @@ Cairnkeep commands, hooks or native trajectory capture.
 | Harness | Supported surface | Runtime status |
 |---|---|---|
 | Claude Code | Memory MCP, commands (including `/cairn-work`), agents, hooks, launcher | Exercised by Cairnkeep tests |
-| OpenCode | Memory MCP, commands (including `/cairn-work`), workflows, plugins, launcher | Exercised by Cairnkeep tests |
+| OpenCode | Memory MCP, commands (including `/cairn-work`), workflows, plugins, launcher | OpenCode 1.x contract-tested; OpenCode 2.0.24 contract-tested and live-loader tested |
 | Kimi Code | Memory MCP, `AGENTS.md`, launcher, opt-in graph and cairn-work Skills | Launcher tested; remote MCP tested with Kimi Code 0.30.0; Skills contract-tested |
 | Qwen Code | Memory MCP, launcher, project `AGENTS.md` durable-context and playbook guidance | Launcher tested; stdio and remote MCP tested with Qwen Code 0.21.1 |
 | Pi | Memory MCP through maintained local stdio extension, native opt-in trajectory extension, launcher, graph and cairn-work prompts | Pi 0.84.1 validated minimum; deterministic and real bridge/lifecycle tests |

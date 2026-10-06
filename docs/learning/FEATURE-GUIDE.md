@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.19.1
+**Baseline:** Cairnkeep 2.20.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -24,6 +24,9 @@ Version 2.15.4 makes generic task-derived, project-scoped retrieval the first
 tool or command, puts bounded playbook signal values inline, and adds
 event-scoped check help to executable receipt guidance. Retrieval remains a
 locator and actual tool invocation must be verified from runtime evidence.
+Version 2.20 adds OpenCode 2.0.24 plugin and compaction compatibility plus
+operator-invoked ecosystem evidence runners; see
+[L27](lessons/L27-ecosystem-evidence.md).
 
 ## The three-layer model
 
@@ -104,6 +107,7 @@ prerequisites for ordinary memory.
 | Validated skill improvement | Reviewed recurring hindsight; proposal adapter; `CAIRN_EVAL=1` for evaluation | No server restart; explicit subprocesses only | `cairn skill list|show`; exact-digest apply; concurrent-edit-safe rollback | `course-09-skill` |
 | General meta-agent loop | Not shipped | Not applicable | Playbooks select bounded existing actions; no generic configuration loop, command language, or scheduler | `course-07-evaluation` |
 | Pack retrieval and skills | `CAIRN_CONTEXT_PACKS=1`; HTTP needs separate consent; skills need exact-digest approval | Restart MCP server | `cairn pack skills`; revoke approval or disable pack; no automatic execution | `course-10-trust-context` |
+| Ecosystem evidence runners | Explicit script invocation plus caller-supplied binaries/model configuration | None; disposable processes only | Temporary state is removed by default; inspect the JSON report and pinned evidence | Disposable source checkout, L27 |
 
 ## Harness and maintenance checks
 
@@ -139,3 +143,13 @@ L26 joins five related surfaces without collapsing their authority boundaries:
 See [L26](lessons/L26-context-intelligence.md), its
 [video script](video-scripts/V26-context-intelligence.md), and the
 [context-intelligence reference](../context-intelligence.md).
+
+## Companion evaluation
+
+L27 keeps adjacent tools in separate layers. MemFork is evidence for
+branchable speculative state, CLM projects the current request, and Ollaya can
+produce advisory typed decisions. None receives Cairnkeep's durable-memory,
+approval, project-isolation, or release authority. See
+[L27](lessons/L27-ecosystem-evidence.md), its
+[video script](video-scripts/V27-ecosystem-evidence.md), and the pinned
+[evidence report](../research/ecosystem-evidence-2026-10.md).

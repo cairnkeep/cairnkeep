@@ -5,6 +5,25 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.20.0] - 2026-10-06
+
+### Added
+
+- Support OpenCode 2.0.24's plugin definition, context hook, tool hook, event
+  stream, transcript union, and native compaction payload while retaining the
+  OpenCode 1.x plugin contract.
+- Add a live OpenCode v2 loader gate plus deterministic trajectory,
+  pre-edit recall, session context, compaction capture, and recovery coverage.
+- Ship operator-invoked, disposable comparison runners for MemFork, Pi CLM,
+  and Ollaya decision models, with a labelled Cairnkeep trust-decision set.
+
+### Documentation
+
+- Record the measured ecosystem comparisons and their authority boundaries:
+  branchable agent state can complement reviewed memory; CLM can reduce
+  long-horizon context but remains experimental and provider-cost-sensitive;
+  learned decision models cannot replace deterministic permission policy.
+
 ## [2.19.1] - 2026-10-06
 
 ### Security
@@ -583,7 +602,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.19.1...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.20.0...HEAD
+[2.20.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.19.1...v2.20.0
 [2.19.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.19.0...v2.19.1
 [2.19.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.17.3...v2.18.0

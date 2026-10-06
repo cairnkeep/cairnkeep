@@ -1,4 +1,5 @@
-import type { Plugin } from "@opencode-ai/plugin"
+import type { Plugin as V1Plugin } from "@opencode-ai/plugin"
+import type { Plugin as V2 } from "@opencode/plugin"
 import { spawn } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
@@ -18,9 +19,20 @@ import path from "node:path"
 // Fail-open everywhere (D-03): a missing server binary, missing
 // .agentfs/.planning, or a failed subcommand must never wedge an OpenCode
 // session.
+//
+// V1/V2 dual entrypoint (2026-09-08): opencode2 (V2) schema-decodes the
+// module `default` export as a definition with `id` + `setup`/`effect` — the
+// old named `export const MemoryWakeupPlugin: Plugin` shape fails V2 loading
+// with `SchemaError(Missing key at ["default"])` (server log ref
+// err_128a87db). V1 >= 1.18.29 (installed on deep and fast) accepts the same
+// default-export object and calls `server()` for the legacy hooks. Each side
+// stays on its own API; V2 ignores `server()` and never translates V1 hooks.
 
 const SERVER_ENTRY = "@@INFRA_ROOT@@/mcp-memory-server/dist/index.js"
 const ARTIFACT_ENTRY = "@@INFRA_ROOT@@/mcp-memory-server/dist/artifact-cli.js"
+
+const WAKEUP_NOTICE =
+  "Session-start context (auto-surfaced by the memory-wakeup plugin — use it; do not ask the user to recall anything it contains):"
 
 function compactionCaptureEnabled(): boolean {
   return /^(1|true|yes|on)$/i.test(process.env.CAIRN_COMPACTION_CAPTURE ?? "")
@@ -62,93 +74,155 @@ function runNode(entry: string, args: string[], timeoutMs = 3000): Promise<strin
   })
 }
 
-export const MemoryWakeupPlugin: Plugin = async ({ $, directory }) => {
-  return {
-    // No per-session dedupe: this hook fires more than once per session
-    // (including OpenCode's internal title-generation call, which happens
-    // before the first real agent turn and shares the same sessionID). A
-    // "surface once per session" Set keyed on sessionID would mark the
-    // session surfaced on that throwaway title-gen call and silently skip
-    // every real turn afterward — the OCP-05 acceptance gate never sees the
-    // injected context. `output.system` is a fresh array per call, so
-    // re-pushing on every invocation is both correct and required.
-    "experimental.chat.system.transform": async (input, output) => {
+// Shared V1/V2 surfacing rules (OCP-05, D-04) — one source of truth for the
+// sections so both runtimes inject byte-identical context.
+// `agentfsMemory === null` means "no AgentFS store present" (section omitted);
+// a string means the store exists, even when the wakeup call returned "".
+function collectSections(repo: string, agentfsMemory: string | null): string[] {
+  const sections: string[] = []
+
+  if (agentfsMemory !== null) {
+    sections.push("## Project memory (AgentFS)")
+    if (agentfsMemory) sections.push(agentfsMemory)
+  }
+
+  const wikiIndex = path.join(repo, ".planning", "wiki", "index.md")
+  if (fs.existsSync(wikiIndex)) {
+    const wiki = fs.readFileSync(wikiIndex, "utf8").trim()
+    sections.push("## Wiki index")
+    if (wiki) sections.push(wiki)
+  }
+
+  // Surface open HARD wiki contradictions so the agent (and user) see
+  // them at session start without anyone having to remember to scan the
+  // register. Hard entries cannot both be correct and must be resolved
+  // before dependent work.
+  const contradictionsPath = path.join(repo, ".planning", "wiki", "CONTRADICTIONS.md")
+  if (fs.existsSync(contradictionsPath)) {
+    const raw = fs.readFileSync(contradictionsPath, "utf8")
+    const start = raw.indexOf("<!-- wiki:contradictions:open:start -->")
+    const end = raw.indexOf("<!-- wiki:contradictions:open:end -->")
+    if (start !== -1 && end !== -1 && end > start) {
+      const region = raw.slice(start, end)
+      const hardLines = region
+        .split("\n")
+        .filter((line) => /severity:\s*hard/i.test(line))
+      if (hardLines.length > 0) {
+        sections.push("## Open HARD contradictions — resolve before dependent work")
+        sections.push(hardLines.join("\n"))
+      }
+    }
+  }
+
+  // Surface staged memory candidates captured by the session-end
+  // capture plugin. These are extracted automatically from the last
+  // session but NOT yet written to AgentFS — /memory-review is the
+  // accept gate.
+  const stagingDir = path.join(repo, ".planning", "memory-staging")
+  if (fs.existsSync(stagingDir)) {
+    const staged = fs.readdirSync(stagingDir).filter((f) => f.endsWith(".json"))
+    if (staged.length > 0) {
+      sections.push(`## Staged memory candidates (${staged.length} session(s)) — UNREVIEWED`)
+      sections.push("Run /memory-review to accept (→ AgentFS) or discard these before doing other work.")
+    }
+  }
+
+  return sections
+}
+
+export default {
+  id: "cairnkeep.memory-wakeup",
+
+  // V2 (opencode2) entrypoint. `session.hook("context")` fires per model
+  // dispatch for this location's sessions — NOT for title requests, but it
+  // does run again for tool continuations, compaction and transient generate
+  // calls. `event.system` is a fresh SystemPart array per call, so
+  // re-pushing on every invocation is both correct and required (a
+  // per-session dedupe Set would key on the throwaway title-gen call under
+  // V1 and silently skip real turns — the original OCP-05 pitfall).
+  async setup(ctx: V2.Context) {
+    const repo = ctx.location.directory
+    await ctx.session.hook("context", async (event) => {
       try {
-        const repo = directory
-        const agentfsDb = path.join(repo, ".agentfs", "project.db")
-        const wikiIndex = path.join(repo, ".planning", "wiki", "index.md")
-        const hasAgentfs = fs.existsSync(agentfsDb)
-        const hasWiki = fs.existsSync(wikiIndex)
+        const hasAgentfs = fs.existsSync(path.join(repo, ".agentfs", "project.db"))
+        const hasWiki = fs.existsSync(path.join(repo, ".planning", "wiki", "index.md"))
         const compactionEnabled = compactionCaptureEnabled()
         if (!hasAgentfs && !hasWiki && !compactionEnabled) return
 
-        const sections: string[] = []
+        // No `$` BunShell in the V2 context — use node's own child_process
+        // (same helper the V1 compaction path already relies on).
+        let agentfsMemory: string | null = null
+        if (hasAgentfs) agentfsMemory = (await runNode(SERVER_ENTRY, ["wakeup"])).trim()
 
-        if (hasAgentfs) {
-          const res = await $`node ${SERVER_ENTRY} wakeup`.quiet().nothrow()
-          const memory = String(res.stdout ?? "").trim()
-          sections.push("## Project memory (AgentFS)")
-          if (memory) sections.push(memory)
-        }
-
-        if (hasWiki) {
-          const wiki = fs.readFileSync(wikiIndex, "utf8").trim()
-          sections.push("## Wiki index")
-          if (wiki) sections.push(wiki)
-        }
-
-        // Surface open HARD wiki contradictions so the agent (and user) see
-        // them at session start without anyone having to remember to scan the
-        // register. Hard entries cannot both be correct and must be resolved
-        // before dependent work.
-        const contradictionsPath = path.join(repo, ".planning", "wiki", "CONTRADICTIONS.md")
-        if (fs.existsSync(contradictionsPath)) {
-          const raw = fs.readFileSync(contradictionsPath, "utf8")
-          const start = raw.indexOf("<!-- wiki:contradictions:open:start -->")
-          const end = raw.indexOf("<!-- wiki:contradictions:open:end -->")
-          if (start !== -1 && end !== -1 && end > start) {
-            const region = raw.slice(start, end)
-            const hardLines = region
-              .split("\n")
-              .filter((line) => /severity:\s*hard/i.test(line))
-            if (hardLines.length > 0) {
-              sections.push("## Open HARD contradictions — resolve before dependent work")
-              sections.push(hardLines.join("\n"))
-            }
-          }
-        }
-
-        // Surface staged memory candidates captured by the session-end
-        // capture plugin. These are extracted automatically from the last
-        // session but NOT yet written to AgentFS — /memory-review is the
-        // accept gate.
-        const stagingDir = path.join(repo, ".planning", "memory-staging")
-        if (fs.existsSync(stagingDir)) {
-          const staged = fs.readdirSync(stagingDir).filter((f) => f.endsWith(".json"))
-          if (staged.length > 0) {
-            sections.push(`## Staged memory candidates (${staged.length} session(s)) — UNREVIEWED`)
-            sections.push("Run /memory-review to accept (→ AgentFS) or discard these before doing other work.")
-          }
-        }
-
+        const sections = collectSections(repo, agentfsMemory)
         if (sections.length > 0) {
-          output.system.push(
-            "Session-start context (auto-surfaced by the memory-wakeup plugin — use it; do not ask the user to recall anything it contains):",
-          )
-          output.system.push(sections.join("\n\n"))
+          event.system.push({ type: "text", text: WAKEUP_NOTICE })
+          event.system.push({ type: "text", text: sections.join("\n\n") })
         }
 
         if (compactionEnabled && fs.existsSync(ARTIFACT_ENTRY)) {
           const args = ["recover", repo]
-          if (typeof input.sessionID === "string" && input.sessionID) {
-            args.push("--session-ref", `opencode:${input.sessionID}`)
+          const sessionID = (event as { sessionID?: unknown }).sessionID
+          if (typeof sessionID === "string" && sessionID) {
+            args.push("--session-ref", `opencode:${sessionID}`)
           }
           const recovery = (await runNode(ARTIFACT_ENTRY, args, 3000)).trim()
-          if (recovery) output.system.push(recovery)
+          if (recovery) event.system.push({ type: "text", text: recovery })
         }
       } catch {
         // Fail open — never block a session because context surfacing failed.
       }
-    },
-  }
+    })
+  },
+
+  // V1 (opencode >= 1.18.29 documented object form) entrypoint — legacy
+  // implementation kept verbatim on its own API (`$` is V1's BunShell).
+  async server(input: Parameters<V1Plugin>[0]) {
+    const { $, directory } = input
+    return {
+      // No per-session dedupe: this hook fires more than once per session
+      // (including OpenCode's internal title-generation call, which happens
+      // before the first real agent turn and shares the same sessionID). A
+      // "surface once per session" Set keyed on sessionID would mark the
+      // session surfaced on that throwaway title-gen call and silently skip
+      // every real turn afterward — the OCP-05 acceptance gate never sees the
+      // injected context. `output.system` is a fresh array per call, so
+      // re-pushing on every invocation is both correct and required.
+      "experimental.chat.system.transform": async (
+        hookInput: { sessionID?: unknown },
+        output: { system: string[] },
+      ) => {
+        try {
+          const repo = directory
+          const hasAgentfs = fs.existsSync(path.join(repo, ".agentfs", "project.db"))
+          const hasWiki = fs.existsSync(path.join(repo, ".planning", "wiki", "index.md"))
+          const compactionEnabled = compactionCaptureEnabled()
+          if (!hasAgentfs && !hasWiki && !compactionEnabled) return
+
+          let agentfsMemory: string | null = null
+          if (hasAgentfs) {
+            const res = await $`node ${SERVER_ENTRY} wakeup`.quiet().nothrow()
+            agentfsMemory = String(res.stdout ?? "").trim()
+          }
+
+          const sections = collectSections(repo, agentfsMemory)
+          if (sections.length > 0) {
+            output.system.push(WAKEUP_NOTICE)
+            output.system.push(sections.join("\n\n"))
+          }
+
+          if (compactionEnabled && fs.existsSync(ARTIFACT_ENTRY)) {
+            const args = ["recover", repo]
+            if (typeof hookInput.sessionID === "string" && hookInput.sessionID) {
+              args.push("--session-ref", `opencode:${hookInput.sessionID}`)
+            }
+            const recovery = (await runNode(ARTIFACT_ENTRY, args, 3000)).trim()
+            if (recovery) output.system.push(recovery)
+          }
+        } catch {
+          // Fail open — never block a session because context surfacing failed.
+        }
+      },
+    }
+  },
 }

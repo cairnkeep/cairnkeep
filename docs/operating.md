@@ -233,9 +233,12 @@ Each installs into `~/.config/opencode` (override with `OPENCODE_CONFIG_DIR` or
 `--live-root`) and is idempotent — re-run with `--check` to see drift without
 writing.
 
-**No Claude install required.** The OpenCode memory-wakeup plugin is self-sufficient
-of Claude assets — it surfaces AgentFS project memory natively via OpenCode's own
-`experimental.chat.system.transform` hook and never reads `~/.claude`.
+**No Claude install required.** The OpenCode memory plugins are self-sufficient
+of Claude assets and never read `~/.claude`. They retain the OpenCode 1.x
+`experimental.chat.system.transform`, tool, and event contracts while also
+implementing OpenCode 2.0.24's `{ id, setup }` definition, `session.hook`,
+`tool.hook`, event subscription, and message-union contracts. Unknown future
+compaction shapes fail open instead of being treated as a verified adapter.
 
 ### Headless round-trip harness — model precondition
 
@@ -1231,7 +1234,10 @@ cairn sync --apply                 # Claude Code PostCompact + SessionStart
 ```
 
 Compaction continuity accepts only the pinned Claude Code `PostCompact`
-2.1.219 and 2.1.220 payloads and OpenCode `session.compacted` 1.17.20 payload.
+2.1.219 and 2.1.220 payloads and OpenCode `session.compacted` 1.17.20 or
+2.0.24 payloads. OpenCode 2.0.24 carries its summary directly in the verified
+message union; the adapter selects the newest valid compaction message and
+does not reinterpret it as the legacy assistant-summary shape.
 The Claude hook resolves the local CLI version and passes that exact version to
 the normalizer. Unknown or malformed versions fail open, retain none of the
 unknown payload, and leave only a
