@@ -6,10 +6,13 @@ set -euo pipefail
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 if [[ -f "$ROOT_DIR/.ai/.env" ]]; then
+  local_env_snapshot=$(export -p)
+  readonly local_env_snapshot
   set -a
   # shellcheck disable=SC1091
   . "$ROOT_DIR/.ai/.env"
   set +a
+  eval "$local_env_snapshot"
 fi
 if [[ -f "$ROOT_DIR/.ai/pre-launch.sh" ]]; then
   # shellcheck disable=SC1091

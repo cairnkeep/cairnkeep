@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { constants, existsSync, lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
 import {
-    chmod, cp, mkdir, mkdtemp, open, readdir, readFile, realpath, rename, rm, stat, writeFile,
+    chmod, mkdir, mkdtemp, open, readdir, readFile, realpath, rename, rm, stat, writeFile,
 } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -21,8 +21,9 @@ import {
     type ProgressivePack,
 } from "./context-pack-retrieval.js";
 import type { ProgressiveContextFileInput } from "./context-pack-retrieval.js";
-import { indexOkfBundle, validateOkfBundle, type OkfIndex } from "./okf.js";
+import { indexOkfBundle, validateOkfBundle, validatedOkfFileContent, type OkfIndex } from "./okf.js";
 import { atomicReplace, hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
+import { portablePathCollisionKey, portableRelativePathIssue } from "./path-security.js";
 
 const execFileAsync = promisify(execFile);
 export const CONTEXT_PACK_MANIFEST = "context-pack.json";
@@ -66,6 +67,7 @@ export type ValidatedContextPack = {
     digest: string;
     total_bytes: number;
 };
+const validatedPackContent = new WeakMap<ValidatedContextPack, ReadonlyMap<string, Buffer>>();
 export type PackSource = { kind: "local"; path: string } | { kind: "git"; url: string; ref: string; commit: string };
 type EnabledPack = { id: string; version: string; digest: string };
 type SkillApproval = { pack_digest: string; path: string; file_digest: string; approved_at: string };
@@ -94,7 +96,7 @@ function objectRoot(digest: string): string {
 }
 
 function normalizePackPath(value: string): string {
-    if (!value || value.includes("\\") || isAbsolute(value) || value.split("/").some((part) => part === "" || part === "." || part === "..")) {
+    if (portableRelativePathIssue(value)) {
         throw new Error(`Unsafe context pack path: ${value}`);
     }
     return value;
@@ -144,21 +146,50 @@ function readPackSource(digest: string): PackSource | undefined {
     throw new Error(`Context pack source record is invalid: ${digest}`);
 }
 
-async function walkFiles(root: string, directory = root): Promise<string[]> {
-    const result: string[] = [];
+type PhysicalPackFile = { raw_path: string; canonical_path: string };
+type PhysicalPackInventory = {
+    files: PhysicalPackFile[];
+    by_canonical: Map<string, PhysicalPackFile>;
+};
+
+async function walkFiles(root: string, directory = root): Promise<PhysicalPackFile[]> {
+    const result: PhysicalPackFile[] = [];
     const directoryInfo = lstatSync(directory);
     if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink()) {
         throw new Error(`Context packs may not contain symlink directories: ${relative(root, directory) || "."}`);
     }
     for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name, "en"))) {
         const absolute = join(directory, entry.name);
-        const relativePath = relative(root, absolute).split(sep).join("/");
-        if (entry.isSymbolicLink()) throw new Error(`Context packs may not contain symlinks: ${relativePath}`);
+        const rawPath = relative(root, absolute).split(sep).join("/");
+        const canonicalPath = rawPath.normalize("NFC");
+        if (entry.isSymbolicLink()) throw new Error(`Context packs may not contain symlinks: ${canonicalPath}`);
         if (entry.isDirectory()) result.push(...await walkFiles(root, absolute));
-        else if (entry.isFile()) result.push(relativePath);
-        else throw new Error(`Context packs may contain regular files only: ${relativePath}`);
+        else if (entry.isFile()) result.push({ raw_path: rawPath, canonical_path: canonicalPath });
+        else throw new Error(`Context packs may contain regular files only: ${canonicalPath}`);
     }
     return result;
+}
+
+async function physicalPackInventory(root: string): Promise<PhysicalPackInventory> {
+    const files = await walkFiles(root);
+    if (files.length > CONTEXT_PACK_MAX_ENTRIES + 1) throw new Error("Context pack exceeds the entry limit.");
+    const byCanonical = new Map<string, PhysicalPackFile>();
+    const portable = new Map<string, string>();
+    for (const physical of files) {
+        if (portableRelativePathIssue(physical.canonical_path)) throw new Error(`Unsafe context pack path: ${physical.canonical_path}`);
+        const portableKey = portablePathCollisionKey(physical.canonical_path);
+        const previous = portable.get(portableKey);
+        if (previous) throw new Error(`Duplicate portable context pack path: ${previous}, ${physical.raw_path}`);
+        portable.set(portableKey, physical.raw_path);
+        byCanonical.set(physical.canonical_path, physical);
+    }
+    return { files, by_canonical: byCanonical };
+}
+
+function physicalPath(root: string, file: PhysicalPackFile): string {
+    const absolute = resolve(root, ...file.raw_path.split("/"));
+    if (!contained(root, absolute)) throw new Error(`Unsafe context pack path: ${file.canonical_path}`);
+    return absolute;
 }
 
 export async function validateContextPack(directory: string): Promise<ValidatedContextPack> {
@@ -175,15 +206,25 @@ export async function validateContextPack(directory: string): Promise<ValidatedC
     const manifestBytes = await readFile(manifestPath);
     assertUtf8(manifestBytes, CONTEXT_PACK_MANIFEST);
     const manifest = contextPackManifestSchema.parse(JSON.parse(manifestBytes.toString("utf8")) as unknown);
+    const inventory = await physicalPackInventory(root);
+    const physicalByCanonical = inventory.by_canonical;
     const declared = new Set<string>();
+    const portableDeclared = new Set<string>();
     let totalBytes = manifestBytes.byteLength;
     const hash = createHash("sha256").update(manifestBytes).update("\0");
     const content = new Map<string, Buffer>();
     for (const file of manifest.files) {
         const normalized = normalizePackPath(file.path);
-        if (normalized === CONTEXT_PACK_MANIFEST || declared.has(normalized)) throw new Error(`Duplicate or reserved context pack path: ${normalized}`);
+        const portableKey = portablePathCollisionKey(normalized);
+        if (portableKey === portablePathCollisionKey(CONTEXT_PACK_MANIFEST)
+            || declared.has(normalized) || portableDeclared.has(portableKey)) {
+            throw new Error(`Duplicate or reserved context pack path: ${normalized}`);
+        }
         declared.add(normalized);
-        const absolute = resolve(root, normalized);
+        portableDeclared.add(portableKey);
+        const physical = physicalByCanonical.get(normalized);
+        if (!physical) throw new Error(`Context pack file declaration mismatch; missing: ${normalized}`);
+        const absolute = physicalPath(root, physical);
         if (!contained(root, absolute)) throw new Error(`Unsafe context pack path: ${normalized}`);
         const info = lstatSync(absolute);
         if (!info.isFile() || info.isSymbolicLink() || info.size > CONTEXT_PACK_MAX_FILE_BYTES) throw new Error(`Context pack file is unsafe or too large: ${normalized}`);
@@ -194,15 +235,17 @@ export async function validateContextPack(directory: string): Promise<ValidatedC
         if (totalBytes > CONTEXT_PACK_MAX_TOTAL_BYTES) throw new Error("Context pack exceeds the total size limit.");
         content.set(normalized, bytes);
     }
-    const actual = (await walkFiles(root)).filter((path) => path !== CONTEXT_PACK_MANIFEST);
+    const actual = inventory.files.map(({ canonical_path }) => canonical_path).filter((path) => path !== CONTEXT_PACK_MANIFEST);
     const undeclared = actual.filter((path) => !declared.has(path));
-    const missing = [...declared].filter((path) => !actual.includes(path));
+    const missing = [...declared].filter((path) => !physicalByCanonical.has(path));
     if (undeclared.length || missing.length) throw new Error(`Context pack file declaration mismatch${undeclared.length ? `; undeclared: ${undeclared.join(", ")}` : ""}${missing.length ? `; missing: ${missing.join(", ")}` : ""}`);
     for (const path of [...declared].sort((a, b) => a.localeCompare(b, "en"))) {
         const bytes = content.get(path)!;
         hash.update(path, "utf8").update("\0").update(bytes).update("\0");
     }
-    return { root, manifest, manifest_bytes: manifestBytes, digest: hash.digest("hex"), total_bytes: totalBytes };
+    const validated = { root, manifest, manifest_bytes: manifestBytes, digest: hash.digest("hex"), total_bytes: totalBytes };
+    validatedPackContent.set(validated, content);
+    return validated;
 }
 
 async function atomicJson(path: string, value: unknown): Promise<void> {
@@ -360,7 +403,16 @@ async function publishContextPack(pack: ValidatedContextPack, source: PackSource
     const temporary = join(objects, `.${pack.digest}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
     let published = true;
     try {
-        await cp(pack.root, temporary, { recursive: true, errorOnExist: true, force: false });
+        await mkdir(temporary, { mode: 0o700 });
+        await writeFile(join(temporary, CONTEXT_PACK_MANIFEST), pack.manifest_bytes, { mode: 0o600, flag: "wx" });
+        const content = validatedPackContent.get(pack);
+        if (!content) throw new Error("Context pack validation bytes are unavailable.");
+        for (const [path, bytes] of content) {
+            const target = resolve(temporary, ...path.split("/"));
+            if (!contained(temporary, target)) throw new Error(`Unsafe context pack publication path: ${path}`);
+            await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+            await writeFile(target, bytes, { mode: 0o600, flag: "wx" });
+        }
         const copied = await validateContextPack(temporary);
         if (copied.digest !== pack.digest) throw new Error("Context pack changed during installation.");
         await makeImmutable(temporary);
@@ -408,11 +460,10 @@ async function prepareOkfContextPack(sourceRoot: string, options: OkfPackOptions
         const okf = await validateOkfBundle(sourceRoot);
         await mkdir(staging, { recursive: true, mode: 0o700 });
         for (const file of okf.files) {
-            const source = resolve(okf.root, ...file.path.split("/"));
             const target = resolve(staging, ...file.path.split("/"));
-            if (!contained(okf.root, source) || !contained(staging, target)) throw new Error(`Unsafe OKF path: ${file.path}`);
+            if (!contained(staging, target)) throw new Error(`Unsafe OKF path: ${file.path}`);
             await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-            await cp(source, target, { errorOnExist: true, force: false });
+            await writeFile(target, validatedOkfFileContent(okf, file.path), { mode: 0o600, flag: "wx" });
         }
         const title = options.title?.trim() || okf.files.find(({ path }) => path === "index.md")?.title || options.id;
         const description = options.description?.trim() || `Imported Open Knowledge Format ${okf.version} bundle.`;
@@ -1235,30 +1286,73 @@ export async function initializeContextPack(directory: string, options: { id?: s
     const manifestPath = join(root, CONTEXT_PACK_MANIFEST);
     if (existsSync(manifestPath)) throw new Error("Context pack manifest already exists.");
     const id = options.id ?? basename(root).toLocaleLowerCase("en").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    const files = (await walkFiles(root)).filter((path) => path !== CONTEXT_PACK_MANIFEST);
+    const inventory = await physicalPackInventory(root);
+    const files = inventory.files.filter(({ canonical_path }) => canonical_path !== CONTEXT_PACK_MANIFEST);
+    if (files.length > CONTEXT_PACK_MAX_ENTRIES) throw new Error("Context pack exceeds the entry limit.");
     const entries: ContextPackFile[] = [];
-    for (const path of files) {
-        const bytes = await readFile(join(root, path));
+    let totalBytes = 0;
+    for (const file of files) {
+        const path = file.canonical_path;
+        if (portablePathCollisionKey(path) === portablePathCollisionKey(CONTEXT_PACK_MANIFEST)) {
+            throw new Error(`Duplicate or reserved context pack path: ${path}`);
+        }
+        const source = physicalPath(root, file);
+        const info = lstatSync(source);
+        if (!info.isFile() || info.isSymbolicLink() || info.size > CONTEXT_PACK_MAX_FILE_BYTES) throw new Error(`Context pack file is unsafe or too large: ${path}`);
+        const bytes = await readFile(source);
         assertUtf8(bytes, path);
+        totalBytes += bytes.byteLength;
+        if (totalBytes > CONTEXT_PACK_MAX_TOTAL_BYTES) throw new Error("Context pack exceeds the total size limit.");
         entries.push({ path, kind: "document", title: basename(path).replace(/\.[^.]+$/, ""), description: "", keywords: [], sha256: sha256(bytes) });
     }
     const manifest = contextPackManifestSchema.parse({ schema_version: 1, id, version: options.version ?? "0.1.0", title: options.title ?? id, description: options.description ?? `Context pack ${id}`, license: options.license ?? "UNLICENSED", files: entries });
+    const manifestBytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+    if (manifestBytes.byteLength > CONTEXT_PACK_MAX_FILE_BYTES || totalBytes + manifestBytes.byteLength > CONTEXT_PACK_MAX_TOTAL_BYTES) {
+        throw new Error("Context pack manifest or total pack exceeds the size limit.");
+    }
     await atomicJson(manifestPath, manifest);
     return manifest;
 }
 
 export async function lockContextPack(directory: string): Promise<ContextPackManifest> {
-    const path = join(resolve(directory), CONTEXT_PACK_MANIFEST);
+    const root = resolve(directory);
+    const path = join(root, CONTEXT_PACK_MANIFEST);
+    const manifestInfo = lstatSync(path);
+    if (!manifestInfo.isFile() || manifestInfo.isSymbolicLink() || manifestInfo.size > CONTEXT_PACK_MAX_FILE_BYTES) throw new Error("Context pack manifest is unsafe.");
     const value = contextPackManifestSchema.parse(JSON.parse(await readFile(path, "utf8")) as unknown);
+    const inventory = await physicalPackInventory(root);
+    const actual = new Set(inventory.files.map(({ canonical_path }) => canonical_path).filter((candidate) => candidate !== CONTEXT_PACK_MANIFEST));
+    const declared = new Set<string>();
+    const portableDeclared = new Set<string>();
     const files = [];
+    let contentBytes = 0;
     for (const entry of value.files) {
         const normalized = normalizePackPath(entry.path);
-        const bytes = await readFile(join(resolve(directory), normalized));
+        const portableKey = portablePathCollisionKey(normalized);
+        if (portableKey === portablePathCollisionKey(CONTEXT_PACK_MANIFEST) || declared.has(normalized) || portableDeclared.has(portableKey)) {
+            throw new Error(`Duplicate or reserved context pack path: ${normalized}`);
+        }
+        declared.add(normalized);
+        portableDeclared.add(portableKey);
+        const physical = inventory.by_canonical.get(normalized);
+        if (!physical) throw new Error(`Context pack file declaration mismatch; missing: ${normalized}`);
+        const source = physicalPath(root, physical);
+        const info = lstatSync(source);
+        if (!info.isFile() || info.isSymbolicLink()) throw new Error(`Context pack file is unsafe: ${normalized}`);
+        const bytes = await readFile(source);
         assertUtf8(bytes, normalized);
         if (bytes.byteLength > CONTEXT_PACK_MAX_FILE_BYTES) throw new Error(`Context pack file is too large: ${normalized}`);
+        contentBytes += bytes.byteLength;
+        if (contentBytes > CONTEXT_PACK_MAX_TOTAL_BYTES) throw new Error("Context pack exceeds the total size limit.");
         files.push({ ...entry, sha256: sha256(bytes) });
     }
+    const undeclared = [...actual].filter((candidate) => !declared.has(candidate));
+    if (undeclared.length) throw new Error(`Context pack file declaration mismatch; undeclared: ${undeclared.join(", ")}`);
     const locked = { ...value, files };
+    const lockedBytes = Buffer.from(`${JSON.stringify(locked, null, 2)}\n`, "utf8");
+    if (lockedBytes.byteLength > CONTEXT_PACK_MAX_FILE_BYTES || contentBytes + lockedBytes.byteLength > CONTEXT_PACK_MAX_TOTAL_BYTES) {
+        throw new Error("Context pack manifest or total pack exceeds the size limit.");
+    }
     await atomicJson(path, locked);
     await validateContextPack(directory);
     return locked;

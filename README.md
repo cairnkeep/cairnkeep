@@ -87,9 +87,11 @@ memory candidates; durable promotion and every networked or sensitive capture
 path remain separately controlled. Ordinary uninstall retains durable data
 unless an explicit purge is requested.
 
-Start with [Privacy and data flow](docs/privacy-and-data-flow.md) and
-[Memory storage and deployment](docs/storage.md) before enabling remote HTTP,
-embeddings, trajectories, artifacts, work evidence, or context packs.
+Start with [Privacy and data flow](docs/privacy-and-data-flow.md),
+[Memory storage and deployment](docs/storage.md), and
+[Security assurance and threat model](docs/security-assurance.md) before
+enabling remote HTTP, embeddings, trajectories, artifacts, work evidence, or
+context packs.
 
 ## Documentation
 
@@ -103,6 +105,7 @@ guides. In particular:
 - [Operating guide](docs/operating.md)
 - [Harness compatibility](docs/harness-compatibility.md)
 - [Privacy and data flow](docs/privacy-and-data-flow.md)
+- [Security assurance and threat model](docs/security-assurance.md)
 - [Guided learning paths and video scripts](docs/learning/README.md)
 
 The repository supports Linux, macOS, native Windows x64, WSL, Node.js 22/24/26,

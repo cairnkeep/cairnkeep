@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { linkSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +18,13 @@ import {
 
 const root = mkdtempSync(join(tmpdir(), "cairn-context-pack-"));
 process.env.CAIRN_PACK_BASE_DIR = join(root, "store");
+// The offline baseline must not inherit a developer's optional embedding
+// configuration. This process later installs an explicit unreachable fixture
+// to verify fallback behavior.
+for (const name of [
+    "CAIRN_LLM_API_KEY", "CAIRN_LLM_API_URL", "CAIRN_MEMORY_EMBEDDING_URL",
+    "CAIRN_MEMORY_EMBEDDING_MODEL", "CAIRN_MEMORY_EMBEDDING_TIMEOUT_MS",
+]) delete process.env[name];
 const source = join(root, "source");
 const project = join(root, "project");
 mkdirSync(source); mkdirSync(project);
@@ -30,6 +37,85 @@ writeFileSync(join(source, "context-pack.json"), `${JSON.stringify(manifest, nul
 await lockContextPack(source);
 const valid = await validateContextPack(source);
 assert.match(valid.digest, /^[a-f0-9]{64}$/);
+
+if (process.platform !== "win32") {
+    const invalidInitCases = [
+        ["forbidden-init", [["a?.md", "bad\n"]]],
+        ["reserved-init", [["NUL.txt", "bad\n"]]],
+        ["manifest-case-init", [["Context-Pack.json", "shadow\n"]]],
+    ];
+    if (process.platform !== "darwin") invalidInitCases.push(
+        ["case-collision-init", [["docs.md", "one\n"], ["Docs.md", "two\n"]]],
+        ["normalization-collision-init", [["café.md", "one\n"], ["cafe\u0301.md", "two\n"]]],
+    );
+    for (const [name, files] of invalidInitCases) {
+        const candidate = join(root, name);
+        mkdirSync(candidate);
+        for (const [path, content] of files) writeFileSync(join(candidate, path), content);
+        await assert.rejects(
+            () => initializeContextPack(candidate, { id: name, version: "1.0.0", title: name, description: name, license: "none" }),
+            /unsafe|portable|duplicate|reserved/i,
+        );
+        assert.equal(readdirSync(candidate).includes("context-pack.json"), false, "failed init is atomic");
+    }
+
+    const decomposedOnly = join(root, "decomposed-only");
+    mkdirSync(decomposedOnly);
+    const rawName = "e\u0301.md";
+    writeFileSync(join(decomposedOnly, rawName), "first\n");
+    const initialized = await initializeContextPack(decomposedOnly, { id: "decomposed-only", version: "1.0.0", title: "Decomposed", description: "Raw path", license: "none" });
+    assert.equal(initialized.files[0].path, "é.md");
+    writeFileSync(join(decomposedOnly, rawName), "second\n");
+    const relocked = await lockContextPack(decomposedOnly);
+    assert.equal(relocked.files[0].sha256, createHash("sha256").update("second\n").digest("hex"));
+    await validateContextPack(decomposedOnly);
+
+    const totalBoundary = join(root, "total-boundary-init");
+    mkdirSync(totalBoundary);
+    const firstBoundaryFile = join(totalBoundary, "file-00.md");
+    writeFileSync(firstBoundaryFile, Buffer.alloc(1024 * 1024, 0x61));
+    for (let index = 1; index < 64; index += 1) linkSync(firstBoundaryFile, join(totalBoundary, `file-${String(index).padStart(2, "0")}.md`));
+    await assert.rejects(
+        () => initializeContextPack(totalBoundary, { id: "total-boundary", version: "1.0.0", title: "Boundary", description: "Boundary", license: "none" }),
+        /size limit/i,
+    );
+    assert.equal(readdirSync(totalBoundary).includes("context-pack.json"), false, "total-size rejection does not write a manifest");
+
+    const lockBoundary = join(root, "lock-boundary");
+    mkdirSync(lockBoundary);
+    const emptyDigest = createHash("sha256").update("").digest("hex");
+    const boundaryFiles = [];
+    for (let index = 0; index < 1024; index += 1) {
+        const path = `f${String(index).padStart(4, "0")}.md`;
+        writeFileSync(join(lockBoundary, path), "");
+        boundaryFiles.push({
+            path, kind: "document", title: path, description: "x".repeat(810), keywords: [], sha256: emptyDigest,
+        });
+    }
+    const compactBoundaryManifest = Buffer.from(JSON.stringify({
+        schema_version: 1,
+        id: "lock-boundary",
+        version: "1.0.0",
+        title: "Lock boundary",
+        description: "Atomic lock boundary",
+        license: "none",
+        files: boundaryFiles,
+    }));
+    assert.ok(compactBoundaryManifest.byteLength <= 1024 * 1024, "fixture starts below the manifest limit");
+    const lockBoundaryManifestPath = join(lockBoundary, "context-pack.json");
+    writeFileSync(lockBoundaryManifestPath, compactBoundaryManifest);
+    await assert.rejects(() => lockContextPack(lockBoundary), /size limit/i);
+    assert.deepEqual(readFileSync(lockBoundaryManifestPath), compactBoundaryManifest, "failed lock preserves original manifest bytes");
+}
+
+if (process.platform === "darwin") {
+    const decomposed = join(root, "decomposed-source");
+    mkdirSync(decomposed);
+    writeFileSync(join(decomposed, "cafe\u0301.md"), "macOS normalization\n");
+    await initializeContextPack(decomposed, { id: "macos-normalization", version: "1.0.0", title: "macOS", description: "Normalization", license: "none" });
+    const normalizedPack = await validateContextPack(decomposed);
+    assert.equal(normalizedPack.manifest.files[0].path, "café.md");
+}
 
 const installed = await Promise.all([installContextPack(source), installContextPack(source)]);
 assert.equal(installed[0].pack.digest, installed[1].pack.digest, "concurrent installs converge");
@@ -202,6 +288,40 @@ const linkedRoot = join(root, "linked-root");
 symlinkSync(source, linkedRoot);
 await assert.rejects(() => validateContextPack(linkedRoot), /symlink|unsafe/i);
 await assert.rejects(() => installContextPack(linkedRoot), /symlink|unsafe/i);
+const oversizedManifest = join(root, "oversized-manifest");
+mkdirSync(oversizedManifest);
+writeFileSync(join(oversizedManifest, "context-pack.json"), `${JSON.stringify({ schema_version: 1, id: "oversized", version: "1.0.0", title: "Oversized", description: "Oversized", license: "none", files: [] })}${" ".repeat(1024 * 1024)}\n`);
+await assert.rejects(() => validateContextPack(oversizedManifest), /manifest.*unsafe/i);
+const colliding = join(root, "colliding");
+mkdirSync(colliding);
+writeFileSync(join(colliding, "docs.md"), "portable\n");
+const collidingDigest = createHash("sha256").update("portable\n").digest("hex");
+writeFileSync(join(colliding, "context-pack.json"), JSON.stringify({
+    schema_version: 1, id: "colliding", version: "1.0.0", title: "Colliding",
+    description: "Portable collision", license: "none",
+    files: ["docs.md", "Docs.md"].map((path) => ({
+        path, kind: "document", title: path, description: "", keywords: [], sha256: collidingDigest,
+    })),
+}));
+await assert.rejects(() => validateContextPack(colliding), /duplicate|reserved/i);
+if (process.platform !== "darwin" && process.platform !== "win32") {
+    const unicodeShadow = join(root, "unicode-shadow");
+    mkdirSync(unicodeShadow);
+    const composed = "café.md";
+    const decomposed = "cafe\u0301.md";
+    writeFileSync(join(unicodeShadow, composed), "declared\n");
+    writeFileSync(join(unicodeShadow, decomposed), "undeclared shadow\n");
+    const digest = createHash("sha256").update("declared\n").digest("hex");
+    writeFileSync(join(unicodeShadow, "context-pack.json"), JSON.stringify({
+        schema_version: 1, id: "unicode-shadow", version: "1.0.0", title: "Unicode shadow",
+        description: "Physical normalization collision", license: "none",
+        files: [{ path: composed, kind: "document", title: "Declared", description: "", keywords: [], sha256: digest }],
+    }));
+    const objectCount = readdirSync(join(process.env.CAIRN_PACK_BASE_DIR, "objects")).length;
+    await assert.rejects(() => validateContextPack(unicodeShadow), /duplicate portable/i);
+    await assert.rejects(() => installContextPack(unicodeShadow), /duplicate portable/i);
+    assert.equal(readdirSync(join(process.env.CAIRN_PACK_BASE_DIR, "objects")).length, objectCount, "rejected shadow bytes were not published");
+}
 writeFileSync(join(source, "guide.md"), "tampered");
 await assert.rejects(() => validateContextPack(source), /digest mismatch/);
 

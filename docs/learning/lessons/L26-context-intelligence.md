@@ -1,5 +1,8 @@
 # L26 - Context intelligence with explicit authority
 
+**Status:** Ready
+**Tested with:** Cairnkeep 2.21.0 and Node.js 22 or newer
+
 ## Outcome
 
 You will measure retrieval before changing it, retrieve an enabled context pack

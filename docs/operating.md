@@ -829,21 +829,56 @@ is guarded and **fails closed**:
 
 | Variable | Purpose |
 |---|---|
-| `MCP_HTTP_PORT` | Enable HTTP mode on this port (unset → stdio) |
+| `MCP_HTTP_PORT` | Enable HTTP mode with a canonical decimal port from 1 through 65535 (unset → stdio; signs, whitespace, prefixes, and suffixes are rejected) |
 | `MCP_HTTP_HOST` | Bind address (default `127.0.0.1`) |
-| `CAIRN_MEMORY_HTTP_TOKEN` | **Required** in HTTP mode — clients send `Authorization: Bearer <token>`; the server refuses to start without it |
+| `CAIRN_MEMORY_HTTP_TOKEN` | **Required** in HTTP mode — clients send `Authorization: Bearer <token>`; the server refuses to start without a header-safe ASCII Bearer value |
+| `CAIRN_MEMORY_HTTP_TOKEN_FILE` | Alternative private token file; set exactly one token source. Relative paths resolve from the server/project root. The direct server validates a private non-symlink file; the container entrypoint converts its mounted secret to the direct token and clears `_FILE` |
 | `CAIRN_MEMORY_HTTP_ALLOWED_ORIGINS` | Comma-separated browser origins allowed via CORS (default: none — no cross-origin access) |
-| `CAIRN_MEMORY_HTTP_ALLOWED_HOSTS` | Comma-separated allowed `Host` headers for DNS-rebinding protection (default: the bind host + `localhost` on the chosen port) |
+| `CAIRN_MEMORY_HTTP_ALLOWED_HOSTS` | Comma-separated `host:port` authorities allowed for DNS-rebinding protection (default: the bind host + `localhost` on the chosen port; bracket IPv6 literals) |
 | `CAIRN_ARTIFACT_HTTP` | Additional consent for artifact tools (default off; requires `CAIRN_ARTIFACT_STORE`, a valid `X-Cairn-Project`, bearer auth, and the normal Host/CORS checks) |
 
 Requests without a valid bearer token get `401`; requests with an unexpected
-`Host` header get `403`. Keep HTTP mode bound to `127.0.0.1` unless you have a
-specific reason to expose it, and use a long random token. HTTP mode has no
+`Host` header get `403`; request bodies over 8 MiB get `413`. The server also
+bounds header size, header/request duration, and keep-alive time. Keep HTTP mode
+bound to `127.0.0.1` unless you have a specific reason to expose it, and use a
+random token of at least 32 bytes. HTTP mode has no
 per-user ACL or tenant isolation. Clients may bind sessions to separate project
 databases with validated `X-Cairn-Project` routing metadata, but that metadata
 is not an authorization boundary. See [Memory storage and deployment](storage.md)
 for the placement rules, client registration, TLS requirements, project headers,
 and backup boundaries.
+
+### Security posture check
+
+`cairn security doctor [--project PATH] [--json]` performs a read-only local
+posture check. It validates canonical project placement and its immediate
+replacement boundary, permissions on private managed files, the effective MCP
+profile, HTTP token strength and token-file
+safety, explicit Host allowlisting for network bindings, least authority, and
+remote URL encryption. It never prints a token value. A failed check exits 1;
+warnings remain visible but nonfatal, and disabled optional surfaces are
+reported as skipped.
+
+The command safely parses literal `KEY=value`, single-quoted, or double-quoted
+assignments from the selected project's private `.ai/.env` through a
+descriptor-bound 64 KiB read; it never sources or executes that file. Ambient variables take precedence, matching launcher
+override behavior. Shell expansion, command substitution, or another ambiguous
+line fails the environment check instead of being evaluated. Relative token
+files are resolved from the selected project, even when the command is invoked
+from another directory. Unquoted values accept only letters, digits, and the
+literal characters `_./:@%+,=-`; use single or double quotes for other literal
+punctuation. POSIX file checks require ownership by the current account or the
+trusted root account in addition to restrictive mode bits.
+
+The generated POSIX launchers snapshot exported ambient variables before
+sourcing `.ai/.env`, then restore those existing values. Project-only variables
+are added, while an explicit process environment remains the highest-precedence
+override, matching the Windows launchers and the posture report.
+
+Run it after setup, after changing HTTP or MCP-profile configuration, and
+before a security-sensitive deployment. It does not replace `cairn doctor`,
+TLS, a secret manager, or a multi-user authorization layer. See
+[Security assurance and threat model](security-assurance.md).
 
 ## Project playbooks
 

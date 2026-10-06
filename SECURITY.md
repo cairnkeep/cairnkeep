@@ -35,3 +35,16 @@ Reports are especially useful for:
 
 Configuration mistakes that deliberately disable documented safeguards are
 normally outside scope unless the safe default is ineffective.
+
+## Assurance model
+
+The maintained [security assurance and threat model](docs/security-assurance.md)
+documents assets, trust boundaries, implemented controls, verification gates,
+and residual risks. Operators can run the read-only local posture check with:
+
+```sh
+cairn security doctor --project .
+```
+
+This diagnostic complements dependency and repository scans; it is not a
+certification, sandbox, secret manager, or multi-user access-control system.

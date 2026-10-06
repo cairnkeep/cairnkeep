@@ -1,6 +1,6 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.20.1
+**Baseline:** Cairnkeep 2.21.0
 **Last reviewed:** 2026-10-06
 
 This map prevents the course from drifting behind the product. It assigns each
@@ -43,6 +43,7 @@ been rehearsed.
 | Bounded project playbooks, generic memory retrieval guidance, enforcement, and private receipts | L25 | L25 | Ready; balanced/local by default; invocation requires runtime evidence; actor identity unverified |
 | Progressive pack retrieval, frozen benchmark, context-usage receipts, review-gated memory proposals, optional provider adapter | L26 | V26 | Ready; default flat search and AnythingLLM remain compatible; OpenViking and receipt mutation are explicitly gated |
 | Branchable agent state, model-managed context, and learned decision-model comparisons | L27 | V27 | Ready; evidence runners are operator-invoked and no companion is a runtime dependency or authority |
+| Threat model, local posture check, portable-path adversarial tests, and release security controls | L28 | V28 | Ready; diagnostic is read-only and evidence is not certification |
 
 ## Release Review
 
@@ -77,7 +78,7 @@ repository remains the canonical source for explanations and scripts.
 | `course-11-windows` | L22 | Native PowerShell lifecycle, ACL inspection, and reversible uninstall |
 | `course-12-guided-setup` | L23 | Deterministic setup, Pi local stdio, recovery, and backup-first uninstall |
 | `course-13-playbooks` | L25 | Policy profiles, lifecycle decisions, enforcement, receipts, and ownership-safe instructions |
-| Disposable source checkout | L26-L27 | Context retrieval and ecosystem evidence without modifying course projects |
+| Disposable source checkout | L26-L28 | Context retrieval, ecosystem evidence, and security assurance without modifying course projects |
 
 ## Command Ownership
 
@@ -95,6 +96,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn sync-kimi` | L02 |
 | `cairn sync-omp` | L02 |
 | `cairn doctor` | L03; advanced repair in L13-L14 |
+| `cairn security` | L28 |
 | `cairn playbook` | L25 |
 | `cairn trajectory` | L13 |
 | `cairn artifact` | L13 |

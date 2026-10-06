@@ -2,8 +2,67 @@ import { chmodSync, existsSync, lstatSync, rmSync } from "node:fs";
 import { rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { dirname } from "node:path";
 
 let cachedWindowsIdentity: { account: string; sid: string } | undefined;
+
+export type WindowsAclSnapshot = {
+    owner_sid: string;
+    protected: boolean;
+    access: Array<{ sid: string; type: string; rights: number }>;
+};
+
+const WINDOWS_SYSTEM_SIDS = new Set(["S-1-5-18", "S-1-5-32-544"]);
+const WINDOWS_REPLACEMENT_RIGHTS = 2 | 4 | 16 | 64 | 256 | 65_536 | 262_144 | 524_288;
+
+function trustedWindowsSid(sid: string, currentSid: string): boolean {
+    return sid.toUpperCase() === currentSid.toUpperCase() || WINDOWS_SYSTEM_SIDS.has(sid.toUpperCase());
+}
+
+export function posixOwnerIsTrusted(uid: number, currentUid = process.getuid?.()): boolean {
+    return currentUid !== undefined && (uid === currentUid || uid === 0);
+}
+
+export function posixPrivateMetadataIsSafe(info: { uid: number; mode: number }): boolean {
+    return posixOwnerIsTrusted(info.uid) && (info.mode & 0o077) === 0;
+}
+
+export function windowsPrivateAclIsSafe(snapshot: WindowsAclSnapshot, currentSid: string): boolean {
+    if (!snapshot.protected || !trustedWindowsSid(snapshot.owner_sid, currentSid)) return false;
+    const allows = snapshot.access.filter(({ type }) => type.toLowerCase() === "allow");
+    return allows.some(({ sid }) => sid.toUpperCase() === currentSid.toUpperCase())
+        && allows.every(({ sid }) => trustedWindowsSid(sid, currentSid));
+}
+
+export function windowsReplacementAclIsSafe(snapshot: WindowsAclSnapshot, currentSid: string): boolean {
+    if (!trustedWindowsSid(snapshot.owner_sid, currentSid)) return false;
+    return snapshot.access.every(({ sid, type, rights }) => type.toLowerCase() !== "allow"
+        || trustedWindowsSid(sid, currentSid)
+        || (rights & WINDOWS_REPLACEMENT_RIGHTS) === 0);
+}
+
+function windowsAclSnapshot(path: string): WindowsAclSnapshot | undefined {
+    const script = [
+        "$ErrorActionPreference='Stop'",
+        "$acl=Get-Acl -LiteralPath $env:CK_INTERNAL_ACL_PATH",
+        "$owner=$acl.Owner",
+        "try{$owner=([System.Security.Principal.NTAccount]$owner).Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{}",
+        "$access=@($acl.Access|ForEach-Object{$sid=$_.IdentityReference.Value;try{$sid=$_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{};[pscustomobject]@{sid=$sid;type=$_.AccessControlType.ToString();rights=[int64]$_.FileSystemRights}})",
+        "[pscustomobject]@{owner_sid=$owner;protected=$acl.AreAccessRulesProtected;access=$access}|ConvertTo-Json -Compress -Depth 4",
+    ].join(";");
+    const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
+        encoding: "utf8",
+        windowsHide: true,
+        env: { ...process.env, CK_INTERNAL_ACL_PATH: path },
+    });
+    if (result.status !== 0 || !result.stdout.trim()) return undefined;
+    const parsed = JSON.parse(result.stdout) as Partial<WindowsAclSnapshot>;
+    if (typeof parsed.owner_sid !== "string" || typeof parsed.protected !== "boolean" || !Array.isArray(parsed.access)) return undefined;
+    const access = parsed.access.filter((ace): ace is { sid: string; type: string; rights: number } => Boolean(ace)
+        && typeof ace.sid === "string" && typeof ace.type === "string" && Number.isSafeInteger(ace.rights));
+    if (access.length !== parsed.access.length) return undefined;
+    return { owner_sid: parsed.owner_sid, protected: parsed.protected, access };
+}
 
 function currentWindowsIdentity(): { account: string; sid: string } {
     if (cachedWindowsIdentity) return cachedWindowsIdentity;
@@ -35,26 +94,39 @@ export function privatePathIsSafe(path: string): boolean {
     if (!existsSync(path)) return false;
     const info = lstatSync(path);
     if (info.isSymbolicLink()) return false;
-    if (process.platform !== "win32") return (info.mode & 0o077) === 0;
+    if (process.platform !== "win32") return posixPrivateMetadataIsSafe(info);
     try {
-        const account = currentWindowsIdentity().account.toLowerCase();
-        const result = spawnSync("icacls.exe", [path], { encoding: "utf8", windowsHide: true });
-        if (result.status !== 0 || !result.stdout) return false;
-        const grants = result.stdout.split(/\r?\n/).filter((line) => {
-            const body = line.trim();
-            const marker = body.indexOf(":(");
-            if (marker < 0) return false;
-            const permissions = body.slice(marker + 1).toUpperCase();
-            return !permissions.includes("(DENY)") && !permissions.includes("(NW)");
-        });
-        const normalized = grants.map((grant) => grant.toLowerCase());
-        const currentMarker = `${account}:(`;
-        return normalized.some((grant) => grant.includes(currentMarker))
-            && normalized.every((grant) => grant.includes(currentMarker)
-                || /\\logonsessionid_[0-9]+_[0-9]+:\(rx\)$/.test(grant.trim()));
+        const identity = currentWindowsIdentity();
+        const snapshot = windowsAclSnapshot(path);
+        return Boolean(snapshot && windowsPrivateAclIsSafe(snapshot, identity.sid));
     } catch {
         return false;
     }
+}
+
+export function replacementBoundaryIsSafe(path: string): boolean {
+    if (!existsSync(path)) return false;
+    const info = lstatSync(path);
+    if (!info.isDirectory() || info.isSymbolicLink()) return false;
+    if (process.platform !== "win32") return posixOwnerIsTrusted(info.uid) && (info.mode & 0o022) === 0;
+    try {
+        const identity = currentWindowsIdentity();
+        const snapshot = windowsAclSnapshot(path);
+        return Boolean(snapshot && windowsReplacementAclIsSafe(snapshot, identity.sid));
+    } catch {
+        return false;
+    }
+}
+
+export function parentReplacementBoundaryIsSafe(path: string): boolean {
+    const parentPath = dirname(path);
+    if (!existsSync(parentPath)) return false;
+    const info = lstatSync(parentPath);
+    if (!info.isDirectory() || info.isSymbolicLink()) return false;
+    if (process.platform === "win32") return replacementBoundaryIsSafe(parentPath);
+    const writableByOthers = (info.mode & 0o022) !== 0;
+    const sticky = (info.mode & 0o1000) !== 0;
+    return posixOwnerIsTrusted(info.uid) && (!writableByOthers || sticky);
 }
 
 function delay(milliseconds: number): Promise<void> {

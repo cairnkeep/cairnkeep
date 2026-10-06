@@ -84,6 +84,8 @@ grep -qxF "/.ai/" "$tmp/repo/.git/info/exclude" || fail "missing /.ai/ exclude e
 grep -qxF "/.planning/" "$tmp/repo/.git/info/exclude" || fail "missing /.planning/ exclude entry"
 grep -qxF "/.agentfs/" "$tmp/repo/.git/info/exclude" || fail "missing /.agentfs/ exclude entry"
 [[ -f "$tmp/repo/.ai/capabilities.json" ]] || fail "capability configuration missing"
+node -e 'const fs=require("fs"); const mode=fs.statSync(process.argv[1]).mode & 0o777; if (mode !== 0o700) process.exit(1)' "$tmp/repo/.ai" ||
+  fail ".ai directory must be private mode 0700"
 [[ ! -e "$tmp/repo/.agentfs/trajectory.db" ]] || fail "fresh bootstrap created a callback database"
 
 # Existing scaffold and operator configuration bytes are preserved on rerun.

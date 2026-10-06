@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import { isAbsolute } from "node:path";
 import { z } from "zod";
 
 import { CAPABILITY_IDS, capabilityIdSchema } from "./capability-schema.js";
+import { portablePathCollisionKey, portableRelativePathIssue } from "./path-security.js";
 
 export const EVAL_SCHEMA_VERSION = 1 as const;
 export const EVAL_ADAPTER_RESULT_STATUSES = ["completed", "adapter_error"] as const;
@@ -35,13 +35,13 @@ const nonnegativeIntegerSchema = z.number().int().nonnegative().max(Number.MAX_S
 const positiveIntegerSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 
 export const evalRelativePathSchema = z.string().min(1).max(1024).superRefine((value, context) => {
-    if (isAbsolute(value) || value.startsWith("/") || value.endsWith("/") || value.includes("\\") || /[\u0000-\u001f\u007f]/.test(value)) {
+    if (portableRelativePathIssue(value, { allowCurrentDirectory: true })) {
         context.addIssue({ code: "custom", message: "Evaluation paths must be relative canonical paths." });
-        return;
     }
-    const segments = value.split("/");
-    if (segments.some((segment) => segment === "" || segment === "..")) {
-        context.addIssue({ code: "custom", message: "Evaluation path contains an invalid segment." });
+});
+export const evalFileRelativePathSchema = z.string().min(1).max(1024).superRefine((value, context) => {
+    if (portableRelativePathIssue(value)) {
+        context.addIssue({ code: "custom", message: "Evaluation file paths must be relative canonical file paths." });
     }
 });
 
@@ -62,7 +62,7 @@ const gitSourceSchema = z.strictObject({
 });
 
 const bundledFileSchema = z.strictObject({
-    path: evalRelativePathSchema,
+    path: evalFileRelativePathSchema,
     content: z.string().max(256 * 1024),
 });
 
@@ -72,10 +72,11 @@ const bundledFakeSourceSchema = z.strictObject({
     files: z.array(bundledFileSchema).min(1).max(1024).superRefine((files, context) => {
         const seen = new Set<string>();
         for (const [index, file] of files.entries()) {
-            if (seen.has(file.path)) {
-                context.addIssue({ code: "custom", path: [index, "path"], message: "Bundled file paths must be unique." });
+            const key = portablePathCollisionKey(file.path);
+            if (seen.has(key)) {
+                context.addIssue({ code: "custom", path: [index, "path"], message: "Bundled file paths must be portably unique." });
             }
-            seen.add(file.path);
+            seen.add(key);
         }
     }),
 });
@@ -132,7 +133,7 @@ export const evalAdapterRequestSchema = z.strictObject({
     limits: evalLimitsSchema,
     seed: z.string().min(1).max(256),
     expected_capability_digest: digestSchema,
-    output_path: evalRelativePathSchema,
+    output_path: evalFileRelativePathSchema,
 });
 
 const usageSchema = z.strictObject({
@@ -191,7 +192,7 @@ const verifierObservationSchema = z.strictObject({
 });
 
 const noteSnapshotEntrySchema = z.strictObject({
-    path: evalRelativePathSchema,
+    path: evalFileRelativePathSchema,
     digest: digestSchema,
     bytes: nonnegativeIntegerSchema,
 });

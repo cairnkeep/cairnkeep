@@ -156,6 +156,20 @@ Sanitized test replay uses synthetic tool arguments, results, stderr, and
 project paths only; release evidence must not include credentials, private
 endpoints, memory values, or identifying local paths.
 
+`cairn security doctor` reads filesystem metadata for private project files and,
+when HTTP is configured, the bearer token or configured token file only far
+enough to check presence, byte length, repetition, header-safe syntax, and file safety. It emits no
+token content, writes no state, and makes no network request. JSON output can
+contain the canonical project path and should be treated as local diagnostic
+data. The command parses literal assignments from `.ai/.env` without sourcing
+the file, expanding variables, or executing commands; reads are descriptor-bound
+and limited to 64 KiB, and the ambient environment retains precedence. Relative
+token-file paths are anchored to the selected project rather than the caller's
+working directory. The accepted literal grammar excludes unquoted shell
+control, grouping, redirection, escape, expansion, tilde syntax, and control
+bytes. Generated launchers restore existing ambient values after loading the
+file, so the diagnostic and runtime use the same precedence.
+
 ## Evaluation adapter and report flow
 
 `CAIRN_EVAL` is unset/off by default. With it off, `cairn eval` returns a fixed

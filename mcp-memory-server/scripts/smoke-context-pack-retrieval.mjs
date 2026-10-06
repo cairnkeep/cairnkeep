@@ -20,6 +20,10 @@ import { metadataForTool } from "../dist/mcp-tool-catalog.js";
 
 const root = mkdtempSync(join(tmpdir(), "cairn-context-retrieval-"));
 process.env.CAIRN_PACK_BASE_DIR = join(root, "store");
+for (const name of [
+    "CAIRN_LLM_API_KEY", "CAIRN_LLM_API_URL", "CAIRN_MEMORY_EMBEDDING_URL",
+    "CAIRN_MEMORY_EMBEDDING_MODEL", "CAIRN_MEMORY_EMBEDDING_TIMEOUT_MS",
+]) delete process.env[name];
 const source = join(root, "source");
 const project = join(root, "project");
 mkdirSync(join(source, "architecture"), { recursive: true });

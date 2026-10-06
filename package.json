@@ -1,6 +1,6 @@
 {
     "name": "@cairnkeep/cli",
-    "version": "2.20.1",
+    "version": "2.21.0",
     "description": "A durable, harness-agnostic memory + context layer for coding agents and MCP clients.",
     "license": "Apache-2.0",
     "type": "module",
@@ -50,7 +50,8 @@
         "test": "node scripts/run-repository-tests.mjs",
         "test:windows": "node scripts/test-windows-native.mjs",
         "audit:runtime": "node scripts/verify-dependency-security.mjs && npm audit --omit=dev --audit-level=high && npm --prefix mcp-memory-server audit --omit=dev --audit-level=high",
-        "check:public": "scripts/verify-no-private-references.sh && scripts/verify-docs-parity.sh && npm run audit:runtime && npm run build:server && npm test",
+        "security:baseline": "node scripts/verify-security-baseline.mjs",
+        "check:public": "scripts/verify-no-private-references.sh && scripts/verify-docs-parity.sh && npm run audit:runtime && npm run security:baseline && npm run build:server && npm test",
         "prepublishOnly": "npm run check:public && npm --prefix mcp-memory-server test --global=false --dry-run=false"
     },
     "repository": {

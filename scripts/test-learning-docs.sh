@@ -166,4 +166,23 @@ grep -qF 'course-13-playbooks' "$coverage"
 grep -qF 'L25-playbooks.md' docs/learning/tracks/practitioner.md
 grep -qF 'L25-playbooks.md' docs/learning/tracks/operator.md
 
+l28=docs/learning/lessons/L28-security-assurance.md
+video28=docs/learning/video-scripts/V28-security-assurance.md
+for file in "$l28" "$video28" docs/security-assurance.md; do
+  [[ -f "$file" ]]
+done
+grep -qF "Tested with:** Cairnkeep $version" "$l28"
+for phrase in \
+  'cairn security doctor --project' \
+  'npm run security:baseline' \
+  'check:security-assurance' \
+  'check:http-guard' \
+  'not a certification'; do
+  grep -qF -- "$phrase" "$l28" || {
+    echo "L28 missing security-assurance boundary: $phrase" >&2
+    exit 1
+  }
+done
+grep -qF '`cairn security` | L28' "$coverage"
+
 echo "PASS: public learning path structure, readiness, links, and version alignment"

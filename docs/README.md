@@ -43,6 +43,8 @@ linked guides rather than the project landing page.
   retention, backup, migration, and uninstall behavior.
 - [Privacy and data flow](privacy-and-data-flow.md) maps what each opt-in feature
   reads, stores, and may send over the network.
+- [Security assurance and threat model](security-assurance.md) records assets,
+  trust boundaries, controls, residual risks, and the local posture check.
 - [Git-linked work evidence](work-evidence.md) covers bounded local session-to-Git
   provenance without prompt or reasoning capture.
 - [Optional document knowledge](domain-knowledge.md) covers the separately
