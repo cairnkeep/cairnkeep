@@ -2285,7 +2285,7 @@ if (httpPortResolution.enabled) {
         if (req.method === "OPTIONS") { res.writeHead(allowOrigin ? 204 : 403).end(); return; }
 
         // DNS-rebinding protection: only serve requests whose Host we expect.
-        const requestAuthority = req.headers.host ? normalizeHostAuthority(req.headers.host, httpPort) : undefined;
+        const requestAuthority = normalizeHostAuthority(req.headers.host, httpPort);
         if (!requestAuthority || !allowedHosts.has(requestAuthority)) {
             res.writeHead(403).end("host not allowed");
             return;

@@ -68,14 +68,16 @@ for (const [index, invalidPort] of ["1e3", "0x1e79", "+7801", "7801x", " ", "0",
 
 function waitForListen(proc) {
     return new Promise((resolve, reject) => {
+        let stderr = "";
         const timer = setTimeout(() => reject(new Error("server did not start in time")), 5000);
         proc.stderr.on("data", (chunk) => {
-            if (chunk.toString().includes("listening on")) {
+            stderr += chunk.toString();
+            if (stderr.includes("listening on")) {
                 clearTimeout(timer);
                 resolve();
             }
         });
-        proc.on("exit", (code) => { clearTimeout(timer); reject(new Error(`server exited early: ${code}`)); });
+        proc.on("exit", (code) => { clearTimeout(timer); reject(new Error(`server exited early: ${code}: ${stderr.trim()}`)); });
     });
 }
 

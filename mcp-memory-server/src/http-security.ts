@@ -1,4 +1,4 @@
-import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { privatePathIsSafe } from "./platform-security.js";
@@ -32,7 +32,7 @@ export function formatHostAuthority(host: string, port: number): string {
     return `${normalized.includes(":") && !normalized.startsWith("[") ? `[${normalized}]` : normalized}:${port}`;
 }
 
-export function normalizeHostAuthority(raw: string, defaultPort?: number): string | undefined {
+export function normalizeHostAuthority(raw: string | undefined, defaultPort?: number): string | undefined {
     if (!raw || raw.trim() !== raw || /[/\\@]/.test(raw)) return undefined;
     const explicit = /^\[([^\]]+)\]:([0-9]+)$/.exec(raw) ?? /^([^:]+):([0-9]+)$/.exec(raw);
     const implicit = defaultPort === undefined ? undefined : /^\[([^\]]+)\]$/.exec(raw) ?? /^([^:]+)$/.exec(raw);
@@ -59,23 +59,30 @@ export function resolveHttpToken(env: NodeJS.ProcessEnv, options: { baseDirector
         : { ok: false, reason: "token-unsafe" };
     if (!rawFile) return { ok: false, reason: "missing" };
     const file = resolve(options.baseDirectory ?? process.cwd(), rawFile);
-    if (!existsSync(file)) return { ok: false, reason: "file-missing", file };
-    const info = lstatSync(file);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > 64 * 1024 || !privatePathIsSafe(file)) {
-        return { ok: false, reason: "file-unsafe", file };
-    }
     let descriptor: number | undefined;
     try {
         descriptor = openSync(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
         const opened = fstatSync(descriptor);
-        if (!opened.isFile() || opened.size > 64 * 1024 || opened.dev !== info.dev || opened.ino !== info.ino) {
+        if (!opened.isFile() || opened.size > 64 * 1024) return { ok: false, reason: "file-unsafe", file };
+        const tokenBytes = readFileSync(descriptor);
+        const afterRead = fstatSync(descriptor);
+        const named = lstatSync(file);
+        if (named.isSymbolicLink() || !named.isFile()
+            || opened.dev !== afterRead.dev || opened.ino !== afterRead.ino || opened.size !== afterRead.size
+            || opened.dev !== named.dev || opened.ino !== named.ino || tokenBytes.byteLength !== afterRead.size) {
             return { ok: false, reason: "file-changed", file };
         }
-        const token = readFileSync(descriptor, "utf8").trim();
+        if (!privatePathIsSafe(file)) return { ok: false, reason: "file-unsafe", file };
+        const namedAfterAcl = lstatSync(file);
+        if (namedAfterAcl.dev !== opened.dev || namedAfterAcl.ino !== opened.ino || namedAfterAcl.isSymbolicLink()) {
+            return { ok: false, reason: "file-changed", file };
+        }
+        const token = tokenBytes.toString("utf8").trim();
         return bearerTokenIsSafe(token)
             ? { ok: true, source: "file", token, file }
             : { ok: false, reason: "token-unsafe", file };
-    } catch {
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return { ok: false, reason: "file-missing", file };
         return { ok: false, reason: "file-unreadable", file };
     } finally {
         if (descriptor !== undefined) closeSync(descriptor);

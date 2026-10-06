@@ -51,14 +51,9 @@ export function projectEnvironment(projectRoot: string, ambient: NodeJS.ProcessE
     }
     const directory = join(canonicalRoot, ".ai");
     const path = join(directory, ".env");
-    let approvedFileInfo: ReturnType<typeof lstatSync> | undefined;
     try {
         const directoryInfo = lstatSync(directory);
         if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || !replacementBoundaryIsSafe(directory)) return { env: { ...ambient }, issue: ".ai must be an owner-controlled real directory" };
-        const fileInfo = lstatSync(path);
-        const privateFile = process.platform === "win32" ? privatePathIsSafe(path) : posixPrivateMetadataIsSafe(fileInfo);
-        if (!fileInfo.isFile() || fileInfo.isSymbolicLink() || fileInfo.size > MAX_PROJECT_ENV_BYTES || !privateFile) return { env: { ...ambient }, issue: ".ai/.env must be a private regular file no larger than 64 KiB" };
-        approvedFileInfo = fileInfo;
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") return { env: { ...ambient } };
         return { env: { ...ambient }, issue: ".ai/.env metadata could not be inspected" };
@@ -68,15 +63,24 @@ export function projectEnvironment(projectRoot: string, ambient: NodeJS.ProcessE
     try {
         descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
         const opened = fstatSync(descriptor);
-        const afterOpen = lstatSync(path);
+        if (!opened.isFile() || opened.size > MAX_PROJECT_ENV_BYTES) return { env: { ...ambient }, issue: ".ai/.env must be a private regular file no larger than 64 KiB" };
+        const bytes = readFileSync(descriptor);
+        const afterRead = fstatSync(descriptor);
+        const named = lstatSync(path);
         const descriptorPrivate = process.platform === "win32" || posixPrivateMetadataIsSafe(opened);
-        if (!approvedFileInfo || !opened.isFile() || !descriptorPrivate || opened.size > MAX_PROJECT_ENV_BYTES
-            || opened.dev !== approvedFileInfo.dev || opened.ino !== approvedFileInfo.ino
-            || afterOpen.dev !== opened.dev || afterOpen.ino !== opened.ino
-            || (process.platform === "win32" && !privatePathIsSafe(path))) {
+        if (!descriptorPrivate || named.isSymbolicLink() || !named.isFile()
+            || opened.dev !== afterRead.dev || opened.ino !== afterRead.ino || opened.size !== afterRead.size
+            || named.dev !== opened.dev || named.ino !== opened.ino || bytes.byteLength !== afterRead.size) {
             return { env: { ...ambient }, issue: ".ai/.env changed while it was being inspected" };
         }
-        text = readFileSync(descriptor, "utf8");
+        if (process.platform === "win32") {
+            if (!privatePathIsSafe(path)) return { env: { ...ambient }, issue: ".ai/.env must be a private regular file no larger than 64 KiB" };
+            const namedAfterAcl = lstatSync(path);
+            if (namedAfterAcl.dev !== opened.dev || namedAfterAcl.ino !== opened.ino || namedAfterAcl.isSymbolicLink()) {
+                return { env: { ...ambient }, issue: ".ai/.env changed while it was being inspected" };
+            }
+        }
+        text = bytes.toString("utf8");
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") return { env: { ...ambient } };
         return { env: { ...ambient }, issue: ".ai/.env is unreadable" };

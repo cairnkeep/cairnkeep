@@ -274,6 +274,26 @@ async function atomicJson(path: string, value: unknown): Promise<void> {
     }
 }
 
+async function readBoundedPackFile(path: string, label: string): Promise<Buffer> {
+    let handle;
+    try {
+        handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+        const opened = await handle.stat();
+        if (!opened.isFile() || opened.size > CONTEXT_PACK_MAX_FILE_BYTES) throw new Error(`Context pack file is unsafe or too large: ${label}`);
+        const bytes = await handle.readFile();
+        const afterRead = await handle.stat();
+        const named = lstatSync(path);
+        if (named.isSymbolicLink() || !named.isFile()
+            || opened.dev !== afterRead.dev || opened.ino !== afterRead.ino || opened.size !== afterRead.size
+            || opened.dev !== named.dev || opened.ino !== named.ino || bytes.byteLength !== afterRead.size) {
+            throw new Error(`Context pack file changed while it was being read: ${label}`);
+        }
+        return bytes;
+    } finally {
+        await handle?.close();
+    }
+}
+
 async function makeImmutable(root: string): Promise<void> {
     const directories: string[] = [];
     const walk = async (directory: string): Promise<void> => {
@@ -1297,9 +1317,7 @@ export async function initializeContextPack(directory: string, options: { id?: s
             throw new Error(`Duplicate or reserved context pack path: ${path}`);
         }
         const source = physicalPath(root, file);
-        const info = lstatSync(source);
-        if (!info.isFile() || info.isSymbolicLink() || info.size > CONTEXT_PACK_MAX_FILE_BYTES) throw new Error(`Context pack file is unsafe or too large: ${path}`);
-        const bytes = await readFile(source);
+        const bytes = await readBoundedPackFile(source, path);
         assertUtf8(bytes, path);
         totalBytes += bytes.byteLength;
         if (totalBytes > CONTEXT_PACK_MAX_TOTAL_BYTES) throw new Error("Context pack exceeds the total size limit.");
@@ -1317,9 +1335,8 @@ export async function initializeContextPack(directory: string, options: { id?: s
 export async function lockContextPack(directory: string): Promise<ContextPackManifest> {
     const root = resolve(directory);
     const path = join(root, CONTEXT_PACK_MANIFEST);
-    const manifestInfo = lstatSync(path);
-    if (!manifestInfo.isFile() || manifestInfo.isSymbolicLink() || manifestInfo.size > CONTEXT_PACK_MAX_FILE_BYTES) throw new Error("Context pack manifest is unsafe.");
-    const value = contextPackManifestSchema.parse(JSON.parse(await readFile(path, "utf8")) as unknown);
+    const manifestBytes = await readBoundedPackFile(path, CONTEXT_PACK_MANIFEST);
+    const value = contextPackManifestSchema.parse(JSON.parse(manifestBytes.toString("utf8")) as unknown);
     const inventory = await physicalPackInventory(root);
     const actual = new Set(inventory.files.map(({ canonical_path }) => canonical_path).filter((candidate) => candidate !== CONTEXT_PACK_MANIFEST));
     const declared = new Set<string>();
@@ -1337,9 +1354,7 @@ export async function lockContextPack(directory: string): Promise<ContextPackMan
         const physical = inventory.by_canonical.get(normalized);
         if (!physical) throw new Error(`Context pack file declaration mismatch; missing: ${normalized}`);
         const source = physicalPath(root, physical);
-        const info = lstatSync(source);
-        if (!info.isFile() || info.isSymbolicLink()) throw new Error(`Context pack file is unsafe: ${normalized}`);
-        const bytes = await readFile(source);
+        const bytes = await readBoundedPackFile(source, normalized);
         assertUtf8(bytes, normalized);
         if (bytes.byteLength > CONTEXT_PACK_MAX_FILE_BYTES) throw new Error(`Context pack file is too large: ${normalized}`);
         contentBytes += bytes.byteLength;
