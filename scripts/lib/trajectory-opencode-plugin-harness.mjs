@@ -7,7 +7,11 @@ assert.ok(pluginPath && repoPath && fixturePath, "usage: harness <plugin.ts> <re
 
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8"));
 const module = await import(`${pathToFileURL(pluginPath).href}?test=${Date.now()}`);
-assert.equal(typeof module.MemoryCapturePlugin, "function");
+// Dual entrypoint (2026-09-08): legacy builds exported MemoryCapturePlugin as a
+// named export; the V1/V2 dual module exposes the same V1 implementation via
+// `default.server`. Either way this harness drives the V1 hook map.
+const factory = module.MemoryCapturePlugin ?? module.default?.server;
+assert.equal(typeof factory, "function");
 
 const client = {
     session: {
@@ -15,7 +19,7 @@ const client = {
         messages: async () => ({ data: fixture.messages }),
     },
 };
-const plugin = await module.MemoryCapturePlugin({ client, directory: repoPath });
+const plugin = await factory({ client, directory: repoPath });
 assert.equal(typeof plugin.event, "function");
 await plugin.event({
     event: {

@@ -259,7 +259,10 @@ const client = { session: {
   messages: async (input) => { calls.push(["messages", input]); return { data: envelope.messages } },
 } }
 const capture = await import(`${pathToFileURL(capturePath).href}?capture=${Date.now()}`)
-const plugin = await capture.MemoryCapturePlugin({ client, directory: repo })
+// Dual entrypoint (2026-09-08): named export (legacy) or default.server (V1/V2
+// dual module); both resolve to the same V1 implementation this harness drives.
+const captureFactory = capture.MemoryCapturePlugin ?? capture.default?.server
+const plugin = await captureFactory({ client, directory: repo })
 await plugin.event({ event })
 if (mode === "disabled") {
   assert.deepEqual(calls, [])
@@ -282,7 +285,8 @@ const dollar = (...args) => {
   return { quiet() { return this }, nothrow: async () => ({ stdout: "" }) }
 }
 const wakeup = await import(`${pathToFileURL(wakeupPath).href}?wakeup=${Date.now()}`)
-const wakeupPlugin = await wakeup.MemoryWakeupPlugin({ $: dollar, directory: repo })
+const wakeupFactory = wakeup.MemoryWakeupPlugin ?? wakeup.default?.server
+const wakeupPlugin = await wakeupFactory({ $: dollar, directory: repo })
 const output = { system: [] }
 await wakeupPlugin["experimental.chat.system.transform"]({ sessionID: envelope.session.id }, output)
 if (mode === "disabled") {
