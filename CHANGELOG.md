@@ -7,6 +7,11 @@ All notable user-facing changes are documented here. This project follows
 
 ### Added
 
+- Add explicit `eval protocol --codex-jsonl PATH` for single-turn native Codex
+  exec exports, without automatic capture or changes to persisted trajectories.
+  Correlate MCP lifecycles conservatively; unknown or incomplete events cannot
+  pass. Include offline controls, installed-package tests, completions and
+  learning guidance; task correctness remains independently verified.
 - Add default-off `cairn eval protocol` to audit direct memory tool use in
   existing normalized Claude Code, OpenCode and Pi trajectories. Reports
   retrieval ordering, interpretable results and direct mutation attempts with

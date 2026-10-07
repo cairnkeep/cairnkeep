@@ -1,7 +1,9 @@
 # Audit actual memory use
 
+**Availability:** Unreleased source feature; not included in published v2.21.1.
+
 `cairn eval protocol` observes structured calls in an existing normalized
-trajectory. It checks project-scoped retrieval ordering, interpretable search
+trajectory or an explicitly supplied Codex exec JSONL export. It checks project-scoped retrieval ordering, interpretable search
 results, and direct memory mutation attempts without asserted capture consent.
 It does not run an agent, execute recorded commands, contact services, write
 memory or alter trajectories. It is disabled unless `CAIRN_EVAL=1`.
@@ -24,8 +26,9 @@ repeat or widen searches merely to manufacture a hit.
 
 ## Inspect your own evidence
 
-Only Claude Code, OpenCode, and Pi **normalized Cairnkeep trajectories** are
-supported, not native transcripts or Codex sessions. Capture remains separately
+Claude Code, OpenCode, and Pi use **normalized Cairnkeep trajectories**.
+Codex uses the separate explicit export below, not its internal session files.
+Capture remains separately
 opt-in; this audit does not enable it. In the project where a session was
 captured, export one closed, task-aligned session privately:
 
@@ -42,6 +45,54 @@ ID, prompts, arguments, outputs or memory keys. Input must be a UTF-8 regular
 file, at most 16 MiB and 50,000 events. Symlinks (including parent paths) and
 files changing during inspection are rejected. Use a canonical physical path
 if your filesystem path uses aliases.
+
+## Native Codex exec exports
+
+[Codex non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode)
+documents `codex exec --json` as a structured JSONL event stream. Export a
+single task-aligned turn to a private file, then audit it explicitly:
+
+```sh
+umask 077
+# This command runs a live agent; review permissions and the task first.
+codex exec --json --ephemeral --sandbox workspace-write "YOUR TASK" > native.jsonl
+# This separate command only reads the file offline.
+CAIRN_EVAL=1 cairn eval protocol --codex-jsonl native.jsonl --json
+```
+
+Use exactly one of `--trajectory` or `--codex-jsonl`. The adapter is tested
+against the CLI/TypeScript SDK 0.160.1 exec event contract; it does not claim
+compatibility with arbitrary future streams, app-server events or internal
+rollout files. Persisted trajectory schemas and capture hooks are unchanged.
+The audit adds no SDK dependency and does not launch Codex.
+
+MCP items must identify the `cairn-memory` (or `cairn_memory`) server and the
+exact memory tool. Dispatch order comes from `item.started`; completions and
+updates must retain the same ID, server, tool and arguments. Parallel calls
+are correlated independently. A terminal-only MCP item cannot prove dispatch
+order. Native `structured_content` results or textual MCP content are accepted.
+
+Unknown records/fields, missing lifecycle events, failed turns and incomplete
+items make evidence inconclusive. Duplicate/mismatched IDs, malformed JSONL,
+multiple turns or events following a terminal turn are invalid input. Split
+multi-turn work into separately captured task-aligned turns; do not remove
+tool events to manufacture a passing audit. One terminal newline is allowed;
+blank records are rejected. The same 16 MiB byte limit applies, with at most
+50,000 source records and 50,000 normalized events.
+
+Reasoning and narrated messages are not tool evidence; their text is not
+retained by the adapter. File changes, commands and web searches are opaque
+effects, not proof of approved indirect writes. Native exports contain no
+authenticated project identity, timestamps or consent. Never publish private
+exports; the report keeps the same payload-free observation boundary.
+
+The packaged `examples/eval/protocol-codex.jsonl` is a synthetic positive
+control, not a recorded model run. Rehearse without launching Codex:
+
+```sh
+CAIRN_EVAL=1 bin/cairn eval protocol \
+  --codex-jsonl examples/eval/protocol-codex.jsonl --json
+```
 
 ## Read the checks separately
 
@@ -86,3 +137,10 @@ and the maintained [agent contract](agents.md). A realistic coding session may
 show successful retrieval while its overall audit remains inconclusive because
 shell effects cannot be certified. Do not convert this into a quality score or
 advertise a perfect agent benchmark.
+
+The [bounded release-ledger lab](research/release-ledger-task.md) provides a
+concrete task and a separate 15-check artifact grader. Offline controls cross
+all four combinations of passing/failing protocol and correct/incorrect code.
+A live lab uses the actual managed `AGENTS.md`, isolated read-only memory MCP
+tools and a closed single-turn export. Retain its raw evidence privately;
+do not substitute the synthetic positive fixture for a live trace.

@@ -13,7 +13,7 @@ done
 
 capability_ids='memory.write memory.search notes.distill wiki graph security.audit route.check context.explore'
 eval_commands='validate run ablate report prune delete protocol'
-eval_flags='--task-set --adapter --output --repetitions --seed --json --yes --disable --experiment --older-than-days --dry-run --trajectory --capture-authorized'
+eval_flags='--task-set --adapter --output --repetitions --seed --json --yes --disable --experiment --older-than-days --dry-run --trajectory --codex-jsonl --capture-authorized'
 skill_commands='harvest list show review propose evaluate apply rollback'
 for shell in bash zsh fish; do
   grep -q 'capabilities' "$tmp/$shell"
@@ -154,6 +154,7 @@ done
 "$ROOT/bin/cairn" completion powershell >"$tmp/powershell"
 grep -qF "'protocol'" "$tmp/powershell"
 grep -qF "'--trajectory'" "$tmp/powershell"
+grep -qF "'--codex-jsonl'" "$tmp/powershell"
 grep -qF "'--capture-authorized'" "$tmp/powershell"
 if ! grep -qE "['\"]setup['\"]" "$tmp/powershell"; then
   completion_surface_complete=false

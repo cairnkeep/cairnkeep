@@ -16,9 +16,17 @@ in v2.21.1. Use only committed synthetic controls, never private transcripts.
 4. Zoom into digests and counts, then back to the input: the report omits
    private content. A digest authenticates neither a publisher nor human
    approval. `--capture-authorized` is an assertion, not a bypass button.
-5. End on the independent verifier, not a green audit. This parser lab does not
+5. Switch to `protocol-codex.jsonl`, then run `--codex-jsonl`. Visually pair
+   `item.started` and `item.completed`; updates are not extra calls. Explain
+   single-turn boundaries and unknown events. Keep private exports off screen.
+6. End on the independent verifier, not a green audit. This parser lab does not
    prove a better model, correct code, full playbook compliance or superiority
    over a baseline.
 
 Vary framing between input, IDs and report codes. Leave breathing room after
 failures and caveats; do not accelerate terminal footage to match speech.
+
+For a coding demonstration, show task correctness beside the individual
+protocol checks. Successful retrieval followed by coding commands may produce
+an inconclusive overall audit because shell effects are opaque. Do not edit
+that into a pass or claim an A/B improvement from one run.

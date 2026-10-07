@@ -6,6 +6,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 for script in \
   run-memfork-evaluation.mjs \
   run-clm-pi-evaluation.mjs \
+  verify-release-ledger.mjs \
   run-ollaya-decision-evaluation.mjs
 do
   node --check "$ROOT/scripts/spikes/$script"

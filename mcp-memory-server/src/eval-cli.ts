@@ -19,7 +19,7 @@ import {
 } from "./eval-runner.js";
 import { canonicalJson, EVAL_SCHEMA_VERSION, type EvalReport } from "./eval-schema.js";
 import { privatePathIsSafe } from "./platform-security.js";
-import { auditMemoryProtocol, readProtocolTrajectory } from "./eval-protocol.js";
+import { auditMemoryProtocol, readProtocolTrajectory, readCodexProtocol } from "./eval-protocol.js";
 
 process.stdout.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code === "EPIPE") process.exit(0);
@@ -27,14 +27,14 @@ process.stdout.on("error", (error: NodeJS.ErrnoException) => {
 });
 
 const publicCommands = new Set(["validate", "run", "ablate", "report", "prune", "delete", "protocol"]);
-const protocolFlags = new Set(["--trajectory", "--capture-authorized", "--json"]);
+const protocolFlags = new Set(["--trajectory", "--codex-jsonl", "--capture-authorized", "--json"]);
 const validateFlags = new Set(["--task-set", "--adapter", "--output", "--repetitions", "--seed", "--json"]);
 const runFlags = new Set([...validateFlags, "--yes"]);
 const ablateFlags = new Set([...runFlags, "--disable"]);
 const reportFlags = new Set(["--experiment", "--json"]);
 const pruneFlags = new Set(["--older-than-days", "--dry-run", "--json"]);
 const deleteFlags = new Set(["--experiment", "--dry-run", "--json"]);
-const valueFlags = new Set(["--task-set", "--adapter", "--output", "--repetitions", "--seed", "--disable", "--experiment", "--older-than-days", "--trajectory"]);
+const valueFlags = new Set(["--task-set", "--adapter", "--output", "--repetitions", "--seed", "--disable", "--experiment", "--older-than-days", "--trajectory", "--codex-jsonl"]);
 const EXPERIMENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const DEFAULT_REPORT_BYTES = 16 * 1024 * 1024;
 const DEFAULT_RETENTION_DAYS = 30;
@@ -53,10 +53,12 @@ Usage:
   cairn eval prune [--older-than-days N] [--dry-run] [--json]
   cairn eval delete --experiment ID [--dry-run] [--json]
   cairn eval protocol --trajectory PATH [--capture-authorized] [--json]
+  cairn eval protocol --codex-jsonl PATH [--capture-authorized] [--json]
 
 Evaluation is disabled unless CAIRN_EVAL is explicitly enabled. Live harness
 commands remain operator-owned; validate resolves inputs without executing one.
-Protocol audits existing normalized trajectories offline, without writes or execution.
+Protocol audits normalized trajectories or single-turn Codex exec JSONL offline.
+No transcript execution, capture activation, network requests or writes occur.
 Capture authorization is a caller assertion; protocol compliance is not task quality.
 `;
 }
@@ -474,7 +476,11 @@ async function main(): Promise<void> {
 
     if (command === "protocol") {
         assertKnown(args, protocolFlags);
-        const loaded = readProtocolTrajectory(requireValue(args, "--trajectory"));
+        if (args.includes("--trajectory") === args.includes("--codex-jsonl")) {
+            throw new Error("Supply exactly one of --trajectory or --codex-jsonl.");
+        }
+        const loaded = args.includes("--codex-jsonl") ? readCodexProtocol(requireValue(args, "--codex-jsonl"))
+            : readProtocolTrajectory(requireValue(args, "--trajectory"));
         const value = auditMemoryProtocol(loaded.session, loaded.digest, args.includes("--capture-authorized"));
         process.stdout.write(`${json ? JSON.stringify(value) : [
             `Memory protocol: ${value.status}`,
