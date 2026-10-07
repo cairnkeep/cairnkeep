@@ -1,7 +1,7 @@
 # L25 - Bounded workflow playbooks
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.22.4 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.22.5 and Node.js 22 or newer
 **Time:** 35 minutes
 
 ## Outcome

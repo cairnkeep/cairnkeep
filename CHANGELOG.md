@@ -5,6 +5,16 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.22.5] - 2026-10-08
+
+### Operations
+
+- Add an explicit post-publication verifier for exact-tree CI candidates,
+  release and registry bytes, npm signatures/attestations, anonymous
+  dual-architecture OCI images, bound SBOMs and exact-source signed provenance.
+  Refuse partial verification and report replacement; keep artifact evidence
+  separate from deployment readiness. Add offline positive/mutation controls.
+
 ### Security
 
 - Bind note-transaction pre-image hashes to bounded inspected descriptors;

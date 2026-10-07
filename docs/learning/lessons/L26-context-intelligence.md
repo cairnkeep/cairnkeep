@@ -1,7 +1,7 @@
 # L26 - Context intelligence with explicit authority
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.22.4 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.22.5 and Node.js 22 or newer
 
 ## Outcome
 

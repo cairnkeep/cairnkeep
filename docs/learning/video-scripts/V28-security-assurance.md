@@ -121,6 +121,16 @@ permissions, but steps in a job still share authority and the npm secret is
 separate. The baseline checks declared grants; do not present it as a successful
 live publish or rerun a release merely for this recording.
 
+In the release-verification supplement, run
+`node scripts/test-release-verification.mjs` using only the synthetic corpus.
+Show a mismatched tree, altered asset and failed provenance decision, then
+contrast offline policy coverage with the explicitly invoked live verifier in
+`docs/releasing.md`. Show only public artifact metadata from an already
+completed release, never tokens or raw diagnostics. Pause on
+`deployment_verified: false`: signed artifact evidence does not prove that a
+server was upgraded or its project routes still work. Do not publish or
+upgrade production for a demonstration.
+
 For the developer-evidence supplement, run
 `node mcp-memory-server/scripts/smoke-note-mcp.mjs --fixture-security-only` and
 `node scripts/verify-phase19-runtime-evidence.mjs --self-test` in a built source
