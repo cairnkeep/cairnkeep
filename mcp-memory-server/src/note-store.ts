@@ -35,6 +35,7 @@ import {
     type MemoryImportResult,
 } from "./node-schema.js";
 import { atomicReplace } from "./platform-security.js";
+import { readStableFile } from "./stable-file.js";
 
 const MANAGED_START = "<!-- cairnkeep:managed:v1:start -->";
 const MANAGED_END = "<!-- cairnkeep:managed:v1:end -->";
@@ -718,7 +719,17 @@ type NoteTransactionJournal = {
 };
 
 function fileHash(path: string): string | null {
-    return existsSync(path) ? createHash("sha256").update(readFileSync(path)).digest("hex") : null;
+    try {
+        const { bytes } = readStableFile(path, { label: "Note transaction pre-image", maxBytes: 64 * 1024 * 1024 });
+        return createHash("sha256").update(bytes).digest("hex");
+    } catch (error) {
+        // Missing targets are valid pre-images. Diagnose absence only after
+        // the descriptor-first read failed; never authorize a read by a check.
+        try { lstatSync(path); } catch (missing) {
+            if ((missing as NodeJS.ErrnoException).code === "ENOENT") return null;
+        }
+        throw error;
+    }
 }
 
 function bytesHash(bytes: string | null): string | null {
@@ -1173,9 +1184,11 @@ export async function commitNoteImport(plan: NoteImportPlan): Promise<MemoryImpo
 export function createNoteMutationFixture(options: { projectRoot: string; storeRoot: string; operation: "create" | "supersede" | "delete" | "import" }): NoteMutationPlan {
     const notesRoot = join(options.storeRoot, ".cairnkeep-note-fixture");
     const target = join(notesRoot, "live.txt");
-    if (!existsSync(target)) {
-        mkdirSync(dirname(target), { recursive: true });
-        writeFileSync(target, "before\n");
+    mkdirSync(dirname(target), { recursive: true });
+    try {
+        writeFileSync(target, "before\n", { flag: "wx", mode: 0o600 });
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
     }
     const bytes = options.operation === "delete" ? null : `${options.operation}-after\n`;
     return { schema_version: 1, operation: options.operation, notes_root: notesRoot, changes: [{ path: target, bytes, before_hash: fileHash(target), final_hash: bytesHash(bytes) }], result: { ok: true, fixture: true } };

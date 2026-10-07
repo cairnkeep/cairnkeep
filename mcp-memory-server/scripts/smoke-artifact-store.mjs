@@ -19,6 +19,11 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { AgentFS } from "agentfs-sdk";
+import { readStableFile } from "../dist/stable-file.js";
+
+function sqliteSnapshot(path) {
+    return readStableFile(path, { label: "Corrupt SQLite fixture", maxBytes: 64 * 1024 * 1024 }).bytes;
+}
 
 const EXPECTED_RED_EXIT = 86;
 const CORE_RED_MARKER = "PHASE17_RED:ARTIFACT_STORE_MISSING";
@@ -941,11 +946,11 @@ async function testDoctorGapContract(schemaModule, storeModule) {
         } finally {
             closeSync(fd);
         }
-        const before = readFileSync(sqlitePath);
+        const before = sqliteSnapshot(sqlitePath);
         const result = await doctorArtifactStore(sqliteRoot, true, permissiveLimits);
         assert.equal(result.ok, false, "SQLite corruption must remain failed");
         assert.equal(result.repaired, false, "SQLite corruption must not be repaired");
-        assert.deepEqual(readFileSync(sqlitePath), before, "doctor modified SQLite corruption");
+        assert.deepEqual(sqliteSnapshot(sqlitePath), before, "doctor modified SQLite corruption");
     } finally {
         rmSync(sqliteRoot, { recursive: true, force: true });
     }
@@ -1226,12 +1231,12 @@ async function testLifecycleStore(schemaModule, storeModule) {
         } finally {
             closeSync(fd);
         }
-        const sqliteBytes = readFileSync(sqlitePath);
+        const sqliteBytes = sqliteSnapshot(sqlitePath);
         const sqliteFailed = await doctorArtifactStore(sqliteRoot, true, limits);
         assert.equal(sqliteFailed.ok, false);
         assert.equal(sqliteFailed.repaired, false);
         assert.equal(sqliteFailed.integrity, "failed");
-        assert.deepEqual(readFileSync(sqlitePath), sqliteBytes, "doctor modified authoritative SQLite corruption");
+        assert.deepEqual(sqliteSnapshot(sqlitePath), sqliteBytes, "doctor modified authoritative SQLite corruption");
         if (process.platform !== "win32") {
             assert.equal(statSync(getArtifactDbPath(scratch)).mode & 0o777, 0o600);
         }

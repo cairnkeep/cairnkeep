@@ -121,6 +121,16 @@ permissions, but steps in a job still share authority and the npm secret is
 separate. The baseline checks declared grants; do not present it as a successful
 live publish or rerun a release merely for this recording.
 
+For the developer-evidence supplement, run
+`node mcp-memory-server/scripts/smoke-note-mcp.mjs --fixture-security-only` and
+`node scripts/verify-phase19-runtime-evidence.mjs --self-test` in a built source
+checkout. Pause on the competing-file preservation and actual transaction
+pre-image replacement controls. Explain that hashing uses one bounded inspected
+descriptor, not a pathname check followed by reopening. Contrast integrity of
+a read with atomicity of a multi-file transaction: this patch improves the
+former, not the latter. Use synthetic files and keep historical alert status
+separate from a green test result; record only after the release gates pass.
+
 ### 9:20–10:30 — Read the residual risks
 
 End on `docs/security-assurance.md`, not on a green checkmark. Call out the

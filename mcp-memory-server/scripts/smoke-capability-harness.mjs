@@ -17,6 +17,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { AgentFS } from "agentfs-sdk";
+import { readStableText } from "../dist/stable-file.js";
 
 const EXPECTED_RED_EXIT = 86;
 const RED_MARKER = "PHASE18_RED:CAPABILITY_HARNESS_BOUNDARY";
@@ -227,6 +228,7 @@ function assertLeasePolicy(coordinator, project, stateRoot) {
     const child = relative(resolve(stateRoot), resolve(leaseDir));
     assert.equal(child === "" || (!child.startsWith("..") && !isAbsolute(child)), true);
     for (const path of allFiles(leaseDir)) {
+        const { text: bytes, stat } = readStableText(path, { label: "Capability lease fixture", maxBytes: 4096 });
         if (process.platform === "win32") {
             const inspected = spawnSync("icacls.exe", [path], { encoding: "utf8", windowsHide: true });
             const identity = spawnSync("whoami.exe", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
@@ -236,10 +238,9 @@ function assertLeasePolicy(coordinator, project, stateRoot) {
                 `lease ACL is not restricted (icacls status ${inspected.status}):\nIdentity: ${identity.stdout || identity.stderr}\n${inspected.stdout || inspected.stderr || "ACL inspection failed"}`,
             );
         } else {
-            assert.equal(statSync(path).mode & 0o077, 0, "lease is not mode restricted");
+            assert.equal(stat.mode & 0o077, 0, "lease is not mode restricted");
         }
-        assert.equal(statSync(path).size <= 4096, true, "lease is not bounded");
-        const bytes = readFileSync(path, "utf8");
+        assert.equal(stat.size <= 4096, true, "lease is not bounded");
         const lease = JSON.parse(bytes);
         const expectedProject = realpathSync(project);
         const actualProject = realpathSync(lease.project_root);

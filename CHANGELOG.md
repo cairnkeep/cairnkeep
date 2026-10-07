@@ -5,6 +5,19 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Security
+
+- Bind note-transaction pre-image hashes to bounded inspected descriptors;
+  reject linked, replaced, growing or over-64-MiB files before accepting their
+  hashes. Create developer note fixtures exclusively without overwriting a
+  competing file. Add actual runtime replacement and fixture race controls.
+- Use bounded descriptor reads for developer benchmark/import/note snapshots,
+  capability leases, corrupt-database controls and runtime-evidence files.
+  Preserve existing corruption, permissions and exact-byte assertions; keep
+  remote-context test labels static so provider values cannot forge log lines.
+  These controls do not make note publication a directory-wide transaction or
+  certify that every historical security-analysis finding is resolved.
+
 ## [2.22.4] - 2026-10-07
 
 ### Security
