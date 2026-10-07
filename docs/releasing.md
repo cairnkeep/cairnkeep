@@ -3,6 +3,23 @@
 Publishing is driven by a GitHub Release. Maintainers do not publish the package
 from a workstation.
 
+## Advisory Scorecard recovery
+
+The repository's Actions policy must allow the exact pinned
+`ossf/scorecard-action@<full-SHA-from-scorecard.yml>` reference. An entry ending
+in `scorecard-action/*` does not allow the root action. Keep SHA pinning required;
+do not enable all third-party actions to recover this one workflow.
+
+If GitHub rejects a run before creating any jobs and refuses to retry it, fix
+the repository allowlist and start a fresh advisory analysis explicitly:
+
+```bash
+gh workflow run scorecard.yml --ref main
+```
+
+This does not bypass required platform, CodeQL or dependency-review gates and
+does not require republishing the npm package.
+
 ## Release contract
 
 1. Update the root `package.json` version and `CHANGELOG.md` on a pull request.
