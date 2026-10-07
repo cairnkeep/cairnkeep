@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
+import { readStableFile } from "../dist/stable-file.js";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -18,7 +19,10 @@ function snapshot(root) {
         for (const item of readdirSync(path, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
             const child = join(path, item.name);
             if (item.isDirectory()) walk(child);
-            else entries.push([relative(root, child), statSync(child).mode & 0o777, createHash("sha256").update(readFileSync(child)).digest("hex")]);
+            else {
+                const { bytes, stat } = readStableFile(child, { label: "Import snapshot", maxBytes: 64 * 1024 * 1024 });
+                entries.push([relative(root, child), stat.mode & 0o777, createHash("sha256").update(bytes).digest("hex")]);
+            }
         }
     }
     walk(root);

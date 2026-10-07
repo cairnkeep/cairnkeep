@@ -2,6 +2,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import {
   existsSync,
   lstatSync,
@@ -15,6 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readStableFile } from "./lib/stable-file.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EVIDENCE_RELATIVE = join(
@@ -250,9 +253,7 @@ function assertNoSentinels(bytes, label) {
 function readOwnedFile(root, relative) {
   const label = safeRelative(relative, "evidence file");
   const path = join(root, label);
-  const info = lstatSync(path);
-  if (!info.isFile() || info.isSymbolicLink() || info.size > 16 * 1024 * 1024) throw new Error(`${label}: unsafe evidence file`);
-  const bytes = readFileSync(path);
+  const { bytes } = readStableFile(path, { label: "Runtime evidence file", maxBytes: 16 * 1024 * 1024 });
   assertNoSentinels(bytes, label);
   return bytes;
 }
@@ -762,6 +763,44 @@ function expectFailure(label, operation) {
   assert.throws(operation, undefined, label);
 }
 
+function testEvidenceReadRaces(root) {
+  const path = join(root, "read-race.log");
+  const original = { readFileSync: fs.readFileSync, readSync: fs.readSync, lstatSync: fs.lstatSync };
+  let injected = false;
+  const grow = () => {
+    if (!injected) { injected = true; fs.appendFileSync(path, "changed-after-inspection\n"); }
+  };
+  writeFileSync(path, "original\n");
+  fs.readFileSync = (candidate, ...args) => { if (candidate === path) grow(); return original.readFileSync(candidate, ...args); };
+  fs.readSync = (...args) => { grow(); return original.readSync(...args); };
+  syncBuiltinESMExports();
+  try {
+    assert.throws(() => readOwnedFile(root, "read-race.log"), /unsafe|changed/,
+      "evidence reader accepted bytes changed after inspection");
+    assert.equal(injected, true, "evidence growth race was not exercised");
+  } finally { Object.assign(fs, original); syncBuiltinESMExports(); }
+
+  writeFileSync(path, "original\n");
+  const replacement = join(root, "replacement.log");
+  writeFileSync(replacement, "replacement\n");
+  injected = false;
+  fs.lstatSync = (candidate, ...args) => {
+    const result = original.lstatSync(candidate, ...args);
+    if (candidate === path && !injected) {
+      injected = true;
+      renameSync(path, join(root, "old.log"));
+      renameSync(replacement, path);
+    }
+    return result;
+  };
+  syncBuiltinESMExports();
+  try {
+    assert.throws(() => readOwnedFile(root, "read-race.log"), /unsafe|changed/,
+      "evidence reader accepted a pathname replacement");
+    assert.equal(injected, true, "evidence replacement race was not exercised");
+  } finally { Object.assign(fs, original); syncBuiltinESMExports(); }
+}
+
 function selfTest() {
   const sourceCommit = requireSuccess(git(ROOT, ["rev-parse", "HEAD"]), "read self-test source commit");
   requireCommit(sourceCommit);
@@ -787,6 +826,7 @@ function selfTest() {
     "published contract mutation did not change its digest");
   const root = mkdtempSync(join(tmpdir(), "cairn-phase19-evidence-"));
   try {
+    testEvidenceReadRaces(root);
     const valid = join(root, "valid");
     writeFixture(valid, sourceCommit);
     verifyEvidence(valid, sourceCommit);

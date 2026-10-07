@@ -164,12 +164,27 @@ node mcp-memory-server/scripts/smoke-outbound-security.mjs
 node scripts/test-runtime-file-security.mjs
 node scripts/test-omp-staged-security.mjs
 node scripts/test-container-health.mjs
+node mcp-memory-server/scripts/smoke-note-mcp.mjs --fixture-security-only
+node scripts/verify-phase19-runtime-evidence.mjs --self-test
 ```
 
 Build the server first when testing a source checkout. These regressions do not
 assert that every historical CodeQL/Scorecard alert is fixed. Triage findings
 individually and use a fresh default-branch analysis to confirm alert status;
 never dismiss an uninvestigated finding merely to improve the score.
+
+The developer-evidence follow-up also hardens the shared runtime note pre-image
+hasher: it reads from an inspected descriptor under a 64 MiB cap and rejects
+replacement or growth before accepting a hash. Missing targets remain valid
+pre-images; linked or unsafe targets do not. Fixture creation uses exclusive
+creation, retaining a file created by a competing writer. Regression controls
+exercise both the actual transaction entry point and fixture creation.
+Developer snapshots retain exact hashes and modes from the same bounded read;
+the runtime-evidence verifier retains its 16 MiB cap and rejects both growth
+and replacement. Corrupt SQLite fixtures must still remain failed and unchanged
+after doctor. Remote-context test labels never interpolate provider values.
+These are read-integrity controls, not atomic multi-file note publication or a
+same-account sandbox. Re-run the full native-platform gates before shipping.
 
 The bounded-input control exercises real evaluation, OKF import/export, graph
 status, receipt and progressive-cache readers. Valid-file substitution and

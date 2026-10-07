@@ -18,6 +18,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { readStableFile } from "./lib/stable-file.mjs";
 
 const EXPECTED_RED_EXIT = 86;
 const RED_MARKER = "PHASE26_RED:SETUP_RECONCILE_MISSING";
@@ -172,8 +173,9 @@ async function testOwnershipBranches(reconciler, fixture, baseline) {
 
   writeFileSync(ownedPath, "operator-owned\n");
   chmodSync(ownedPath, 0o700);
-  const userBytes = readFileSync(ownedPath);
-  const userMtime = statSync(ownedPath).mtimeMs;
+  const userSnapshot = readStableFile(ownedPath, { label: "Operator-owned setup fixture", maxBytes: 1024 * 1024 });
+  const userBytes = userSnapshot.bytes;
+  const userMtime = userSnapshot.stat.mtimeMs;
   const diverged = await reconciler.reconcileSetupPlan(plan(fixture.target, [fixture.first]), { previousState: updated.state });
   assertCounts(diverged, { created: 0, updated: 0, unchanged: 0, skipped: 1 });
   assert.deepEqual(readFileSync(ownedPath), userBytes);

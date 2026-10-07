@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
-import { chmodSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readStableFile } from "../dist/stable-file.js";
 import {
     enableContextPack,
     initializeContextPack,
@@ -52,7 +53,10 @@ function fileSnapshot(directory) {
         for (const entry of readdirSync(current, { withFileTypes: true })) {
             const path = join(current, entry.name);
             if (entry.isDirectory()) walk(path);
-            else if (entry.isFile()) result.set(path.slice(directory.length + 1), `${statSync(path).size}:${createHash("sha256").update(readFileSync(path)).digest("hex")}`);
+            else {
+                const { bytes, stat } = readStableFile(path, { label: "Benchmark snapshot", maxBytes: 64 * 1024 * 1024 });
+                result.set(path.slice(directory.length + 1), `${stat.size}:${createHash("sha256").update(bytes).digest("hex")}`);
+            }
         }
     };
     try { walk(directory); } catch (error) { if (error?.code !== "ENOENT") throw error; }

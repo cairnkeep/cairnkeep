@@ -76,6 +76,8 @@ node mcp-memory-server/scripts/smoke-outbound-security.mjs
 node scripts/test-runtime-file-security.mjs
 node scripts/test-omp-staged-security.mjs
 node scripts/test-container-health.mjs
+node mcp-memory-server/scripts/smoke-note-mcp.mjs --fixture-security-only
+node scripts/verify-phase19-runtime-evidence.mjs --self-test
 ```
 
 The baseline rejects unpinned external Actions, `pull_request_target` and
@@ -140,6 +142,15 @@ and a malformed health port never becomes a network destination. Successful
 retrieval still sends a query to the explicitly configured external provider.
 AnythingLLM responses have an 8 MiB cap; OpenViking retains its 1 MiB cap and
 separate consent gates. Prefer HTTPS outside loopback.
+
+In a checkout with the developer-evidence follow-up, the focused note control
+shows that exclusive fixture creation preserves a competing file and that the
+actual note transaction rejects a substituted pre-image. Hashing is bounded
+at 64 MiB, including same-inode growth checks. The runtime-evidence self-test
+rejects changed or replaced log files under its existing 16 MiB cap. Developer
+snapshots and corrupt-database controls still compare exact bytes; static log
+labels cannot turn provider text into forged passing results. This does not
+make multi-file note publication atomic or prove an empty analysis backlog.
 
 ## Common failures
 

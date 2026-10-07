@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readStableFile } from "../dist/stable-file.js";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -14,6 +17,84 @@ const RED_MARKER = "PHASE16_RED:NOTE_JOURNALED_LIFECYCLE_MISSING";
 const MANUAL_SUFFIX = "\n## Maintainer notes\n\nPreserve these exact maintainer bytes.\n";
 const SERVER_ENTRY = resolve(dirname(fileURLToPath(import.meta.url)), "..", "dist", "index.js");
 
+async function fixtureSecurityChecks() {
+    const module = await import("../dist/note-store.js");
+    const scratch = mkdtempSync(join(tmpdir(), "cairn-note-fixture-security-"));
+    const original = { mkdirSync: fs.mkdirSync, readFileSync: fs.readFileSync, readSync: fs.readSync, lstatSync: fs.lstatSync };
+    const reset = () => { Object.assign(fs, original); syncBuiltinESMExports(); };
+    try {
+        const storeRoot = join(scratch, "contested");
+        const parent = join(storeRoot, ".cairnkeep-note-fixture");
+        const target = join(parent, "live.txt");
+        let injected = false;
+        fs.mkdirSync = (path, ...args) => {
+            const result = original.mkdirSync(path, ...args);
+            if (path === parent && !injected) { injected = true; writeFileSync(target, "concurrent-owner\n"); }
+            return result;
+        };
+        syncBuiltinESMExports();
+        const fixture = module.createNoteMutationFixture({ projectRoot: scratch, storeRoot, operation: "create" });
+        reset();
+        assert.equal(injected, true, "fixture creation race was not exercised");
+        assert.equal(readFileSync(target, "utf8"), "concurrent-owner\n", "fixture creation replaced a competing owner's file");
+        assert.equal(fixture.changes[0].before_hash, createHash("sha256").update("concurrent-owner\n").digest("hex"));
+
+        const changedRoot = join(scratch, "changed");
+        const changedParent = join(changedRoot, ".cairnkeep-note-fixture");
+        const changedTarget = join(changedParent, "live.txt");
+        mkdirSync(changedParent, { recursive: true });
+        writeFileSync(changedTarget, "original\n");
+        let grew = false;
+        const grow = () => { if (!grew) { grew = true; fs.appendFileSync(changedTarget, "changed-during-read\n"); } };
+        fs.readFileSync = (path, ...args) => { if (path === changedTarget) grow(); return original.readFileSync(path, ...args); };
+        fs.readSync = (...args) => { grow(); return original.readSync(...args); };
+        syncBuiltinESMExports();
+        assert.throws(() => module.createNoteMutationFixture({ projectRoot: scratch, storeRoot: changedRoot, operation: "create" }), /unsafe|changed/,
+            "note pre-image hashing accepted a file changed during its read");
+        assert.equal(grew, true, "pre-image growth race was not exercised");
+        reset();
+
+        writeFileSync(changedTarget, "original\n");
+        const runtimePlan = module.createNoteMutationFixture({ projectRoot: scratch, storeRoot: changedRoot, operation: "create" });
+        runtimePlan.result = { ok: true };
+        const replacement = join(changedParent, "replacement.txt");
+        writeFileSync(replacement, "replacement\n");
+        let replaced = false;
+        fs.lstatSync = (path, ...args) => {
+            const result = original.lstatSync(path, ...args);
+            if (path === changedTarget && !replaced) {
+                replaced = true;
+                fs.renameSync(changedTarget, join(changedParent, "old.txt"));
+                fs.renameSync(replacement, changedTarget);
+            }
+            return result;
+        };
+        syncBuiltinESMExports();
+        await assert.rejects(() => module.applyNoteMutation(runtimePlan), /unsafe|unreadable/,
+            "runtime note transaction accepted a replaced pre-image");
+        assert.equal(replaced, true, "runtime pre-image replacement race was not exercised");
+        reset();
+        assert.equal(readFileSync(changedTarget, "utf8"), "replacement\n", "rejected transaction overwrote the replacement");
+
+        fs.truncateSync(changedTarget, 64 * 1024 * 1024 + 1);
+        assert.throws(() => module.createNoteMutationFixture({ projectRoot: scratch, storeRoot: changedRoot, operation: "create" }), /unsafe|unreadable/,
+            "note pre-image byte limit was not enforced");
+
+        // Native Windows runners may lack symlink privileges; growth and
+        // competing-file controls above are mandatory on every platform.
+        if (process.platform !== "win32") {
+            const linkedRoot = join(scratch, "linked");
+            const linkedParent = join(linkedRoot, ".cairnkeep-note-fixture");
+            mkdirSync(linkedParent, { recursive: true });
+            const outside = join(scratch, "outside.txt");
+            writeFileSync(outside, "outside-private-sentinel\n");
+            fs.symlinkSync(outside, join(linkedParent, "live.txt"));
+            assert.throws(() => module.createNoteMutationFixture({ projectRoot: scratch, storeRoot: linkedRoot, operation: "create" }), /symlink|unsafe/);
+            assert.equal(readFileSync(outside, "utf8"), "outside-private-sentinel\n");
+        }
+    } finally { reset(); rmSync(scratch, { recursive: true, force: true }); }
+}
+
 function snapshot(root) {
     if (!existsSync(root)) return [];
     const entries = [];
@@ -21,7 +102,10 @@ function snapshot(root) {
         for (const item of readdirSync(path, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
             const child = join(path, item.name);
             if (item.isDirectory()) walk(child);
-            else entries.push([relative(root, child), statSync(child).mode & 0o777, createHash("sha256").update(readFileSync(child)).digest("hex")]);
+            else {
+                const { bytes, stat } = readStableFile(child, { label: "Note snapshot", maxBytes: 64 * 1024 * 1024 });
+                entries.push([relative(root, child), stat.mode & 0o777, createHash("sha256").update(bytes).digest("hex")]);
+            }
         }
     }
     walk(root);
@@ -202,6 +286,8 @@ async function httpProjectIdentityCheck(storeRoot) {
 }
 
 async function main() {
+    await fixtureSecurityChecks();
+    if (process.argv.includes("--fixture-security-only")) return;
     const scratch = mkdtempSync(join(tmpdir(), "cairn-note-mcp-"));
     const storeRoot = join(scratch, "store");
     const projectRoot = join(scratch, "project");
