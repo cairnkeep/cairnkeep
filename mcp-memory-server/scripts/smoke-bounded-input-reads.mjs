@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
@@ -6,6 +7,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { validateEvalInputs } from "../dist/eval-plan.js";
+import { canonicalJson } from "../dist/eval-schema.js";
 import { snapshotTaskNotes } from "../dist/eval-runner.js";
 import { indexOkfBundle, planOkfExport } from "../dist/okf.js";
 import { loadProgressiveContext, doctorProgressiveContextCache } from "../dist/context-pack-retrieval.js";
@@ -139,6 +141,37 @@ async function graphCommand(project, command, identity) {
 }
 
 try {
+    // Simulate a native checkout even on POSIX. Package-owned bundled inputs
+    // require exact bytes, so Git must not rewrite their canonical LF ending.
+    const checkout = join(root, "checkout");
+    fs.mkdirSync(checkout);
+    const git = (...args) => {
+        const result = spawnSync("git", ["-C", checkout, ...args], {
+            encoding: "utf8", shell: false, windowsHide: true, timeout: 10_000,
+        });
+        assert.equal(result.status, 0, `fixture Git command failed: ${result.stderr}`);
+    };
+    git("init", "-q");
+    git("config", "core.autocrlf", "true");
+    git("config", "user.name", "Evaluation Fixture");
+    git("config", "user.email", "eval-fixture@example.invalid");
+    const bundledPath = join(repository, "examples", "eval", "task-set.json");
+    const canonicalBytes = Buffer.from(`${canonicalJson(JSON.parse(fs.readFileSync(bundledPath, "utf8")))}\n`);
+    const fixtureTaskSet = join(checkout, "examples", "eval", "task-set.json");
+    write(fixtureTaskSet, canonicalBytes);
+    write(join(checkout, "ordinary.txt"), "ordinary text\n");
+    const attributes = join(repository, ".gitattributes");
+    if (fs.existsSync(attributes)) write(join(checkout, ".gitattributes"), fs.readFileSync(attributes));
+    git("add", ".");
+    git("-c", "commit.gpgsign=false", "commit", "-qm", "checkout fixture");
+    fs.unlinkSync(fixtureTaskSet);
+    fs.unlinkSync(join(checkout, "ordinary.txt"));
+    git("checkout", "--", "examples/eval/task-set.json", "ordinary.txt");
+    assert.equal(fs.readFileSync(join(checkout, "ordinary.txt"), "utf8"), "ordinary text\r\n",
+        "the fixture must exercise Git's CRLF checkout conversion");
+    assert.deepEqual(fs.readFileSync(fixtureTaskSet), canonicalBytes,
+        "bundled evaluation bytes must remain canonical under core.autocrlf=true");
+
     const adapter = join(root, "adapter.json");
     const adapterValue = {
         schema_version: 1, id: "bounded-control",
@@ -147,7 +180,7 @@ try {
     };
     write(adapter, JSON.stringify(adapterValue));
     const evalOptions = {
-        taskSetPath: join(repository, "examples", "eval", "task-set.json"),
+        taskSetPath: bundledPath,
         adapterPath: adapter, outputRoot: join(root, "evaluation"), cwd: root,
     };
     assert.equal(validateEvalInputs(evalOptions).adapter_config.id, "bounded-control");

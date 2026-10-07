@@ -1,0 +1,2 @@
+# The bundled evaluation binding requires exact canonical JSON bytes on every OS.
+examples/eval/task-set.json text eol=lf
