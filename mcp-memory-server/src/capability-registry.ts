@@ -1,7 +1,7 @@
-import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { isNoteDistillationEnabled } from "./note-schema.js";
+import { readStableJson } from "./stable-file.js";
 import {
     CAPABILITY_IDS,
     type CapabilityId,
@@ -35,17 +35,7 @@ export async function isGraphCapabilityCompatible(projectRoot: string): Promise<
     const planningDirectory = join(projectRoot, ".planning");
     const configPath = join(planningDirectory, "config.json");
     try {
-        const [directoryStat, fileStat] = await Promise.all([
-            lstat(planningDirectory),
-            lstat(configPath),
-        ]);
-        if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) return false;
-        if (fileStat.isSymbolicLink() || !fileStat.isFile()) return false;
-        if (fileStat.size > MAX_COMPATIBILITY_CONFIG_BYTES) return false;
-
-        const bytes = await readFile(configPath);
-        if (bytes.byteLength > MAX_COMPATIBILITY_CONFIG_BYTES) return false;
-        const parsed: unknown = JSON.parse(bytes.toString("utf8"));
+        const parsed = readStableJson(configPath, { label: "Graph compatibility configuration", maxBytes: MAX_COMPATIBILITY_CONFIG_BYTES });
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
         const graphify = (parsed as Record<string, unknown>).graphify;
         return Boolean(graphify && typeof graphify === "object" && !Array.isArray(graphify)

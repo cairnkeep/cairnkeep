@@ -7,6 +7,7 @@ import { EvalProcessError, runBoundedJsonProcess } from "./eval-process.js";
 import { noteNodeSchema } from "./node-schema.js";
 import { getNoteLayout, listAddressedNotes } from "./note-store.js";
 import { hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
+import { readStableJson, readStableText } from "./stable-file.js";
 import {
     MAX_SKILL_BYTES,
     SKILL_SCHEMA_VERSION,
@@ -145,16 +146,7 @@ function atomicWrite(path: string, value: unknown): void {
 }
 
 function readJson(path: string): unknown {
-    const info = lstatSync(path);
-    if (info.isSymbolicLink() || !info.isFile() || info.size > MAX_ARTIFACT_BYTES || !privatePathIsSafe(path)) {
-        throw new Error(`Unsafe skill artifact: ${path}`);
-    }
-    const descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-    try {
-        return JSON.parse(readFileSync(descriptor, "utf8"));
-    } finally {
-        closeSync(descriptor);
-    }
+    return readStableJson(path, { label: "Skill artifact", maxBytes: MAX_ARTIFACT_BYTES, private: true });
 }
 
 function listJson<T>(directory: string, parse: (value: unknown) => T): T[] {
@@ -293,15 +285,12 @@ function assertSafeTarget(projectRoot: string, relativePath: string): { path: st
     const target = resolve(root, canonicalPath);
     if (!isContained(root, target) || target === root) throw new Error("Skill target escapes the project.");
     let cursor = root;
-    for (const segment of canonicalPath.split("/")) {
+    for (const segment of canonicalPath.split("/").slice(0, -1)) {
         cursor = join(cursor, segment);
         const info = lstatSync(cursor);
         if (info.isSymbolicLink()) throw new Error("Skill target crosses a symlink.");
     }
-    const info = lstatSync(target);
-    if (!info.isFile() || info.size > MAX_SKILL_BYTES) throw new Error("Skill target must be a regular file no larger than 256 KiB.");
-    const content = readFileSync(target, "utf8");
-    if (Buffer.byteLength(content, "utf8") > MAX_SKILL_BYTES) throw new Error("Skill target exceeds 256 KiB.");
+    const { text: content, stat: info } = readStableText(target, { label: "Skill target", maxBytes: MAX_SKILL_BYTES });
     return { path: target, content, digest: sha256(content), mode: info.mode & 0o777 };
 }
 
@@ -560,7 +549,7 @@ export function applySkillProposal(options: {
     hardenPrivatePath(backupPath);
     try {
         atomicWriteTarget(target.path, proposal.candidate_content, proposal.target_mode);
-        if (sha256(readFileSync(target.path)) !== proposal.candidate_content_digest) {
+        if (assertSafeTarget(store.project_root, proposal.target_path).digest !== proposal.candidate_content_digest) {
             throw new Error("Applied skill digest verification failed.");
         }
         atomicWrite(artifactPath(store.applications, application.id), application);
@@ -568,7 +557,7 @@ export function applySkillProposal(options: {
         const reason = error instanceof Error ? error.message : String(error);
         let currentDigest: string | null = null;
         try {
-            currentDigest = sha256(readFileSync(target.path));
+            currentDigest = assertSafeTarget(store.project_root, proposal.target_path).digest;
         } catch {
             // The private backup remains available for manual recovery.
         }
@@ -576,7 +565,7 @@ export function applySkillProposal(options: {
             let restored = false;
             try {
                 atomicWriteTarget(target.path, target.content, target.mode);
-                if (sha256(readFileSync(target.path)) !== target.digest) throw new Error("restore_digest_mismatch");
+                if (assertSafeTarget(store.project_root, proposal.target_path).digest !== target.digest) throw new Error("restore_digest_mismatch");
                 restored = true;
             } catch {
                 // The private backup remains available for manual recovery.
@@ -611,15 +600,13 @@ export function rollbackSkillApplication(options: { projectRoot: string; applica
     const target = assertSafeTarget(store.project_root, application.target_path);
     if (target.digest !== application.applied_digest) throw new Error("Skill target changed after application; rollback requires manual resolution.");
     const backup = resolve(store.project_root, application.backup_path);
-    const backupInfo = lstatSync(backup);
-    if (!isContained(store.backups, backup) || backupInfo.isSymbolicLink() || !backupInfo.isFile()
-        || backupInfo.size > MAX_SKILL_BYTES || !privatePathIsSafe(backup)) {
+    if (!isContained(store.backups, backup)) {
         throw new Error("Skill backup is missing or unsafe.");
     }
-    const original = readFileSync(backup, "utf8");
+    const { text: original } = readStableText(backup, { label: "Skill backup", maxBytes: MAX_SKILL_BYTES, private: true });
     if (sha256(original) !== application.before_digest) throw new Error("Skill backup digest does not match the application ledger.");
     atomicWriteTarget(target.path, original, application.target_mode);
-    if (sha256(readFileSync(target.path)) !== application.before_digest) {
+    if (assertSafeTarget(store.project_root, application.target_path).digest !== application.before_digest) {
         throw new Error("Skill rollback digest verification failed; the application remains marked as applied.");
     }
     const rolledBack = skillApplicationSchema.parse({
