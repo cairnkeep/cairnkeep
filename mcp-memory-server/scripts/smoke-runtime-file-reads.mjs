@@ -181,16 +181,15 @@ try {
             import fs from "node:fs";
             import { syncBuiltinESMExports } from "node:module";
             import { readStableJson } from ${JSON.stringify(new URL("../dist/stable-file.js", import.meta.url).href)};
-            const original = fs.lstatSync;
+            const original = fs.openSync;
             let injected = false;
-            fs.lstatSync = (path, ...args) => {
-                const info = original(path, ...args);
+            fs.openSync = (path, ...args) => {
                 if (path === ${JSON.stringify(bounded)} && !injected) {
                     injected = true;
                     fs.renameSync(path, path + ".regular");
                     fs.renameSync(${JSON.stringify(fifo)}, path);
                 }
-                return info;
+                return original(path, ...args);
             };
             syncBuiltinESMExports();
             assert.throws(() => readStableJson(${JSON.stringify(bounded)}, ${JSON.stringify(options)}), /unsafe/);
