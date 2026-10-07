@@ -1,7 +1,7 @@
 # L21 - Immutable context packs and skill approval
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.22.0 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.22.1 and Node.js 22 or newer
 **Time:** 40 minutes
 
 ## Outcome
@@ -54,6 +54,10 @@ copies them into a harness.
   an enabled digest all fail closed.
 - Enabling the pack does not expose a skill until its current file digest is
   approved.
+- A concurrent project update can exhaust the bounded pointer-lock wait. Let
+  the writer finish, inspect `cairn doctor`, then retry; do not delete another
+  writer's lock or weaken permissions. Windows contention recovery is included
+  in 2.22.1, with symlink/non-directory locks still rejected.
 
 ## Privacy and trust boundary
 
