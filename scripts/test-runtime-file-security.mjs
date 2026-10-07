@@ -132,6 +132,9 @@ try {
   });
   const created = await reconcileSetupPlan(plan);
   assert.equal(diagnoseSetup(project).status, "complete");
+  const rerun = await reconcileSetupPlan(plan, { previousState: created.state });
+  assert.deepEqual(rerun.counts, { created: 0, updated: 0, unchanged: plan.assets.length, skipped: 0 },
+    "native mode representation must not discard generated-file ownership");
   const statePath = join(project, ".ai", "cairnkeep.json");
   const stateBytes = fs.readFileSync(statePath);
   await control("setup diagnosis state growth", () => grow(statePath, () => {

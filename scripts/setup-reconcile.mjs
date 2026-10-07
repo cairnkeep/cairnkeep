@@ -293,9 +293,12 @@ export async function reconcileSetupPlan(plan, options = {}) {
     const current = readStableFile(asset.destination, { label: "Setup asset", maxBytes: MAX_SETUP_BYTES });
     const currentDigest = hashSetupAsset(current.bytes);
     const currentMode = current.stat.mode & 0o777;
-    if (currentDigest === asset.digest && currentMode === asset.mode) return { ...asset, status: "unchanged" };
+    // Windows mode bits do not represent POSIX executability. Match diagnosis:
+    // retain digest ownership there, while writers enforce private state ACLs.
+    const modeMatches = (mode) => process.platform === "win32" || currentMode === mode;
+    if (currentDigest === asset.digest && modeMatches(asset.mode)) return { ...asset, status: "unchanged" };
     const prior = previousState?.assets?.[asset.path];
-    if (prior && prior.digest === currentDigest && prior.mode === currentMode) return { ...asset, status: "updated", expected: current.stat };
+    if (prior && prior.digest === currentDigest && modeMatches(prior.mode)) return { ...asset, status: "updated", expected: current.stat };
     return { ...asset, status: "skipped" };
   });
 

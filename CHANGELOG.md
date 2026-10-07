@@ -32,6 +32,8 @@ All notable user-facing changes are documented here. This project follows
   Recheck observed setup/instruction targets before publication; preserve
   caller edits detected after inspection, original instruction modes and
   failed-operation state. Keep private approvals and machine sync explicit.
+  On Windows, use content ownership rather than POSIX executable-mode bits
+  when reconciling generated files; keep private-state ACL enforcement.
 - Publish evaluation overlays and Windows managed files through exclusive
   descriptor-written temporary files. Reject substituted targets, clean only
   owned temporary files, and never unlink live Windows data to retry a denied
