@@ -69,6 +69,7 @@ assert.match(security, /github\/codeql-action\/init@[a-f0-9]{40}/);
 assert.match(security, /actions\/dependency-review-action@[a-f0-9]{40}/);
 assert.match(security, /queries:\s*security-extended/);
 const scorecard = sources.find(({ name }) => name === "scorecard.yml")?.text ?? "";
+assert.ok(Object.hasOwn(parse(scorecard).on, "workflow_dispatch"), "Scorecard must support manual recovery without a source push");
 assert.match(scorecard, /ossf\/scorecard-action@[a-f0-9]{40}/);
 assert.match(scorecard, /publish_results:\s*true/);
 
