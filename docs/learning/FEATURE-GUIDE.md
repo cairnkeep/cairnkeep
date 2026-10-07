@@ -31,6 +31,10 @@ Version 2.21 adds the formal threat model, a read-only local security posture
 check, portable-path adversarial coverage, bounded HTTP requests, and repository
 supply-chain gates; see [L28](lessons/L28-security-assurance.md).
 
+The L16 memory-protocol supplement covers an **unreleased source feature**,
+including native Codex exec exports. It is not included in the published
+v2.21.1 baseline. Use the feature build for that supplement.
+
 ## The three-layer model
 
 1. **Memory server:** an MCP process that owns scoped durable storage. The
@@ -108,7 +112,7 @@ prerequisites for ordinary memory.
 | Typed nodes/import | `CAIRN_TYPED_MEMORY_NODES=1` | Restart MCP server; tool schema changes | Hard-filter search; dry-run, replay-safe import; `cairn doctor --repair` only for derived state | `course-05-evidence` |
 | Capability contract | `CAIRN_CAPABILITY_CONTRACT=1` | MCP changes require restart; operating changes apply next invocation | `cairn capabilities list|status|enable|disable|reset|logging`; digest identifies state only | `course-06-governance` |
 | Evaluation | `CAIRN_EVAL=1` for the coordinator process | No harness chosen by Cairnkeep | `validate` before `run`; inspect report, missingness and evidence scope; dry-run prune/delete | `course-07-evaluation` |
-| Memory protocol audit | `CAIRN_EVAL=1` for the audit process | No restart; existing normalized trajectory export | `eval protocol --trajectory PATH`; fixed-code observations, no writes/network; caller-asserted capture authorization; task quality and indirect effects not certified | L16 supplement |
+| Memory protocol audit | `CAIRN_EVAL=1` for the audit process | No restart; existing normalized trajectory or single-turn Codex exec JSONL export | `eval protocol --trajectory PATH` or `--codex-jsonl PATH`; fixed-code observations, no writes/network; caller-asserted capture authorization; task quality and indirect effects not certified | L16 supplement |
 | Validated skill improvement | Reviewed recurring hindsight; proposal adapter; `CAIRN_EVAL=1` for evaluation | No server restart; explicit subprocesses only | `cairn skill list|show`; exact-digest apply; concurrent-edit-safe rollback | `course-09-skill` |
 | General meta-agent loop | Not shipped | Not applicable | Playbooks select bounded existing actions; no generic configuration loop, command language, or scheduler | `course-07-evaluation` |
 | Pack retrieval and skills | `CAIRN_CONTEXT_PACKS=1`; HTTP needs separate consent; skills need exact-digest approval | Restart MCP server | `cairn pack skills`; revoke approval or disable pack; no automatic execution | `course-10-trust-context` |

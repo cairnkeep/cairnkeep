@@ -1,9 +1,17 @@
 # Offline evaluation fixture
 
-The separate `protocol-project-search.json` and `protocol-narration.json`
+The separate `protocol-project-search.json`, `protocol-narration.json` and
+native-format `protocol-codex.jsonl`
 controls exercise `cairn eval protocol`, without running an adapter. See the
 [memory protocol guide](../../docs/agent-memory-protocol.md). These synthetic
 controls demonstrate parser behavior, not live model quality.
+
+`scripts/spikes/verify-release-ledger.mjs MODULE_PATH` separately grades the
+bounded release-ledger coding task with 15 deterministic artifact checks. It
+imports and executes the explicitly selected module: use an isolated lab and
+an external timeout, never untrusted production files. Its score is not a
+protocol score, a comprehensive security audit or an A/B comparison.
+The [task brief](../../docs/research/release-ledger-task.md) defines the lab.
 
 This directory contains Cairnkeep's deterministic, network-free evaluation
 population. It validates the evaluation framework; its designed differences are

@@ -4,6 +4,10 @@ import { resolve } from "node:path";
 import { canonicalJson } from "./eval-schema.js";
 import { MCP_TOOL_CATALOG } from "./mcp-tool-catalog.js";
 import { trajectorySessionSchema, type TrajectoryEvent, type TrajectorySession } from "./trajectory-schema.js";
+import { normalizeCodexExec } from "./eval-codex.js";
+
+// Native audit input does not extend the persisted trajectory/capture contract.
+export type ProtocolSession = Omit<TrajectorySession, "harness"> & { harness: TrajectorySession["harness"] | "codex" };
 
 const MAX_BYTES = 16 * 1024 * 1024;
 const MAX_EVENTS = 50_000;
@@ -24,9 +28,9 @@ function object(value: unknown): Record<string, unknown> | undefined {
 }
 
 /** Only the maintained direct-tool names are recognized; suffix matching is unsafe. */
-function memoryTool(name: unknown, harness: TrajectorySession["harness"]): string | undefined {
+function memoryTool(name: unknown, harness: ProtocolSession["harness"]): string | undefined {
     if (typeof name !== "string") return undefined;
-    const prefixes = harness === "claude-code" ? ["mcp__cairn-memory__", "mcp__cairn_memory__"]
+    const prefixes = harness === "claude-code" || harness === "codex" ? ["mcp__cairn-memory__", "mcp__cairn_memory__"]
         : harness === "opencode" ? ["cairn-memory_", "cairn_memory_"] : [""];
     for (const prefix of prefixes) {
         if (!name.startsWith(prefix)) continue;
@@ -37,7 +41,7 @@ function memoryTool(name: unknown, harness: TrajectorySession["harness"]): strin
 }
 
 /** Inspect an explicitly supplied export without following links or executing content. */
-export function readProtocolTrajectory(path: string): { session: TrajectorySession; digest: string } {
+function readProtocolBytes(path: string): Buffer {
     let descriptor: number | undefined;
     try {
         const absolute = resolve(path);
@@ -65,17 +69,32 @@ export function readProtocolTrajectory(path: string): { session: TrajectorySessi
             || finalNamed.ctimeMs !== before.ctimeMs
             || finalPath !== absolute) throw new Error();
         const bytes = buffer.subarray(0, length);
-        const raw = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-        if (!Array.isArray(raw?.events) || raw.events.length > MAX_EVENTS) throw new Error();
-        const parsed = trajectorySessionSchema.safeParse(raw);
-        if (!parsed.success) throw new Error();
-        return { session: parsed.data, digest: digest(bytes) };
+        return bytes;
     } catch {
         // Do not expose filesystem errors, parser excerpts, schema paths or input data.
         throw new Error("protocol_input_invalid_or_unsafe");
     } finally {
         if (descriptor !== undefined) closeSync(descriptor);
     }
+}
+
+export function readProtocolTrajectory(path: string): { session: TrajectorySession; digest: string } {
+    try {
+        const bytes = readProtocolBytes(path);
+        const raw = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+        if (!Array.isArray(raw?.events) || raw.events.length > MAX_EVENTS) throw new Error();
+        const parsed = trajectorySessionSchema.safeParse(raw);
+        if (!parsed.success) throw new Error();
+        return { session: parsed.data, digest: digest(bytes) };
+    } catch { throw new Error("protocol_input_invalid_or_unsafe"); }
+}
+
+export function readCodexProtocol(path: string): { session: ProtocolSession; digest: string } {
+    try {
+        const bytes = readProtocolBytes(path);
+        const session = normalizeCodexExec(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+        return { session, digest: digest(bytes) };
+    } catch { throw new Error("protocol_input_invalid_or_unsafe"); }
 }
 
 function searchPayload(value: unknown, depth = 0): Record<string, unknown> | undefined {
@@ -105,7 +124,7 @@ function successfulSearch(result: TrajectoryEvent | undefined): boolean {
 }
 
 /** This is an observation of local evidence, not authentication or task verification. */
-export function auditMemoryProtocol(session: TrajectorySession, trajectoryDigest: string, captureAuthorized = false) {
+export function auditMemoryProtocol(session: ProtocolSession, trajectoryDigest: string, captureAuthorized = false) {
     const calls: Call[] = [];
     const byId = new Map<string, Call>();
     let gap = session.capture.truncated || session.capture.omitted_unknown_records > 0

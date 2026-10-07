@@ -1081,7 +1081,8 @@ machine-level drift; setup itself never performs the sync.
 ### Evaluation harness (opt-in)
 
 To inspect actual direct memory tool use in an existing normalized trajectory,
-use `CAIRN_EVAL=1 cairn eval protocol --trajectory PATH --json`. This read-only,
+use `CAIRN_EVAL=1 cairn eval protocol --trajectory PATH --json`. Native
+single-turn Codex exec JSONL exports use `--codex-jsonl PATH` instead. This read-only,
 offline audit returns separate pass/fail/inconclusive checks, emits no recorded
 content, and does not measure task quality. See the
 [memory protocol guide](agent-memory-protocol.md) for controls, export privacy,

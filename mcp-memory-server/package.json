@@ -46,6 +46,7 @@
         "check:eval-process": "node scripts/smoke-eval-process.mjs",
         "check:eval-statistics": "node scripts/smoke-eval-statistics.mjs",
         "check:eval-protocol": "node scripts/smoke-eval-protocol.mjs",
+        "check:codex-protocol": "node scripts/smoke-codex-protocol.mjs",
         "check:skill-lifecycle": "node scripts/smoke-skill-lifecycle.mjs",
         "check:graph-cli": "node scripts/smoke-graph-cli.mjs",
         "check:mcp-trust": "node scripts/smoke-mcp-trust.mjs",

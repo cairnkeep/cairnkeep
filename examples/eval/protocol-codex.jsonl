@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"synthetic-control"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"a","type":"mcp_tool_call","server":"cairn-memory","tool":"memory_search","arguments":{"scope":"project","query":"release ledger"},"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"a","type":"mcp_tool_call","server":"cairn-memory","tool":"memory_search","arguments":{"scope":"project","query":"release ledger"},"status":"completed","result":{"content":[],"structured_content":{"mode":"substring","count":0,"results":[]}}}}
+{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":0,"output_tokens":1}}

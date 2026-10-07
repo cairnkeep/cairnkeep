@@ -58,12 +58,22 @@ after the lab is rehearsed from the packaged CLI rather than a source clone.
 
 ## Supplement: memory protocol evidence
 
+This supplement requires the unreleased feature build; published v2.21.1 does
+not include `eval protocol` or `--codex-jsonl`.
+
 Run the two synthetic commands in the
 [memory protocol guide](../../agent-memory-protocol.md). Pause on the negative
 control's exit `1`: saying a tool was used is not evidence of using it. Explain
 why an empty real search can pass retrieval, why incomplete capture or failed
 retrieval is inconclusive, and why shell calls prevent certification of
 indirect memory writes. Never publish a real trajectory export for this lab.
+
+Repeat with the packaged `protocol-codex.jsonl` synthetic control using
+`--codex-jsonl`, not `--trajectory`. Explain start/completion correlation,
+unknown-event gaps, single-turn boundaries and the distinction between a
+private live export and a public parser fixture. Internal rollout files and
+automatic Codex capture are not supported. Pair protocol observations with an
+independent artifact verifier; either dimension can fail separately.
 
 ## Source material
 

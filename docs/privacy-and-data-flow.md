@@ -173,7 +173,7 @@ file, so the diagnostic and runtime use the same precedence.
 ## Evaluation adapter and report flow
 
 `cairn eval protocol` is a separate read-only audit of an explicitly supplied
-normalized trajectory export. With evaluation disabled it does not read that
+normalized trajectory or single-turn Codex exec JSONL export. With evaluation disabled it does not read that
 file. When enabled it performs bounded local reads only: no adapter, command
 execution, network, database, or persistent report. Output is limited to fixed
 codes, counts, harness identity, input/policy digests and limitations. Exports

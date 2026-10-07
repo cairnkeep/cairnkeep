@@ -70,7 +70,7 @@ _cairn_complete() {
         report) COMPREPLY=( $(compgen -W "--experiment --json" -- "$current") ) ;;
         prune) COMPREPLY=( $(compgen -W "--older-than-days --dry-run --json" -- "$current") ) ;;
         delete) COMPREPLY=( $(compgen -W "--experiment --dry-run --json" -- "$current") ) ;;
-        protocol) COMPREPLY=( $(compgen -W "--trajectory --capture-authorized --json" -- "$current") ) ;;
+        protocol) COMPREPLY=( $(compgen -W "--trajectory --codex-jsonl --capture-authorized --json" -- "$current") ) ;;
         *) COMPREPLY=( $(compgen -W "validate run ablate report prune delete protocol" -- "$current") ) ;;
       esac
       ;;
@@ -165,7 +165,7 @@ _cairn() {
         report) _arguments '--experiment[experiment ID]:experiment ID:' '--json[emit JSON]' ;;
         prune) _arguments '--older-than-days[retention age]:days:' '--dry-run[report without pruning]' '--json[emit JSON]' ;;
         delete) _arguments '--experiment[experiment ID]:experiment ID:' '--dry-run[report without deleting]' '--json[emit JSON]' ;;
-        protocol) _arguments '--trajectory[normalized trajectory export]:file:_files' '--capture-authorized[assert operator authorization for capture]' '--json[emit JSON]' ;;
+        protocol) _arguments '--trajectory[normalized trajectory export]:file:_files' '--codex-jsonl[single-turn Codex exec JSONL export]:file:_files' '--capture-authorized[assert operator authorization for capture]' '--json[emit JSON]' ;;
         *) _values 'eval command' validate run ablate report prune delete protocol ;;
       esac
       ;;
@@ -276,6 +276,7 @@ complete -c cairn -n "__fish_seen_subcommand_from proposals" -l json
 complete -c cairn -n "__fish_seen_subcommand_from notes" -a "distill search-error promote doctor"
 complete -c cairn -n "__fish_seen_subcommand_from eval; and not __fish_seen_subcommand_from validate run ablate report prune delete protocol" -a "validate run ablate report prune delete protocol"
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from protocol" -l trajectory -r
+complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from protocol" -l codex-jsonl -r
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from protocol" -l capture-authorized
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from validate run ablate" -l task-set -r
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from validate run ablate" -l adapter -r
