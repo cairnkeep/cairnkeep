@@ -1,8 +1,8 @@
 # V16 supplement — Show the tool call, not the claim
 
-Target length: 4–6 minutes. Experienced-developer audience. Record from the
-feature build containing `cairn eval protocol`; do not present it as available
-in v2.21.1. Use only committed synthetic controls, never private transcripts.
+Target length: 4–6 minutes. Experienced-developer audience. Record with
+Cairnkeep 2.22.0 or newer and opt in to `cairn eval protocol` explicitly.
+Use only committed synthetic controls, never private transcripts.
 
 1. Split the terminal: show `protocol-narration.json` beside its audit. Type the
    command from the memory protocol guide at human speed. Pause two seconds

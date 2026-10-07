@@ -58,8 +58,8 @@ after the lab is rehearsed from the packaged CLI rather than a source clone.
 
 ## Supplement: memory protocol evidence
 
-This supplement requires the unreleased feature build; published v2.21.1 does
-not include `eval protocol` or `--codex-jsonl`.
+This supplement requires Cairnkeep 2.22.0 or newer for `eval protocol` and
+`--codex-jsonl`. Evaluation remains default off.
 
 Run the two synthetic commands in the
 [memory protocol guide](../../agent-memory-protocol.md). Pause on the negative

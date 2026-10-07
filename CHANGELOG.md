@@ -5,6 +5,8 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.22.0] - 2026-10-07
+
 ### Added
 
 - Add explicit `eval protocol --codex-jsonl PATH` for single-turn native Codex

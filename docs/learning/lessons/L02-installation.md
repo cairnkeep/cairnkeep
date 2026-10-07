@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart
 **Time:** 25 minutes
-**Tested with:** Cairnkeep 2.21.1 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.22.0 and Node.js 22 or newer
 
 ## Outcome
 
