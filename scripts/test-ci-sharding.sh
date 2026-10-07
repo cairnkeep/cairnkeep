@@ -29,5 +29,10 @@ for (const shard of ["1/3", "2/3", "3/3"]) assert.ok(workflow.includes(`shard: "
 assert.match(workflow, /run-smoke-suite\.mjs --shard \$\{\{ matrix\.shard \}\}/);
 assert.doesNotMatch(workflow.match(/  native-windows:[\s\S]*?\n  repository:/)?.[0] ?? "",
   /npm --prefix mcp-memory-server test/);
+const native = workflow.match(/  native-windows:[\s\S]*?\n  repository:/)?.[0] ?? "";
+const focused = native.indexOf("run: node mcp-memory-server/scripts/smoke-bounded-input-reads.mjs");
+assert.ok(focused > native.indexOf("npm --prefix mcp-memory-server run build"));
+assert.ok(focused < native.indexOf("- name: Native Windows CLI contracts"));
+assert.ok(focused < native.indexOf("- name: Sharded memory-server contracts"));
 console.log(`PASS: ${smokeChecks.length} memory-server contracts split once across balanced Windows shards (${weights.join(", ")})`);
 NODE

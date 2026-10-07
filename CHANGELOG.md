@@ -52,6 +52,8 @@ All notable user-facing changes are documented here. This project follows
   keep the installed-package exact-byte integrity check unchanged.
 - Canonicalize bounded-read fixture paths before injecting file changes, covering
   Windows short temporary-directory names and a real POSIX alias control.
+- Run focused bounded-input controls before the longer Windows smoke shards on
+  all supported Node versions; retain every complete-catalog and install gate.
 - Wait for completed OpenCode V2 fixture capture before reading its database,
   under a bounded event-stream completion deadline. A deterministic delayed
   completion control rejects the old file-existence readiness assumption;

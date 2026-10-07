@@ -15,13 +15,15 @@ import { recordPlaybookReceipt, readPlaybookReceipt } from "../dist/playbook-rec
 import { resolvePlaybookStatus } from "../dist/playbook.js";
 import { hardenPrivatePath } from "../dist/platform-security.js";
 
-const fixtureBase = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), "cairn-bounded-inputs-")));
+const fixtureBase = fs.realpathSync.native(fs.mkdtempSync(join(tmpdir(), "cairn-bounded-inputs-")));
 fs.mkdirSync(join(fixtureBase, "actual"));
 // POSIX aliases exercise the same canonicalization boundary as native Windows
 // short temporary-directory names, without requiring Windows symlink privileges.
 const fixtureParent = process.platform === "win32" ? fixtureBase : join(fixtureBase, "alias");
 if (process.platform !== "win32") fs.symlinkSync("actual", fixtureParent, "dir");
-const root = fs.realpathSync(fs.mkdtempSync(join(fixtureParent, "inputs-")));
+const root = fs.realpathSync.native(fs.mkdtempSync(join(fixtureParent, "inputs-")));
+assert.equal(await fs.promises.realpath(root), root,
+    "mutation fixtures must use the receipt store's native path normalization");
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const failures = [];
 let substitution = 0;
