@@ -41,13 +41,13 @@ export function readProtocolTrajectory(path: string): { session: TrajectorySessi
     let descriptor: number | undefined;
     try {
         const absolute = resolve(path);
-        if (realpathSync(absolute) !== absolute) throw new Error();
-        const named = lstatSync(absolute);
-        if (!named.isFile() || named.isSymbolicLink() || named.size > MAX_BYTES) throw new Error();
+        // Validate the opened descriptor, not a pathname checked before open.
+        // Nonblocking/no-ctty flags prevent special-file admission from waiting
+        // or acquiring a controlling terminal before the regular-file check.
         descriptor = openSync(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)
-            | (process.platform === "win32" ? 0 : constants.O_NONBLOCK ?? 0));
+            | (constants.O_NOCTTY ?? 0) | (process.platform === "win32" ? 0 : constants.O_NONBLOCK ?? 0));
         const before = fstatSync(descriptor);
-        if (!before.isFile() || before.size > MAX_BYTES || before.ino !== named.ino || before.dev !== named.dev) throw new Error();
+        if (!before.isFile() || before.size > MAX_BYTES || realpathSync(absolute) !== absolute) throw new Error();
         const buffer = Buffer.alloc(before.size + 1);
         let length = 0;
         while (length < buffer.length) {
@@ -56,13 +56,14 @@ export function readProtocolTrajectory(path: string): { session: TrajectorySessi
             length += count;
         }
         const after = fstatSync(descriptor);
+        const finalPath = realpathSync(absolute);
         const finalNamed = lstatSync(absolute);
         if (length !== before.size || before.size !== after.size || before.mtimeMs !== after.mtimeMs
             || before.ctimeMs !== after.ctimeMs || finalNamed.isSymbolicLink()
             || finalNamed.dev !== before.dev || finalNamed.ino !== before.ino
             || finalNamed.size !== before.size || finalNamed.mtimeMs !== before.mtimeMs
             || finalNamed.ctimeMs !== before.ctimeMs
-            || realpathSync(absolute) !== absolute) throw new Error();
+            || finalPath !== absolute) throw new Error();
         const bytes = buffer.subarray(0, length);
         const raw = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
         if (!Array.isArray(raw?.events) || raw.events.length > MAX_EVENTS) throw new Error();

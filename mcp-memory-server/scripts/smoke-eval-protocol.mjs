@@ -27,7 +27,7 @@ const audit = (s, approved = false) => auditMemoryProtocol(s, "0".repeat(64), ap
 function check(s, name) { return audit(s).checks.find(c => c.id === name); }
 function run(args, enabled = true) {
     const env = { ...process.env, CAIRN_EVAL: enabled ? "1" : "0" };
-    return spawnSync(process.execPath, [fileURLToPath(cli), "protocol", ...args], { env, encoding: "utf8", cwd: scratch });
+    return spawnSync(process.execPath, [fileURLToPath(cli), "protocol", ...args], { env, encoding: "utf8", cwd: scratch, timeout: 10_000 });
 }
 
 try {
@@ -104,8 +104,16 @@ try {
     assert.equal(invalid.status, 2); assert.doesNotMatch(invalid.stderr, /secret-malformed|trajectory.json/);
     writeFileSync(file, Buffer.from([0xff, 0xfe])); assert.throws(() => readProtocolTrajectory(file), /protocol_input/);
     writeFileSync(file, Buffer.alloc(16 * 1024 * 1024 + 1)); assert.throws(() => readProtocolTrajectory(file), /protocol_input/);
+    writeFileSync(file, JSON.stringify(session(Array.from({ length: 50_001 }, () => event("model_output", { text: "" })))));
+    assert.throws(() => readProtocolTrajectory(file), /protocol_input/, "event cap was not enforced");
     mkdirSync(join(scratch, "directory")); assert.throws(() => readProtocolTrajectory(join(scratch, "directory")), /protocol_input/);
     if (process.platform !== "win32") {
+        const fifo = join(scratch, "fifo");
+        const made = spawnSync("mkfifo", [fifo], { encoding: "utf8" });
+        assert.equal(made.status, 0, made.stderr);
+        const rejected = run(["--trajectory", fifo, "--json"]);
+        assert.equal(rejected.status, 2, "FIFO admission must not block");
+        assert.throws(() => readProtocolTrajectory("/dev/null"), /protocol_input/, "device admission must be rejected");
         symlinkSync(file, join(scratch, "link")); assert.throws(() => readProtocolTrajectory(join(scratch, "link")), /protocol_input/);
         symlinkSync(scratch, join(scratch, "parent-link")); assert.throws(() => readProtocolTrajectory(join(scratch, "parent-link", "trajectory.json")), /protocol_input/);
     }
