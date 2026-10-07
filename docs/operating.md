@@ -94,6 +94,12 @@ returns the same schema-v1 result. The private mode-`0600`
 selected harnesses, and digests/modes/template identifiers for setup-owned
 assets. It contains no credentials, endpoints, or absolute paths.
 
+The asset map records ownership, not every file in the project. Existing custom
+files that setup skips remain caller-owned. Doctor checks that every required
+selected asset is a regular file under non-symlinked scaffold directories and
+that POSIX launchers are executable, without adopting or rewriting custom files.
+An empty ownership map is valid when all required assets were already present.
+
 Setup never installs or refreshes machine-level harness assets. Its
 `machine_sync.automatic` field is always false, and the human output labels each
 reported command as not run automatically. The JSON result's
@@ -1072,7 +1078,9 @@ Unsupported schema, SQLite failure, invalid full records, or digest corruption
 fails untouched with guidance to preserve the database before manual recovery.
 
 When `.ai/cairnkeep.json` exists, doctor also validates its private state,
-selected assets, digests, and modes. It reports `limited` for explicit
+selected assets, and the digests and modes of recorded setup-owned files.
+Preserved caller-owned files need safe presence, not a generated-file digest;
+doctor never claims ownership of them. It reports `limited` for explicit
 `--git none`, fails an incomplete or drifted setup with the recorded
 deterministic `cairn setup` recovery command, and checks the Pi machine
 extension when Pi was selected. `cairn sync-pi --apply` repairs that

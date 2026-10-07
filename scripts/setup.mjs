@@ -344,6 +344,21 @@ function safeStateAsset(path, record) {
     && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(record.template);
 }
 
+function safeRequiredAsset(project, path, launcher) {
+  // Presence is not ownership: setup intentionally skips pre-existing custom
+  // files. Validate the selected asset without adopting or reading its content.
+  const parts = path.split("/");
+  let destination = project;
+  for (const part of parts.slice(0, -1)) {
+    destination = join(destination, part);
+    const parent = lstatSync(destination);
+    if (!parent.isDirectory() || parent.isSymbolicLink()) return false;
+  }
+  const info = lstatSync(join(destination, parts.at(-1)));
+  return info.isFile() && !info.isSymbolicLink()
+    && (!launcher || process.platform === "win32" || (info.mode & 0o100) !== 0);
+}
+
 function readPrivateState(path) {
   const info = lstatSync(path);
   if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024) throw new Error("unsafe");
@@ -435,8 +450,7 @@ export function diagnoseSetup(target = ".") {
         || state.harnesses.some((name) => !HARNESSES.includes(name))
         || !state.assets
         || typeof state.assets !== "object"
-        || Array.isArray(state.assets)
-        || Object.keys(state.assets).length === 0) return incompleteDiagnosis();
+        || Array.isArray(state.assets)) return incompleteDiagnosis();
 
     const recovery = `cairn setup . --git ${state.git} --harness ${state.harnesses.join(",")} --memory ${state.memory} --yes`;
     for (const [path, record] of Object.entries(state.assets)) {
@@ -449,7 +463,8 @@ export function diagnoseSetup(target = ".") {
       if (digest !== record.digest || (process.platform !== "win32" && (info.mode & 0o777) !== record.mode)) return incompleteDiagnosis(recovery);
     }
     const requiredAssets = [...COMMON_SETUP_ASSETS, ...requiredHarnessAssetPaths(state.harnesses, state.memory)];
-    if (requiredAssets.some((path) => !Object.hasOwn(state.assets, path))) return incompleteDiagnosis(recovery);
+    const launchers = new Set(state.harnesses.map((id) => HARNESS_REGISTRY.find((harness) => harness.id === id).launcher.path));
+    if (requiredAssets.some((path) => !safeRequiredAsset(project, path, launchers.has(path)))) return incompleteDiagnosis(recovery);
     if (state.memory === "local" && state.harnesses.includes("codex")) {
       if (!hasCodexMemoryConfig(project)) return incompleteDiagnosis(recovery);
       if (hasCodexRemoteMemoryConflict(project)) {
