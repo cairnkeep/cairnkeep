@@ -53,6 +53,7 @@ export const smokeChecks = Object.freeze([
   check("pi-bridge-env", 1, node("smoke-pi-bridge-env.mjs")),
   check("pi-bridge-child", 7, node("smoke-pi-bridge-child.mjs")),
   check("context-pack", 58,
+    node("smoke-context-pack-state.mjs"),
     node("smoke-context-pack-lock.mjs"),
     node("smoke-context-pack.mjs")),
   check("context-pack-retrieval", 34, node("smoke-context-pack-retrieval.mjs")),

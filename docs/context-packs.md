@@ -69,6 +69,15 @@ If the bounded wait expires, let the active update finish, inspect `cairn doctor
 for temporary remnants, and retry. A persistent lock is not proof of abandonment;
 never delete it blindly or change ACLs to silence the error.
 
+From 2.22.2, mutable private pointers, source records and graph-cache state are
+opened once and read through that descriptor under their existing size limits.
+Metadata, private ownership and path/parent identity are checked before and
+after reading. Concurrent replacement or growth fails closed: retry after the
+writer finishes, then inspect `cairn doctor` if the problem persists. Malformed
+state is reported without quoting private JSON content. Missing state is not
+an excuse to follow a dangling symlink or infer skill approval. These controls
+do not protect against a hostile process with the same account's full access.
+
 ## Retrieval and skill approval
 
 Set `CAIRN_CONTEXT_PACKS=1` and restart the memory server to register the

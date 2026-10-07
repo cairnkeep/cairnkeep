@@ -1,7 +1,7 @@
 # L28 - Verify Cairnkeep's security posture
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.22.1 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.22.2 and Node.js 22 or newer
 
 ## Outcome
 
@@ -11,7 +11,7 @@ and choose least authority for a network-facing MCP client.
 
 ## Prerequisites
 
-- Install Cairnkeep 2.22.1 or use a disposable source checkout.
+- Install Cairnkeep 2.22.2 or use a disposable source checkout.
 - Complete [L20 - Least-authority MCP tool profiles](L20-mcp-tool-profiles.md).
 - Use synthetic values only; never paste a real bearer token into a recording,
   terminal transcript, or issue.
@@ -67,6 +67,7 @@ npm run security:baseline
 scripts/test-security-baseline.sh
 npm --prefix mcp-memory-server run check:security-assurance
 npm --prefix mcp-memory-server run check:http-guard
+node mcp-memory-server/scripts/smoke-context-pack-state.mjs
 ```
 
 The baseline rejects unpinned external Actions, `pull_request_target` and
@@ -82,6 +83,13 @@ Do not republish an immutable version to demonstrate the test.
 
 The smoke tests cover token non-disclosure, request bounds, and deterministic
 portable-path adversarial cases.
+
+The pack-state control deterministically substitutes a second valid pointer
+after metadata inspection. The descriptor-bound reader rejects it, including
+fabricated approvals; growth, unsafe types and non-private state are rejected
+under bounded reads. A resolved review thread or green CodeQL job does not mean
+all historical alerts are fixed: inspect current findings and test the actual
+boundary without dismissing results merely to improve an advisory score.
 
 ## Common failures
 
