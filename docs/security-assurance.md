@@ -86,6 +86,10 @@ punctuation.
 `cairn doctor` remains the operational dependency/store check. Run both before
 exposing HTTP, after changing tool authority, and before a security-sensitive
 release.
+Its embedding probe retains only a sanitized failure class and HTTP status;
+provider response bodies and request identifiers are never emitted. This makes
+expired credentials distinguishable from a missing model without turning the
+doctor output into a secondary secret or telemetry channel.
 
 ## Repository and release controls
 
@@ -120,3 +124,7 @@ The maintained gates are `npm run security:baseline`, both production
 security-assurance and HTTP-guard smoke tests, native-Windows tests, and the
 complete public test matrix. The baseline gate also rejects
 `pull_request_target` and every unpinned non-local GitHub Action.
+The native-Windows matrix runs the CLI, package, and global-install contracts on
+Node 22, 24, and 26. It deterministically partitions the complete memory-server
+smoke catalog across those lanes exactly once; the Linux matrix still runs the
+complete catalog independently on every supported Node version.

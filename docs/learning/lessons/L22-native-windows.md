@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Operator
 **Time:** 30 minutes
-**Tested with:** Cairnkeep 2.21.0, Windows x64, and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.21.1, Windows x64, and Node.js 22 or newer
 
 ## Outcome
 

@@ -1,7 +1,7 @@
 # L28 - Verify Cairnkeep's security posture
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.21.0 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.21.1 and Node.js 22 or newer
 
 ## Outcome
 
@@ -11,7 +11,7 @@ and choose least authority for a network-facing MCP client.
 
 ## Prerequisites
 
-- Install Cairnkeep 2.21.0 or use a disposable source checkout.
+- Install Cairnkeep 2.21.1 or use a disposable source checkout.
 - Complete [L20 - Least-authority MCP tool profiles](L20-mcp-tool-profiles.md).
 - Use synthetic values only; never paste a real bearer token into a recording,
   terminal transcript, or issue.

@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { smokeChecks } from "./run-smoke-suite.mjs";
 
 const EXPECTED_RED_EXIT = 86;
 const RED_MARKER = "PHASE18_RED:CAPABILITY_MCP_MISSING";
@@ -205,7 +206,7 @@ function filesystemSnapshot(root) {
 async function baselineIdentity() {
     const packageJson = JSON.parse(readFileSync(join(serverRoot, "package.json"), "utf8"));
     assert.equal(packageJson.scripts["check:capability-mcp"], "node scripts/smoke-capability-mcp.mjs");
-    assert.equal(packageJson.scripts["test:smoke"].includes("check:capability-mcp"), true, "GREEN MCP contract is missing from the default suite");
+    assert.equal(smokeChecks.some(({ name }) => name === "capability-mcp"), true, "GREEN MCP contract is missing from the default suite");
 
     const root = mkdtempSync(join(tmpdir(), "cairn-capability-mcp-baseline-"));
     try {

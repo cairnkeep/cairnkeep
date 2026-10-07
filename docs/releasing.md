@@ -29,6 +29,13 @@ from a workstation.
 9. Verify both image digests, SBOM attestations, provenance attestations, and an
    anonymous pull before announcing the release.
 
+The native-Windows lanes retain stable check names for branch protection. Each
+lane exercises the Windows CLI and packed global install on its Node version,
+while the complete memory-server smoke catalog is deterministically balanced
+across the three lanes. The Linux Node 22/24/26 matrix independently runs the
+complete catalog on every supported runtime. This preserves coverage while
+removing three serial copies of the slow Windows suite from the critical path.
+
 Stable versions must use a stable GitHub Release and publish to npm's `latest`
 tag. SemVer prerelease versions must use a GitHub prerelease and publish to
 `next`. A mismatch fails before publication.

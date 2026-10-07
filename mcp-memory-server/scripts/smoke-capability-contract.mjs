@@ -4,6 +4,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writ
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { smokeChecks } from "./run-smoke-suite.mjs";
 
 const RED_MARKER = "PHASE18_RED:CAPABILITY_CONTRACT_MISSING";
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
@@ -54,8 +55,9 @@ function fixtureChecks() {
     assert.equal(packageJson.scripts["check:capability-contract"], "node scripts/smoke-capability-contract.mjs");
     assert.equal(packageJson.scripts["check:capability-logging"], "node scripts/smoke-capability-logging.mjs");
     assert.equal(packageJson.scripts["check:capability-mcp"], "node scripts/smoke-capability-mcp.mjs");
-    for (const name of ["check:capability-contract", "check:capability-logging", "check:capability-mcp"]) {
-        assert.equal(packageJson.scripts["test:smoke"].includes(name), true, `${name} is missing from the default suite after its owner became GREEN`);
+    const defaultChecks = new Set(smokeChecks.map(({ name }) => name));
+    for (const name of ["capability-contract", "capability-logging", "capability-mcp"]) {
+        assert.equal(defaultChecks.has(name), true, `${name} is missing from the default suite after its owner became GREEN`);
     }
 }
 
