@@ -59,6 +59,16 @@ cairn pack update my-pack --apply --confirm CANDIDATE-DIGEST --project ./project
 requires the candidate digest, installs an immutable object, and atomically
 switches only the named project.
 
+Project enablement, disablement and skill approvals serialize through an
+exclusive directory lock before reading/replacing the pointer. Windows can
+temporarily report access errors while a previous directory deletion completes;
+2.22.1 retries this contention under the existing 200-attempt, 10 ms wait budget.
+Unsafe symlink/non-directory locks and unrelated access failures are rejected.
+No contender removes another writer's lock or grants approval on a failed write.
+If the bounded wait expires, let the active update finish, inspect `cairn doctor`
+for temporary remnants, and retry. A persistent lock is not proof of abandonment;
+never delete it blindly or change ACLs to silence the error.
+
 ## Retrieval and skill approval
 
 Set `CAIRN_CONTEXT_PACKS=1` and restart the memory server to register the

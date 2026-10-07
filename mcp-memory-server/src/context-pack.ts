@@ -24,6 +24,7 @@ import type { ProgressiveContextFileInput } from "./context-pack-retrieval.js";
 import { indexOkfBundle, validateOkfBundle, validatedOkfFileContent, type OkfIndex } from "./okf.js";
 import { atomicReplace, hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
 import { portablePathCollisionKey, portableRelativePathIssue } from "./path-security.js";
+import { acquireContextPackPointerLock } from "./context-pack-lock.js";
 
 const execFileAsync = promisify(execFile);
 export const CONTEXT_PACK_MANIFEST = "context-pack.json";
@@ -623,32 +624,10 @@ export function readProjectPointer(options: ProjectOptions): ProjectPointer {
     return parseProjectPointer(JSON.parse(readFileSync(identity.path, "utf8")) as unknown, identity.id);
 }
 
-function delay(milliseconds: number): Promise<void> {
-    return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
-}
-
 async function acquirePointerLock(options: ProjectOptions): Promise<() => Promise<void>> {
     const identity = projectIdentity(options);
     await mkdir(dirname(identity.path), { recursive: true, mode: 0o700 });
-    const lock = `${identity.path}.lock`;
-    for (let attempt = 0; attempt < 200; attempt += 1) {
-        try {
-            await mkdir(lock, { mode: 0o700 });
-            return () => rm(lock, { recursive: true, force: true });
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-            let info;
-            try {
-                info = lstatSync(lock);
-            } catch (inspectionError) {
-                if ((inspectionError as NodeJS.ErrnoException).code === "ENOENT") continue;
-                throw inspectionError;
-            }
-            if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("Context pack project pointer lock is unsafe.");
-            await delay(10);
-        }
-    }
-    throw new Error("Context pack project pointer is locked; retry after the active update finishes.");
+    return acquireContextPackPointerLock(`${identity.path}.lock`);
 }
 
 async function mutateProjectPointer(options: ProjectOptions, mutate: (pointer: ProjectPointer) => void | Promise<void>): Promise<ProjectPointer> {

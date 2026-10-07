@@ -56,6 +56,12 @@ Highlight full-SHA action pins, CodeQL, dependency review, token non-leakage,
 portable Windows/POSIX path cases, and the HTTP 413 test. Do not show repository
 secrets or live security-alert details.
 
+Include the offline pointer-lock control in a source checkout:
+`node mcp-memory-server/scripts/smoke-context-pack-lock.mjs`. It reproduces
+Windows contention/denial and unsafe-lock cases deterministically, then checks
+real cross-process exclusion. Explain bounded retry versus lock stealing; a
+Linux run with injected Windows errors is not native-Windows evidence.
+
 Briefly open `.github/workflows/publish.yml` beside the permission table in
 `docs/releasing.md`. Contrast the read-only preparation job with the necessary
 npm and OCI publication grants. Explain that explicit maps deny unspecified

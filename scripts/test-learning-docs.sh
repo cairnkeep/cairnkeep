@@ -74,6 +74,7 @@ done < <(bin/cairn help | sed -n 's/^  cairn \([a-z-]*\).*/\1/p' | sort -u)
 node <<'NODE'
 const { existsSync, readdirSync, readFileSync } = require("node:fs");
 const { dirname, resolve } = require("node:path");
+const packageVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
 
 function markdownFiles(root) {
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
@@ -84,6 +85,13 @@ function markdownFiles(root) {
 
 for (const file of markdownFiles("docs/learning")) {
   const text = readFileSync(file, "utf8");
+  if (file.startsWith("docs/learning/lessons/")) {
+    for (const match of text.matchAll(/(?:@cairnkeep\/cli@|ghcr\.io\/cairnkeep\/cairnkeep(?:-workspace)?:)(\d+\.\d+\.\d+(?:-[\w.-]+)?)/g)) {
+      if (match[1] !== packageVersion) {
+        throw new Error(`stale installation command in ${file}: ${match[1]} instead of ${packageVersion}`);
+      }
+    }
+  }
   for (const match of text.matchAll(/\]\(([^)]+)\)/g)) {
     const target = match[1].split("#", 1)[0];
     if (!target || /^[a-z]+:/i.test(target)) continue;

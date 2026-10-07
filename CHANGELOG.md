@@ -5,6 +5,19 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.22.1] - 2026-10-07
+
+### Fixed
+
+- Handle bounded Windows context-pack pointer-lock contention during concurrent
+  updates, including delete-pending access errors. Preserve exclusive ownership,
+  unsafe-lock rejection, denied access and the existing retry budget; never
+  steal another writer's lock. Add deterministic fault controls and native
+  cross-process exclusion coverage without changing persisted data or approval.
+- Align lesson npm/container installation commands with the current release;
+  add a regression rejecting stale pins and update Windows/context-pack recovery
+  guidance and learning baselines.
+
 ### CI
 
 - Restrict publication token permissions to the preparation, npm and container

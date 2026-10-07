@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Operator
 **Time:** 30 minutes
-**Tested with:** Cairnkeep 2.22.0, Windows x64, and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.22.1, Windows x64, and Node.js 22 or newer
 
 ## Outcome
 
@@ -16,7 +16,7 @@ perform a reversible uninstall without relying on WSL or Git Bash.
 From PowerShell:
 
 ```powershell
-npm install --global @cairnkeep/cli@2.17.1
+npm install --global @cairnkeep/cli@2.22.1
 cairn version
 
 $Lab = Join-Path $env:TEMP 'Cairnkeep Windows Lab'
@@ -62,6 +62,7 @@ the removed managed assets.
 | Hook registration reports drift | Managed `.cmd` hook or settings entry is absent | Run `cairn sync --apply`, then repeat `cairn sync --check` |
 | Memory export fails | `sqlite3.exe` is absent | Install SQLite and confirm `Get-Command sqlite3.exe`; runtime and import remain available |
 | A private-state check fails | The file inherited a broader ACL | Preserve the file, inspect it with `Get-Acl`, and recreate it through the owning Cairnkeep command |
+| A context-pack project update is locked | Another writer is active or a directory remains delete-pending | Allow the writer to finish, inspect `cairn doctor`, then retry; never blindly delete a lock or weaken ACLs |
 
 ## Privacy and trust boundary
 
