@@ -15,7 +15,13 @@ import { recordPlaybookReceipt, readPlaybookReceipt } from "../dist/playbook-rec
 import { resolvePlaybookStatus } from "../dist/playbook.js";
 import { hardenPrivatePath } from "../dist/platform-security.js";
 
-const root = fs.mkdtempSync(join(tmpdir(), "cairn-bounded-inputs-"));
+const fixtureBase = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), "cairn-bounded-inputs-")));
+fs.mkdirSync(join(fixtureBase, "actual"));
+// POSIX aliases exercise the same canonicalization boundary as native Windows
+// short temporary-directory names, without requiring Windows symlink privileges.
+const fixtureParent = process.platform === "win32" ? fixtureBase : join(fixtureBase, "alias");
+if (process.platform !== "win32") fs.symlinkSync("actual", fixtureParent, "dir");
+const root = fs.realpathSync(fs.mkdtempSync(join(fixtureParent, "inputs-")));
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const failures = [];
 let substitution = 0;
@@ -362,6 +368,6 @@ try {
         if (info.isDirectory()) for (const entry of fs.readdirSync(path)) writable(join(path, entry));
     }
     writable(root);
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(fixtureBase, { recursive: true, force: true });
 }
 console.log("PASS: bounded evaluation, OKF, graph, receipt and progressive-cache input reads");

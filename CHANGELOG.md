@@ -50,6 +50,8 @@ All notable user-facing changes are documented here. This project follows
 - Preserve the bundled evaluation task set's canonical LF bytes in native
   Windows source checkouts. Add a real Git CRLF-conversion regression control;
   keep the installed-package exact-byte integrity check unchanged.
+- Canonicalize bounded-read fixture paths before injecting file changes, covering
+  Windows short temporary-directory names and a real POSIX alias control.
 - Wait for completed OpenCode V2 fixture capture before reading its database,
   under a bounded event-stream completion deadline. A deterministic delayed
   completion control rejects the old file-existence readiness assumption;
