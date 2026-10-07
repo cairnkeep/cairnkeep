@@ -8,11 +8,11 @@ import { fileURLToPath } from "node:url";
 import { readStableFile } from "./lib/stable-file.mjs";
 import { releaseAttestationArguments, validateReleaseOptions, verifyPublishedRelease } from "./lib/release-verification.mjs";
 
-const usage = "Usage: node scripts/verify-published-release.mjs --version X.Y.Z --commit SHA --tree SHA --ci-run ID --publish-run ID --out FILE [--repo OWNER/REPO] [--gh PATH] [--npm PATH]";
+const usage = "Usage: node scripts/verify-published-release.mjs --version X.Y.Z --commit SHA --tree SHA --ci-run ID --security-run ID --publish-run ID --out FILE [--repo OWNER/REPO] [--gh PATH] [--npm PATH]";
 function optionsFrom(args) {
   const options = { repo: "cairnkeep/cairnkeep", gh: "gh", npm: "npm" };
   const keys = new Map([["--version", "version"], ["--commit", "commit"], ["--tree", "tree"], ["--ci-run", "ciRun"],
-    ["--publish-run", "publishRun"], ["--repo", "repo"], ["--gh", "gh"], ["--npm", "npm"], ["--out", "out"]]);
+    ["--security-run", "securityRun"], ["--publish-run", "publishRun"], ["--repo", "repo"], ["--gh", "gh"], ["--npm", "npm"], ["--out", "out"]]);
   const seen = new Set();
   for (let i = 0; i < args.length; i += 2) {
     const key = keys.get(args[i]);

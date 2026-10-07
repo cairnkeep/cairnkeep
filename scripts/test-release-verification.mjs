@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { releaseAttestationArguments, validateReleaseOptions, verifyPublishedRelease } from "./lib/release-verification.mjs";
 
-const options = { repo: "example/project", version: "1.2.3", commit: "a".repeat(40), tree: "b".repeat(40), ciRun: "12", publishRun: "13" };
+const options = { repo: "example/project", version: "1.2.3", commit: "a".repeat(40), tree: "b".repeat(40), ciRun: "12", publishRun: "13", securityRun: "14" };
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 function fixture() {
   const tar = Buffer.from("synthetic-package");
@@ -19,6 +19,7 @@ function fixture() {
   const api = new Map([
     ["actions/runs/12", { conclusion: "success", path: ".github/workflows/ci.yml", head_sha: options.commit }],
     ["actions/runs/13", { conclusion: "success", path: ".github/workflows/publish.yml", head_sha: options.commit, event: "release" }],
+    ["actions/runs/14", { conclusion: "success", path: ".github/workflows/security.yml", head_sha: options.commit }],
     [`git/commits/${options.commit}`, { tree: { sha: options.tree } }],
     ["git/ref/tags/v1.2.3", { object: { type: "commit", sha: options.commit } }],
     ["actions/runs/12/artifacts?per_page=100", { artifacts: [{ id: 5, name: `release-candidate-${options.tree}`, expired: false }] }],
@@ -72,6 +73,9 @@ try {
   for (const [name, mutate] of [
     ["failed CI", f => { f.api.get("actions/runs/12").conclusion = "failure"; }],
     ["wrong CI workflow", f => { f.api.get("actions/runs/12").path = ".github/workflows/other.yml"; }],
+    ["failed security", f => { f.api.get("actions/runs/14").conclusion = "failure"; }],
+    ["wrong security workflow", f => { f.api.get("actions/runs/14").path = ".github/workflows/other.yml"; }],
+    ["different security tree", f => { const sha = "c".repeat(40); f.api.get("actions/runs/14").head_sha = sha; f.api.set(`git/commits/${sha}`, { tree: { sha: "d".repeat(40) } }); }],
     ["different tree", f => { f.api.get(`git/commits/${options.commit}`).tree.sha = "c".repeat(40); }],
     ["different tag", f => { f.api.get("git/ref/tags/v1.2.3").object.sha = "c".repeat(40); }],
     ["expired candidate", f => { f.api.get("actions/runs/12/artifacts?per_page=100").artifacts[0].expired = true; }],
@@ -95,7 +99,7 @@ try {
     const output = join(scratch, "existing.json"); writeFileSync(output, "retained-report\n");
     const command = fileURLToPath(new URL("verify-published-release.mjs", import.meta.url));
     const result = spawnSync(process.execPath, [command, "--version", options.version, "--commit", options.commit,
-      "--tree", options.tree, "--ci-run", options.ciRun, "--publish-run", options.publishRun,
+      "--tree", options.tree, "--ci-run", options.ciRun, "--security-run", options.securityRun, "--publish-run", options.publishRun,
       "--out", output, "--gh", join(scratch, "missing-command")], { encoding: "utf8", timeout: 3000 });
     assert.notEqual(result.status, 0); assert.match(result.stderr, /output already exists/);
     assert.equal(readFileSync(output, "utf8"), "retained-report\n");

@@ -8,7 +8,7 @@ export function validateReleaseOptions(options) {
   requireThat(/^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(options.repo ?? ""), "repository");
   requireThat(/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(options.version ?? ""), "stable version");
   for (const field of ["commit", "tree"]) requireThat(/^[a-f0-9]{40}$/.test(options[field] ?? ""), `exact ${field}`);
-  for (const field of ["ciRun", "publishRun"]) requireThat(/^[1-9][0-9]*$/.test(options[field] ?? ""), field);
+  for (const field of ["ciRun", "securityRun", "publishRun"]) requireThat(/^[1-9][0-9]*$/.test(options[field] ?? ""), field);
 }
 
 export function releaseAttestationArguments(image, digest, options) {
@@ -61,6 +61,9 @@ export async function verifyPublishedRelease(options, io) {
   requireThat(ci.conclusion === "success" && ci.path === ".github/workflows/ci.yml", "successful maintained CI");
   requireThat((await api(`git/commits/${ci.head_sha}`)).tree?.sha === options.tree, "tested tree");
   requireThat((await api(`git/commits/${options.commit}`)).tree?.sha === options.tree, "release tree");
+  const security = await api(`actions/runs/${options.securityRun}`);
+  requireThat(security.conclusion === "success" && security.path === ".github/workflows/security.yml", "successful maintained security workflow");
+  requireThat((await api(`git/commits/${security.head_sha}`)).tree?.sha === options.tree, "security-tested tree");
   let tag = (await api(`git/ref/tags/v${options.version}`)).object;
   for (let depth = 0; tag?.type === "tag" && depth < 4; depth++) tag = (await api(`git/tags/${tag.sha}`)).object;
   requireThat(tag?.type === "commit" && tag.sha === options.commit, "immutable tag source");

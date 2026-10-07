@@ -76,7 +76,8 @@ publication workflow succeeds:
 ```sh
 node scripts/verify-published-release.mjs \
   --version X.Y.Z --commit RELEASE_COMMIT --tree RELEASE_TREE \
-  --ci-run SUCCESSFUL_CI_RUN --publish-run SUCCESSFUL_PUBLISH_RUN \
+  --ci-run SUCCESSFUL_CI_RUN --security-run SUCCESSFUL_SECURITY_RUN \
+  --publish-run SUCCESSFUL_PUBLISH_RUN \
   --out /private/evidence/release-verification.json
 ```
 
@@ -92,7 +93,7 @@ npm supporting registry-signature and provenance verification. Use `--gh PATH`
 or `--npm PATH` for explicit tool selection; stale trust data or unsupported
 flags fail closed rather than skipping a check. No runtime dependency is added.
 
-The tool checks successful maintained CI and publication workflows, immutable
+The tool checks successful maintained CI, security and publication workflows, immutable
 tag/commit/tree binding, retained CI candidate checksums and exact release-asset
 bytes, CycloneDX 1.6, registry bytes/integrity, npm signatures/attestations, both
 anonymous OCI architectures, per-architecture bound SPDX documents and signed
