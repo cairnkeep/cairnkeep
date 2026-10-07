@@ -44,6 +44,7 @@ export const smokeChecks = Object.freeze([
   check("eval-schema", 3, node("smoke-eval-schema.mjs")),
   check("eval-process", 15, node("smoke-eval-process.mjs")),
   check("eval-statistics", 1, node("smoke-eval-statistics.mjs")),
+  check("eval-protocol", 2, node("smoke-eval-protocol.mjs")),
   check("skill-lifecycle", 185, node("smoke-skill-lifecycle.mjs")),
   check("graph-cli", 3, node("smoke-graph-cli.mjs")),
   check("mcp-trust", 10, node("smoke-mcp-trust.mjs")),

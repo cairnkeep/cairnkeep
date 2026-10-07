@@ -55,7 +55,7 @@ Usage:
   cairn mcp-tools <list|status|set|reset>
   cairn pack <init|lock|validate|install|list|show|remove|enable|disable|update|skills|approve-skill|revoke-skill>
   cairn notes <distill|search-error|promote|doctor>
-  cairn eval <validate|run|ablate|report|prune|delete>
+  cairn eval <validate|run|ablate|report|prune|delete|protocol>
   cairn skill <harvest|list|show|review|propose|evaluate|apply|rollback>
   cairn graph <build|query|status|diff|explain|path>
   cairn evidence <list|show|delete|prune|doctor>

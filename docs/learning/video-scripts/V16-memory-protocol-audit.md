@@ -1,0 +1,24 @@
+# V16 supplement — Show the tool call, not the claim
+
+Target length: 4–6 minutes. Experienced-developer audience. Record from the
+feature build containing `cairn eval protocol`; do not present it as available
+in v2.21.1. Use only committed synthetic controls, never private transcripts.
+
+1. Split the terminal: show `protocol-narration.json` beside its audit. Type the
+   command from the memory protocol guide at human speed. Pause two seconds
+   on `project_search_absent` and exit `1`: narration is not execution.
+2. Switch to `protocol-project-search.json`. Highlight the correlated IDs and
+   project scope. Run the audit and pause on the separate checks. Zero hits is
+   acceptable; it is not a reason to keep widening the query.
+3. Show the four exit states. Default-off exit `0` is not a successful audit.
+   Incomplete capture, failed retrieval and opaque shell commands yield
+   inconclusive observations, not a fabricated perfect score.
+4. Zoom into digests and counts, then back to the input: the report omits
+   private content. A digest authenticates neither a publisher nor human
+   approval. `--capture-authorized` is an assertion, not a bypass button.
+5. End on the independent verifier, not a green audit. This parser lab does not
+   prove a better model, correct code, full playbook compliance or superiority
+   over a baseline.
+
+Vary framing between input, IDs and report codes. Leave breathing room after
+failures and caveats; do not accelerate terminal footage to match speech.

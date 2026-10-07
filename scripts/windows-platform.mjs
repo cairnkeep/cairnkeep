@@ -736,7 +736,8 @@ export function powershellCompletion() {
   $pack = 'init','lock','validate','install','import-okf','validate-okf','export-okf','list','show','remove','enable','disable','update','skills','approve-skill','revoke-skill','doctor','--repair','--project','--project-id','--json'
   $proposals = 'create','list','show','apply','doctor','--session','--scope','--model','--category','--project','--json'
   $security = 'doctor','--project','--json'
-  $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+playbook(?:\\s|$)') { $playbook } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+pack(?:\\s|$)') { $pack } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+proposals(?:\\s|$)') { $proposals } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+security(?:\\s|$)') { $security } else { $commands }
+  $evaluation = 'validate','run','ablate','report','prune','delete','protocol','--task-set','--adapter','--output','--repetitions','--seed','--yes','--json','--disable','--experiment','--older-than-days','--dry-run','--trajectory','--capture-authorized'
+  $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+playbook(?:\\s|$)') { $playbook } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+pack(?:\\s|$)') { $pack } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+proposals(?:\\s|$)') { $proposals } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+security(?:\\s|$)') { $security } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+eval(?:\\s|$)') { $evaluation } else { $commands }
   $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
     [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
   }

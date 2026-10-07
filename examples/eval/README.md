@@ -1,5 +1,10 @@
 # Offline evaluation fixture
 
+The separate `protocol-project-search.json` and `protocol-narration.json`
+controls exercise `cairn eval protocol`, without running an adapter. See the
+[memory protocol guide](../../docs/agent-memory-protocol.md). These synthetic
+controls demonstrate parser behavior, not live model quality.
+
 This directory contains Cairnkeep's deterministic, network-free evaluation
 population. It validates the evaluation framework; its designed differences are
 not performance, efficiency, quality, or live-product evidence.

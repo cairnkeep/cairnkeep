@@ -31,6 +31,7 @@ been rehearsed.
 | Typed memory nodes, filters, address spaces, and structured import | L14 | L14 | Brief; default off |
 | Managed eight-capability contract and payload-free callbacks | L15 | L15-L16 | Brief; default off |
 | Deterministic two-pass evaluation and one-capability ablation | L16 | L16 | Brief; default off |
+| Offline direct-memory protocol audit and narration negative controls | L16 | V16 supplement | Default off; normalized Claude Code/OpenCode/Pi trajectories only; not task-quality evidence |
 | Shell completion | L02 | L02 | Ready; optional convenience |
 | Bounded meta-agent configuration loop | L17 | None | Design-only; not shipped |
 | Reviewed, evaluated, reversible skill-file improvement | L19 | L19 | Ready; explicit and default off |

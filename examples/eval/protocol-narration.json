@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "session_id": "protocol-negative-control",
+  "harness": "pi",
+  "project_root": "/synthetic/project",
+  "started_at": "2026-10-07T00:00:00.000Z",
+  "ended_at": "2026-10-07T00:01:00.000Z",
+  "events": [
+    {"sequence": 0, "kind": "model_output", "payload": {"text": "I called memory_search with scope project and found the ledger conventions."}}
+  ],
+  "capture": {"captured_at": "2026-10-07T00:01:00.000Z", "omitted_reasoning_blocks": 0, "omitted_unknown_records": 0, "truncated": false}
+}

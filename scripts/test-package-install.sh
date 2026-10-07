@@ -76,6 +76,17 @@ cmp -s "$tmp/source-eval-disabled.json" "$tmp/installed-eval-disabled.json" || \
   fail "source and installed disabled eval identity differ"
 [[ ! -e "$tmp/installed-unwritten-output" ]] || fail "installed disabled eval created output"
 
+CAIRN_EVAL=1 cairn eval protocol \
+  --trajectory "$installed_root/examples/eval/protocol-project-search.json" --json >"$tmp/protocol-pass.json"
+node -e 'const v=require(process.argv[1]);if(v.status!=="pass"||v.evidence_scope!=="local-trajectory-observation")process.exit(1)' "$tmp/protocol-pass.json" \
+  || fail "installed memory protocol positive control failed"
+set +e
+CAIRN_EVAL=1 cairn eval protocol \
+  --trajectory "$installed_root/examples/eval/protocol-narration.json" --json >"$tmp/protocol-fail.json"
+protocol_status=$?
+set -e
+[[ "$protocol_status" -eq 1 ]] || fail "installed memory protocol counted narration as evidence"
+
 for required in \
   schemas/capability-contract.schema.json \
   schemas/capability-callback.schema.json \
@@ -159,11 +170,14 @@ for required in \
   mcp-memory-server/dist/eval-report.js \
   mcp-memory-server/dist/eval-runner.js \
   mcp-memory-server/dist/eval-cli.js \
+  mcp-memory-server/dist/eval-protocol.js \
   scripts/fake-eval-adapter.mjs \
   examples/eval/task-set.json \
   examples/eval/bundled-fake.json \
   examples/eval/adapter.json \
   examples/eval/ecosystem-decisions.json \
+  examples/eval/protocol-project-search.json \
+  examples/eval/protocol-narration.json \
   examples/eval/README.md
 do
   [[ -f "$installed_root/$required" ]] || fail "npm tarball omitted $required"
@@ -183,13 +197,15 @@ for asset in \
   examples/eval/bundled-fake.json \
   examples/eval/adapter.json \
   examples/eval/ecosystem-decisions.json \
+  examples/eval/protocol-project-search.json \
+  examples/eval/protocol-narration.json \
   examples/eval/README.md
 do
   [[ ! -x "$installed_root/$asset" ]] || \
     fail "installed public eval data asset is unexpectedly executable: $asset"
 done
 eval_assets=$(cd "$installed_root/examples/eval" && find . -type f -print | LC_ALL=C sort)
-[[ "$eval_assets" == $'./README.md\n./adapter.json\n./bundled-fake.json\n./ecosystem-decisions.json\n./task-set.json' ]] || \
+[[ "$eval_assets" == $'./README.md\n./adapter.json\n./bundled-fake.json\n./ecosystem-decisions.json\n./protocol-narration.json\n./protocol-project-search.json\n./task-set.json' ]] || \
   fail "installed eval examples contain an unexpected path"
 
 node - "$installed_root/examples/eval/adapter.json" <<'NODE'

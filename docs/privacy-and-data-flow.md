@@ -172,6 +172,15 @@ file, so the diagnostic and runtime use the same precedence.
 
 ## Evaluation adapter and report flow
 
+`cairn eval protocol` is a separate read-only audit of an explicitly supplied
+normalized trajectory export. With evaluation disabled it does not read that
+file. When enabled it performs bounded local reads only: no adapter, command
+execution, network, database, or persistent report. Output is limited to fixed
+codes, counts, harness identity, input/policy digests and limitations. Exports
+can contain private content even after redaction; keep them local. See the
+[memory protocol guide](agent-memory-protocol.md). A capture-authorization flag
+is the caller's assertion, not authenticated consent.
+
 `CAIRN_EVAL` is unset/off by default. With it off, `cairn eval` returns a fixed
 disabled result before task-set or adapter reads, workspace/report creation,
 database access, subprocess execution, or network activity. A credential in
