@@ -5,6 +5,14 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### CI
+
+- Restrict publication token permissions to the preparation, npm and container
+  jobs that need them. Read-only workflow defaults and parsed-YAML positive/
+  mutation controls reject unnecessary authority and missing provenance grants.
+  Update maintainer guidance and the security learning/video supplement; no
+  runtime package or deployed configuration change is required.
+
 ## [2.22.0] - 2026-10-07
 
 ### Added

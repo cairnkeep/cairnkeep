@@ -69,8 +69,18 @@ npm --prefix mcp-memory-server run check:security-assurance
 npm --prefix mcp-memory-server run check:http-guard
 ```
 
-The baseline rejects unpinned external Actions and `pull_request_target`. The
-smoke tests cover token non-disclosure, request bounds, and deterministic
+The baseline rejects unpinned external Actions, `pull_request_target` and
+workflow-wide write permissions. It also checks the exact preparation/npm/OCI
+job permission maps, including missing provenance grants and unnecessary write
+authority. Inspect `.github/workflows/publish.yml` and compare its maps with
+[Releasing](../../releasing.md): preparation must not inherit publishing or
+signing authority. Unspecified entries in an explicit job map are denied.
+
+These are static contract checks, not a live publication test. The npm secret
+is a separate credential, and steps within one job share its token authority.
+Do not republish an immutable version to demonstrate the test.
+
+The smoke tests cover token non-disclosure, request bounds, and deterministic
 portable-path adversarial cases.
 
 ## Common failures
