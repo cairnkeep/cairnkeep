@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.21.1
+**Baseline:** Cairnkeep 2.22.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -31,9 +31,10 @@ Version 2.21 adds the formal threat model, a read-only local security posture
 check, portable-path adversarial coverage, bounded HTTP requests, and repository
 supply-chain gates; see [L28](lessons/L28-security-assurance.md).
 
-The L16 memory-protocol supplement covers an **unreleased source feature**,
-including native Codex exec exports. It is not included in the published
-v2.21.1 baseline. Use the feature build for that supplement.
+Version 2.22 adds the default-off direct-memory protocol audit, including
+explicit native Codex exec exports. See the L16 memory-protocol supplement;
+protocol observations and independently verified task correctness remain
+separate evidence, not a claim of model improvement.
 
 ## The three-layer model
 

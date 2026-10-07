@@ -1,6 +1,6 @@
 # Audit actual memory use
 
-**Availability:** Unreleased source feature; not included in published v2.21.1.
+**Availability:** Cairnkeep 2.22.0 or newer; default off.
 
 `cairn eval protocol` observes structured calls in an existing normalized
 trajectory or an explicitly supplied Codex exec JSONL export. It checks project-scoped retrieval ordering, interpretable search
