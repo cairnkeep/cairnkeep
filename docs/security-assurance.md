@@ -47,6 +47,8 @@ be enabled and evaluated independently.
 | Traversal, alternate separators, drive paths, ADS, forbidden Windows characters/device aliases, invalid Unicode, or case collisions in portable data | One cross-platform path validator is used by context packs, OKF, artifacts, and evaluations; deterministic adversarial cases run in the smoke suite | Filesystems can have additional locale- or mount-specific semantics; containment checks remain required at every write |
 | Symlink or special-file substitution | Canonical roots, non-symlink regular-file checks, atomic replacement, and existing symlink/race regression tests | A hostile process running as the same account can race or replace resources outside Cairnkeep's process boundary |
 | Replaced or growing private pack state between inspection and use | One descriptor for metadata and bounded content reads; name/parent identity rechecks, private ownership and encoding validation; deterministic replacement/denial controls | Concurrent legitimate replacement can require retry; these checks are not per-user ACLs or a defense against an account with full local control |
+| Replaced capability configuration, skill state or work evidence | Inspected/opened file identity agreement, bounded descriptor reads, metadata/name/parent rechecks and strict UTF-8; private ledgers retain owner/ACL checks while ordinary project files retain their modes | Concurrent legitimate writes can require retry; this does not make skill mutation transactional against another same-account writer |
+| Crafted failure messages exhausting regex parsing | Delimited source-path parsing without ambiguous repeated path groups; timeout-isolated adversarial controls and byte-equivalent legacy v1 fixtures | This is targeted parser regression coverage, not a general input sandbox or coverage-guided fuzzing campaign |
 | Concurrent context-pack project pointer updates | Exclusive directory locks, bounded Windows contention retries, unsafe-lock rejection, injected denial controls and native cross-process exclusion tests | A persistent lock can block progress; recovery never infers abandonment or steals the lock |
 | Unauthenticated or rebound HTTP access | HTTP refuses to start without a token, compares it in constant time, validates `Host`, denies CORS by default, and bounds headers, request time, keep-alive time, and bodies to 8 MiB | Bearer tokens are not user identities; deploy TLS at the ingress for non-loopback traffic |
 | Excessive MCP authority | Explicit MCP annotations, restrictive profiles, capability intersection, and separate HTTP consent for sensitive optional tools | The default profile remains `full` for compatibility; operators should choose `read-only` or `custom` for observation-only clients |
@@ -140,3 +142,20 @@ The native-Windows matrix runs the CLI, package, and global-install contracts on
 Node 22, 24, and 26. It deterministically partitions the complete memory-server
 smoke catalog across those lanes exactly once; the Linux matrix still runs the
 complete catalog independently on every supported Node version.
+
+The signature smoke check exercises crafted slash-heavy messages in a child
+process with a five-second deadline, plus a deterministic generated corpus.
+The runtime file-read control substitutes valid files after inspection through
+the public capability, skill and work-evidence readers, and separately checks
+growth, special-file substitution, byte limits, encoding and descriptor cleanup.
+It runs as part of `check:security-assurance`; it can also be run directly:
+
+```sh
+node mcp-memory-server/scripts/smoke-note-signatures.mjs
+node mcp-memory-server/scripts/smoke-runtime-file-reads.mjs
+```
+
+Build the server first when testing a source checkout. These regressions do not
+assert that every historical CodeQL/Scorecard alert is fixed. Triage findings
+individually and use a fresh default-branch analysis to confirm alert status;
+never dismiss an uninvestigated finding merely to improve the score.

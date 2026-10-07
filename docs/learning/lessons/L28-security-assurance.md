@@ -68,6 +68,8 @@ scripts/test-security-baseline.sh
 npm --prefix mcp-memory-server run check:security-assurance
 npm --prefix mcp-memory-server run check:http-guard
 node mcp-memory-server/scripts/smoke-context-pack-state.mjs
+node mcp-memory-server/scripts/smoke-note-signatures.mjs
+node mcp-memory-server/scripts/smoke-runtime-file-reads.mjs
 ```
 
 The baseline rejects unpinned external Actions, `pull_request_target` and
@@ -90,6 +92,17 @@ fabricated approvals; growth, unsafe types and non-private state are rejected
 under bounded reads. A resolved review thread or green CodeQL job does not mean
 all historical alerts are fixed: inspect current findings and test the actual
 boundary without dismissing results merely to improve an advisory score.
+
+In a checkout containing the runtime-security follow-up, the signature control
+keeps existing v1 fingerprints byte-equivalent and isolates crafted path inputs
+behind a five-second child-process timeout. The runtime file-read control
+substitutes valid capability configuration, skill targets/ledgers/backups and
+work-evidence records after inspection. Readers reject those replacements,
+bound growth, reject special files without waiting for a writer and close their
+descriptors. Ordinary project configuration may remain `0644`; private evidence
+and approval ledgers still require private ownership/ACLs. Build the server
+before running source-checkout controls. The generated parser corpus is
+reproducible regression coverage, not integrated coverage-guided fuzzing.
 
 ## Common failures
 
