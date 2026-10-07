@@ -116,8 +116,9 @@ try {
     const bounded = '"' + "x".repeat(62) + '"';
     fs.writeFileSync(state, bounded);
     assert.equal(readPrivatePackJson(state, options), "x".repeat(62), "exact size boundary is valid");
-    fs.writeFileSync(state, '{"safe":true}');
-    const approvedSize = fs.statSync(state).size;
+    const approvedContent = '{"safe":true}';
+    fs.writeFileSync(state, approvedContent);
+    const approvedSize = Buffer.byteLength(approvedContent);
     allocations.length = 0;
     growOnRead = true;
     assert.throws(() => readPrivatePackJson(state, options), /changed/);
