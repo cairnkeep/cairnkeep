@@ -1,9 +1,10 @@
-import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { constants, existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { accessSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, join, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { HARNESS_IDS, harnessProjectAssets } from "./harness-registry.mjs";
+import { readStableJson } from "./lib/stable-file.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TEMPLATE_ROOT = join(ROOT, "templates");
@@ -111,45 +112,13 @@ function parsePolicy(value) {
   return deepFreeze(policy);
 }
 
-export function readSetupPolicy(path, options = {}) {
-  const lstat = options.lstat ?? lstatSync;
-  const read = options.readFile ?? readFileSync;
-  let info;
+export function readSetupPolicy(path) {
   try {
-    info = lstat(path);
-  } catch (error) {
-    throw operational("unsafe-policy", `Setup policy could not be read: ${error instanceof Error ? error.message : String(error)}.`);
-  }
-  if (!info.isFile() || info.isSymbolicLink()) throw operational("unsafe-policy", "Setup policy must be a regular file, not a symbolic link or device.");
-  if (info.size > POLICY_LIMIT_BYTES) throw operational("unsafe-policy", "Setup policy exceeds the size limit.");
-  if (process.platform !== "win32" && (info.mode & 0o111) !== 0) throw operational("unsafe-policy", "Setup policy must not be executable.");
-  let descriptor;
-  let bytes;
-  try {
-    if (options.readFile) bytes = read(path);
-    else {
-      descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-      const opened = fstatSync(descriptor);
-      if (!opened.isFile() || opened.dev !== info.dev || opened.ino !== info.ino) throw operational("unsafe-policy", "Setup policy changed during validation.");
-      if (opened.size > POLICY_LIMIT_BYTES || (process.platform !== "win32" && (opened.mode & 0o111) !== 0)) {
-        throw operational("unsafe-policy", "Setup policy type, size, or executable mode is unsafe.");
-      }
-      bytes = read(descriptor);
-    }
+    return parsePolicy(readStableJson(path, { label: "Setup policy", maxBytes: POLICY_LIMIT_BYTES, nonExecutable: true }));
   } catch (error) {
     if (error instanceof SetupInputError) throw error;
-    throw operational("unsafe-policy", `Setup policy could not be opened safely: ${error instanceof Error ? error.message : String(error)}.`);
-  } finally {
-    if (descriptor !== undefined) closeSync(descriptor);
+    throw operational("unsafe-policy", error instanceof Error ? error.message : "Setup policy is unsafe or unreadable.");
   }
-  if (bytes.byteLength > POLICY_LIMIT_BYTES) throw operational("unsafe-policy", "Setup policy exceeds the size limit.");
-  let parsed;
-  try {
-    parsed = JSON.parse(bytes.toString("utf8"));
-  } catch {
-    throw operational("unsafe-policy", "Invalid setup policy JSON syntax.");
-  }
-  return parsePolicy(parsed);
 }
 
 function parseHarnesses(raw) {

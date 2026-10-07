@@ -110,7 +110,14 @@ done
   exit 1
 }
 cat "$tmp/write.out"
-"$ENGINE" exec "$name" node /usr/local/lib/cairnkeep/container-healthcheck.mjs
+# Exec probes see the original container environment, not the entrypoint's
+# loaded secret. The deliberately public bind fixture must be rejected.
+if "$ENGINE" exec "$name" node /usr/local/lib/cairnkeep/container-healthcheck.mjs; then
+  echo "FAIL: healthcheck accepted a non-private token file" >&2
+  exit 1
+fi
+# Exercise the same legacy entrypoint against a private, container-owned file.
+"$ENGINE" exec "$name" sh -c 'umask 077; cat /run/secrets/http-token > /tmp/health-token; CAIRN_MEMORY_HTTP_TOKEN_FILE=/tmp/health-token node /usr/local/lib/cairnkeep/container-healthcheck.mjs; status=$?; rm -f /tmp/health-token; exit "$status"'
 "$ENGINE" rm -f "$name" >/dev/null
 
 # Replacement boot with the same volume must recover the canary.

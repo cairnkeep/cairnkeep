@@ -100,6 +100,16 @@ selected asset is a regular file under non-symlinked scaffold directories and
 that POSIX launchers are executable, without adopting or rewriting custom files.
 An empty ownership map is valid when all required assets were already present.
 
+In the security follow-up, policy/state/owned-asset and `AGENTS.md` reads are
+descriptor-bound and capped at 1 MiB. A changed, linked, oversized or invalid
+UTF-8 input fails closed instead of being accepted through a later path read.
+Publication rechecks observed targets and preserves concurrent caller edits
+detected before replacement. Instruction reconciliation retains the original
+file mode; unsafe instruction files are not rewritten. These checks are not an
+all-project transaction or a sandbox against another process using your account.
+Correct the reported input and rerun the printed recovery command; do not
+delete caller-owned files or the ownership record to bypass a failure.
+
 Setup never installs or refreshes machine-level harness assets. Its
 `machine_sync.automatic` field is always false, and the human output labels each
 reported command as not run automatically. The JSON result's

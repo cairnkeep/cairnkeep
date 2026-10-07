@@ -9,7 +9,7 @@ ContainerName=cairnkeep
 Exec=http
 UserNS=keep-id:uid=10001,gid=10001
 Volume=cairnkeep-data.volume:/data:Z
-Secret=cairnkeep-http-token,type=mount,target=http-token
+Secret=cairnkeep-http-token,type=mount,target=http-token,uid=10001,gid=10001,mode=0400
 Environment=MCP_HTTP_HOST=0.0.0.0
 Environment=MCP_HTTP_PORT=7801
 Environment=CAIRN_MEMORY_HTTP_ALLOWED_HOSTS=localhost:7801,127.0.0.1:7801

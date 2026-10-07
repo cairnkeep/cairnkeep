@@ -1,13 +1,8 @@
 import { spawnSync } from "node:child_process";
 import {
-  closeSync,
-  constants,
   existsSync,
-  fstatSync,
   lstatSync,
   mkdirSync,
-  openSync,
-  readFileSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
@@ -25,6 +20,7 @@ import { reconcileSetupPlan } from "./setup-reconcile.mjs";
 import { HARNESS_IDS, HARNESS_REGISTRY, machineSyncCommand, machineSyncCommands, requiredHarnessAssetPaths } from "./harness-registry.mjs";
 import { reconcilePlaybookInstructions } from "./playbook-instructions.mjs";
 import { selectManyPrompt, selectOnePrompt, supportsTerminalPrompts } from "./terminal-prompts.mjs";
+import { readStableFile, readStableJson, readStableText } from "./lib/stable-file.mjs";
 
 const HARNESSES = HARNESS_IDS;
 const GIT_MODES = Object.freeze(["init", "existing", "none"]);
@@ -360,33 +356,14 @@ function safeRequiredAsset(project, path, launcher) {
 }
 
 function readPrivateState(path) {
-  const info = lstatSync(path);
-  if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024) throw new Error("unsafe");
-  if (process.platform !== "win32" && (info.mode & 0o777) !== 0o600) throw new Error("unsafe");
-  let descriptor;
-  try {
-    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-    const opened = fstatSync(descriptor);
-    if (!opened.isFile() || opened.dev !== info.dev || opened.ino !== info.ino || opened.size > 1024 * 1024) throw new Error("unsafe");
-    return JSON.parse(readFileSync(descriptor, "utf8"));
-  } finally {
-    if (descriptor !== undefined) closeSync(descriptor);
-  }
+  return readStableJson(path, { label: "Setup state", maxBytes: 1024 * 1024, privateMode: 0o600 });
 }
 
 function readTomlConfig(path) {
   if (!existsSync(path)) return null;
-  const info = lstatSync(path);
-  if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024) return null;
-  let descriptor;
   try {
-    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-    const opened = fstatSync(descriptor);
-    if (!opened.isFile() || opened.dev !== info.dev || opened.ino !== info.ino || opened.size > 1024 * 1024) return null;
-    return readFileSync(descriptor, "utf8");
-  } finally {
-    if (descriptor !== undefined) closeSync(descriptor);
-  }
+    return readStableText(path, { label: "Harness configuration", maxBytes: 1024 * 1024 }).text;
+  } catch { return null; }
 }
 
 function codexMemorySection(text, id) {
@@ -457,10 +434,9 @@ export function diagnoseSetup(target = ".") {
       if (!safeStateAsset(path, record)) return incompleteDiagnosis(recovery);
       const destination = join(project, ...path.split("/"));
       if (!existsSync(destination)) return incompleteDiagnosis(recovery);
-      const info = lstatSync(destination);
-      if (!info.isFile() || info.isSymbolicLink()) return incompleteDiagnosis(recovery);
-      const digest = createHash("sha256").update(readFileSync(destination)).digest("hex");
-      if (digest !== record.digest || (process.platform !== "win32" && (info.mode & 0o777) !== record.mode)) return incompleteDiagnosis(recovery);
+      const current = readStableFile(destination, { label: "Setup asset", maxBytes: 1024 * 1024 });
+      const digest = createHash("sha256").update(current.bytes).digest("hex");
+      if (digest !== record.digest || (process.platform !== "win32" && (current.stat.mode & 0o777) !== record.mode)) return incompleteDiagnosis(recovery);
     }
     const requiredAssets = [...COMMON_SETUP_ASSETS, ...requiredHarnessAssetPaths(state.harnesses, state.memory)];
     const launchers = new Set(state.harnesses.map((id) => HARNESS_REGISTRY.find((harness) => harness.id === id).launcher.path));

@@ -683,6 +683,12 @@ skill readable; Cairnkeep never copies it into a harness or executes it.
 - The OpenViking adapter is query-only. It sends the requested workspace target
   and query to the configured endpoint, but performs no synchronization, watch,
   commit, update, or deletion. Non-loopback endpoints must use HTTPS.
+- In the query security follow-up, AnythingLLM and OpenViking do not follow
+  redirects, bound response bytes and suppress provider error bodies and raw
+  network/stream diagnostics. Successful requests still send the selected
+  query to the configured provider. AnythingLLM retains remote HTTP support
+  for compatibility; choose HTTPS outside loopback. Synchronization scripts
+  have their own authority and do not inherit query-only guarantees.
 
 Pack digests and proposal digests protect integrity and stale-state detection;
 they do not authenticate a publisher or make extracted statements true.

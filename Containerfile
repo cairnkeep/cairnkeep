@@ -28,8 +28,10 @@ RUN apt-get update \
 
 COPY --from=build --chown=cairn:cairn /out/ /opt/cairnkeep/
 COPY --chmod=755 containers/entrypoint.sh /usr/local/bin/cairn-container-entrypoint
-COPY --chmod=644 containers/healthcheck.mjs /usr/local/lib/cairnkeep/container-healthcheck.mjs
-RUN ln -s /opt/cairnkeep/bin/cairn /usr/local/bin/cairn
+COPY --chmod=644 containers/healthcheck.mjs /opt/cairnkeep/containers/healthcheck.mjs
+RUN mkdir -p /usr/local/lib/cairnkeep \
+    && ln -s /opt/cairnkeep/containers/healthcheck.mjs /usr/local/lib/cairnkeep/container-healthcheck.mjs \
+    && ln -s /opt/cairnkeep/bin/cairn /usr/local/bin/cairn
 
 ENV HOME=/home/cairn \
     CAIRN_AGENTFS_BASE_DIR=/data/scopes \

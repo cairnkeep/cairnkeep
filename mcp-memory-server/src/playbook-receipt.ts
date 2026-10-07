@@ -1,11 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
-import { constants, existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { link, lstat, mkdir, open, realpath, rm } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { z } from "zod";
 
 import { hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
 import { playbookProjectIdentity, resolvePlaybookStatus } from "./playbook.js";
+import { readStableJson } from "./stable-file.js";
 import {
     PLAYBOOK_SCHEMA_VERSION,
     playbookActionIdSchema,
@@ -95,21 +96,7 @@ async function ensureStore(projectRoot: string): Promise<string> {
 }
 
 async function safeRead(path: string): Promise<PlaybookReceipt> {
-    const info = await lstat(path);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_RECEIPT_BYTES || !privatePathIsSafe(path)) {
-        throw new Error("Unsafe playbook receipt.");
-    }
-    let handle;
-    try {
-        handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-        const opened = await handle.stat();
-        if (!opened.isFile() || opened.size > MAX_RECEIPT_BYTES || opened.dev !== info.dev || opened.ino !== info.ino) {
-            throw new Error("Playbook receipt changed during validation.");
-        }
-        return receiptSchema.parse(JSON.parse((await handle.readFile()).toString("utf8")) as unknown);
-    } finally {
-        await handle?.close().catch(() => undefined);
-    }
+    return receiptSchema.parse(readStableJson(path, { label: "Playbook receipt", maxBytes: MAX_RECEIPT_BYTES, private: true }));
 }
 
 async function atomicReceipt(path: string, value: PlaybookReceipt): Promise<boolean> {

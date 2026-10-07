@@ -80,6 +80,18 @@ cairn-container http \
 
 The container always adds its own loopback address for health checks.
 
+The health-check security follow-up validates `MCP_HTTP_PORT` with the server's
+numeric port parser and uses its bounded private token resolver. Invalid
+configuration fails without issuing a request; probes target only
+`127.0.0.1` and refuse redirects. The existing
+`/usr/local/lib/cairnkeep/container-healthcheck.mjs` command remains available
+as an alias to the packaged probe. Stdio mode requires no HTTP probe.
+File-based probes require a private token readable by the container user;
+world-readable secret mounts fail closed. The Quadlet example explicitly mounts
+its secret as UID/GID 10001 with mode `0400`. For other engines, verify the
+effective in-container ownership and mode rather than relying on a secret
+declaration that the engine may not honor.
+
 One HTTP server and bearer token form one trust domain. They are not a
 multi-tenant authorization boundary; see [Memory storage and
 deployment](storage.md).

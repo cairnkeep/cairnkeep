@@ -193,7 +193,7 @@ for phrase in \
 done
 grep -qF '`cairn security` | L28' "$coverage"
 for file in "$l28" "$video28" docs/security-assurance.md; do
-  for phrase in 'smoke-note-signatures.mjs' 'smoke-runtime-file-reads.mjs' 'coverage-guided'; do
+  for phrase in 'smoke-note-signatures.mjs' 'smoke-runtime-file-reads.mjs' 'smoke-bounded-input-reads.mjs' 'smoke-workspace-file-security.mjs' 'smoke-outbound-security.mjs' 'test-runtime-file-security.mjs' 'test-omp-staged-security.mjs' 'test-container-health.mjs' 'coverage-guided'; do
     grep -qF -- "$phrase" "$file" || {
       echo "Security learning document missing runtime regression boundary: $file ($phrase)" >&2
       exit 1

@@ -1,27 +1,32 @@
 import {
   accessSync,
   chmodSync,
+  closeSync,
   copyFileSync,
   cpSync,
   existsSync,
+  fchmodSync,
+  fsyncSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   readdirSync,
   renameSync,
   rmSync,
   statSync,
-  unlinkSync,
   writeFileSync,
   constants as fsConstants,
 } from "node:fs";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { HARNESS_IDS, harnessProjectAssets } from "./harness-registry.mjs";
 import { reconcilePlaybookInstructions, removePlaybookInstructions } from "./playbook-instructions.mjs";
+import { readStableFile, readStableText, readStableJson } from "./lib/stable-file.mjs";
 
 const BOOTSTRAP_FILES = [
   ["env.example.template", ".ai/env.example"],
@@ -78,19 +83,46 @@ function hardenWindowsAcl(path) {
 
 function atomicWrite(path, content, mode = 0o600) {
   mkdirSync(dirname(path), { recursive: true });
-  const temporary = `${path}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(temporary, content, { mode });
-  try { chmodSync(temporary, mode); } catch {}
-  if (mode === 0o600) hardenWindowsAcl(temporary);
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      renameSync(temporary, path);
+  const parent = lstatSync(dirname(path));
+  if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Error("Windows file publication parent is unsafe.");
+  const temporary = `${path}.tmp-${process.pid}-${randomBytes(12).toString("hex")}`;
+  let descriptor;
+  let ownsTemporary = false;
+  try {
+    descriptor = openSync(temporary, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL
+      | (fsConstants.O_NOFOLLOW ?? 0), mode);
+    ownsTemporary = true;
+    writeFileSync(descriptor, content);
+    fchmodSync(descriptor, mode);
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    if (mode === 0o600) hardenWindowsAcl(temporary);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const currentParent = lstatSync(dirname(path));
+      if (!currentParent.isDirectory() || currentParent.isSymbolicLink()
+          || parent.dev !== currentParent.dev || parent.ino !== currentParent.ino) throw new Error("Windows file publication parent changed.");
+      if (existsSync(path)) {
+        const current = lstatSync(path);
+        if (!current.isFile() || current.isSymbolicLink()) throw new Error("Windows file publication target is unsafe.");
+      }
+      try {
+        renameSync(temporary, path);
+      } catch (error) {
+        // Never unlink the live destination to emulate replacement. A denied
+        // or busy file must retain its previous contents on publication failure.
+        if (attempt === 4 || !["EPERM", "EACCES", "EBUSY"].includes(error?.code)) throw error;
+        // Allow transient native sharing violations to settle without deleting
+        // the destination; total backoff is bounded to 250 milliseconds.
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25 * (attempt + 1));
+        continue;
+      }
       if (mode === 0o600) hardenWindowsAcl(path);
       return;
-    } catch (error) {
-      if (attempt === 4) throw error;
-      if (existsSync(path)) unlinkSync(path);
     }
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+    if (ownsTemporary) rmSync(temporary, { force: true });
   }
 }
 
@@ -100,7 +132,7 @@ function installFile(source, destination, mode = 0o644) {
     return false;
   }
   mkdirSync(dirname(destination), { recursive: true });
-  copyFileSync(source, destination);
+  copyFileSync(source, destination, fsConstants.COPYFILE_EXCL);
   try { chmodSync(destination, mode); } catch {}
   if (mode === 0o600) hardenWindowsAcl(destination);
   console.log(`created: ${destination}`);
@@ -323,7 +355,7 @@ function syncFile(source, destination, apply, render = (value) => value) {
 
 function registerClaudeHook(settingsPath, name, command, event, matcher) {
   let settings = {};
-  if (existsSync(settingsPath)) settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+  if (existsSync(settingsPath)) settings = readStableJson(settingsPath, { label: "Harness settings", maxBytes: 1024 * 1024 });
   settings.hooks ??= {};
   settings.hooks[event] = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];
   const already = settings.hooks[event].some((entry) => entry?.hooks?.some((hook) => hook?.command?.includes(name)));
@@ -339,7 +371,7 @@ function registerClaudeHook(settingsPath, name, command, event, matcher) {
 function claudeHookRegistered(settingsPath, name, event) {
   if (!existsSync(settingsPath)) return false;
   try {
-    const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+    const settings = readStableJson(settingsPath, { label: "Harness settings", maxBytes: 1024 * 1024 });
     return Array.isArray(settings.hooks?.[event])
       && settings.hooks[event].some((entry) => entry?.hooks?.some((hook) => hook?.command?.includes(name)));
   } catch { return false; }
@@ -586,13 +618,12 @@ function memoryWindows(args) {
   if (sub === "import") {
     const source = resolve(archive);
     if (!existsSync(source)) throw new Error(`no such archive: ${source}`);
-    if (statSync(source).size > 512 * 1024 * 1024) throw new Error("memory archive exceeds the 512 MiB compressed limit");
-    const files = extractTar(gunzipSync(readFileSync(source), { maxOutputLength: 512 * 1024 * 1024 }));
+    const files = extractTar(gunzipSync(readStableFile(source, { label: "Memory archive", maxBytes: 512 * 1024 * 1024 }).bytes, { maxOutputLength: 512 * 1024 * 1024 }));
     if (!files.length) throw new Error("archive contained no scope .db files");
     mkdirSync(base, { recursive: true });
     for (const [name, content] of files) {
       const destination = join(base, name);
-      if (existsSync(destination)) copyFileSync(destination, `${destination}.bak-pre-import`);
+      if (existsSync(destination)) atomicWrite(`${destination}.bak-pre-import`, readStableFile(destination, { label: "Memory backup source", maxBytes: 512 * 1024 * 1024 }).bytes, 0o600);
       atomicWrite(destination, content, 0o600);
     }
     console.log(`imported ${files.length} scope db file(s) -> ${base}`);
@@ -666,12 +697,12 @@ function uninstallWindows(root, args) {
     const destination = join(backup, "items", String(manifest.length));
     mkdirSync(dirname(destination), { recursive: true });
     if (lstatSync(target).isDirectory()) cpSync(target, destination, { recursive: true, errorOnExist: false });
-    else copyFileSync(target, destination);
+    else writeFileSync(destination, readStableFile(target, { label: "Uninstall backup source", maxBytes: 512 * 1024 * 1024 }).bytes, { flag: "wx", mode: 0o600 });
     manifest.push({ source: join("items", String(manifest.length)), destination: target, directory: lstatSync(target).isDirectory() });
   };
   const settingsPath = join(live, "settings.json");
   if (existsSync(settingsPath)) {
-    const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+    const settings = readStableJson(settingsPath, { label: "Harness settings", maxBytes: 1024 * 1024 });
     let changed = false;
     for (const [event, entries] of Object.entries(settings.hooks ?? {})) {
       if (!Array.isArray(entries)) continue;
@@ -692,9 +723,10 @@ function uninstallWindows(root, args) {
   for (const project of projects) {
     const agents = join(resolve(project), "AGENTS.md");
     if (!existsSync(agents)) continue;
-    const info = lstatSync(agents);
-    if (!info.isFile() || info.isSymbolicLink()) continue;
-    if (!readFileSync(agents, "utf8").includes("<!-- cairnkeep:playbook:v1:start -->")) continue;
+    let text;
+    try { text = readStableText(agents, { label: "AGENTS.md", maxBytes: 1024 * 1024 }).text; }
+    catch { continue; }
+    if (!text.includes("<!-- cairnkeep:playbook:v1:start -->")) continue;
     backupTarget(agents);
     removePlaybookInstructions(resolve(project));
     console.log(`removed Cairnkeep playbook block: ${agents}`);

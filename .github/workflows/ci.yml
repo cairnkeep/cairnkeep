@@ -53,6 +53,9 @@ jobs:
           npm ci
           npm --prefix mcp-memory-server ci
           npm --prefix mcp-memory-server run build
+      - name: Focused bounded runtime input controls
+        shell: pwsh
+        run: node mcp-memory-server/scripts/smoke-bounded-input-reads.mjs
       - name: Native Windows CLI contracts
         shell: pwsh
         run: npm run test:windows

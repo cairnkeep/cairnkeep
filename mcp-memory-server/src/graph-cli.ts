@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 
 import { resolveCapabilityStatus } from "./capability-config.js";
 import { isGraphCapabilityCompatible } from "./capability-registry.js";
+import { readStableFile } from "./stable-file.js";
 
 const INSPECTION_TIMEOUT_MS = 30_000;
 const BUILD_TIMEOUT_MS = 300_000;
@@ -47,13 +48,19 @@ function plural(count: number, singular: string): string {
 }
 
 async function readBoundedFile(path: string, maximumBytes: number): Promise<Buffer> {
-    const info = await lstat(path);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > maximumBytes) {
-        throw new Error("graph artifact is missing, unsafe, or too large.");
+    try {
+        return readStableFile(path, { label: "graph artifact", maxBytes: maximumBytes }).bytes;
+    } catch (error) {
+        // Optional artifacts need a missing-file result, not an unsafe-file
+        // result. This post-failure diagnosis never authorizes another open.
+        try { await lstat(path); }
+        catch (inspectionError) {
+            if ((inspectionError as NodeJS.ErrnoException).code === "ENOENT") {
+                throw Object.assign(new Error("graph artifact not found."), { code: "ENOENT" });
+            }
+        }
+        throw error;
     }
-    const bytes = await readFile(path);
-    if (bytes.byteLength > maximumBytes) throw new Error("graph artifact is too large.");
-    return bytes;
 }
 
 function parseGraph(bytes: Buffer): GraphRecord {
@@ -73,8 +80,12 @@ async function readGraph(path: string): Promise<GraphRecord> {
     try {
         return parseGraph(await readBoundedFile(path, MAX_GRAPH_BYTES));
     } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-            throw new Error("no published graph found; run /graphify build first.");
+        // This check explains a failed read; it never authorizes a later open.
+        try { await lstat(path); }
+        catch (inspectionError) {
+            if ((inspectionError as NodeJS.ErrnoException).code === "ENOENT") {
+                throw new Error("no published graph found; run /graphify build first.");
+            }
         }
         throw error;
     }

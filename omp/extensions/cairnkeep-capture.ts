@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 
 // omp port of the claude/hooks memory-capture + memory-wakeup pair (D-03/D-04,
@@ -25,6 +26,7 @@ import { join } from "node:path";
 // Fail-open everywhere: every guard is a cheap check and every path is
 // try/caught so a throw can never reach the extension runner.
 const CAIRN_ROOT = "@@INFRA_ROOT@@";
+const { readStableText } = createRequire(import.meta.url)(join(CAIRN_ROOT, "scripts", "lib", "stable-file.mjs"));
 const SERVER_ENTRY = join(CAIRN_ROOT, "mcp-memory-server", "dist", "index.js");
 const STAGE_ENTRY = join(CAIRN_ROOT, "scripts", "lib", "omp-capture-stage.mjs");
 
@@ -87,21 +89,36 @@ type StagedCandidate = {
 
 // Bounded staged-candidate scan: the STAGED_MAX_FILES most recent *.json
 // files, each read capped, malformed JSON skipped (fail-open).
-function stagedCandidates(repo: string): StagedCandidate[] {
+function stagedFiles(repo: string): string[] {
+    const planning = join(repo, ".planning");
     const stagingDir = join(repo, ".planning", "memory-staging");
-    if (!existsSync(stagingDir)) return [];
-    const files = readdirSync(stagingDir)
-        .filter((name) => name.endsWith(".json"))
-        .map((name) => ({ name, mtime: statSync(join(stagingDir, name)).mtimeMs }))
-        .sort((a, b) => b.mtime - a.mtime)
+    try {
+        for (const path of [planning, stagingDir]) {
+            const info = lstatSync(path);
+            if (!info.isDirectory() || info.isSymbolicLink()) return [];
+        }
+    } catch { return []; }
+    return readdirSync(stagingDir)
+        .filter((name) => /^[A-Za-z0-9][A-Za-z0-9._-]*\.json$/.test(name))
+        .flatMap((name) => {
+            try {
+                const info = lstatSync(join(stagingDir, name));
+                return info.isFile() && !info.isSymbolicLink() && info.size <= STAGED_FILE_READ_CAP
+                    ? [{ name, mtime: info.mtimeMs }] : [];
+            } catch { return []; }
+        })
+        .sort((a, b) => b.mtime - a.mtime || a.name.localeCompare(b.name, "en"))
         .slice(0, STAGED_MAX_FILES)
         .map(({ name }) => name);
+}
+
+function stagedCandidates(repo: string): StagedCandidate[] {
+    const stagingDir = join(repo, ".planning", "memory-staging");
     const staged: StagedCandidate[] = [];
-    for (const file of files) {
+    for (const file of stagedFiles(repo)) {
         try {
             const path = join(stagingDir, file);
-            if (statSync(path).size > STAGED_FILE_READ_CAP) continue;
-            const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+            const parsed: unknown = JSON.parse(readStableText(path, { label: "Staged candidate", maxBytes: STAGED_FILE_READ_CAP }).text);
             const count = Array.isArray((parsed as { candidates?: unknown })?.candidates)
                 ? ((parsed as { candidates: unknown[] }).candidates.length)
                 : 0;
@@ -197,12 +214,7 @@ export default function cairnCaptureExtension(pi: ExtensionAPI): void {
                     if (ctx.hasUI) ctx.ui.notify("No staged memory candidates (.planning/memory-staging is absent).", "info");
                     return;
                 }
-                const files = readdirSync(stagingDir)
-                    .filter((name) => name.endsWith(".json"))
-                    .map((name) => ({ name, mtime: statSync(join(stagingDir, name)).mtimeMs }))
-                    .sort((a, b) => b.mtime - a.mtime)
-                    .slice(0, STAGED_MAX_FILES)
-                    .map(({ name }) => name);
+                const files = stagedFiles(ctx.cwd);
                 if (files.length === 0) {
                     if (ctx.hasUI) ctx.ui.notify("No staged memory candidates.", "info");
                     return;
@@ -210,7 +222,7 @@ export default function cairnCaptureExtension(pi: ExtensionAPI): void {
                 const sections = files.map((file) => {
                     let body: string;
                     try {
-                        body = readFileSync(join(stagingDir, file), "utf8").slice(0, STAGED_FILE_READ_CAP);
+                        body = readStableText(join(stagingDir, file), { label: "Staged candidate", maxBytes: STAGED_FILE_READ_CAP }).text;
                     } catch {
                         body = "(unreadable)";
                     }

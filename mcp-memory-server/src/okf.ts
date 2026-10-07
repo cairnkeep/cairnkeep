@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, lstatSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 
 import { parseDocument, stringify } from "yaml";
@@ -10,6 +10,7 @@ import { portablePathCollisionKey, portableRelativePathIssue } from "./path-secu
 import { hardenPrivatePath } from "./platform-security.js";
 import { readSharedNoteForExport, type SharedNoteExport } from "./note-store.js";
 import { redactLocalValue } from "./trajectory-redaction.js";
+import { readStableFile } from "./stable-file.js";
 
 const MAX_FILE_BYTES = 1024 * 1024;
 const MAX_ENTRIES = 1024;
@@ -319,9 +320,7 @@ export async function indexOkfBundle(directory: string, selectedPaths?: string[]
         const path = entry.path;
         const absolute = resolve(root, ...entry.raw_path.split("/"));
         if (!contained(root, absolute)) throw new Error(`Unsafe OKF path: ${path}`);
-        const info = lstatSync(absolute);
-        if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_FILE_BYTES) throw new Error(`OKF file is unsafe or too large: ${path}`);
-        const bytes = await readFile(absolute);
+        const { bytes } = readStableFile(absolute, { label: "OKF file", maxBytes: MAX_FILE_BYTES });
         content.set(path, bytes);
         const text = utf8(bytes, path);
         const name = basename(path);
@@ -431,9 +430,7 @@ async function exportMaterial(options: OkfExportOptions): Promise<ExportMaterial
     for (const source of requested) {
         const absolute = resolve(projectRoot, ...source.split("/"));
         if (!contained(projectRoot, absolute)) throw new Error(`Unsafe OKF export source: ${source}`);
-        const sourceInfo = lstatSync(absolute);
-        if (!sourceInfo.isFile() || sourceInfo.isSymbolicLink() || sourceInfo.size > MAX_FILE_BYTES) throw new Error(`OKF export source is unsafe or too large: ${source}`);
-        const bytes = await readFile(absolute);
+        const { bytes } = readStableFile(absolute, { label: "OKF export source", maxBytes: MAX_FILE_BYTES });
         const text = utf8(bytes, source);
         const redacted = redactLocalValue(text, projectRoot);
         replacements += redacted.replacement_count;
