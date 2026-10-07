@@ -3,7 +3,7 @@
 **Status:** Ready
 **Track:** Quickstart and Operator
 **Time:** 35 minutes
-**Tested with:** Cairnkeep 2.22.2; Pi 0.84.1; Node.js 22, 24, and 26
+**Tested with:** Cairnkeep 2.22.3; Pi 0.84.1; Node.js 22, 24, and 26
 
 ## Outcome
 
@@ -53,6 +53,13 @@ Setup performs its classification before it creates `.ai`, `.planning`, or
 records the selected Pi harness in private `.ai/cairnkeep.json`, and reports
 created, updated, unchanged, and skipped assets. Repeating the same `cairn
 setup` command should report the managed files as unchanged.
+
+When an existing project has customized launchers or scaffold files, setup
+preserves and skips them. Its private asset map tracks ownership, not a full
+inventory. Doctor accepts safely present custom files without adopting them,
+but still rejects missing files, links, non-executable POSIX launchers and
+changes to recorded owned assets. Do not replace a custom file just to satisfy
+a generated digest. Diagnosis does not change file contents or ownership.
 
 Project setup never changes the Pi installation. Apply and check machine assets
 explicitly, then diagnose the project again:

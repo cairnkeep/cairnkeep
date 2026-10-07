@@ -5,6 +5,17 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.22.3] - 2026-10-07
+
+### Fixed
+
+- Diagnose preserved custom setup files separately from generated-file
+  ownership. A complete scaffold no longer fails merely because setup skipped
+  caller-owned files or its ownership map is empty. Keep missing/unsafe asset,
+  launcher-executable and recorded digest/mode checks; never adopt, rewrite or
+  remove custom files during diagnosis. Add cross-platform regression controls
+  and clarify operating and guided-setup learning documentation.
+
 ## [2.22.2] - 2026-10-07
 
 ### Security

@@ -76,6 +76,21 @@ try {
   assert.equal(diagnoseSetup(project).status, "complete", "all-custom setup falsely requires owned files");
   assert.deepEqual(JSON.parse(readFileSync(statePath)), unowned);
   assert.equal(existsSync(join(project, ".ai/start-omp.sh")), true);
+
+  const codexProject = join(sandbox, "codex");
+  mkdirSync(codexProject);
+  const codexPlan = buildSetupPlan({
+    target: codexProject,
+    preflight: { targetState: "empty", gitExecutable: "available", repository: "work-tree" },
+    choices: { git: "existing", harnesses: ["codex"], memory: "local", confirmed: true },
+  });
+  const codexResult = await reconcileSetupPlan(codexPlan);
+  const codexState = join(codexProject, ".ai/cairnkeep.json");
+  writeFileSync(codexState, JSON.stringify({ ...codexResult.state, assets: {} }) + "\n");
+  chmodSync(codexState, 0o600);
+  assert.equal(diagnoseSetup(codexProject).status, "complete");
+  writeFileSync(join(codexProject, ".codex/config.toml"), "# Caller-owned but no memory server configured\n");
+  assert.equal(diagnoseSetup(codexProject).status, "incomplete", "empty ownership map bypassed Codex MCP validation");
   console.log("PASS: setup diagnosis preserves custom ownership and rejects missing, unsafe, non-executable and drifted assets");
 } finally {
   rmSync(sandbox, { recursive: true, force: true });
