@@ -5,6 +5,17 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- Add default-off `cairn eval protocol` to audit direct memory tool use in
+  existing normalized Claude Code, OpenCode and Pi trajectories. Reports
+  retrieval ordering, interpretable results and direct mutation attempts with
+  conservative pass/fail/inconclusive states, bounded local reads and
+  payload-free output. Capture authorization is a caller assertion, not an
+  authenticated grant; task quality and indirect shell effects are not certified.
+- Add offline positive/narration controls, packaged CLI verification, shell
+  completions, operating/privacy guidance and the L16/video learning supplement.
+
 ## [2.21.1] - 2026-10-07
 
 ### Fixed

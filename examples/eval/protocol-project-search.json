@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "session_id": "protocol-positive-control",
+  "harness": "pi",
+  "project_root": "/synthetic/project",
+  "started_at": "2026-10-07T00:00:00.000Z",
+  "ended_at": "2026-10-07T00:01:00.000Z",
+  "events": [
+    {"sequence": 0, "kind": "tool_invocation", "payload": {"call_id": "search-1", "tool_name": "memory_search", "input": {"scope": "project", "query": "ledger validation conventions"}}},
+    {"sequence": 1, "kind": "tool_result", "payload": {"call_id": "search-1", "is_error": false, "output": "{\"mode\":\"substring\",\"count\":0,\"results\":[]}"}}
+  ],
+  "capture": {"captured_at": "2026-10-07T00:01:00.000Z", "omitted_reasoning_blocks": 0, "omitted_unknown_records": 0, "truncated": false}
+}

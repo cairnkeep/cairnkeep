@@ -12,8 +12,8 @@ for shell in bash zsh fish; do
 done
 
 capability_ids='memory.write memory.search notes.distill wiki graph security.audit route.check context.explore'
-eval_commands='validate run ablate report prune delete'
-eval_flags='--task-set --adapter --output --repetitions --seed --json --yes --disable --experiment --older-than-days --dry-run'
+eval_commands='validate run ablate report prune delete protocol'
+eval_flags='--task-set --adapter --output --repetitions --seed --json --yes --disable --experiment --older-than-days --dry-run --trajectory --capture-authorized'
 skill_commands='harvest list show review propose evaluate apply rollback'
 for shell in bash zsh fish; do
   grep -q 'capabilities' "$tmp/$shell"
@@ -70,7 +70,7 @@ for shell in bash zsh fish; do
 done
 
 "$ROOT/bin/cairn" help >"$tmp/root-help"
-grep -qF 'cairn eval <validate|run|ablate|report|prune|delete>' "$tmp/root-help"
+grep -qF 'cairn eval <validate|run|ablate|report|prune|delete|protocol>' "$tmp/root-help"
 node "$ROOT/mcp-memory-server/dist/eval-cli.js" --help >"$tmp/eval-help"
 for command in $eval_commands; do
   grep -q "cairn eval $command" "$tmp/eval-help"
@@ -152,6 +152,9 @@ for shell in bash zsh fish; do
   fi
 done
 "$ROOT/bin/cairn" completion powershell >"$tmp/powershell"
+grep -qF "'protocol'" "$tmp/powershell"
+grep -qF "'--trajectory'" "$tmp/powershell"
+grep -qF "'--capture-authorized'" "$tmp/powershell"
 if ! grep -qE "['\"]setup['\"]" "$tmp/powershell"; then
   completion_surface_complete=false
 fi

@@ -1080,6 +1080,13 @@ machine-level drift; setup itself never performs the sync.
 
 ### Evaluation harness (opt-in)
 
+To inspect actual direct memory tool use in an existing normalized trajectory,
+use `CAIRN_EVAL=1 cairn eval protocol --trajectory PATH --json`. This read-only,
+offline audit returns separate pass/fail/inconclusive checks, emits no recorded
+content, and does not measure task quality. See the
+[memory protocol guide](agent-memory-protocol.md) for controls, export privacy,
+supported harnesses, consent assertions and exit codes.
+
 `cairn eval` is a local, serial experiment coordinator. It is disabled unless
 `CAIRN_EVAL` is explicitly truthy. The disabled path returns before reading a
 task set or adapter configuration, creating a workspace or report, opening a

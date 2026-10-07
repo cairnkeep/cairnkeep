@@ -46,6 +46,12 @@ integrations. See [Harness compatibility](harness-compatibility.md) for the
 exact tested surface. Instruction presence is not evidence that an agent
 actually invoked a tool.
 
+For existing Claude Code, OpenCode, and Pi normalized trajectories, the
+default-off [memory protocol audit](agent-memory-protocol.md) distinguishes
+genuine direct calls from narration. It reports ordering, result evidence and
+direct mutation attempts separately; it does not certify task quality or
+indirect shell effects.
+
 ## Memory scopes and authority
 
 Use `scope: project` for task-specific decisions and conventions. Broader

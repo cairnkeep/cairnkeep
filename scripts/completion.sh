@@ -70,7 +70,8 @@ _cairn_complete() {
         report) COMPREPLY=( $(compgen -W "--experiment --json" -- "$current") ) ;;
         prune) COMPREPLY=( $(compgen -W "--older-than-days --dry-run --json" -- "$current") ) ;;
         delete) COMPREPLY=( $(compgen -W "--experiment --dry-run --json" -- "$current") ) ;;
-        *) COMPREPLY=( $(compgen -W "validate run ablate report prune delete" -- "$current") ) ;;
+        protocol) COMPREPLY=( $(compgen -W "--trajectory --capture-authorized --json" -- "$current") ) ;;
+        *) COMPREPLY=( $(compgen -W "validate run ablate report prune delete protocol" -- "$current") ) ;;
       esac
       ;;
     skill) COMPREPLY=( $(compgen -W "harvest list show review propose evaluate apply rollback --project --minimum-occurrences --kind --id --candidate --approve --target --adapter --edit-budget --proposal --exploration-task-set --confirmation-task-set --output --repetitions --seed --minimum-improvement --evaluation --application --confirm --yes --json" -- "$current") ) ;;
@@ -164,7 +165,8 @@ _cairn() {
         report) _arguments '--experiment[experiment ID]:experiment ID:' '--json[emit JSON]' ;;
         prune) _arguments '--older-than-days[retention age]:days:' '--dry-run[report without pruning]' '--json[emit JSON]' ;;
         delete) _arguments '--experiment[experiment ID]:experiment ID:' '--dry-run[report without deleting]' '--json[emit JSON]' ;;
-        *) _values 'eval command' validate run ablate report prune delete ;;
+        protocol) _arguments '--trajectory[normalized trajectory export]:file:_files' '--capture-authorized[assert operator authorization for capture]' '--json[emit JSON]' ;;
+        *) _values 'eval command' validate run ablate report prune delete protocol ;;
       esac
       ;;
     skill)
@@ -272,7 +274,9 @@ complete -c cairn -n "__fish_seen_subcommand_from proposals" -l category -r
 complete -c cairn -n "__fish_seen_subcommand_from proposals" -l project -r
 complete -c cairn -n "__fish_seen_subcommand_from proposals" -l json
 complete -c cairn -n "__fish_seen_subcommand_from notes" -a "distill search-error promote doctor"
-complete -c cairn -n "__fish_seen_subcommand_from eval; and not __fish_seen_subcommand_from validate run ablate report prune delete" -a "validate run ablate report prune delete"
+complete -c cairn -n "__fish_seen_subcommand_from eval; and not __fish_seen_subcommand_from validate run ablate report prune delete protocol" -a "validate run ablate report prune delete protocol"
+complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from protocol" -l trajectory -r
+complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from protocol" -l capture-authorized
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from validate run ablate" -l task-set -r
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from validate run ablate" -l adapter -r
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from validate run ablate" -l output -r
@@ -283,7 +287,7 @@ complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcomma
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from report delete" -l experiment -r
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from prune" -l older-than-days -r
 complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from prune delete" -l dry-run
-complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from validate run ablate report prune delete" -l json
+complete -c cairn -n "__fish_seen_subcommand_from eval; and __fish_seen_subcommand_from validate run ablate report prune delete protocol" -l json
 complete -c cairn -n "__fish_seen_subcommand_from skill; and not __fish_seen_subcommand_from harvest list show review propose evaluate apply rollback" -a "harvest list show review propose evaluate apply rollback"
 complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from harvest list show review propose evaluate apply rollback" -l project -r
 complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcommand_from harvest list show review propose evaluate apply rollback" -l json

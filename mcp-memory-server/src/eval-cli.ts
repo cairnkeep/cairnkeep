@@ -19,20 +19,22 @@ import {
 } from "./eval-runner.js";
 import { canonicalJson, EVAL_SCHEMA_VERSION, type EvalReport } from "./eval-schema.js";
 import { privatePathIsSafe } from "./platform-security.js";
+import { auditMemoryProtocol, readProtocolTrajectory } from "./eval-protocol.js";
 
 process.stdout.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code === "EPIPE") process.exit(0);
     throw error;
 });
 
-const publicCommands = new Set(["validate", "run", "ablate", "report", "prune", "delete"]);
+const publicCommands = new Set(["validate", "run", "ablate", "report", "prune", "delete", "protocol"]);
+const protocolFlags = new Set(["--trajectory", "--capture-authorized", "--json"]);
 const validateFlags = new Set(["--task-set", "--adapter", "--output", "--repetitions", "--seed", "--json"]);
 const runFlags = new Set([...validateFlags, "--yes"]);
 const ablateFlags = new Set([...runFlags, "--disable"]);
 const reportFlags = new Set(["--experiment", "--json"]);
 const pruneFlags = new Set(["--older-than-days", "--dry-run", "--json"]);
 const deleteFlags = new Set(["--experiment", "--dry-run", "--json"]);
-const valueFlags = new Set(["--task-set", "--adapter", "--output", "--repetitions", "--seed", "--disable", "--experiment", "--older-than-days"]);
+const valueFlags = new Set(["--task-set", "--adapter", "--output", "--repetitions", "--seed", "--disable", "--experiment", "--older-than-days", "--trajectory"]);
 const EXPERIMENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const DEFAULT_REPORT_BYTES = 16 * 1024 * 1024;
 const DEFAULT_RETENTION_DAYS = 30;
@@ -50,9 +52,12 @@ Usage:
   cairn eval report --experiment ID [--json]
   cairn eval prune [--older-than-days N] [--dry-run] [--json]
   cairn eval delete --experiment ID [--dry-run] [--json]
+  cairn eval protocol --trajectory PATH [--capture-authorized] [--json]
 
 Evaluation is disabled unless CAIRN_EVAL is explicitly enabled. Live harness
 commands remain operator-owned; validate resolves inputs without executing one.
+Protocol audits existing normalized trajectories offline, without writes or execution.
+Capture authorization is a caller assertion; protocol compliance is not task quality.
 `;
 }
 
@@ -464,6 +469,19 @@ async function main(): Promise<void> {
     const json = args.includes("--json");
     if (!isEvalEnabled()) {
         disabled(json);
+        return;
+    }
+
+    if (command === "protocol") {
+        assertKnown(args, protocolFlags);
+        const loaded = readProtocolTrajectory(requireValue(args, "--trajectory"));
+        const value = auditMemoryProtocol(loaded.session, loaded.digest, args.includes("--capture-authorized"));
+        process.stdout.write(`${json ? JSON.stringify(value) : [
+            `Memory protocol: ${value.status}`,
+            ...value.checks.map(check => `${check.id}: ${check.status} (${check.code})`),
+            "Local evidence only; task quality and authenticated consent are not measured.",
+        ].join("\n")}\n`);
+        process.exitCode = value.status === "fail" ? 1 : value.status === "inconclusive" ? 3 : 0;
         return;
     }
 

@@ -18,6 +18,8 @@ linked guides rather than the project landing page.
 
 - [Cairnkeep for coding agents](agents.md) explains retrieval-first behavior,
   memory authority, playbooks, approvals, and graceful fallback.
+- [Audit actual memory use](agent-memory-protocol.md) distinguishes direct tool
+  evidence from narration without claiming task quality or authenticated consent.
 - [Harness compatibility](harness-compatibility.md) records the exact commands,
   hooks, plugins, launchers, skills, and MCP surfaces available in each client.
 - [MCP tool annotations and least-authority profiles](mcp-tool-profiles.md)

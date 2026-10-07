@@ -19,6 +19,8 @@ report, and explain what a one-capability ablation can and cannot establish.
 - Eligible pairs, missingness, compatible turn semantics, reported token/cost
   fields, bootstrap intervals, and bounded reports.
 - `offline-framework` evidence versus separately validated live evidence.
+- Genuine memory calls versus narrated pseudo-calls; protocol ordering,
+  interpretable results, consent assertions and inconclusive indirect effects.
 - Dry validation, invocation estimates, explicit `--yes`, cancellation, report
   retention, dry-run pruning, and deletion.
 
@@ -51,6 +53,17 @@ after the lab is rehearsed from the packaged CLI rather than a source clone.
 - The learner reports estimates, intervals, missingness, and evidence scope
   without claiming causality, significance, or product improvement.
 - Course cleanup is limited to its temporary contained experiment root.
+- The protocol positive control passes and narration fails; neither is
+  described as live model improvement or task correctness.
+
+## Supplement: memory protocol evidence
+
+Run the two synthetic commands in the
+[memory protocol guide](../../agent-memory-protocol.md). Pause on the negative
+control's exit `1`: saying a tool was used is not evidence of using it. Explain
+why an empty real search can pass retrieval, why incomplete capture or failed
+retrieval is inconclusive, and why shell calls prevent certification of
+indirect memory writes. Never publish a real trajectory export for this lab.
 
 ## Source material
 

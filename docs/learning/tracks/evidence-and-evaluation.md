@@ -20,5 +20,9 @@ reports without making unsupported claims, apply or roll back an exact eligible
 skill proposal, and distinguish that narrow runtime from the design-only
 general meta-agent contract.
 
+L16 also covers the offline memory protocol controls: distinguish direct tool
+events from narration and explain why protocol observations, caller-asserted
+consent and task-quality evidence are separate claims.
+
 Hands-on spine: `course-05-evidence` through `course-07-evaluation` in the
 public [course labs](https://github.com/cairnkeep/cairnkeep-course-labs).
