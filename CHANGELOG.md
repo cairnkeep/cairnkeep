@@ -19,6 +19,13 @@ All notable user-facing changes are documented here. This project follows
   Update security guidance and the learning/video supplement; historical
   analysis findings remain subject to individual triage.
 
+### CI
+
+- Wait for completed OpenCode V2 fixture capture before reading its database,
+  under a bounded event-stream completion deadline. A deterministic delayed
+  completion control rejects the old file-existence readiness assumption;
+  production capture behavior is unchanged.
+
 ## [2.22.3] - 2026-10-07
 
 ### Fixed
