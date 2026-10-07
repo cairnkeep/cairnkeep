@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { constants, existsSync, lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { constants, existsSync, lstatSync, realpathSync, statSync } from "node:fs";
 import {
     chmod, mkdir, mkdtemp, open, readdir, readFile, realpath, rename, rm, stat, writeFile,
 } from "node:fs/promises";
@@ -22,9 +22,10 @@ import {
 } from "./context-pack-retrieval.js";
 import type { ProgressiveContextFileInput } from "./context-pack-retrieval.js";
 import { indexOkfBundle, validateOkfBundle, validatedOkfFileContent, type OkfIndex } from "./okf.js";
-import { atomicReplace, hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
+import { atomicReplace, hardenPrivatePath } from "./platform-security.js";
 import { portablePathCollisionKey, portableRelativePathIssue } from "./path-security.js";
 import { acquireContextPackPointerLock } from "./context-pack-lock.js";
+import { readPrivatePackJson } from "./context-pack-state.js";
 
 const execFileAsync = promisify(execFile);
 export const CONTEXT_PACK_MANIFEST = "context-pack.json";
@@ -117,14 +118,8 @@ function assertUtf8(bytes: Buffer, path: string): string {
 function readPackSource(digest: string): PackSource | undefined {
     const directory = join(packBaseDir(), "sources");
     const path = join(directory, `${digest}.json`);
-    if (!existsSync(path)) return undefined;
-    const directoryInfo = lstatSync(directory);
-    const info = lstatSync(path);
-    if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || !info.isFile() || info.isSymbolicLink()
-        || info.size > 64 * 1024 || !privatePathIsSafe(path)) {
-        throw new Error(`Context pack source record is unsafe: ${digest}`);
-    }
-    const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    const value = readPrivatePackJson(path, { label: "Context pack source record", maxBytes: 64 * 1024, optional: true });
+    if (value === undefined) return undefined;
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`Context pack source record is invalid: ${digest}`);
     const record = value as Record<string, unknown>;
     if (Object.keys(record).some((key) => !["schema_version", "source"].includes(key)) || record.schema_version !== 1
@@ -617,11 +612,8 @@ function parseProjectPointer(value: unknown, expectedId: string): ProjectPointer
 
 export function readProjectPointer(options: ProjectOptions): ProjectPointer {
     const identity = projectIdentity(options);
-    if (!existsSync(identity.path)) return emptyPointer(identity.id);
-    const info = lstatSync(identity.path);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024
-        || !privatePathIsSafe(identity.path)) throw new Error("Context pack project pointer is unsafe.");
-    return parseProjectPointer(JSON.parse(readFileSync(identity.path, "utf8")) as unknown, identity.id);
+    const value = readPrivatePackJson(identity.path, { label: "Context pack project pointer", maxBytes: 1024 * 1024, optional: true });
+    return value === undefined ? emptyPointer(identity.id) : parseProjectPointer(value, identity.id);
 }
 
 async function acquirePointerLock(options: ProjectOptions): Promise<() => Promise<void>> {
@@ -670,14 +662,9 @@ async function allPointers(): Promise<Array<{ path: string; pointer: ProjectPoin
     if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink()) throw new Error("Context pack project pointer directory is unsafe.");
     const result = [];
     for (const entry of await readdir(directory, { withFileTypes: true })) {
-        if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+        if (!entry.name.endsWith(".json")) continue;
         const path = join(directory, entry.name);
-        const info = lstatSync(path);
-        if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024
-            || !privatePathIsSafe(path)) {
-            throw new Error(`Context pack project pointer is unsafe: ${path}`);
-        }
-        const raw = JSON.parse(await readFile(path, "utf8")) as unknown;
+        const raw = readPrivatePackJson(path, { label: "Context pack project pointer", maxBytes: 1024 * 1024 });
         const value = raw as { project_id?: unknown };
         if (typeof value.project_id !== "string") throw new Error("Context pack project pointer is invalid.");
         const pointer = parseProjectPointer(raw, value.project_id);
@@ -1182,13 +1169,13 @@ export async function doctorContextPacks(options: { repair?: boolean } = {}): Pr
             for (const entry of await readdir(graphDirectory, { withFileTypes: true })) {
                 const match = /^([a-f0-9]{64})\.json$/.exec(entry.name);
                 const path = join(graphDirectory, entry.name);
-                if (!entry.isFile() || entry.isSymbolicLink() || !match || lstatSync(path).size > CONTEXT_PACK_MAX_FILE_BYTES || !privatePathIsSafe(path)) {
+                if (!entry.isFile() || entry.isSymbolicLink() || !match) {
                     issues.push(`Invalid context pack graph cache entry: ${entry.name}`);
                     continue;
                 }
                 if (!existsSync(objectRoot(match[1]))) issues.push(`Orphaned context pack graph cache: ${entry.name}`);
                 try {
-                    const cached = JSON.parse(await readFile(path, "utf8")) as Partial<OkfIndex>;
+                    const cached = readPrivatePackJson(path, { label: "Context pack graph cache", maxBytes: CONTEXT_PACK_MAX_FILE_BYTES }) as Partial<OkfIndex>;
                     if (cached.schema_version !== 1 || !Array.isArray(cached.files) || !Array.isArray(cached.diagnostics)) throw new Error("invalid graph cache schema");
                     const expected = expectedGraphs.get(match[1]);
                     if (expected && JSON.stringify(cached) !== expected) throw new Error("graph cache does not match the immutable object");
@@ -1242,8 +1229,8 @@ export async function inspectContextPackUpdate(selector: string, options: { proj
     const pointer = readProjectPointer(options);
     const enabled = pointer.enabled.find((entry) => entry.id === selector || entry.digest === selector || entry.digest.startsWith(selector));
     if (!enabled) throw new Error("Context pack is not enabled for this project.");
-    const sourceRecord = JSON.parse(await readFile(join(packBaseDir(), "sources", `${enabled.digest}.json`), "utf8")) as { source: PackSource };
-    const source = sourceRecord.source;
+    const source = readPackSource(enabled.digest);
+    if (!source) throw new Error("Context pack source record is missing.");
     const current = await validateContextPack(objectRoot(enabled.digest));
     const materialized = await materializeSource(source.kind === "local" ? source.path : source.url, source.kind === "git" ? source.ref : undefined);
     let prepared: Awaited<ReturnType<typeof prepareOkfContextPack>> | undefined;

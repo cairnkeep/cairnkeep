@@ -5,6 +5,20 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.22.2] - 2026-10-07
+
+### Security
+
+- Bind mutable private context-pack pointers, source records and graph-cache
+  reads to one opened descriptor. Reject replacement, non-private ownership,
+  symlink/special-file substitution, growth and invalid encoding under bounded
+  reads; close descriptors on success and failure. Update inspection uses the
+  same strict source-record parser as installation/listing.
+- Add deterministic replacement and denial controls, including fabricated
+  pointer approvals, bounded parsing and descriptor cleanup. Keep schemas,
+  feature gates and approval policy unchanged; update recovery/security and
+  learning guidance. Existing security-analysis findings remain visible.
+
 ## [2.22.1] - 2026-10-07
 
 ### Fixed

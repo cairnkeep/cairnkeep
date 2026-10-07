@@ -51,7 +51,7 @@
         "check:graph-cli": "node scripts/smoke-graph-cli.mjs",
         "check:mcp-trust": "node scripts/smoke-mcp-trust.mjs",
         "check:pi-mcp-bridge": "node scripts/smoke-pi-mcp-bridge.mjs",
-        "check:context-pack": "node scripts/smoke-context-pack-lock.mjs && node scripts/smoke-context-pack.mjs",
+        "check:context-pack": "node scripts/smoke-context-pack-state.mjs && node scripts/smoke-context-pack-lock.mjs && node scripts/smoke-context-pack.mjs",
         "check:context-pack-retrieval": "node scripts/smoke-context-pack-retrieval.mjs",
         "check:context-pack-v216-compat": "node scripts/smoke-context-pack-v216-compat.mjs",
         "check:context-usage": "node scripts/smoke-context-usage.mjs",

@@ -62,6 +62,13 @@ Windows contention/denial and unsafe-lock cases deterministically, then checks
 real cross-process exclusion. Explain bounded retry versus lock stealing; a
 Linux run with injected Windows errors is not native-Windows evidence.
 
+Run `node mcp-memory-server/scripts/smoke-context-pack-state.mjs` next. Explain
+check-then-reopen races with two synthetic pointer files: a valid metadata
+check must not authorize reading a replacement file. Show descriptor-bound
+rejection, bounded growth and cleanup; use no real private pointer/approval
+data. Distinguish resolved old review comments from current analysis findings,
+and do not imply a green CI run certifies an empty security backlog.
+
 Briefly open `.github/workflows/publish.yml` beside the permission table in
 `docs/releasing.md`. Contrast the read-only preparation job with the necessary
 npm and OCI publication grants. Explain that explicit maps deny unspecified
