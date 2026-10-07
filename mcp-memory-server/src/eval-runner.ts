@@ -6,10 +6,10 @@ import {
     lstat,
     mkdtemp,
     mkdir,
-    readFile,
     readdir,
     realpath,
     rm,
+    writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -53,6 +53,7 @@ import {
     type EvalWorkspaceOverlay,
 } from "./eval-workspace.js";
 import { resolveMcpToolProfile } from "./mcp-tool-profile.js";
+import { readStableFile } from "./stable-file.js";
 
 export type NoteSnapshotOutcome = "success" | "no_notes" | "failed" | "skipped";
 
@@ -384,23 +385,26 @@ async function checkpoint(reportStore: EvalReportStore, report: EvalReport): Pro
 
 async function collectSnapshotFiles(root: string): Promise<Array<{ path: string; bytes: Buffer }>> {
     const files: Array<{ path: string; bytes: Buffer }> = [];
+    let totalBytes = 0;
     const walk = async (directory: string): Promise<void> => {
         const entries = await readdir(directory, { withFileTypes: true });
         for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name, "en"))) {
             const absolute = join(directory, entry.name);
-            const info = await lstat(absolute);
-            if (info.isSymbolicLink()) throw new Error("unsafe_note_snapshot");
-            if (info.isDirectory()) {
+            if (entry.isSymbolicLink()) throw new Error("unsafe_note_snapshot");
+            if (entry.isDirectory()) {
+                const info = await lstat(absolute);
+                if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("unsafe_note_snapshot");
                 await walk(absolute);
                 continue;
             }
-            if (!info.isFile()) throw new Error("unsafe_note_snapshot");
-            const bytes = await readFile(absolute);
-            files.push({ path: relative(root, absolute).split(sep).join("/"), bytes });
-            if (files.length > MAX_SNAPSHOT_FILES
-                || files.reduce((total, file) => total + file.bytes.byteLength, 0) > MAX_SNAPSHOT_BYTES) {
+            if (!entry.isFile()) throw new Error("unsafe_note_snapshot");
+            if (files.length >= MAX_SNAPSHOT_FILES) {
                 throw new Error("note_snapshot_limit");
             }
+            const { bytes } = readStableFile(absolute, { label: "Evaluation note snapshot", maxBytes: MAX_SNAPSHOT_BYTES - totalBytes || 1 });
+            files.push({ path: relative(root, absolute).split(sep).join("/"), bytes });
+            totalBytes += bytes.byteLength;
+            if (totalBytes > MAX_SNAPSHOT_BYTES) throw new Error("note_snapshot_limit");
         }
     };
     await walk(root);
@@ -444,7 +448,8 @@ export async function snapshotTaskNotes(options: {
             const destination = resolve(root, file.path);
             if (!isContained(root, destination) || destination === root) throw new Error("unsafe_note_snapshot");
             await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
-            await copyFile(join(sourceRoot, ...file.path.split("/")), destination);
+            // Publish the validated bytes, never reopen the mutable source.
+            await writeFile(destination, file.bytes, { flag: "wx", mode: 0o600 });
             await chmod(destination, 0o400);
             manifest.push({ path: file.path, digest: sha256(file.bytes), bytes: file.bytes.byteLength });
         }

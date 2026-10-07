@@ -12,6 +12,7 @@ export type DomainKnowledgeQuery = {
 };
 
 const OPENVIKING_RESPONSE_LIMIT = 1024 * 1024;
+const ANYTHINGLLM_RESPONSE_LIMIT = 8 * 1024 * 1024;
 const OPENVIKING_DEFAULT_TIMEOUT_MS = 30_000;
 const OPENVIKING_MAX_TIMEOUT_MS = 120_000;
 
@@ -76,16 +77,15 @@ function openVikingTimeout(env: Environment): number {
 }
 
 function openVikingTargetUri(workspace: string): string {
-    if (!workspace.startsWith("viking://")) {
-        return `viking://resources/${encodeURIComponent(workspace)}`;
-    }
+    const target = workspace.startsWith("viking://")
+        ? workspace : `viking://resources/${encodeURIComponent(workspace)}`;
     if (
-        workspace !== "viking://resources"
-        && !/^viking:\/\/resources\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+$/.test(workspace)
+        target !== "viking://resources"
+        && !/^viking:\/\/resources\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+$/.test(target)
     ) {
         throw new Error("OpenViking workspace URI must stay below viking://resources.");
     }
-    const path = workspace.slice("viking://resources".length);
+    const path = target.slice("viking://resources".length);
     let decoded: string;
     try {
         decoded = decodeURIComponent(path);
@@ -95,28 +95,40 @@ function openVikingTargetUri(workspace: string): string {
     if (decoded.split("/").some((segment) => segment === "." || segment === "..")) {
         throw new Error("OpenViking workspace URI must not contain traversal segments.");
     }
-    return workspace;
+    return target;
 }
 
-async function boundedResponseText(response: Response): Promise<string> {
+class ResponseReadError extends Error {}
+
+async function discardResponse(response: Response): Promise<void> {
+    try { await response.body?.cancel(); } catch { /* Cleanup must not leak provider diagnostics. */ }
+}
+
+async function boundedResponseText(response: Response, maximumBytes = OPENVIKING_RESPONSE_LIMIT, label = "OpenViking"): Promise<string> {
     const advertisedLength = Number(response.headers.get("content-length"));
-    if (Number.isFinite(advertisedLength) && advertisedLength > OPENVIKING_RESPONSE_LIMIT) {
-        throw new Error("OpenViking response is too large.");
+    if (Number.isFinite(advertisedLength) && advertisedLength > maximumBytes) {
+        await discardResponse(response);
+        throw new ResponseReadError(`${label} response is too large.`);
     }
     if (!response.body) return "";
 
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
     let length = 0;
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        length += value.byteLength;
-        if (length > OPENVIKING_RESPONSE_LIMIT) {
-            await reader.cancel();
-            throw new Error("OpenViking response is too large.");
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            length += value.byteLength;
+            if (length > maximumBytes) throw new ResponseReadError(`${label} response is too large.`);
+            chunks.push(value);
         }
-        chunks.push(value);
+    } catch (error) {
+        try { await reader.cancel(); } catch { /* Preserve the payload-free failure. */ }
+        if (error instanceof ResponseReadError) throw error;
+        throw new ResponseReadError(`${label} response could not be read or timed out.`);
+    } finally {
+        reader.releaseLock();
     }
     const joined = new Uint8Array(length);
     let offset = 0;
@@ -124,7 +136,8 @@ async function boundedResponseText(response: Response): Promise<string> {
         joined.set(chunk, offset);
         offset += chunk.byteLength;
     }
-    return new TextDecoder("utf-8", { fatal: true }).decode(joined);
+    try { return new TextDecoder("utf-8", { fatal: true }).decode(joined); }
+    catch { throw new ResponseReadError(`${label} response is not valid UTF-8.`); }
 }
 
 async function callAnythingLLM(
@@ -138,25 +151,45 @@ async function callAnythingLLM(
     }
 
     const baseUrl = env.ANYTHINGLLM_BASE_URL ?? "http://localhost:3001";
-    const response = await fetch(`${baseUrl}/api/v1/workspace/${encodeURIComponent(workspace)}/chat`, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            message: query,
-            mode: "query",
-        }),
-        signal: AbortSignal.timeout(120000),
-    });
-
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`AnythingLLM request failed with ${response.status}: ${text}`);
+    let endpoint: URL;
+    try { endpoint = new URL(baseUrl); }
+    catch { throw new Error("AnythingLLM base URL must be a valid HTTP(S) URL."); }
+    if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") throw new Error("AnythingLLM base URL must use HTTP or HTTPS.");
+    if (endpoint.username || endpoint.password) throw new Error("AnythingLLM base URL must not contain embedded credentials.");
+    if (endpoint.search || endpoint.hash) throw new Error("AnythingLLM base URL must not contain a query string or fragment.");
+    if (!workspace || workspace === "." || workspace === "..") throw new Error("AnythingLLM workspace must not be empty or a dot segment.");
+    endpoint.pathname = `${endpoint.pathname.replace(/\/+$/, "")}/api/v1/workspace/${encodeURIComponent(workspace)}/chat`;
+    let response: Response;
+    try {
+        response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                message: query,
+                mode: "query",
+            }),
+            redirect: "manual",
+            signal: AbortSignal.timeout(120000),
+        });
+    } catch {
+        throw new Error("AnythingLLM request failed or timed out.");
     }
 
-    const payload = (await response.json()) as Record<string, unknown>;
+    if (!response.ok) {
+        await discardResponse(response);
+        throw new Error(`AnythingLLM request failed with ${response.status}.`);
+    }
+
+    const text = await boundedResponseText(response, ANYTHINGLLM_RESPONSE_LIMIT, "AnythingLLM");
+    let payload: Record<string, unknown>;
+    try {
+        const parsed: unknown = JSON.parse(text);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+        payload = parsed as Record<string, unknown>;
+    } catch { throw new Error("AnythingLLM response is not a JSON object."); }
     const directText = [
         payload.textResponse,
         payload.response,
@@ -257,6 +290,7 @@ async function callOpenViking(
 
     const endpoint = openVikingEndpoint(env);
     const timeout = openVikingTimeout(env);
+    const targetUri = openVikingTargetUri(workspace);
     const apiKey = (env.CAIRN_OPENVIKING_API_KEY ?? env.OPENVIKING_API_KEY)?.trim();
     let response: Response;
     try {
@@ -268,7 +302,7 @@ async function callOpenViking(
             },
             body: JSON.stringify({
                 query,
-                target_uri: openVikingTargetUri(workspace),
+                target_uri: targetUri,
                 context_type: ["resource"],
                 limit: 10,
             }),
@@ -279,26 +313,23 @@ async function callOpenViking(
         if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
             throw new Error("OpenViking request timed out.");
         }
-        throw new Error(`OpenViking request failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error("OpenViking request failed.");
     }
 
     if (response.status >= 300 && response.status < 400) {
+        await discardResponse(response);
         throw new Error(`OpenViking request refused redirect status ${response.status}.`);
     }
     if (!response.ok) {
+        await discardResponse(response);
         throw new Error(`OpenViking request failed with ${response.status}.`);
     }
     if (!(response.headers.get("content-type") ?? "").toLowerCase().includes("application/json")) {
+        await discardResponse(response);
         throw new Error("OpenViking response is not JSON.");
     }
 
-    let text: string;
-    try {
-        text = await boundedResponseText(response);
-    } catch (error) {
-        if (error instanceof TypeError) throw new Error("OpenViking response is not valid UTF-8.");
-        throw error;
-    }
+    const text = await boundedResponseText(response);
     return JSON.stringify(parseOpenVikingResult(text), null, 2);
 }
 

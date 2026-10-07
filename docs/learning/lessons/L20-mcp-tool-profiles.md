@@ -1,7 +1,7 @@
 # L20 - Least-authority MCP tool profiles
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.22.3 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.22.4 and Node.js 22 or newer
 **Time:** 25 minutes
 
 ## Outcome

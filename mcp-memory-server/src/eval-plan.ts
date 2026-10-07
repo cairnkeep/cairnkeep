@@ -2,12 +2,8 @@ import { spawnSync } from "node:child_process";
 import { constants } from "node:fs";
 import {
     accessSync,
-    closeSync,
     existsSync,
-    fstatSync,
     lstatSync,
-    openSync,
-    readFileSync,
     realpathSync,
 } from "node:fs";
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -23,6 +19,7 @@ import {
     type EvalAdapterConfig,
     type EvalTaskSet,
 } from "./eval-schema.js";
+import { readStableFile } from "./stable-file.js";
 
 const MAX_INPUT_BYTES = 4 * 1024 * 1024;
 const MAX_GIT_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -132,25 +129,14 @@ function assertRealDirectory(path: string, label: string): string {
 
 function readBoundedJson(path: string, label: string): BoundedJson {
     const absolute = resolve(path);
-    const pathInfo = lstatSync(absolute);
-    if (pathInfo.isSymbolicLink() || !pathInfo.isFile()) throw new Error(`${label} must be a regular non-symlink file.`);
-    const flags = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0);
-    const descriptor = openSync(absolute, flags);
-    try {
-        const info = fstatSync(descriptor);
-        if (!info.isFile() || info.size > MAX_INPUT_BYTES) throw new Error(`${label} exceeds the ${MAX_INPUT_BYTES}-byte limit.`);
-        const bytes = readFileSync(descriptor);
-        if (bytes.byteLength > MAX_INPUT_BYTES) throw new Error(`${label} exceeds the ${MAX_INPUT_BYTES}-byte limit.`);
-        let value: unknown;
-        try {
-            value = JSON.parse(bytes.toString("utf8")) as unknown;
-        } catch {
-            throw new Error(`${label} is not valid JSON.`);
-        }
-        return { path: realpathSync(absolute), value, bytes };
-    } finally {
-        closeSync(descriptor);
-    }
+    const { bytes } = readStableFile(absolute, { label, maxBytes: MAX_INPUT_BYTES });
+    let text: string;
+    try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+    catch { throw new Error(`${label} contains invalid UTF-8.`); }
+    let value: unknown;
+    try { value = JSON.parse(text) as unknown; }
+    catch { throw new Error(`${label} is not valid JSON.`); }
+    return { path: realpathSync(absolute), value, bytes };
 }
 
 function git(repository: string, args: string[], label: string): string {

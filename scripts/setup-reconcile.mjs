@@ -1,22 +1,19 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   chmodSync,
-  closeSync,
-  constants,
   existsSync,
-  fstatSync,
   lstatSync,
   mkdirSync,
-  openSync,
-  readFileSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import { open, rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { HARNESS_IDS } from "./harness-registry.mjs";
+import { readStableFile, readStableJson, assertFileUnchanged } from "./lib/stable-file.mjs";
+
+const MAX_SETUP_BYTES = 1024 * 1024;
 
 export const SETUP_STATE_SCHEMA_VERSION = 1;
 
@@ -218,41 +215,37 @@ function hardenPrivatePath(path) {
   if (result.status !== 0) throw new Error("Unable to restrict private setup state.");
 }
 
-async function atomicWrite(path, bytes, mode, atomicReplace = defaultAtomicReplace, privateState = false) {
+async function atomicWrite(path, bytes, mode, atomicReplace = defaultAtomicReplace, privateState = false, expected = null) {
+  const parent = lstatSync(dirname(path));
+  if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Error("Setup publication parent is unsafe.");
   const temporary = join(dirname(path), `.${basename(path)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
   let handle;
+  let ownsTemporary = false;
   try {
     handle = await open(temporary, "wx", mode);
+    ownsTemporary = true;
     await handle.writeFile(bytes);
+    await handle.chmod(mode);
     await handle.sync();
     await handle.close();
     handle = undefined;
-    chmodSync(temporary, mode);
     if (privateState) hardenPrivatePath(temporary);
+    const currentParent = lstatSync(dirname(path));
+    if (!currentParent.isDirectory() || currentParent.isSymbolicLink()
+        || parent.dev !== currentParent.dev || parent.ino !== currentParent.ino) throw new Error("Setup publication parent changed.");
+    if (!readStableFile(temporary, { label: "Setup publication", maxBytes: MAX_SETUP_BYTES }).bytes.equals(bytes)) throw new Error("Setup publication changed.");
+    assertFileUnchanged(path, expected, "Setup target");
     await atomicReplace(temporary, path);
-    chmodSync(path, mode);
     if (privateState) hardenPrivatePath(path);
   } finally {
     if (handle) await handle.close().catch(() => undefined);
-    rmSync(temporary, { force: true });
+    if (ownsTemporary) rmSync(temporary, { force: true });
   }
 }
 
 function readPriorState(statePath) {
   if (!existsSync(statePath)) return null;
-  const info = lstatSync(statePath);
-  if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024) throw new Error("Existing setup state is unsafe.");
-  let descriptor;
-  try {
-    descriptor = openSync(statePath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-    const opened = fstatSync(descriptor);
-    if (!opened.isFile() || opened.dev !== info.dev || opened.ino !== info.ino || opened.size > 1024 * 1024) {
-      throw new Error("Existing setup state changed during validation.");
-    }
-    return normalizeState(JSON.parse(readFileSync(descriptor, "utf8")));
-  } finally {
-    if (descriptor !== undefined) closeSync(descriptor);
-  }
+  return normalizeState(readStableJson(statePath, { label: "Existing setup state", maxBytes: MAX_SETUP_BYTES }));
 }
 
 export async function writeSetupStateAtomic(path, state, options = {}) {
@@ -265,8 +258,13 @@ export async function writeSetupStateAtomic(path, state, options = {}) {
   safeMkdirChain(target, directory);
   hardenPrivatePath(directory);
   const bytes = Buffer.from(`${JSON.stringify(normalized, null, 2)}\n`, "utf8");
-  if (existsSync(path) && readFileSync(path).equals(bytes) && (statSync(path).mode & 0o777) === 0o600) return normalized;
-  await atomicWrite(path, bytes, 0o600, options.atomicReplace ?? defaultAtomicReplace, true);
+  let expected = null;
+  if (existsSync(path)) {
+    const current = readStableFile(path, { label: "Existing setup state", maxBytes: MAX_SETUP_BYTES });
+    if (current.bytes.equals(bytes) && (current.stat.mode & 0o777) === 0o600) return normalized;
+    expected = current.stat;
+  }
+  await atomicWrite(path, bytes, 0o600, options.atomicReplace ?? defaultAtomicReplace, true, expected);
   return normalized;
 }
 
@@ -292,20 +290,19 @@ export async function reconcileSetupPlan(plan, options = {}) {
 
   const decisions = selected.map((asset) => {
     if (!existsSync(asset.destination)) return { ...asset, status: "created" };
-    const currentInfo = lstatSync(asset.destination);
-    if (!currentInfo.isFile() || currentInfo.isSymbolicLink()) throw new Error(`Unsafe setup asset destination: ${asset.path}.`);
-    const currentDigest = hashSetupAsset(readFileSync(asset.destination));
-    const currentMode = currentInfo.mode & 0o777;
+    const current = readStableFile(asset.destination, { label: "Setup asset", maxBytes: MAX_SETUP_BYTES });
+    const currentDigest = hashSetupAsset(current.bytes);
+    const currentMode = current.stat.mode & 0o777;
     if (currentDigest === asset.digest && currentMode === asset.mode) return { ...asset, status: "unchanged" };
     const prior = previousState?.assets?.[asset.path];
-    if (prior && prior.digest === currentDigest && prior.mode === currentMode) return { ...asset, status: "updated" };
+    if (prior && prior.digest === currentDigest && prior.mode === currentMode) return { ...asset, status: "updated", expected: current.stat };
     return { ...asset, status: "skipped" };
   });
 
   for (const decision of decisions) {
     if (decision.status !== "created" && decision.status !== "updated") continue;
     safeMkdirChain(target, dirname(decision.destination));
-    await atomicWrite(decision.destination, decision.bytes, decision.mode, options.atomicReplace ?? defaultAtomicReplace, decision.mode === 0o600);
+    await atomicWrite(decision.destination, decision.bytes, decision.mode, options.atomicReplace ?? defaultAtomicReplace, decision.mode === 0o600, decision.expected ?? null);
   }
 
   const assets = {};

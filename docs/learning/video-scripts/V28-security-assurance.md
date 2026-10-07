@@ -3,6 +3,11 @@
 Target length: 10–12 minutes. Audience: experienced developers operating an
 agent-memory service locally or behind authenticated HTTP.
 
+The source-checkout security follow-up blocks below are optional supplemental
+clips, not part of the original 10–12-minute timing. Record them as a separate
+segment after their branch passes the complete release gates; do not present
+unreleased controls as installed-package behavior.
+
 ## Recording outline
 
 ### 0:00–1:20 — Threat model before tooling
@@ -80,6 +85,34 @@ work-evidence readers. Explain fixed byte bounds and descriptor cleanup, and
 distinguish private ledger permissions from ordinary project-file modes. Do not
 call the generated corpus coverage-guided fuzzing or claim that this patch
 resolves every historical analysis alert. Use only the synthetic fixtures.
+
+In a checkout with the bounded-input follow-up, run
+`node mcp-memory-server/scripts/smoke-bounded-input-reads.mjs`. Zoom into
+valid-file substitution and same-inode growth through evaluation, OKF, graph,
+receipt and cache entry points. Contrast a byte cap checked after allocation
+with a fixed descriptor-read allocation. Show that note snapshots publish the
+validated bytes and rejected derived cache data is rebuilt, while read-only
+doctor never deletes it. Explain that this does not enable a pack or approve a
+skill, make directory-wide publication transactional, or substitute for native
+Windows verification. Keep a pause between the failure and remediation.
+
+For the publication follow-up, show
+`node scripts/test-runtime-file-security.mjs` beside
+`node mcp-memory-server/scripts/smoke-workspace-file-security.mjs`. Pause on the
+concurrent caller edit and denied-replacement controls: the previous content
+must survive. Contrast a direct path write with an exclusive, flushed temporary
+file followed by publication. State that immediate parent/target checks are
+not directory-wide transactions or a same-account sandbox. Native Windows
+verification is still required; POSIX fixture execution is not proof of it.
+
+Run `node scripts/test-omp-staged-security.mjs` and explain the 8 KiB candidate
+bound, symlink exclusion and unchanged agent-review requirement. Then show
+`node mcp-memory-server/scripts/smoke-outbound-security.mjs` and
+`node scripts/test-container-health.mjs`: synthetic provider errors must stay
+out of diagnostics, redirects are refused, response bytes are bounded, and
+the health probe cannot turn an unvalidated port into an outside destination.
+These controls stub network calls; never show real credentials or imply that
+the exercise contacted a provider. Leave a reading pause after each result.
 
 Briefly open `.github/workflows/publish.yml` beside the permission table in
 `docs/releasing.md`. Contrast the read-only preparation job with the necessary

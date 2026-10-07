@@ -125,6 +125,16 @@ access, or background synchronization.
 uses `sqlite3.exe` `.backup` for a consistent snapshot of each live WAL database
 and then writes the same portable `.tgz` format used on Unix.
 
+The archive/publication security follow-up binds compressed input to one
+descriptor with a 512 MiB cap; decompressed tar output is independently capped
+at 512 MiB. Managed writes use exclusive descriptor-written temporary files,
+flush them and recheck the immediate parent/target before publication. Sharing
+violations get bounded retries with at most 250 ms total backoff. A denied
+replacement never unlinks the live destination; its prior contents survive.
+These checks do not make a multi-database import transactional, and a post-write
+ACL failure is not a rollback. Keep the pre-import backup and diagnose the
+failure before retrying.
+
 ## Scheduling and process cleanup
 
 `cairn audit-timer` registers the opt-in `Cairnkeep Memory Audit` task through

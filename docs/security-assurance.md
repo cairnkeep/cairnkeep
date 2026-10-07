@@ -48,6 +48,11 @@ be enabled and evaluated independently.
 | Symlink or special-file substitution | Canonical roots, non-symlink regular-file checks, atomic replacement, and existing symlink/race regression tests | A hostile process running as the same account can race or replace resources outside Cairnkeep's process boundary |
 | Replaced or growing private pack state between inspection and use | One descriptor for metadata and bounded content reads; name/parent identity rechecks, private ownership and encoding validation; deterministic replacement/denial controls | Concurrent legitimate replacement can require retry; these checks are not per-user ACLs or a defense against an account with full local control |
 | Replaced capability configuration, skill state or work evidence | Inspected/opened file identity agreement, bounded descriptor reads, metadata/name/parent rechecks and strict UTF-8; private ledgers retain owner/ACL checks while ordinary project files retain their modes | Concurrent legitimate writes can require retry; this does not make skill mutation transactional against another same-account writer |
+| Replaced or growing evaluation, OKF, graph, receipt or derived-cache inputs | Descriptor-bound byte caps and metadata/name/parent rechecks; snapshots publish the validated bytes, private receipts retain owner/ACL checks, and rejected derived summaries are rebuilt | Concurrent legitimate changes can require retry; this does not make directory traversal, graph publication or snapshot exposure transactional against another same-account writer |
+| Replaced setup policy/state/owned assets or instruction files | Bounded descriptor reads, strict UTF-8, observed-target and immediate-parent rechecks before publication, exclusive temporary files and retained instruction modes | Publication checks are point-in-time, not compare-and-swap or an all-project transaction; same-account processes remain trusted |
+| Symlinked, growing or oversized OMP staged candidates | Real staging directories, portable filenames and independent descriptor reads capped at 8 KiB; unsafe entries are omitted without blocking the session | Candidate contents are untrusted proposals; these checks neither approve them nor automatically write durable memory |
+| Evaluation overlay target substitution or denied Windows replacement | Exclusive descriptor-written temporary files, checked parents/targets, and bounded retries that never unlink live data | Final-check-to-publication races are not eliminated against hostile same-account writers; a successful publication followed by an ACL failure is not a rollback |
+| Redirected provider requests, unbounded responses or provider-error disclosure | Explicit validated endpoints, manual redirects, streaming response caps, body cancellation and payload-free diagnostics; container probes use the server's numeric port and token parsers | External retrieval still sends the selected query to the configured provider; remote AnythingLLM HTTP remains supported for compatibility and requires operator transport review |
 | Crafted failure messages exhausting regex parsing | Delimited source-path parsing without ambiguous repeated path groups; timeout-isolated adversarial controls and byte-equivalent legacy v1 fixtures | This is targeted parser regression coverage, not a general input sandbox or coverage-guided fuzzing campaign |
 | Concurrent context-pack project pointer updates | Exclusive directory locks, bounded Windows contention retries, unsafe-lock rejection, injected denial controls and native cross-process exclusion tests | A persistent lock can block progress; recovery never infers abandonment or steals the lock |
 | Unauthenticated or rebound HTTP access | HTTP refuses to start without a token, compares it in constant time, validates `Host`, denies CORS by default, and bounds headers, request time, keep-alive time, and bodies to 8 MiB | Bearer tokens are not user identities; deploy TLS at the ingress for non-loopback traffic |
@@ -153,9 +158,52 @@ It runs as part of `check:security-assurance`; it can also be run directly:
 ```sh
 node mcp-memory-server/scripts/smoke-note-signatures.mjs
 node mcp-memory-server/scripts/smoke-runtime-file-reads.mjs
+node mcp-memory-server/scripts/smoke-bounded-input-reads.mjs
+node mcp-memory-server/scripts/smoke-workspace-file-security.mjs
+node mcp-memory-server/scripts/smoke-outbound-security.mjs
+node scripts/test-runtime-file-security.mjs
+node scripts/test-omp-staged-security.mjs
+node scripts/test-container-health.mjs
 ```
 
 Build the server first when testing a source checkout. These regressions do not
 assert that every historical CodeQL/Scorecard alert is fixed. Triage findings
 individually and use a fresh default-branch analysis to confirm alert status;
 never dismiss an uninvestigated finding merely to improve the score.
+
+The bounded-input control exercises real evaluation, OKF import/export, graph
+status, receipt and progressive-cache readers. Valid-file substitution and
+same-inode growth are injected at actual inspection/read boundaries; the test
+checks that no unbounded `readFile` allocation follows growth. Evaluation inputs
+retain their exact-byte binding and require UTF-8. Snapshot file/count and total
+byte limits are enforced during collection, and publication uses the retained
+bytes rather than reopening mutable source paths. Private receipt permissions
+remain mandatory. Derived cache failures rebuild from the current visible
+immutable content; read-only cache diagnosis reports issues without deleting
+them. These controls do not grant pack or skill authority, and they do not
+replace the native-Windows and full CI gates.
+
+The setup/OMP/publication follow-up uses the same descriptor-first contract in
+bootstrap JavaScript, without requiring a built server for setup. Setup policy,
+state and owned-asset reads and `AGENTS.md` are capped at 1 MiB. Unrecorded
+caller-owned assets retain the metadata-only diagnosis contract and are not
+adopted or rewritten. POSIX private setup state still requires owner/mode
+checks; Windows writer ACL hardening is unchanged, and bootstrap reads do not
+introduce a new Windows ACL-verification claim. OMP candidates are capped at
+8 KiB, including `/cairn-staged` display; unsafe entries remain invisible.
+
+Workspace controls inject a target symlink at the mutation boundary and check
+that outside content remains untouched. Root controls inject concurrent caller
+edits, denied Windows replacements and colliding temporary names. Publication
+uses exclusive temporaries, descriptor writes and flushes, and rechecks the
+observed target and immediate parent. These are not directory-wide transactions
+or a same-account sandbox. Windows compressed and decompressed archive input
+is capped at 512 MiB; a multi-database import is not one atomic transaction.
+
+Outbound controls stub `fetch` without network access, verify destination and
+redirect authority, and inject oversized bodies and private failure sentinels.
+AnythingLLM successful answers retain their prior field selection and JSON
+fallback; its response cap is 8 MiB. OpenViking retains its 1 MiB cap, explicit
+consents and HTTPS-or-loopback rule. Both reject malformed UTF-8 and suppress
+network/stream diagnostics. Health probes use only `127.0.0.1` with a validated
+port and the existing private token resolver, and never follow redirects.

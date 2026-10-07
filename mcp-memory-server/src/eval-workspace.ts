@@ -1,12 +1,10 @@
-import { createHash } from "node:crypto";
-import { constants, existsSync } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import { closeSync, constants, existsSync, fchmodSync, fsyncSync, linkSync, lstatSync, openSync, renameSync, rmSync, writeFileSync, type Stats } from "node:fs";
 import {
     chmod,
     lstat,
     mkdir,
     mkdtemp,
-    open,
-    readFile,
     realpath,
     writeFile,
 } from "node:fs/promises";
@@ -21,6 +19,7 @@ import {
     type BoundedCommandResult,
     type EvalProcessErrorCode,
 } from "./eval-process.js";
+import { readStableFile, readStableJson } from "./stable-file.js";
 
 type EvalTask = EvalTaskSet["tasks"][number];
 
@@ -137,19 +136,11 @@ async function validateBundledBinding(plan: EvalPlan): Promise<void> {
         throw new Error("bundled_source_mismatch");
     }
     if (canonicalDigest(plan.task_set) !== plan.task_set_digest) throw new Error("task_set_digest_mismatch");
-    let handle;
     let binding: unknown;
     try {
-        handle = await open(plan.source.binding_path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-        const info = await handle.stat();
-        if (!info.isFile() || info.size > BINDING_LIMIT) throw new Error("unsafe_bundled_binding");
-        const bytes = await handle.readFile();
-        if (bytes.byteLength > BINDING_LIMIT) throw new Error("unsafe_bundled_binding");
-        binding = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+        binding = readStableJson(plan.source.binding_path, { label: "Bundled evaluation binding", maxBytes: BINDING_LIMIT });
     } catch {
         throw new Error("invalid_bundled_binding");
-    } finally {
-        await handle?.close().catch(() => undefined);
     }
     if (!binding || typeof binding !== "object" || Array.isArray(binding)) throw new Error("invalid_bundled_binding");
     const record = binding as Record<string, unknown>;
@@ -184,7 +175,10 @@ async function materializeBundledSource(plan: EvalPlan, sourcePath: string): Pro
         await writeFile(destination, Buffer.from(file.content, "utf8"), { flag: "wx", mode: 0o600 });
         const info = await lstat(destination);
         if (info.isSymbolicLink() || !info.isFile()) throw new Error("bundled_path_unsafe");
-        if (!Buffer.from(file.content, "utf8").equals(await readFile(destination))) throw new Error("bundled_source_mismatch");
+        const expected = Buffer.from(file.content, "utf8");
+        if (!expected.equals(readStableFile(destination, { label: "Bundled evaluation source", maxBytes: Math.max(1, expected.byteLength) }).bytes)) {
+            throw new Error("bundled_source_mismatch");
+        }
     }
     if (canonicalDigest(plan.task_set) !== plan.task_set_digest) throw new Error("task_set_digest_mismatch");
 }
@@ -275,17 +269,18 @@ export async function applyEvalWorkspaceOverlay(
     workspace: EvalWorkspace,
     overlay: EvalWorkspaceOverlay,
 ): Promise<void> {
+    const source = await assertPrivateDirectory(workspace.source_path);
     const segments = overlay.relative_path.split("/");
     if (overlay.relative_path.startsWith("/") || overlay.relative_path.endsWith("/")
         || overlay.relative_path.includes("\\") || segments.some((segment) => segment === "" || segment === "." || segment === "..")
         || /[\u0000-\u001f\u007f]/.test(overlay.relative_path)) {
         throw new Error("workspace_overlay_path_invalid");
     }
-    const target = resolve(workspace.source_path, overlay.relative_path);
-    if (!isContained(workspace.source_path, target) || target === workspace.source_path) {
+    const target = resolve(source, overlay.relative_path);
+    if (!isContained(source, target) || target === source) {
         throw new Error("workspace_overlay_path_escape");
     }
-    let cursor = workspace.source_path;
+    let cursor = source;
     for (const segment of segments.slice(0, -1)) {
         cursor = join(cursor, segment);
         try {
@@ -303,15 +298,76 @@ export async function applyEvalWorkspaceOverlay(
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
     const parent = await realpath(dirname(target));
-    const source = await realpath(workspace.source_path);
     if (!isContained(source, parent)) throw new Error("workspace_overlay_parent_escape");
     const bytes = Buffer.from(overlay.content, "utf8");
     const digest = createHash("sha256").update(bytes).digest("hex");
     if (digest !== overlay.digest) throw new Error("workspace_overlay_digest_mismatch");
-    await writeFile(target, bytes, { mode: 0o600 });
-    await chmod(target, 0o600);
-    const storedDigest = createHash("sha256").update(await readFile(target)).digest("hex");
+    publishOverlay(source, target, bytes);
+    const storedDigest = createHash("sha256").update(readStableFile(target, { label: "Evaluation overlay", maxBytes: Math.max(1, bytes.byteLength) }).bytes).digest("hex");
     if (storedDigest !== overlay.digest) throw new Error("workspace_overlay_write_mismatch");
+}
+
+function sameTarget(left: Stats, right: Stats): boolean {
+    return right.isFile() && !right.isSymbolicLink()
+        && left.dev === right.dev && left.ino === right.ino && left.size === right.size
+        && left.mtimeMs === right.mtimeMs && left.ctimeMs === right.ctimeMs && left.mode === right.mode;
+}
+
+function overlayTarget(path: string): Stats | null {
+    try {
+        const info = lstatSync(path);
+        if (!info.isFile() || info.isSymbolicLink()) throw new Error("workspace_overlay_target_unsafe");
+        return info;
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw error;
+    }
+}
+
+function publishOverlay(source: string, target: string, bytes: Buffer): void {
+    const root = lstatSync(source);
+    const parent = lstatSync(dirname(target));
+    const before = overlayTarget(target);
+    const temporary = join(dirname(target), `.cairn-overlay-${process.pid}-${randomBytes(12).toString("hex")}.tmp`);
+    function unchangedBoundary(): void {
+        const rootAfter = lstatSync(source);
+        const parentAfter = lstatSync(dirname(target));
+        if (!rootAfter.isDirectory() || rootAfter.isSymbolicLink()
+            || !parentAfter.isDirectory() || parentAfter.isSymbolicLink()
+            || root.dev !== rootAfter.dev || root.ino !== rootAfter.ino
+            || parent.dev !== parentAfter.dev || parent.ino !== parentAfter.ino) {
+            throw new Error("workspace_overlay_parent_unsafe");
+        }
+    }
+    let descriptor: number | undefined;
+    let ownsTemporary = false;
+    try {
+        unchangedBoundary();
+        descriptor = openSync(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL
+            | (constants.O_NOFOLLOW ?? 0) | (process.platform === "win32" ? 0 : constants.O_NONBLOCK ?? 0), 0o600);
+        ownsTemporary = true;
+        unchangedBoundary();
+        writeFileSync(descriptor, bytes);
+        fchmodSync(descriptor, 0o600);
+        fsyncSync(descriptor);
+        closeSync(descriptor);
+        descriptor = undefined;
+        if (!readStableFile(temporary, { label: "Evaluation overlay temporary", maxBytes: Math.max(1, bytes.byteLength) }).bytes.equals(bytes)) {
+            throw new Error("workspace_overlay_write_mismatch");
+        }
+        unchangedBoundary();
+        const current = overlayTarget(target);
+        if (before ? !current || !sameTarget(before, current) : current !== null) {
+            throw new Error("workspace_overlay_target_changed");
+        }
+        // Atomic rename never follows the destination file. Exclusive linking
+        // also refuses a new destination that appeared after absence was checked.
+        if (before) renameSync(temporary, target);
+        else linkSync(temporary, target);
+    } finally {
+        if (descriptor !== undefined) closeSync(descriptor);
+        if (ownsTemporary) rmSync(temporary, { force: true });
+    }
 }
 
 function verifierReason(code: EvalProcessErrorCode): string {

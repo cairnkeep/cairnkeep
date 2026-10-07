@@ -79,6 +79,7 @@ function writeFakeInfra(sandbox) {
   writeFileSync(stub, STUB_SERVER);
   chmodSync(stub, 0o755);
   copyFileSync(stageWrapper, join(fakeRoot, "scripts", "lib", "omp-capture-stage.mjs"));
+  copyFileSync(join(root, "scripts", "lib", "stable-file.mjs"), join(fakeRoot, "scripts", "lib", "stable-file.mjs"));
   return fakeRoot;
 }
 

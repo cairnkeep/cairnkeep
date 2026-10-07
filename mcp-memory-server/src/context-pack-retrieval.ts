@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { readStableJson } from "./stable-file.js";
 
 export type ContextRetrievalStrategy = "flat" | "hierarchical";
 export type ContextRetrievalDetail = "abstract" | "overview" | "content";
@@ -141,7 +142,7 @@ async function writeCache(path: string, record: CacheRecord): Promise<void> {
         } catch (error) {
             // Concurrent deterministic builders may publish the same record.
             try {
-                await readFile(path);
+                readStableJson(path, { label: "Progressive context cache", maxBytes: CACHE_RECORD_MAX_BYTES });
             } catch {
                 throw error;
             }
@@ -157,7 +158,7 @@ async function enrichPackFiles(files: ProgressiveContextFileInput[], cacheBaseDi
     const cachePath = join(cacheBaseDirectory, packDigest, `${setDigest}.json`);
     let cached: CacheRecord | undefined;
     try {
-        const parsed: unknown = JSON.parse(await readFile(cachePath, "utf8"));
+        const parsed = readStableJson(cachePath, { label: "Progressive context cache", maxBytes: CACHE_RECORD_MAX_BYTES });
         if (validCache(parsed, packDigest, setDigest, files)) cached = parsed;
     } catch {
         // Missing or corrupt derived data is rebuilt deterministically.
@@ -458,20 +459,19 @@ export async function doctorProgressiveContextCache(
         for (const cacheEntry of (await readdir(packPath, { withFileTypes: true })).sort((left, right) => left.name.localeCompare(right.name, "en"))) {
             const cachePath = join(packPath, cacheEntry.name);
             const relative = `cache/context/${packEntry.name}/${cacheEntry.name}`;
-            const cacheInfo = await lstat(cachePath);
             if (cacheEntry.name.endsWith(".tmp")) {
                 temporaryRemnants.push(relative);
                 await removeDerived(cachePath, relative);
                 continue;
             }
             const match = /^([a-f0-9]{64})\.json$/.exec(cacheEntry.name);
-            if (!match || !cacheInfo.isFile() || cacheInfo.isSymbolicLink() || cacheInfo.size > CACHE_RECORD_MAX_BYTES) {
+            if (!match) {
                 issues.push(`Invalid progressive context cache entry: ${relative}`);
                 await removeDerived(cachePath, relative);
                 continue;
             }
             try {
-                const value = JSON.parse(await readFile(cachePath, "utf8")) as unknown;
+                const value = readStableJson(cachePath, { label: "Progressive context cache", maxBytes: CACHE_RECORD_MAX_BYTES });
                 const invalid = validateCacheRecord(value, packEntry.name, match[1], installedFiles);
                 if (invalid) throw new Error(invalid);
             } catch (error) {

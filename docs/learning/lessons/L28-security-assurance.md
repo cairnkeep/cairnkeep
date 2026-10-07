@@ -1,7 +1,7 @@
 # L28 - Verify Cairnkeep's security posture
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.22.3 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.22.4 and Node.js 22 or newer
 
 ## Outcome
 
@@ -11,7 +11,7 @@ and choose least authority for a network-facing MCP client.
 
 ## Prerequisites
 
-- Install Cairnkeep 2.22.3 or use a disposable source checkout.
+- Install Cairnkeep 2.22.4 or use a disposable source checkout.
 - Complete [L20 - Least-authority MCP tool profiles](L20-mcp-tool-profiles.md).
 - Use synthetic values only; never paste a real bearer token into a recording,
   terminal transcript, or issue.
@@ -70,6 +70,12 @@ npm --prefix mcp-memory-server run check:http-guard
 node mcp-memory-server/scripts/smoke-context-pack-state.mjs
 node mcp-memory-server/scripts/smoke-note-signatures.mjs
 node mcp-memory-server/scripts/smoke-runtime-file-reads.mjs
+node mcp-memory-server/scripts/smoke-bounded-input-reads.mjs
+node mcp-memory-server/scripts/smoke-workspace-file-security.mjs
+node mcp-memory-server/scripts/smoke-outbound-security.mjs
+node scripts/test-runtime-file-security.mjs
+node scripts/test-omp-staged-security.mjs
+node scripts/test-container-health.mjs
 ```
 
 The baseline rejects unpinned external Actions, `pull_request_target` and
@@ -103,6 +109,37 @@ descriptors. Ordinary project configuration may remain `0644`; private evidence
 and approval ledgers still require private ownership/ACLs. Build the server
 before running source-checkout controls. The generated parser corpus is
 reproducible regression coverage, not integrated coverage-guided fuzzing.
+
+The bounded-input follow-up extends descriptor-bound reads to evaluation,
+OKF import/export, graph artifacts, private playbook receipts and derived
+progressive-context caches. Compare a replaced valid file with same-inode
+growth: rejecting oversized content after `readFile` has allocated it is not
+a bounded read. Note snapshots publish the bytes that were inspected and
+hashed, not a later reopened file. Unsafe derived caches can be rebuilt from
+immutable content; read-only doctor reports them without deletion. Cache
+rebuilding never changes project enablement or skill approval. This exercise
+does not certify directory-wide transactions against other same-account
+processes.
+
+The publication follow-up extends the exercise to setup, instruction files,
+evaluation overlays and native Windows managed writes. Inspect a concurrent
+caller edit: rechecking the observed target before publication must preserve
+it. A denied Windows replacement must retain the live database, not unlink it
+to retry. A substituted overlay symlink must leave its outside sentinel intact.
+Exclusive descriptor-written temporaries retain modes and clean only their own
+files. These are point-in-time safeguards, not all-project transactions or
+protection against another hostile process using your account. Native Windows
+and container/package verification remain required before shipping.
+
+The OMP control reads only synthetic staged candidates, never invokes a model,
+and shows that linked, growing or over-8-KiB content cannot become wakeup
+evidence or `/cairn-staged` output. It does not approve or persist a candidate.
+The outbound and health controls stub network calls: provider redirects and
+oversized bodies fail, private error sentinels never appear in diagnostics,
+and a malformed health port never becomes a network destination. Successful
+retrieval still sends a query to the explicitly configured external provider.
+AnythingLLM responses have an 8 MiB cap; OpenViking retains its 1 MiB cap and
+separate consent gates. Prefer HTTPS outside loopback.
 
 ## Common failures
 

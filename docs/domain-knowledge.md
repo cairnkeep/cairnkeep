@@ -32,6 +32,17 @@ work exactly the same without them.
 | `CAIRN_ANYTHINGLLM_PROJECTS_FILE` | Optional config path for the bundled sync script. Default `${XDG_CONFIG_HOME:-~/.config}/cairnkeep/anythingllm-projects.json`. |
 | `CAIRN_ANYTHINGLLM_STATE_FILE` | Optional state path for the bundled sync script. Default `${XDG_STATE_HOME:-~/.local/state}/cairnkeep/anythingllm-sync.json`. |
 
+The query security follow-up validates HTTP(S) URLs and rejects embedded
+credentials, query strings and fragments before fetching. Redirects are not
+followed, and workspace names cannot be empty or URL dot segments. Responses
+are streamed under an 8 MiB cap and must be UTF-8 JSON
+objects; successful answer-field selection is unchanged. Failed requests
+report only a controlled failure class or HTTP status, never a provider error
+body or raw network/stream diagnostic. The existing two-minute query deadline
+remains. Configure HTTPS outside loopback: remote plaintext HTTP remains
+accepted for compatibility, not as a recommendation. Document synchronization
+uses a separate script and does not inherit these query-specific guarantees.
+
 The workspaces the tools target come from the project's **memory config** — the
 first of `.agent/memory.json`, `.opencode/memory.json`, `.claude/memory.json`, or
 `memory.json` that exists:
@@ -117,6 +128,10 @@ CAIRN_OPENVIKING_BASE_URL=http://127.0.0.1:1933
 
 Plain HTTP is limited to loopback. Use HTTPS for any other host. Credentials in
 the URL, redirects, invalid response shapes, and oversized bodies are rejected.
+The response cap is 1 MiB. Network and stream failures are payload-free in the
+security follow-up, including failures during response cleanup.
+Shorthand workspace names and explicit `viking://resources` URIs share the
+same decoded traversal checks before any request is sent.
 Authenticated remote MCP use requires the additional explicit consent setting
 `CAIRN_OPENVIKING_MCP_HTTP=1`.
 

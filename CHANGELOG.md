@@ -5,6 +5,8 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.22.4] - 2026-10-07
+
 ### Security
 
 - Remove ambiguous nested path expressions from failure signatures. Crafted
@@ -18,6 +20,28 @@ All notable user-facing changes are documented here. This project follows
   modes. Keep schemas, feature defaults and explicit approval gates unchanged.
   Update security guidance and the learning/video supplement; historical
   analysis findings remain subject to individual triage.
+- Bind evaluation inputs/note snapshots, OKF import/export, graph artifacts,
+  playbook receipts and progressive-context cache reads to bounded inspected
+  descriptors. Reject replacement and growth before accepting content; publish
+  snapshots from the validated bytes instead of reopening source paths.
+  Rebuild unsafe derived caches deterministically without changing pack
+  enablement or skill approval. Add public-reader regression controls and
+  update security, learning and video guidance.
+- Bound setup policy/state/ownership and instruction-file reads to 1 MiB;
+  bound OMP staged candidates to 8 KiB and exclude linked or oversized files.
+  Recheck observed setup/instruction targets before publication; preserve
+  caller edits detected after inspection, original instruction modes and
+  failed-operation state. Keep private approvals and machine sync explicit.
+- Publish evaluation overlays and Windows managed files through exclusive
+  descriptor-written temporary files. Reject substituted targets, clean only
+  owned temporary files, and never unlink live Windows data to retry a denied
+  replacement. Bound compressed and expanded memory imports to 512 MiB.
+- Keep container health checks on a validated numeric loopback port, using the
+  server's bounded credential resolver. Refuse provider URL credentials and
+  redirects, bound AnythingLLM query responses to 8 MiB, and sanitize provider
+  HTTP, network and stream failures without including response bodies.
+  Reject workspace dot segments, including shorthand OpenViking traversal.
+  Preserve default retrieval providers and successful response shapes.
 
 ### CI
 
@@ -748,7 +772,8 @@ stored memories.
 - Preserve executable permissions and Bash 3.2 portability on macOS.
 - Add backup-first uninstall and SQLite-safe memory export/import guidance.
 
-[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.20.0...HEAD
+[Unreleased]: https://github.com/cairnkeep/cairnkeep/compare/v2.22.4...HEAD
+[2.22.4]: https://github.com/cairnkeep/cairnkeep/compare/v2.22.3...v2.22.4
 [2.20.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.19.1...v2.20.0
 [2.19.1]: https://github.com/cairnkeep/cairnkeep/compare/v2.19.0...v2.19.1
 [2.19.0]: https://github.com/cairnkeep/cairnkeep/compare/v2.18.0...v2.19.0

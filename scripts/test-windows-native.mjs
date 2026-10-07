@@ -21,6 +21,9 @@ import { HARNESS_IDS } from "./harness-registry.mjs";
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 // Runs on real Windows and POSIX, independently of shell-only doctor checks.
 await import("./test-setup-diagnosis.mjs");
+await import("./test-runtime-file-security.mjs");
+await import("./test-container-health.mjs");
+await import("./test-omp-staged-security.mjs");
 const sandbox = mkdtempSync(join(tmpdir(), "cairn-windows-native-"));
 const originalBase = process.env.CAIRN_AGENTFS_BASE_DIR;
 const originalPackBase = process.env.CAIRN_PACK_BASE_DIR;
