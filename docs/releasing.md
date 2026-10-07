@@ -69,11 +69,28 @@ different version or tree.
 
 The repository must provide an `NPM_TOKEN` Actions secret authorized to publish
 `@cairnkeep/cli`. Keep that credential out of local files and rotate it according
-to the npm account's security policy. The workflow grants `actions: read`,
-`contents: write`, `packages: write`, `attestations: write`, and
-`id-token: write`. Read access resolves the successful tree-addressed CI
-artifact; the last two permissions are required for registry-backed build
-provenance.
+to the npm account's security policy. Workflow defaults grant only
+`contents: read`; publication authority is explicit and job-scoped:
+
+| Job | Token permissions | Purpose |
+|---|---|---|
+| `prepare` | `contents: read`, `actions: read` | Check the tag and download the successful exact-tree CI candidate; no publication or signing authority |
+| `npm` | `contents: write`, `id-token: write` | Attach verified release assets and request npm provenance; registry publication uses the separate `NPM_TOKEN` |
+| `containers` | `contents: read`, `packages: write`, `attestations: write`, `id-token: write`, `artifact-metadata: write` | Read source, publish OCI images, sign/upload provenance and create the pinned action's registry storage record |
+
+Each job declares its complete permission map. Unspecified token permissions
+are denied rather than inherited; see [GitHub's permission semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions).
+The container grant retains `artifact-metadata: write` because the pinned
+[attestation implementation](https://github.com/actions/attest/blob/508db95dd578ae2727ebd6217d5ba78e4fbda05d/README.md#usage)
+creates a storage record. Do not remove required provenance permissions merely
+to improve an advisory score.
+
+The parsed-YAML baseline rejects workflow-wide writes, unexpected publication
+jobs and any missing or excessive grant in these maps. Its positive control
+and mutation tests verify the declared contract, not GitHub's execution or a
+future privileged publication. Keep the required platform/security gates and
+verify the next normal release's publication and attestations separately.
+CI-only permission changes do not require republishing an immutable version.
 
 GitHub creates each new GHCR package as private. After the first container
 release, a package administrator must change both `cairnkeep` and

@@ -105,6 +105,16 @@ provenance, produces CycloneDX 1.6 and container SBOMs, and attests container
 provenance. A digest proves content integrity, not publisher identity; verify
 the repository, release tag, registry namespace, and provenance together.
 
+Workflow token defaults are read-only. Publication grants are explicit per job:
+candidate preparation receives only source/Actions read access, npm receives
+release-attachment and provenance authority, and container publication receives
+registry/signing/attestation/storage-record authority without release-write
+access. See the exact maps in [Releasing](releasing.md). The security baseline
+rejects excess and missing grants with positive and adversarial controls.
+This reduces unnecessary token authority; it neither isolates steps within a
+job nor constrains the separate npm publishing secret. Static checks do not
+prove a future privileged publish run succeeds.
+
 ## Deliberate non-goals and residual risks
 
 - Cairnkeep is not a sandbox, endpoint-security product, secret manager, TLS

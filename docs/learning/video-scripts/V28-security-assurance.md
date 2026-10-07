@@ -56,6 +56,13 @@ Highlight full-SHA action pins, CodeQL, dependency review, token non-leakage,
 portable Windows/POSIX path cases, and the HTTP 413 test. Do not show repository
 secrets or live security-alert details.
 
+Briefly open `.github/workflows/publish.yml` beside the permission table in
+`docs/releasing.md`. Contrast the read-only preparation job with the necessary
+npm and OCI publication grants. Explain that explicit maps deny unspecified
+permissions, but steps in a job still share authority and the npm secret is
+separate. The baseline checks declared grants; do not present it as a successful
+live publish or rerun a release merely for this recording.
+
 ### 9:20–10:30 — Read the residual risks
 
 End on `docs/security-assurance.md`, not on a green checkmark. Call out the

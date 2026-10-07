@@ -35,6 +35,10 @@ function walk(value, visit, path = "workflow") {
 
 function validateWorkflow(name, workflow) {
     assert.ok(workflow && typeof workflow === "object" && !Array.isArray(workflow), `${name} is not a workflow mapping`);
+    assert.ok(workflow.permissions && typeof workflow.permissions === "object" && !Array.isArray(workflow.permissions), `${name} must have an explicit workflow permission mapping`);
+    for (const [permission, level] of Object.entries(workflow.permissions)) {
+        assert.ok(["read", "none"].includes(level), `${name} has a non-read-only workflow permission: ${permission}`);
+    }
     const triggers = workflow.on;
     const triggerNames = typeof triggers === "string" ? [triggers] : Array.isArray(triggers) ? triggers : Object.keys(triggers ?? {});
     assert.ok(!triggerNames.includes("pull_request_target"), `${name} uses pull_request_target`);
@@ -51,18 +55,74 @@ function validateWorkflow(name, workflow) {
     });
 }
 
-for (const { name, workflow } of sources) validateWorkflow(name, workflow);
+const PUBLICATION_PERMISSIONS = {
+    prepare: { actions: "read", contents: "read" },
+    npm: { contents: "write", "id-token": "write" },
+    containers: {
+        contents: "read",
+        packages: "write",
+        attestations: "write",
+        "id-token": "write",
+        "artifact-metadata": "write",
+    },
+};
+
+function validatePublicationPermissions(workflow) {
+    validateWorkflow("publish.yml", workflow);
+    assert.deepEqual(workflow.permissions, { contents: "read" }, "publication workflow default must be contents-read only");
+    assert.deepEqual(Object.keys(workflow.jobs).sort(), Object.keys(PUBLICATION_PERMISSIONS).sort(), "publication jobs require explicit permission review");
+    for (const [job, permissions] of Object.entries(PUBLICATION_PERMISSIONS)) {
+        assert.deepEqual(workflow.jobs[job].permissions, permissions, `publication ${job} permissions must match its reviewed tasks`);
+    }
+}
+
+const publish = sources.find(({ name }) => name === "publish.yml")?.workflow;
+assert.ok(publish, "publication workflow is missing");
+const permissionControl = structuredClone(publish);
+permissionControl.permissions = { contents: "read" };
+for (const [job, permissions] of Object.entries(PUBLICATION_PERMISSIONS)) {
+    permissionControl.jobs[job].permissions = structuredClone(permissions);
+}
+validatePublicationPermissions(permissionControl);
+
+let permissionFixtures = 0;
+function rejectPermissionMutation(mutate, expected) {
+    const fixture = structuredClone(permissionControl);
+    mutate(fixture);
+    assert.throws(() => validatePublicationPermissions(fixture), expected, "unsafe publication permission mutation was accepted");
+    permissionFixtures += 1;
+}
+for (const permission of ["actions", "contents", "id-token", "packages", "attestations", "artifact-metadata"]) {
+    rejectPermissionMutation((fixture) => { fixture.permissions[permission] = "write"; }, /non-read-only workflow permission/);
+}
+rejectPermissionMutation((fixture) => { delete fixture.permissions; }, /explicit workflow permission mapping/);
+rejectPermissionMutation((fixture) => { fixture.permissions = "write-all"; }, /explicit workflow permission mapping/);
+rejectPermissionMutation((fixture) => { fixture.jobs.extra = { permissions: { contents: "read" } }; }, /explicit permission review/);
+for (const [job, permissions] of Object.entries(PUBLICATION_PERMISSIONS)) {
+    rejectPermissionMutation((fixture) => { delete fixture.jobs[job].permissions; }, /permissions must match/);
+    rejectPermissionMutation((fixture) => { fixture.jobs[job].permissions = "write-all"; }, /broad scalar permissions/);
+    for (const permission of Object.keys(permissions)) {
+        rejectPermissionMutation((fixture) => { delete fixture.jobs[job].permissions[permission]; }, /permissions must match/);
+    }
+    for (const permission of ["actions", "contents", "id-token", "packages", "attestations", "artifact-metadata"]) {
+        if (permissions[permission] === "write") continue;
+        rejectPermissionMutation((fixture) => { fixture.jobs[job].permissions[permission] = "write"; }, /permissions must match/);
+    }
+}
 
 const maliciousFixtures = [
-    "name: bad\non: push\npermissions: write-all\njobs: {}\n",
-    "name: bad\non: pull_request_target\njobs: {}\n",
-    "name: bad\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: >-\n          actions/checkout@v7\n",
-    "name: bad\non: push\njobs:\n  call:\n    uses: 'owner/repo/.github/workflows/reuse.yml@main'\n",
-    `name: bad\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: evil/action@${"a".repeat(40)}\n`,
+    ["name: bad\non: push\npermissions: write-all\njobs: {}\n", /explicit workflow permission mapping/],
+    ["name: bad\non: pull_request_target\npermissions: {contents: read}\njobs: {}\n", /uses pull_request_target/],
+    ["name: bad\non: push\npermissions: {contents: read}\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: >-\n          actions/checkout@v7\n", /not pinned to a full commit/],
+    ["name: bad\non: push\npermissions: {contents: read}\njobs:\n  call:\n    uses: 'owner/repo/.github/workflows/reuse.yml@main'\n", /not pinned to a full commit/],
+    [`name: bad\non: push\npermissions: {contents: read}\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: evil/action@${"a".repeat(40)}\n`, /not on the maintained allowlist/],
 ];
-for (const [index, fixture] of maliciousFixtures.entries()) {
-    assert.throws(() => validateWorkflow(`malicious-${index}.yml`, parse(fixture)), undefined, `malicious workflow fixture ${index} was accepted`);
+for (const [index, [fixture, expected]] of maliciousFixtures.entries()) {
+    assert.throws(() => validateWorkflow(`malicious-${index}.yml`, parse(fixture)), expected, `malicious workflow fixture ${index} was accepted`);
 }
+
+for (const { name, workflow } of sources) validateWorkflow(name, workflow);
+validatePublicationPermissions(publish);
 
 const security = sources.find(({ name }) => name === "security.yml")?.text ?? "";
 assert.match(security, /github\/codeql-action\/init@[a-f0-9]{40}/);
@@ -77,4 +137,4 @@ const rootPackage = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 assert.match(rootPackage.scripts["audit:runtime"] ?? "", /npm audit --omit=dev/);
 assert.match(rootPackage.scripts["check:public"] ?? "", /security:baseline/);
 
-console.log(`PASS: ${workflowFiles.length} workflows and ${maliciousFixtures.length} adversarial fixtures enforce parsed YAML, allowlisted full-SHA actions, bounded triggers, and required security controls`);
+console.log(`PASS: ${workflowFiles.length} workflows, ${maliciousFixtures.length} action/trigger fixtures and ${permissionFixtures} permission mutations enforce parsed YAML, full-SHA actions, read-only defaults and job-scoped publication authority`);
