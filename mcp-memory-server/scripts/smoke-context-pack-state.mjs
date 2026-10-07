@@ -33,6 +33,13 @@ const realLstat = fs.lstatSync;
 const realOpen = fs.openSync;
 const realClose = fs.closeSync;
 const realRead = fs.readSync;
+function setStateMode(path, mode) {
+    const descriptor = fs.openSync(path, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+    try {
+        assert.ok(fs.fstatSync(descriptor).isFile(), "permission controls only modify regular fixture files");
+        fs.fchmodSync(descriptor, mode);
+    } finally { fs.closeSync(descriptor); }
+}
 let substituted = false;
 try {
     fs.lstatSync = function (target, ...args) {
@@ -119,11 +126,11 @@ try {
 
     if (process.platform !== "win32") {
         fs.writeFileSync(state, '{"safe":true}');
-        fs.chmodSync(state, 0o644);
+        setStateMode(state, 0o644);
         const before = reads;
         assert.throws(() => readPrivatePackJson(state, options), /unsafe/);
         assert.equal(reads, before, "non-private descriptors are rejected before reading");
-        fs.chmodSync(state, 0o600);
+        setStateMode(state, 0o600);
         const link = join(root, "state-link.json");
         fs.symlinkSync(state, link);
         assert.throws(() => readPrivatePackJson(link, options), /unsafe/);
