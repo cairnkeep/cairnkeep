@@ -92,13 +92,15 @@ const server = createServer((request, response) => {
   request.on("end", () => {
     let body = {};
     try { body = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch {}
-    const valid = request.url === "/v1/embeddings"
-      && request.headers.authorization === "Bearer test-key"
-      && body.model === "test-embedding";
-    response.writeHead(valid ? 200 : 404, { "Content-Type": "application/json" });
-    response.end(JSON.stringify(valid
+    const routeValid = request.url === "/v1/embeddings";
+    const keyValid = request.headers.authorization === "Bearer test-key";
+    const modelValid = body.model === "test-embedding";
+    const unauthorized = body.model === "unauthorized-model";
+    const status = routeValid && keyValid && modelValid ? 200 : unauthorized ? 403 : 404;
+    response.writeHead(status, { "Content-Type": "application/json" });
+    response.end(JSON.stringify(status === 200
       ? { data: [{ index: 0, embedding: [1, 0] }] }
-      : { error: "invalid request" }));
+      : { message: "private upstream detail must not leak", request_id: "private-request-id" }));
   });
 });
 server.listen(0, "127.0.0.1", () => {
@@ -122,17 +124,33 @@ EOF
   grep -q "\[PASS\] embedding endpoint accepted model test-embedding" "$tmp/out3" ||
     fail "expected a functional embedding PASS line"
 
-  proj4="$tmp/embedding-wrong-model"; mkdir -p "$proj4/.ai"
+  proj4="$tmp/embedding-unauthorized"; mkdir -p "$proj4/.ai"
   cat > "$proj4/.ai/.env" <<EOF
+CAIRN_MEMORY_EMBEDDING_URL=http://127.0.0.1:$port/v1
+CAIRN_MEMORY_EMBEDDING_MODEL=unauthorized-model
+CAIRN_LLM_API_KEY=test-key
+EOF
+  if ( cd "$proj4" && "$doctor" ) >"$tmp/out4" 2>&1; then
+    fail "doctor should reject an unauthorized embedding request:\n$(cat "$tmp/out4")"
+  fi
+  grep -q "\[FAIL\] embedding authorization rejected (HTTP 403) for model unauthorized-model" "$tmp/out4" ||
+    fail "expected a sanitized embedding authorization diagnostic"
+  ! grep -q "private upstream detail\|private-request-id" "$tmp/out4" ||
+    fail "embedding diagnostic leaked an upstream body or request id"
+
+  proj5="$tmp/embedding-missing-model"; mkdir -p "$proj5/.ai"
+  cat > "$proj5/.ai/.env" <<EOF
 CAIRN_MEMORY_EMBEDDING_URL=http://127.0.0.1:$port/v1
 CAIRN_MEMORY_EMBEDDING_MODEL=missing-model
 CAIRN_LLM_API_KEY=test-key
 EOF
-  if ( cd "$proj4" && "$doctor" ) >"$tmp/out4" 2>&1; then
-    fail "doctor should reject a missing embedding model:\n$(cat "$tmp/out4")"
+  if ( cd "$proj5" && "$doctor" ) >"$tmp/out5" 2>&1; then
+    fail "doctor should reject a missing embedding model:\n$(cat "$tmp/out5")"
   fi
-  grep -q "\[FAIL\] embedding request failed for model missing-model" "$tmp/out4" ||
-    fail "expected a functional embedding FAIL line"
+  grep -q "\[FAIL\] embedding endpoint or model not found (HTTP 404) for model missing-model" "$tmp/out5" ||
+    fail "expected a sanitized missing embedding model diagnostic"
+  ! grep -q "private upstream detail\|private-request-id" "$tmp/out5" ||
+    fail "missing-model diagnostic leaked an upstream body or request id"
 fi
 
 # 5. Artifact doctor passes a valid store, repairs only derived state, and

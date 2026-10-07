@@ -5,6 +5,22 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.21.1] - 2026-10-07
+
+### Fixed
+
+- Classify embedding health failures by sanitized HTTP status so operators can
+  distinguish authorization, missing endpoint/model, throttling, transport,
+  and upstream failures without exposing provider response bodies, request
+  identifiers, or credentials.
+
+### CI
+
+- Split all 48 memory-server smoke contracts exactly once across three
+  deterministically balanced native-Windows jobs while retaining Windows CLI,
+  package, global-install, Node 22/24/26, and full Linux matrix coverage. This
+  removes the serial 15-minute suite duplication from every Windows lane.
+
 ## [2.21.0] - 2026-10-07
 
 ### Added

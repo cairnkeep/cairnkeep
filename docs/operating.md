@@ -1049,6 +1049,10 @@ then checks `./.ai/.env` (or the current environment). It does not inspect a
 harness's remote HTTP registration. Unconfigured optional dependencies are
 skipped; it exits non-zero when the local server probe fails or a configured
 dependency (LLM/embedding endpoint, writable store) is unreachable.
+Embedding probes report only a bounded classification and HTTP status, such as
+`authorization rejected (HTTP 403)` or `endpoint or model not found (HTTP
+404)`. Provider response bodies and request identifiers are discarded so a
+health check cannot echo sensitive upstream diagnostics.
 
 It also checks an existing project-local trajectory database for SQLite
 integrity, schema compatibility and index consistency. Because capture is

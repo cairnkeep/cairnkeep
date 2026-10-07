@@ -36,15 +36,31 @@ fail() { printf '  [FAIL] %s\n' "$1"; fails=$((fails + 1)); }
 # reachable); a connect/timeout failure returns non-zero.
 reachable() { curl -sS -m 5 -o /dev/null "$1" >/dev/null 2>&1; }
 
+embedding_failure="request failed"
 embedding_works() {
-  local payload
+  local payload http_status curl_status
   payload=$(node -e 'process.stdout.write(JSON.stringify({ model: process.argv[1], input: ["cairnkeep health check"] }))' \
     "$CAIRN_MEMORY_EMBEDDING_MODEL") || return 1
-  curl -fsS -m 10 -o /dev/null \
+  http_status=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' \
     -H "Authorization: Bearer $CAIRN_LLM_API_KEY" \
     -H "Content-Type: application/json" \
     --data "$payload" \
-    "${CAIRN_MEMORY_EMBEDDING_URL%/}/embeddings" >/dev/null 2>&1
+    "${CAIRN_MEMORY_EMBEDDING_URL%/}/embeddings" 2>/dev/null)
+  curl_status=$?
+  if [[ $curl_status -ne 0 ]]; then
+    embedding_failure="transport failed"
+    return 1
+  fi
+  case "$http_status" in
+    2??) return 0 ;;
+    401|403) embedding_failure="authorization rejected (HTTP $http_status)" ;;
+    404) embedding_failure="endpoint or model not found (HTTP 404)" ;;
+    408|429) embedding_failure="temporarily unavailable (HTTP $http_status)" ;;
+    5??) embedding_failure="upstream service failed (HTTP $http_status)" ;;
+    [0-9][0-9][0-9]) embedding_failure="request failed (HTTP $http_status)" ;;
+    *) embedding_failure="request failed" ;;
+  esac
+  return 1
 }
 
 echo "cairn doctor"
@@ -90,7 +106,7 @@ if [[ -n "${CAIRN_MEMORY_EMBEDDING_URL:-}" ]]; then
   elif embedding_works; then
     pass "embedding endpoint accepted model ${CAIRN_MEMORY_EMBEDDING_MODEL} (${CAIRN_MEMORY_EMBEDDING_URL})"
   else
-    fail "embedding request failed for model ${CAIRN_MEMORY_EMBEDDING_MODEL} (${CAIRN_MEMORY_EMBEDDING_URL})"
+    fail "embedding ${embedding_failure} for model ${CAIRN_MEMORY_EMBEDDING_MODEL} (${CAIRN_MEMORY_EMBEDDING_URL})"
   fi
 else
   skip "embedding endpoint (CAIRN_MEMORY_EMBEDDING_URL unset)"
