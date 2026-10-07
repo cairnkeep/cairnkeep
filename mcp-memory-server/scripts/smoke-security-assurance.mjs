@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "./smoke-runtime-file-reads.mjs";
 import { mkdtempSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync, chmodSync, lstatSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";

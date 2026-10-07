@@ -3,7 +3,6 @@ import {
     existsSync,
     lstatSync,
     mkdirSync,
-    readFileSync,
     readdirSync,
     renameSync,
     rmSync,
@@ -15,7 +14,8 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 
 import { getArtifactLimits, isArtifactStoreEnabled } from "./artifact-schema.js";
 import { putArtifact } from "./artifact-store.js";
-import { hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
+import { hardenPrivatePath } from "./platform-security.js";
+import { readStableJson } from "./stable-file.js";
 import {
     WORK_EVIDENCE_SCHEMA_VERSION,
     completeWorkEvidenceSchema,
@@ -152,11 +152,11 @@ function atomicJson(path: string, value: unknown): void {
 }
 
 function readJson(path: string): unknown {
-    const info = lstatSync(path);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_RECORD_BYTES || !privatePathIsSafe(path)) {
+    try {
+        return readStableJson(path, { label: "Work-evidence record", maxBytes: MAX_RECORD_BYTES, private: true });
+    } catch {
         throw new Error("Unsafe work-evidence record.");
     }
-    return JSON.parse(readFileSync(path, "utf8"));
 }
 
 function gitBuffer(root: string, args: string[], maxBuffer = 16 * 1024 * 1024): Buffer {

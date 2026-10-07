@@ -53,7 +53,29 @@ function normalizeVolatile(value: string, root?: string): string {
         .trim();
 }
 
-function parseFrames(text: string, root?: string): FailureFrame[] {
+// Match each delimited path once. A repeated path-segment group is ambiguous
+// because a segment itself may contain slashes, causing exponential retries.
+function sourcePath(text: string): string | undefined {
+    for (const match of text.matchAll(/(?:^|[\s,])(\/[^\s,:]*):\d+(?::\d+)?/gm)) {
+        if (/\/(?:src|pkg|lib|test|tests)\/[^\s,:]+$/i.test(match[1])) return match[1];
+    }
+    return undefined;
+}
+
+function withoutSourceSuffix(message: string): string {
+    const comma = message.lastIndexOf(",");
+    if (comma < 0) return message;
+    const suffix = message.slice(comma + 1).trimStart();
+    if (!suffix.endsWith(":<line>")) return message;
+    const path = suffix.slice(0, -":<line>".length);
+    if (path.toLowerCase() === "<root>" || (!/[\s,]/.test(path)
+        && /(?:^|\/)(?:src|pkg|lib|test|tests)\/[^\s,:]+$/i.test(path))) {
+        return message.slice(0, comma);
+    }
+    return message;
+}
+
+function parseFrames(text: string, root?: string, source?: string): FailureFrame[] {
     const frames: FailureFrame[] = [];
     const add = (fn: string, file: string) => {
         const normalizedFunction = fn.replace(/^async\s+/, "").trim();
@@ -76,8 +98,7 @@ function parseFrames(text: string, root?: string): FailureFrame[] {
         if (match) { add(match[1], match[2]); continue; }
         match = line.match(/^\d+:\s+(?:0x[0-9a-f]+\s+-\s+)?(.+)$/i);
         if (match) {
-            const source = text.match(/(?:^|[\s,])((?:\/[^\s,:]+)*\/(?:src|pkg|lib|test|tests)\/[^\s,:]+):\d+(?::\d+)?/im);
-            if (source) add(match[1], source[1]);
+            if (source) add(match[1], source);
         }
     }
     return frames.slice(0, 16);
@@ -89,8 +110,7 @@ function selectMessage(text: string, root?: string): string {
     if (lines.some((line) => /^Traceback \(/.test(line)) && python) return python;
     const first = lines.find((line) => !/^(?:at\s+|File\s+|stack backtrace:|\d+:\s+(?:<address>|0x))/i.test(line));
     if (!first) return "unknown failure";
-    return first
-        .replace(/,\s*(?:<root>|\/?(?:[^\s,]+\/)*(?:src|pkg|lib|test|tests)\/[^\s,:]+):<line>$/i, "")
+    return withoutSourceSuffix(first)
         .replace(/\s+/g, " ")
         .trim()
         .slice(0, 4096);
@@ -107,10 +127,10 @@ function familyFor(message: string): string {
 
 export function buildFailureSignature(text: string, options: FailureSignatureOptions = {}): FailureSignature {
     const normalizedMessage = selectMessage(text, options.root);
-    const frames = parseFrames(text, options.root);
+    const source = sourcePath(text);
+    const frames = parseFrames(text, options.root, source);
     const explicitComponent = options.component ? safePath(options.component, options.root) : "";
-    const sourceInMessage = text.match(/(?:^|[\s,])((?:\/[^\s,:]+)*\/(?:src|pkg|lib|test|tests)\/[^\s,:]+):\d+(?::\d+)?/im);
-    const component = explicitComponent || frames[0]?.file || (sourceInMessage ? safePath(sourceInMessage[1], options.root) : "");
+    const component = explicitComponent || frames[0]?.file || (source ? safePath(source, options.root) : "");
     const family = familyFor(normalizedMessage);
     const normalizedForHash = normalizedMessage.toLocaleLowerCase("en-US");
     const stackDigest = frames.length > 0 ? hash("stack", frames) : "";

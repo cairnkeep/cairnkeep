@@ -5,6 +5,27 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Security
+
+- Remove ambiguous nested path expressions from failure signatures. Crafted
+  slash-heavy messages no longer cause exponential backtracking; existing v1
+  fixture signatures remain byte-equivalent. Add timeout-isolated regression
+  inputs and a reproducible generated corpus.
+- Bind capability compatibility configuration, skill artifacts/targets/backups
+  and work-evidence reads to inspected descriptors with fixed byte bounds,
+  identity rechecks and strict UTF-8. Reject replacement, growth and special-file
+  substitution; preserve private-ledger permissions and ordinary project-file
+  modes. Keep schemas, feature defaults and explicit approval gates unchanged.
+  Update security guidance and the learning/video supplement; historical
+  analysis findings remain subject to individual triage.
+
+### CI
+
+- Wait for completed OpenCode V2 fixture capture before reading its database,
+  under a bounded event-stream completion deadline. A deterministic delayed
+  completion control rejects the old file-existence readiness assumption;
+  production capture behavior is unchanged.
+
 ## [2.22.3] - 2026-10-07
 
 ### Fixed

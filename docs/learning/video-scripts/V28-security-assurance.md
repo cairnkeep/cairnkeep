@@ -69,6 +69,18 @@ rejection, bounded growth and cleanup; use no real private pointer/approval
 data. Distinguish resolved old review comments from current analysis findings,
 and do not imply a green CI run certifies an empty security backlog.
 
+For the runtime-security follow-up, show
+`node mcp-memory-server/scripts/smoke-note-signatures.mjs` and
+`node mcp-memory-server/scripts/smoke-runtime-file-reads.mjs` from a built source
+checkout. Explain that a tiny crafted path used to stall signature parsing,
+while the fixed parser preserves the existing v1 fixture fingerprints. The
+child-process timeout makes a regression fail instead of freezing the demo.
+Then show valid-file replacement rejection through capability, skill and
+work-evidence readers. Explain fixed byte bounds and descriptor cleanup, and
+distinguish private ledger permissions from ordinary project-file modes. Do not
+call the generated corpus coverage-guided fuzzing or claim that this patch
+resolves every historical analysis alert. Use only the synthetic fixtures.
+
 Briefly open `.github/workflows/publish.yml` beside the permission table in
 `docs/releasing.md`. Contrast the read-only preparation job with the necessary
 npm and OCI publication grants. Explain that explicit maps deny unspecified

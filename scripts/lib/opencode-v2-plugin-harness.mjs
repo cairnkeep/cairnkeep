@@ -76,6 +76,9 @@ await beforeHook({ ...editEvent, tool: "read", input: { filePath: join(repo, "ot
 
 const now = Date.now();
 let subscribed = false;
+let streamFinished = false;
+let finishStream;
+const streamCompletion = new Promise((resolve) => { finishStream = resolve; });
 const captureContext = {
   location: { directory: repo },
   event: {
@@ -84,6 +87,11 @@ const captureContext = {
       assert.equal(signal instanceof AbortSignal, true);
       yield { type: "session.compacted", data: { sessionID: "v2-session" } };
       yield { type: "session.idle", data: { sessionID: "v2-session" } };
+      // File creation is not capture completion. Keep that distinction
+      // deterministic even when the child writer is unusually fast.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      streamFinished = true;
+      finishStream();
     },
   },
   session: {
@@ -125,10 +133,19 @@ const captureContext = {
 const cleanup = await capture.default.setup(captureContext);
 assert.equal(typeof cleanup, "function");
 const db = join(repo, ".agentfs", "trajectory.db");
-for (let attempt = 0; attempt < 100 && !existsSync(db); attempt += 1) {
-  await new Promise((resolve) => setTimeout(resolve, 25));
+let completionTimer;
+try {
+  await Promise.race([
+    streamCompletion,
+    new Promise((_resolve, reject) => {
+      completionTimer = setTimeout(() => reject(new Error("V2 fixture capture did not complete within eight seconds")), 8000);
+    }),
+  ]);
+} finally {
+  clearTimeout(completionTimer);
+  cleanup();
 }
-cleanup();
+assert.equal(streamFinished, true, "fixture readers must wait for completed capture, not database creation");
 assert.equal(subscribed, true, "V2 capture must subscribe to the public event stream");
 assert.equal(existsSync(db), true, "V2 idle event must create a trajectory record");
 

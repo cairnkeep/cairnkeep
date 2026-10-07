@@ -192,5 +192,13 @@ for phrase in \
   }
 done
 grep -qF '`cairn security` | L28' "$coverage"
+for file in "$l28" "$video28" docs/security-assurance.md; do
+  for phrase in 'smoke-note-signatures.mjs' 'smoke-runtime-file-reads.mjs' 'coverage-guided'; do
+    grep -qF -- "$phrase" "$file" || {
+      echo "Security learning document missing runtime regression boundary: $file ($phrase)" >&2
+      exit 1
+    }
+  done
+done
 
 echo "PASS: public learning path structure, readiness, links, and version alignment"
