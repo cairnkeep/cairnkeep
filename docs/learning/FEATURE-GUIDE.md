@@ -164,3 +164,22 @@ approval, project-isolation, or release authority. See
 [L27](lessons/L27-ecosystem-evidence.md), its
 [video script](video-scripts/V27-ecosystem-evidence.md), and the pinned
 [evidence report](../research/ecosystem-evidence-2026-10.md).
+
+## Team continuity preview, outside the release baseline
+
+The unreleased `cairn team` surface is default off and separate from local
+memory. It adds project-scoped credentials/roles, immutable selected proposals,
+human-only review and an additional local stdio MCP bridge. It never scans
+personal memory or automatically installs a harness entry. Serving requires
+separate HTTP consent; this JSON API is not OAuth remote MCP HTTP.
+
+Authority is rechecked per request. Backup/restore validates integrity and
+revokes restored credentials; retention is manual, and logical deletion is not
+physical erasure. Feature/profile changes require restarting the bridge;
+revocation and membership changes take effect on existing clients.
+Removing the MCP entry or disabling its service stops team access without
+changing personal memory. Uninstall retains the separate store.
+Read [the reference](../team.md), [L29](lessons/L29-team-continuity.md) and its
+[V29 rehearsal brief](video-scripts/V29-team-continuity.md).
+Independent review and a separately approved real pilot remain open; the
+2.22.5 released-feature baseline above is intentionally unchanged.

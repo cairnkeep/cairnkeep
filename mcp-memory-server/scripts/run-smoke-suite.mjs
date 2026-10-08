@@ -12,6 +12,14 @@ const node = (script, ...args) => [join("scripts", script), ...args];
 // Weights are approximate native-Windows seconds from the last complete run.
 // They affect shard balance only; every contract still runs exactly once.
 export const smokeChecks = Object.freeze([
+  // Native ACL validation dominates these controls; distribute them rather
+  // than adding all six to a single Windows matrix shard.
+  check("team", 80, node("smoke-team.mjs")),
+  check("team-review", 120, node("smoke-team-review.mjs")),
+  check("team-http", 40, node("smoke-team-http.mjs")),
+  check("team-mcp", 80, node("smoke-team-mcp.mjs")),
+  check("team-restore", 120, node("smoke-team-restore.mjs")),
+  check("team-cli", 100, node("smoke-team-cli.mjs")),
   check("embeddings", 1, node("smoke-embeddings.mjs")),
   check("extract", 1, node("smoke-extract-cli.mjs")),
   check("scope-guard", 1, node("smoke-scope-guard.mjs")),

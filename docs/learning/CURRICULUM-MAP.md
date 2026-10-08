@@ -45,6 +45,7 @@ been rehearsed.
 | Progressive pack retrieval, frozen benchmark, context-usage receipts, review-gated memory proposals, optional provider adapter | L26 | V26 | Ready; default flat search and AnythingLLM remain compatible; OpenViking and receipt mutation are explicitly gated |
 | Branchable agent state, model-managed context, and learned decision-model comparisons | L27 | V27 | Ready; evidence runners are operator-invoked and no companion is a runtime dependency or authority |
 | Threat model, local posture check, portable-path adversarial tests, and release security controls | L28 | V28 | Ready; diagnostic is read-only and evidence is not certification |
+| Token-first team identity, reviewed project memory, local stdio bridge, revocation and fresh-only restore | L29 | V29 | Brief; unreleased preview; independent review and approved real pilot required |
 
 ## Release Review
 
@@ -98,6 +99,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn sync-omp` | L02 |
 | `cairn doctor` | L03; advanced repair in L13-L14 |
 | `cairn security` | L28 |
+| `cairn team` | L29 preview; not in the released baseline |
 | `cairn playbook` | L25 |
 | `cairn trajectory` | L13 |
 | `cairn artifact` | L13 |

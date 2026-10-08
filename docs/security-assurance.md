@@ -222,3 +222,28 @@ fallback; its response cap is 8 MiB. OpenViking retains its 1 MiB cap, explicit
 consents and HTTPS-or-loopback rule. Both reject malformed UTF-8 and suppress
 network/stream diagnostics. Health probes use only `127.0.0.1` with a validated
 port and the existing private token resolver, and never follow redirects.
+
+## Team preview assurance boundary
+
+The [team preview](team.md) adds a separate authenticated organization/project
+boundary; it does not retrofit ACLs onto the existing personal HTTP server.
+Expiring/revocable credentials, independent project roles, workload-review
+denial, self-review denial, policy/base conflicts, immutable proposals and
+transactional publication/audit have maintained synthetic controls.
+The local MCP bridge has no review/admin tools, no scope fallback and a
+restrictive profile/capability intersection. The loopback JSON API rejects
+browser origins and unexpected Host headers, bounds requests/responses and
+rechecks authority after body receipt.
+
+`smoke-team*.mjs` additionally covers concurrent/cross-process state changes,
+audit failure rollback, oversized chunked bodies, restore integrity, revoked
+restored credentials, CLI exit and uninstall retention. Built-in SQLite needs
+Node 22.13+ only when opted in. Linux fixture execution is not native Windows
+evidence, and same-account processes remain trusted. Hash-linked local audit
+cannot detect an OS owner rewriting the entire chain; backups are unencrypted.
+Capacity exhaustion fails closed rather than removing audit history.
+
+Independent security review, platform/package/container verification and a
+separately approved real pilot remain mandatory production gates. This
+source-verified implementation and inline review are not independent review.
+The service is token-first JSON HTTP plus local stdio MCP, not OAuth remote MCP.

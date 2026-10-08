@@ -597,3 +597,21 @@ store; it does not turn the proposal directory into a second memory authority.
 Context-usage receipts are strict links in the existing work-evidence store.
 They inherit work-evidence inspection, retention, and doctor behavior; there is
 no separate prompt or retrieved-content log.
+
+## Separate team store (unreleased preview)
+
+[Team continuity](team.md) keeps organization/project records in a separate
+`team.db` under `CAIRN_TEAM_BASE_DIR` (default `~/.cairnkeep/team`). Built-in
+SQLite transactions serialize state and audit across processes; personal
+AgentFS stores and layouts are unchanged. No migration or automatic copying
+of personal memory occurs. The OS owner is trusted; stored text is unencrypted.
+
+Use `cairn team backup`, not a live directory copy, for a verified consistent
+snapshot. Restore publishes only a new directory, requires its exact digest,
+and revokes all copied credentials. Doctor verifies references, object hashes,
+audit links and temporary remnants without choosing a recovery state.
+Manual logical key deletion retains audit metadata and does not erase free
+pages, WAL or backup copies. Uninstall retains team data and refuses purge
+targets overlapping its configured directory. Independently selected
+`--data` stores must be outside purge targets or also configured through
+`CAIRN_TEAM_BASE_DIR`. Keep encrypted backups separately protected.

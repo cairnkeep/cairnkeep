@@ -5,6 +5,13 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Team preview
+
+- Add `cairn team member remove SUBJECT --project ID` for explicit project
+  offboarding. Preserve credentials, other memberships and audit history;
+  reject missing or empty role lists in `member set`. Update shell completions,
+  team guidance and the learning/video rehearsal.
+
 ## [2.22.5] - 2026-10-08
 
 ### Operations
