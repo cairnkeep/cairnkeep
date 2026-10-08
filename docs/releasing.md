@@ -68,6 +68,64 @@ different version or tree.
 
 ## Repository configuration
 
+### Repeatable post-publication verification
+
+From a source checkout, use the maintained artifact verifier after the normal
+publication workflow succeeds:
+
+```sh
+node scripts/verify-published-release.mjs \
+  --version X.Y.Z --commit RELEASE_COMMIT --tree RELEASE_TREE \
+  --ci-run SUCCESSFUL_CI_RUN --security-run SUCCESSFUL_SECURITY_RUN \
+  --publish-run SUCCESSFUL_PUBLISH_RUN \
+  --out /private/evidence/release-verification.json
+```
+
+Provide the exact 40-character commit and tree and numeric run IDs. The output
+parent must already exist. The tool refuses to replace an existing report and
+writes one only after all checks succeed, with mode `0600` on POSIX. It supports
+stable releases whose npm version and both `latest` image tags are the expected
+release; it does not reinterpret an old release as the current channel.
+
+It requires a GitHub CLI supporting `attestation verify` and its exact-source,
+workflow, certificate-identity and hosted-runner policy flags, plus a current
+npm supporting registry-signature and provenance verification. Use `--gh PATH`
+or `--npm PATH` for explicit tool selection; stale trust data or unsupported
+flags fail closed rather than skipping a check. No runtime dependency is added.
+
+The tool checks successful maintained CI, security and publication workflows, immutable
+tag/commit/tree binding, retained CI candidate checksums and exact release-asset
+bytes, CycloneDX 1.6, registry bytes/integrity, npm signatures/attestations, both
+anonymous OCI architectures, per-architecture bound SPDX documents and signed
+exact-source publication provenance. It uses bounded network responses and
+subprocess deadlines. Registry blob redirects are limited to the designated
+GitHub container storage host, without forwarding registry authorization.
+
+Verification downloads assets and installs the exact registry package into
+private disposable staging with lifecycle scripts disabled; staging is removed
+on success or failure. It does not publish, move tags, change configuration,
+restart a server, enable capture or upgrade a machine. The report explicitly
+states `deployment_verified: false`: separately run the maintained backup,
+upgrade/rollback, routed/legacy-session and project-doctor procedures. Artifact
+verification is not deployment evidence or a security certification.
+Anonymous OCI checks read manifests, configuration and bound SBOM blobs, not
+every image layer. The report records `full_image_layer_pull_verified: false`;
+the separate anonymous full-pull release gate above still applies.
+
+Run the offline positive and mutation controls without network access:
+
+```sh
+node scripts/test-release-verification.mjs
+```
+
+These controls inject failed workflows, different trees/tags, expired
+candidates, tampered assets, unsafe checksum paths, registry mismatches,
+signature/provenance failures, missing architectures and unbound SBOMs. They
+test policy decisions using synthetic inputs, not real cryptographic signatures;
+the live verifier delegates signature validation to npm and the GitHub CLI.
+
+### Publication permissions
+
 The repository must provide an `NPM_TOKEN` Actions secret authorized to publish
 `@cairnkeep/cli`. Keep that credential out of local files and rotate it according
 to the npm account's security policy. Workflow defaults grant only

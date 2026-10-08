@@ -2,7 +2,7 @@
 
 **Audience:** advanced users and platform maintainers
 **Prerequisite:** Practitioner track; L13 before operating captured evidence
-**Total time:** about 6 hours 45 minutes
+**Total time:** about 6 hours 45 minutes, plus optional evidence/security supplements
 
 1. [L09 - Domain knowledge with RAG](../lessons/L09-domain-knowledge.md)
 2. [L10 - Faster context exploration](../lessons/L10-context-exploration.md)
@@ -17,6 +17,8 @@
 11. [L24 - Reviewed knowledge exchange](../lessons/L24-okf-exchange.md)
 12. [L25 - Bounded workflow playbooks](../lessons/L25-playbooks.md)
 13. [L26 - Context intelligence with explicit authority](../lessons/L26-context-intelligence.md)
+14. [L27 - Evaluate ecosystem ideas with bounded evidence](../lessons/L27-ecosystem-evidence.md)
+15. [L28 - Verify Cairnkeep's security posture](../lessons/L28-security-assurance.md)
 
 All modules are optional. The track is complete when the operator can add and
 remove each integration without breaking the standalone local workflow and can
@@ -27,6 +29,9 @@ L24 adds portable exchange only after the immutable-pack and privacy boundaries
 are understood.
 L25 adds policy enforcement and the unauthenticated local actor boundary before
 any future team deployment.
+L27 separates protocol observations from measured task benefits. L28 adds
+deployment posture, adversarial source-checkout controls and exact-source
+release verification; a verified artifact is not a verified fleet rollout.
 
 Hands-on spine: `course-04-operation`, `course-06-governance`, and
 `course-07-evaluation`, `course-10-trust-context`, and

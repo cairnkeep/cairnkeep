@@ -1,7 +1,7 @@
 # L28 - Verify Cairnkeep's security posture
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.22.4 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.22.5 and Node.js 22 or newer
 
 ## Outcome
 
@@ -11,7 +11,7 @@ and choose least authority for a network-facing MCP client.
 
 ## Prerequisites
 
-- Install Cairnkeep 2.22.4 or use a disposable source checkout.
+- Install Cairnkeep 2.22.5 or use a disposable source checkout.
 - Complete [L20 - Least-authority MCP tool profiles](L20-mcp-tool-profiles.md).
 - Use synthetic values only; never paste a real bearer token into a recording,
   terminal transcript, or issue.
@@ -90,6 +90,15 @@ signing authority. Unspecified entries in an explicit job map are denied.
 These are static contract checks, not a live publication test. The npm secret
 is a separate credential, and steps within one job share its token authority.
 Do not republish an immutable version to demonstrate the test.
+
+For post-publication evidence, run `node scripts/test-release-verification.mjs`
+and read [Repeatable post-publication verification](../../releasing.md#repeatable-post-publication-verification).
+The offline mutations reject mismatched trees/assets and failed signature or
+provenance decisions; they do not validate real signatures. The explicit live
+verifier checks the published artifacts with npm and the GitHub CLI and writes
+a new report only after success. Its report says `deployment_verified: false`:
+server backups, canaries and project doctors remain separate rollout evidence.
+Never publish or upgrade a service just to record this exercise.
 
 The smoke tests cover token non-disclosure, request bounds, and deterministic
 portable-path adversarial cases.
