@@ -182,9 +182,11 @@ audit at 100,000 events and 16 MiB, with a 1,000-event/256 KiB OS-operator reser
 Limits fail closed rather than discarding records. Back up and review retention
 before approaching them; the preview has no audit archival/compaction command.
 Retrieval is bounded (100 list/history items, ten search results); the API
-currently has no pagination. HTTP limits each connection-address and subject
-to 120 requests per minute, with at most 512 rate-limit identities; tunneled
-clients may share an address budget. Headers are capped at 32 KiB, inactive
+currently has no pagination. HTTP separately limits malformed authentication
+per connection address and authenticated requests per subject to 120 per minute;
+invalid token-shaped credentials receive ten attempts per token digest. Each
+budget holds at most 512 identities, and invalid authentication cannot consume
+an authenticated subject's quota. Headers are capped at 32 KiB, inactive
 requests at ten seconds, and bridge fetches at fifteen seconds.
 
 Digest confirmation proves selected bytes match; it cannot prove a human

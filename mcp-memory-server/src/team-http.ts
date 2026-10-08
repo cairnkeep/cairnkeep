@@ -33,17 +33,24 @@ async function body(request: IncomingMessage): Promise<unknown> {
  * listens on loopback; use an authenticated encrypted tunnel for remote use. */
 export function createTeamHttpServer(store: TeamStore) {
     if (process.env.CAIRN_TEAM !== '1' || process.env.CAIRN_TEAM_HTTP !== '1') throw new TeamError('disabled');
-    const limits = new Map<string, { start: number; count: number }>();
-    const admitted = (key: string): boolean => {
-        const now = Date.now();
-        for (const [id, state] of limits) if (now - state.start >= 60000) limits.delete(id);
-        let state = limits.get(key);
-        if (!state) {
-            if (limits.size >= 512) return false;
-            limits.set(key, state = { start: now, count: 0 });
-        }
-        return ++state.count <= 120;
+    const fixedWindow = (requests: number) => {
+        const limits = new Map<string, { start: number; count: number }>();
+        return (key: string): boolean => {
+            const now = Date.now();
+            for (const [id, state] of limits) if (now - state.start >= 60000) limits.delete(id);
+            let state = limits.get(key);
+            if (!state) {
+                if (limits.size >= 512) return false;
+                limits.set(key, state = { start: now, count: 0 });
+            }
+            return ++state.count <= requests;
+        };
     };
+    // Invalid authentication must remain bounded without consuming the scarce
+    // quota of an authenticated subject that happens to share loopback/tunnel.
+    const malformedAuthAdmitted = fixedWindow(120);
+    const invalidCredentialAdmitted = fixedWindow(10);
+    const subjectAdmitted = fixedWindow(120);
     const server = createServer({ maxHeaderSize: 32 * 1024 }, (request, response) => {
         void (async () => {
             // Reject browser access and host rebinding before reading any body.
@@ -54,10 +61,21 @@ export function createTeamHttpServer(store: TeamStore) {
             if (request.method !== 'POST') { reply(response, 405, { error: 'method' }); return; }
             const authHeaders = request.rawHeaders.filter((_, i) => i % 2 === 0 && request.rawHeaders[i].toLowerCase() === 'authorization');
             const token = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(request.headers.authorization ?? '')?.[1];
-            if (!admitted(teamDigest(`connection:${request.socket.remoteAddress ?? ''}`))) { reply(response, 429, { error: 'rate-limit' }); return; }
-            if (!token || authHeaders.length !== 1) { reply(response, 401, { error: 'unauthorized' }); return; }
-            const identity = await store.checkCredential(token);
-            if (!admitted(teamDigest(identity.subject))) { reply(response, 429, { error: 'rate-limit' }); return; }
+            if (!token || authHeaders.length !== 1) {
+                const key = teamDigest(`malformed:${request.socket.remoteAddress ?? ''}`);
+                const admitted = malformedAuthAdmitted(key);
+                reply(response, admitted ? 401 : 429, { error: admitted ? 'unauthorized' : 'rate-limit' });
+                return;
+            }
+            let identity;
+            try { identity = await store.checkCredential(token); }
+            catch (error) {
+                if (!(error instanceof TeamError) || error.code !== 'unauthorized') throw error;
+                const admitted = invalidCredentialAdmitted(teamDigest(`credential:${token}`));
+                reply(response, admitted ? 401 : 429, { error: admitted ? 'unauthorized' : 'rate-limit' });
+                return;
+            }
+            if (!subjectAdmitted(teamDigest(identity.subject))) { reply(response, 429, { error: 'rate-limit' }); return; }
             const length = request.headers['content-length'];
             if (length && (!/^[0-9]+$/.test(length) || Number(length) > MAX_BODY)) { reply(response, 413, { error: 'body-limit' }); return; }
             request.setTimeout(10000, () => request.destroy());
