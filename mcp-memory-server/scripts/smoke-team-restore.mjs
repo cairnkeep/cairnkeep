@@ -16,11 +16,11 @@ try {
   await store.admin({ operation: 'project-create', project: 'alpha' });
   await store.admin({ operation: 'member-set', project: 'alpha', subject: 'alice', roles: ['reader', 'contributor'] });
   await store.admin({ operation: 'member-set', project: 'alpha', subject: 'bob', roles: ['reviewer'] });
-  const issue = (s, subject) => s.issue({ subject, credential_class: 'human', expires_at: new Date(Date.now() + 60000).toISOString() });
+  const issue = (s, subject) => s.issue({ subject, credential_class: 'human', expires_at: new Date(Date.now() + 3600000).toISOString() });
   const alice = await issue(store, 'alice'), bob = await issue(store, 'bob');
   const call = (s, token, operation, extra = {}) => s.execute(token, { organization: 'demo-org', project: 'alpha', operation, ...extra });
   const value = 'Preserve reviewed context across harnesses.';
-  const proposal = await call(store, alice.token, 'propose', { request_id: randomUUID(), key: 'decisions/continuity', value, confirm: teamDigest(value), source_scope: 'selected-local', source_digest: teamDigest('selected fixture'), expires_at: new Date(Date.now() + 60000).toISOString(), base_revision: null });
+  const proposal = await call(store, alice.token, 'propose', { request_id: randomUUID(), key: 'decisions/continuity', value, confirm: teamDigest(value), source_scope: 'selected-local', source_digest: teamDigest('selected fixture'), expires_at: new Date(Date.now() + 3600000).toISOString(), base_revision: null });
   await call(store, bob.token, 'review', { proposal_id: proposal.id, confirm: proposal.digest, decision: 'approve' });
   const snapshot = await store.snapshot();
   assert.equal(verifyTeamSnapshot(snapshot).digest, snapshot.digest);

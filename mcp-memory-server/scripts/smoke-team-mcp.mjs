@@ -24,7 +24,7 @@ try {
     await store.admin({ operation: 'member-set', project, subject: 'alice', roles: ['reader', 'contributor'] });
     await store.admin({ operation: 'member-set', project, subject: 'bob', roles: ['reviewer'] });
   }
-  const issue = subject => store.issue({ subject, credential_class: subject === 'alice' ? 'workload' : 'human', expires_at: new Date(Date.now() + 60000).toISOString() });
+  const issue = subject => store.issue({ subject, credential_class: subject === 'alice' ? 'workload' : 'human', expires_at: new Date(Date.now() + 3600000).toISOString() });
   const alice = await issue('alice'), bob = await issue('bob');
   const tokenFile = join(base, 'alice.token'); writeFileSync(tokenFile, `${alice.token}\n`, { mode: 0o600 });
   hardenPrivatePath(tokenFile);
@@ -46,7 +46,7 @@ try {
   }
   assert.equal(tools.some(x => /review|credential|member/.test(x.name)), false);
   const value = 'Share only the reviewed gateway decision.';
-  const proposed = await client.callTool({ name: 'team_memory_propose', arguments: { project: 'alpha', request_id: randomUUID(), key: 'decisions/gateway', value, source_scope: 'selected-local', source_digest: teamDigest('fixture'), confirm: teamDigest(value), base_revision: null, expires_at: new Date(Date.now() + 60000).toISOString() } });
+  const proposed = await client.callTool({ name: 'team_memory_propose', arguments: { project: 'alpha', request_id: randomUUID(), key: 'decisions/gateway', value, source_scope: 'selected-local', source_digest: teamDigest('fixture'), confirm: teamDigest(value), base_revision: null, expires_at: new Date(Date.now() + 3600000).toISOString() } });
   assert.equal(proposed.isError, undefined);
   const candidate = proposed.structuredContent.result;
   await store.execute(bob.token, { organization: 'demo-org', project: 'alpha', operation: 'review', proposal_id: candidate.id, confirm: candidate.digest, decision: 'approve' });

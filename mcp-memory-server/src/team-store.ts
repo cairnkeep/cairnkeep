@@ -172,15 +172,25 @@ export class TeamStore {
         root = resolve(root);
         privateDirectory(root, !!options.create);
         const path = join(root, 'team.db');
-        if (!existsSync(path)) {
-            if (!options.create || !options.organization) throw new TeamError('invalid');
-            const fd = openSync(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
-            closeSync(fd);
-            hardenPrivatePath(path);
+        if (options.create && options.organization) {
+            // Atomic creation decides ownership; never authorize it using a
+            // preceding pathname existence check or truncate another creator.
+            try {
+                const fd = openSync(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
+                closeSync(fd);
+                hardenPrivatePath(path);
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+            }
         }
         for (const file of [path, `${path}-wal`, `${path}-shm`]) {
-            if (!existsSync(file)) continue;
-            const info = lstatSync(file);
+            let info;
+            try { info = lstatSync(file); }
+            catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+                if (file === path) throw new TeamError('invalid');
+                continue;
+            }
             if (!info.isFile() || info.isSymbolicLink() || !privatePathIsSafe(file)) throw new TeamError('integrity');
         }
         // Built-in SQLite is available without a flag from Node 22.13 onward.

@@ -23,10 +23,10 @@ try {
   for (const [subject, roles] of [['alice', ['reader', 'contributor', 'reviewer']], ['bob', ['reader', 'reviewer']], ['worker', ['contributor', 'reviewer']], ['auditor', ['auditor']], ['admin', ['maintainer']]]) {
     await store.admin({ operation: 'member-set', project: 'alpha', subject, roles });
   }
-  const issue = async (subject, credential_class = 'human') => (await store.issue({ subject, credential_class, expires_at: new Date(Date.now() + 60000).toISOString() })).token;
+  const issue = async (subject, credential_class = 'human') => (await store.issue({ subject, credential_class, expires_at: new Date(Date.now() + 3600000).toISOString() })).token;
   const alice = await issue('alice'), bob = await issue('bob'), worker = await issue('worker', 'workload'), auditor = await issue('auditor'), admin = await issue('admin');
   const value = 'Reviewed tunnel policy: use the approved gateway, never expose credentials.';
-  const input = { request_id: randomUUID(), key: 'decisions/gateway', value, source_scope: 'selected-local', source_digest: teamDigest('selected source'), base_revision: null, expires_at: new Date(Date.now() + 60000).toISOString(), confirm: teamDigest(value) };
+  const input = { request_id: randomUUID(), key: 'decisions/gateway', value, source_scope: 'selected-local', source_digest: teamDigest('selected source'), base_revision: null, expires_at: new Date(Date.now() + 3600000).toISOString(), confirm: teamDigest(value) };
   await assert.rejects(call(alice, 'propose', { ...input, confirm: '0'.repeat(64) }), /invalid/);
   const proposal = await call(alice, 'propose', input);
   assert.equal(proposal.value, undefined, 'proposal acknowledgments do not repeat candidate content');

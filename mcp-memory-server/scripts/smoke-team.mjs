@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { hardenPrivatePath } from '../dist/platform-security.js';
-import { mkdtempSync, existsSync, rmSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, existsSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openTeamStore, teamDigest } from '../dist/team-store.js';
@@ -14,6 +14,13 @@ try {
   await assert.rejects(openTeamStore(root), /disabled/);
   assert.equal(existsSync(root), false, 'disabled means no team reads or creation');
   process.env.CAIRN_TEAM = '1';
+  const missing = join(base, 'missing-db'); mkdirSync(missing, { mode: 0o700 }); hardenPrivatePath(missing);
+  await assert.rejects(openTeamStore(missing), /invalid/);
+  assert.equal(existsSync(join(missing, 'team.db')), false, 'opening does not create a missing database');
+  const occupied = join(base, 'occupied'); mkdirSync(occupied, { mode: 0o700 }); hardenPrivatePath(occupied);
+  const sentinel = join(occupied, 'team.db'); writeFileSync(sentinel, 'preserve existing file', { mode: 0o600 }); hardenPrivatePath(sentinel);
+  await assert.rejects(openTeamStore(occupied, { create: true, organization: 'demo-org' }));
+  assert.equal(readFileSync(sentinel, 'utf8'), 'preserve existing file', 'exclusive creation never truncates another file');
   store = await openTeamStore(root, { create: true, organization: 'demo-org' });
   await store.admin({ operation: 'project-create', project: 'alpha' });
   await store.admin({ operation: 'project-create', project: 'beta' });
@@ -21,7 +28,8 @@ try {
   await store.admin({ operation: 'member-set', project: 'alpha', subject: 'bob', roles: ['reader', 'reviewer'] });
   await store.admin({ operation: 'member-set', project: 'alpha', subject: 'worker', roles: ['reader', 'contributor', 'reviewer'] });
   await store.admin({ operation: 'member-set', project: 'alpha', subject: 'auditor', roles: ['auditor'] });
-  const issue = (subject, credential_class = 'human', expires_at = new Date(Date.now() + 60000).toISOString()) => store.issue({ subject, credential_class, expires_at });
+  // Normal fixtures must outlive slow native ACL checks; expiry is tested separately below.
+  const issue = (subject, credential_class = 'human', expires_at = new Date(Date.now() + 3600000).toISOString()) => store.issue({ subject, credential_class, expires_at });
   const alice = await issue('alice');
   const bob = await issue('bob');
   const worker = await issue('worker', 'workload');

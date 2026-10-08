@@ -11,8 +11,10 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const base = mkdtempSync(join(tmpdir(), 'cairn-team-cli-'));
 hardenPrivatePath(base);
 const data = join(base, 'store');
+// Keep a strict process-exit bound while allowing native Windows ACL subprocesses.
+const timeout = process.platform === 'win32' ? 120000 : 10000;
 const run = (args, env = {}) => spawnSync(process.execPath, [join(root, 'bin/cairn'), 'team', ...args], {
-  env: { ...process.env, CAIRN_TEAM: '1', CAIRN_TEAM_BASE_DIR: data, ...env }, timeout: 10000, encoding: 'utf8',
+  env: { ...process.env, CAIRN_TEAM: '1', CAIRN_TEAM_BASE_DIR: data, ...env }, timeout, encoding: 'utf8',
 });
 try {
   assert.equal(run(['--help'], { CAIRN_TEAM: '' }).status, 0);
@@ -23,11 +25,11 @@ try {
   assert.equal(run(['init', '--organization', 'demo-org']).status, 0, 'administrative CLI must return to the shell');
   assert.equal(run(['project', 'create', 'alpha']).status, 0);
   const tokenPath = join(base, 'alice.token');
-  const issue = run(['credential', 'issue', 'alice', '--class', 'human', '--expires-at', new Date(Date.now() + 60000).toISOString(), '--output', tokenPath]);
+  const issue = run(['credential', 'issue', 'alice', '--class', 'human', '--expires-at', new Date(Date.now() + 3600000).toISOString(), '--output', tokenPath]);
   assert.equal(issue.status, 0); assert.equal(privatePathIsSafe(tokenPath), true);
   const token = readFileSync(tokenPath, 'utf8').trim();
   assert.equal(`${issue.stdout}${issue.stderr}`.includes(token), false);
-  assert.equal(run(['credential', 'issue', 'alice', '--class', 'human', '--expires-at', new Date(Date.now() + 60000).toISOString(), '--output', tokenPath]).status, 1);
+  assert.equal(run(['credential', 'issue', 'alice', '--class', 'human', '--expires-at', new Date(Date.now() + 3600000).toISOString(), '--output', tokenPath]).status, 1);
   assert.equal(readFileSync(tokenPath, 'utf8').trim(), token, 'exclusive credentials preserve existing output');
   const output = join(base, 'snapshot.json');
   assert.equal(run(['backup', '--output', output]).status, 0);
@@ -43,7 +45,7 @@ try {
   assert.throws(() => assertUninstallRetainsTeam([join(home, '.cairnkeep')], { CAIRN_TEAM_BASE_DIR: join(base, 'unrelated') }, home), /contains team data/, 'an override does not authorize deletion of a retained default store');
   assert.doesNotThrow(() => assertUninstallRetainsTeam([join(home, '.cairnkeep', 'packs')], {}, home));
   const uninstall = spawnSync(process.execPath, [join(root, 'bin/cairn'), 'uninstall', '--dry-run', '--yes', '--purge-memory'], {
-    env: { ...process.env, HOME: home, USERPROFILE: home, CAIRN_TEAM_BASE_DIR: team, CAIRN_AGENTFS_BASE_DIR: join(home, '.cairnkeep') }, encoding: 'utf8', timeout: 10000,
+    env: { ...process.env, HOME: home, USERPROFILE: home, CAIRN_TEAM_BASE_DIR: team, CAIRN_AGENTFS_BASE_DIR: join(home, '.cairnkeep') }, encoding: 'utf8', timeout,
   });
   assert.equal(uninstall.status, 1);
   assert.match(uninstall.stderr, /contains team data/);

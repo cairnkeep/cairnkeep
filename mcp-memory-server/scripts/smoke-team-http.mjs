@@ -18,7 +18,7 @@ try {
   process.env.CAIRN_TEAM_HTTP = '1';
   await store.admin({ operation: 'project-create', project: 'alpha' });
   await store.admin({ operation: 'member-set', project: 'alpha', subject: 'alice', roles: ['reader'] });
-  const credential = await store.issue({ subject: 'alice', credential_class: 'human', expires_at: new Date(Date.now() + 60000).toISOString() });
+  const credential = await store.issue({ subject: 'alice', credential_class: 'human', expires_at: new Date(Date.now() + 3600000).toISOString() });
   server = createTeamHttpServer(store);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${server.address().port}`;
