@@ -12,6 +12,7 @@ const node = (script, ...args) => [join("scripts", script), ...args];
 // Weights are approximate native-Windows seconds from the last complete run.
 // They affect shard balance only; every contract still runs exactly once.
 export const smokeChecks = Object.freeze([
+  check("team", 3, node("smoke-team.mjs")),
   check("embeddings", 1, node("smoke-embeddings.mjs")),
   check("extract", 1, node("smoke-extract-cli.mjs")),
   check("scope-guard", 1, node("smoke-scope-guard.mjs")),
