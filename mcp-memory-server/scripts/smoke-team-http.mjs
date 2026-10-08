@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { request as httpRequest } from 'node:http';
-import { openTeamStore } from '../dist/team-store.js';
+import { openTeamStore, TeamError } from '../dist/team-store.js';
 import { createTeamHttpServer, teamRequest } from '../dist/team-http.js';
 
 process.env.CAIRN_TEAM = '1';
@@ -12,6 +12,7 @@ const base = mkdtempSync(join(tmpdir(), 'cairn-team-http-'));
 hardenPrivatePath(base);
 const store = await openTeamStore(join(base, 'team'), { create: true, organization: 'demo-org' });
 let server;
+let limitServer;
 try {
   delete process.env.CAIRN_TEAM_HTTP;
   assert.throws(() => createTeamHttpServer(store), /disabled/);
@@ -39,15 +40,6 @@ try {
   assert.equal(chunked, 413, 'chunked overflow must return a bounded error, not reset the socket');
   assert.equal((await fetch(`${url}/v1/team/execute`, { headers: { Authorization: `Bearer ${credential.token}` } })).status, 405);
   assert.deepEqual(await teamRequest(url, credential.token, JSON.parse(body)), []);
-  // Invalid authentication has its own bounded abuse budget. Exhausting it
-  // must not spend the quota of a credentialed subject sharing loopback.
-  for (let attempt = 1; attempt < 120; attempt += 1) assert.equal((await send({ Authorization: '' })).status, 401);
-  assert.equal((await send({ Authorization: '' })).status, 429);
-  assert.deepEqual(await teamRequest(url, credential.token, JSON.parse(body)), [], 'invalid-auth flood cannot starve a legitimate client');
-  const unknownBearer = `Bearer ${'x'.repeat(43)}`;
-  for (let attempt = 0; attempt < 10; attempt += 1) assert.equal((await send({ Authorization: unknownBearer })).status, 401);
-  assert.equal((await send({ Authorization: unknownBearer })).status, 429, 'unknown token digests have a separate bounded budget');
-  assert.deepEqual(await teamRequest(url, credential.token, JSON.parse(body)), [], 'unknown-token flood cannot starve a legitimate client');
   assert.equal((await send({}, JSON.stringify({ ...JSON.parse(body), subject: 'bob' }))).status, 400);
   assert.equal((await send({}, JSON.stringify({ ...JSON.parse(body), project: 'beta' }))).status, 403);
   await assert.rejects(teamRequest('http://remote.invalid', credential.token, JSON.parse(body)), /invalid/);
@@ -63,13 +55,35 @@ try {
   });
   assert.equal(duringBody, 401, 'authorization must be rechecked after receiving the body');
   assert.equal((await send()).status, 401, 'existing client has no authorization after revocation');
-  await store.admin({ operation: 'member-set', project: 'alpha', subject: 'carol', roles: ['reader'] });
-  const carol = await store.issue({ subject: 'carol', credential_class: 'human', expires_at: new Date(Date.now() + 3600000).toISOString() });
-  const carolAuth = { Authorization: `Bearer ${carol.token}` };
-  for (let attempt = 0; attempt < 120; attempt += 1) assert.equal((await send(carolAuth)).status, 200);
-  assert.equal((await send(carolAuth)).status, 429, 'authenticated subjects retain an independent bounded budget');
+  // Exercise high-volume limiter behavior without making each synthetic request
+  // reapply native private-store ACLs; real-store auth/revocation is covered above.
+  const validToken = 'v'.repeat(43);
+  const mockStore = {
+    checkCredential: async token => {
+      if (token !== validToken) throw new TeamError('unauthorized');
+      return { subject: 'fixture-subject' };
+    },
+    execute: async () => [],
+  };
+  limitServer = createTeamHttpServer(mockStore);
+  await new Promise(resolve => limitServer.listen(0, '127.0.0.1', resolve));
+  const limitUrl = `http://127.0.0.1:${limitServer.address().port}`;
+  const limited = authorization => new Promise((resolve, reject) => {
+    const request = httpRequest(`${limitUrl}/v1/team/execute`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: authorization, 'Content-Length': Buffer.byteLength(body) } }, response => { response.resume(); response.on('end', () => resolve(response.statusCode)); });
+    request.on('error', reject); request.end(body);
+  });
+  for (let attempt = 0; attempt < 120; attempt += 1) assert.equal(await limited(''), 401);
+  assert.equal(await limited(''), 429);
+  assert.equal(await limited(`Bearer ${validToken}`), 200, 'malformed-auth flood cannot starve a legitimate client');
+  const unknownBearer = `Bearer ${'x'.repeat(43)}`;
+  for (let attempt = 0; attempt < 10; attempt += 1) assert.equal(await limited(unknownBearer), 401);
+  assert.equal(await limited(unknownBearer), 429, 'unknown token digests have a separate bounded budget');
+  assert.equal(await limited(`Bearer ${validToken}`), 200, 'unknown-token flood cannot starve a legitimate client');
+  for (let attempt = 2; attempt < 120; attempt += 1) assert.equal(await limited(`Bearer ${validToken}`), 200);
+  assert.equal(await limited(`Bearer ${validToken}`), 429, 'authenticated subjects retain an independent bounded budget');
   console.log('ok: independent HTTP consent, auth, Host/origin, body/method/schema limits, endpoint safety and revocation');
 } finally {
+  if (limitServer) await new Promise(resolve => { limitServer.close(resolve); limitServer.closeAllConnections(); });
   if (server) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
   await store.close(); rmSync(base, { recursive: true, force: true });
 }
