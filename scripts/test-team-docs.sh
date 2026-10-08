@@ -19,6 +19,10 @@ grep -qF '`cairn team`' docs/learning/CURRICULUM-MAP.md
 for command in init project member credential serve mcp proposals proposal-show propose review search read audit doctor backup restore memory-delete; do
   node mcp-memory-server/dist/team-cli.js --help | grep -q "cairn team $command"
 done
+node mcp-memory-server/dist/team-cli.js --help | grep -qF 'member remove SUBJECT --project ID'
+for doc in docs/team.md "$lesson" "$video"; do
+  grep -qF 'cairn team member remove' "$doc"
+done
 for guide in operating storage privacy-and-data-flow security-assurance harness-compatibility agents; do
   grep -qF 'team.md' "docs/$guide.md"
 done

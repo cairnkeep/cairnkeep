@@ -18,6 +18,7 @@ skill_commands='harvest list show review propose evaluate apply rollback'
 for shell in bash zsh fish; do
   grep -q 'capabilities' "$tmp/$shell"
   grep -q 'team' "$tmp/$shell"
+  grep -q 'credential create set remove issue revoke' "$tmp/$shell"
   for team_command in init project member credential serve mcp list read search history propose proposals proposal-show review audit doctor backup restore memory-delete; do
     grep -qF "$team_command" "$tmp/$shell"
   done
@@ -157,6 +158,7 @@ for shell in bash zsh fish; do
 done
 "$ROOT/bin/cairn" completion powershell >"$tmp/powershell"
 grep -qF "'team'" "$tmp/powershell"
+grep -qF "'credential','create','set','remove','issue','revoke'" "$tmp/powershell"
 grep -qF "'memory-delete'" "$tmp/powershell"
 grep -qF "'protocol'" "$tmp/powershell"
 grep -qF "'--trajectory'" "$tmp/powershell"

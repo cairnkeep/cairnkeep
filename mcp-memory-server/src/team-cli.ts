@@ -15,6 +15,7 @@ CAIRN_TEAM=1 is required. Personal memory is never uploaded.
   cairn team init --organization ID [--data DIR]
   cairn team project create ID [--data DIR]
   cairn team member set SUBJECT --project ID --roles LIST [--data DIR]
+  cairn team member remove SUBJECT --project ID [--data DIR]
   cairn team credential issue SUBJECT --class human|workload --expires-at ISO --output FILE [--data DIR]
   cairn team credential revoke ID [--data DIR]
   cairn team serve [--data DIR] [--port PORT]  # requires CAIRN_TEAM_HTTP=1; loopback only
@@ -65,7 +66,7 @@ async function main(args: string[]): Promise<void> {
     const { words, flags } = parse(args);
     const [command, subcommand, subject] = words;
     const allowed: Record<string, string[]> = {
-        init: ['data', 'organization'], project: ['data'], member: ['data', 'project', 'roles'],
+        init: ['data', 'organization'], project: ['data'], member: subcommand === 'remove' ? ['data', 'project'] : ['data', 'project', 'roles'],
         credential: subcommand === 'issue' ? ['data', 'class', 'expires-at', 'output'] : ['data'],
         serve: ['data', 'port'], mcp: ['project-root'], doctor: ['data'], backup: ['data', 'output'],
         restore: ['data', 'input', 'confirm'], 'memory-delete': ['data', 'project', 'key', 'confirm'],
@@ -74,6 +75,8 @@ async function main(args: string[]): Promise<void> {
         propose: ['project', 'input', 'confirm'], review: ['project', 'proposal', 'decision', 'confirm'],
     };
     if (!allowed[command] || Object.keys(flags).some(flag => !allowed[command].includes(flag))) throw new TeamError('invalid');
+    const memberRoles = (flags.roles ?? '').split(',').filter(Boolean);
+    if (command === 'member' && (!['set', 'remove'].includes(subcommand) || !subject || words.length !== 3 || !flags.project || (subcommand === 'set' && memberRoles.length === 0))) throw new TeamError('invalid');
     const root = resolve(flags.data ?? process.env.CAIRN_TEAM_BASE_DIR ?? join(homedir(), '.cairnkeep', 'team'));
     const print = (result: unknown) => console.log(JSON.stringify(result, null, 2));
     let store: TeamStore | undefined;
@@ -104,7 +107,7 @@ async function main(args: string[]): Promise<void> {
             if (command === 'memory-delete' && words.length === 1) { await store.admin({ operation: 'memory-delete', project: flags.project, key: flags.key, confirm: flags.confirm }); print({ deleted: true, backup_copies_retained: true }); return; }
             if (command === 'init') { print({ initialized: true, organization: store.organization, experimental: true }); return; }
             if (command === 'project' && subcommand === 'create' && subject && words.length === 3) { await store.admin({ operation: 'project-create', project: subject }); print({ created: true }); return; }
-            if (command === 'member' && subcommand === 'set' && subject && words.length === 3) { await store.admin({ operation: 'member-set', subject, project: flags.project, roles: (flags.roles ?? '').split(',').filter(Boolean) }); print({ updated: true }); return; }
+            if (command === 'member') { await store.admin({ operation: 'member-set', subject, project: flags.project, roles: subcommand === 'remove' ? [] : memberRoles }); print(subcommand === 'remove' ? { removed: true } : { updated: true }); return; }
             if (command === 'credential' && subcommand === 'issue' && subject && words.length === 3) {
                 if (!flags.output || existsSync(resolve(flags.output))) throw new TeamError('invalid');
                 const credential = await store.issue({ subject, credential_class: flags.class, expires_at: flags['expires-at'] });

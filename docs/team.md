@@ -152,7 +152,19 @@ changes are also enforced on already-connected clients. There are no cached
 authorization grants. Protect human reviewer tokens from agent environments.
 
 For a compromised workload token, revoke it first and remove project roles if
-needed. Inspect `cairn team audit --project ID` using an auditor credential;
+needed. Remove all of a subject's access to one project explicitly:
+
+```sh
+cairn team member remove alice --project alpha --data /absolute/private/team
+```
+
+This clears that project's roles immediately, including for connected clients.
+Other project memberships and credentials remain unchanged; revoke credentials
+separately for complete offboarding. Existing revisions and audit history are
+retained. To re-enroll, use `member set` with an explicit nonempty `--roles` list.
+Missing or empty role lists are rejected rather than silently removing access.
+
+Inspect `cairn team audit --project ID` using an auditor credential;
 accepted, denied and conflicted authenticated operations record bounded
 metadata. Invalid credentials do not create unauthenticated identity records.
 Audit integrity is not external tamper resistance against the OS owner.

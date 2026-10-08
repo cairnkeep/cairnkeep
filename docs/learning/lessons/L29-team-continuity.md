@@ -48,6 +48,16 @@ self/workload review denied; stale policy/base conflicts; unrelated project
 denied; revoked credential blocked; restore refuses a live target and revokes
 all copied credentials. A confirmed value hash is not evidence of human consent.
 
+For project offboarding, use:
+
+```sh
+cairn team member remove SUBJECT --project ID --data DIR
+```
+
+Verify that a connected client immediately loses access while the subject's
+other project memberships still work. Re-enroll with `member set` and
+an explicit nonempty `--roles` list; revoke credentials separately when needed.
+
 ## Acceptance criteria
 
 - Two independent stdio clients retrieve identical approved text and provenance.

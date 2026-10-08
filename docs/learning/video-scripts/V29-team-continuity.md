@@ -33,6 +33,9 @@ Run `smoke-team-mcp.mjs` separately and inspect its maintained fixture: two
 actual stdio clients, different cwd, same approved project decision. Zoom into
 project provenance, then contrast an unrelated project denial and live token
 revocation. Do not claim the test launched every named commercial harness.
+Show `cairn team member remove SUBJECT --project ID --data DIR` as the explicit
+project-offboarding command. Pause on the connected client's denial; explain
+that removing one project membership does not revoke all of that person's tokens.
 An additional MCP entry is opt-in; existing memory servers are not replaced.
 
 ## 8:00–10:00 — Recovery with a catch
