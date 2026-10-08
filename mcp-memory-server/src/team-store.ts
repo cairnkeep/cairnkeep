@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { closeSync, constants, existsSync, lstatSync, mkdirSync, openSync } from 'node:fs';
 import { dirname, isAbsolute, join, parse, resolve } from 'node:path';
-import { AgentFS } from 'agentfs-sdk';
+import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { hardenPrivatePath, privatePathIsSafe } from './platform-security.js';
 
@@ -9,6 +9,12 @@ const id = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/);
 const roles = z.array(z.enum(['reader', 'contributor', 'reviewer', 'maintainer', 'auditor'])).max(5);
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const date = z.iso.datetime();
+const memoryKey = z.string().regex(/^(decisions|patterns|constraints|pitfalls|conventions|bugs)\/[a-z0-9][a-z0-9-]{0,95}$/);
+const text = z.string().min(1).refine(value => Buffer.byteLength(value, 'utf8') <= 64 * 1024 && !value.includes('\0') && Buffer.from(value, 'utf8').toString('utf8') === value);
+const proposalInput = z.object({ request_id: z.string().uuid(), key: memoryKey, value: text, source_scope: z.enum(['selected-local', 'selected-project']), source_digest: digest, base_revision: digest.nullable(), expires_at: date, confirm: digest }).strict();
+const proposalSchema = z.object({ schema_version: z.literal(1), id: z.string().uuid(), organization: id, project: id, subject: id, policy_digest: digest, created_at: date, input: proposalInput, digest }).strict();
+const revisionSchema = z.object({ schema_version: z.literal(1), organization: id, project: id, key: memoryKey, value: text, proposal_id: z.string().uuid(), proposal_digest: digest, reviewer: id, source_scope: z.enum(['selected-local', 'selected-project']), source_digest: digest, base_revision: digest.nullable(), created_at: date, revision_digest: digest }).strict();
+const reviewSchema = z.object({ proposal_id: z.string().uuid(), proposal_digest: digest, reviewer: id, decision: z.enum(['approve', 'reject']), revision_digest: digest.nullable(), at: date }).strict();
 const credentialSchema = z.object({ id: z.string().uuid(), subject: id, credential_class: z.enum(['human', 'workload']), expires_at: date, revoked: z.boolean(), audience: z.literal('cairnkeep-team-v1') }).strict();
 const projectSchema = z.object({ id, policy_revision: z.number().int().nonnegative() }).strict();
 const memberSchema = z.object({ subject: id, roles }).strict();
@@ -21,8 +27,24 @@ const requestBase = { organization: id, project: id };
 const requestSchema = z.discriminatedUnion('operation', [
     z.object({ ...requestBase, operation: z.literal('list') }).strict(),
     z.object({ ...requestBase, operation: z.literal('audit') }).strict(),
+    z.object({ ...requestBase, operation: z.literal('search'), query: z.string().min(1).max(256) }).strict(),
+    z.object({ ...requestBase, operation: z.literal('read'), key: memoryKey, revision: digest.optional() }).strict(),
+    z.object({ ...requestBase, operation: z.literal('history'), key: memoryKey }).strict(),
+    z.object({ ...requestBase, operation: z.literal('propose'), ...proposalInput.shape }).strict(),
+    z.object({ ...requestBase, operation: z.literal('proposals') }).strict(),
+    z.object({ ...requestBase, operation: z.literal('proposal-show'), proposal_id: z.string().uuid() }).strict(),
+    z.object({ ...requestBase, operation: z.literal('review'), proposal_id: z.string().uuid(), confirm: digest, decision: z.enum(['approve', 'reject']) }).strict(),
 ]);
 type Credential = z.infer<typeof credentialSchema>;
+type TeamDatabase = { getDatabase(): DatabaseSync; close(): Promise<void> };
+// Every connection in this process shares a queue. Other processes synchronize
+// with SQLite BEGIN IMMEDIATE, not a pathname lock or a read-then-write gap.
+const queues = new Map<string, Promise<unknown>>();
+async function immediate<T>(db: DatabaseSync, operation: () => Promise<T>): Promise<T> {
+    db.exec('BEGIN IMMEDIATE');
+    try { const result = await operation(); db.exec('COMMIT'); return result; }
+    catch (error) { db.exec('ROLLBACK'); throw error; }
+}
 export class TeamError extends Error {
     constructor(public readonly code: 'disabled' | 'invalid' | 'unauthorized' | 'denied' | 'conflict' | 'integrity') { super(`Team ${code}.`); }
 }
@@ -31,6 +53,10 @@ function valid<T>(schema: z.ZodType<T>, input: unknown): T {
     const result = schema.safeParse(input);
     if (!result.success) throw new TeamError('invalid');
     return result.data;
+}
+function sqlText(value: unknown): string {
+    if (typeof value !== 'string') throw new TeamError('integrity');
+    return value;
 }
 function privateDirectory(root: string, create: boolean): void {
     if (!isAbsolute(root) || root === parse(root).root) throw new TeamError('invalid');
@@ -57,8 +83,7 @@ function privateDirectory(root: string, create: boolean): void {
  * owner, not a client-supplied actor label. All remote authority is credential
  * derived and checked inside the same transaction as state and audit writes. */
 export class TeamStore {
-    private queue: Promise<unknown> = Promise.resolve();
-    private constructor(private readonly agent: AgentFS, public readonly organization: string, private readonly root: string) {}
+    private constructor(private readonly agent: TeamDatabase, public readonly organization: string, private readonly root: string) {}
     static async open(root: string, options: { create?: boolean; organization?: string } = {}): Promise<TeamStore> {
         if (process.env.CAIRN_TEAM !== '1') throw new TeamError('disabled');
         if (options.organization !== undefined) valid(id, options.organization);
@@ -76,13 +101,18 @@ export class TeamStore {
             const info = lstatSync(file);
             if (!info.isFile() || info.isSymbolicLink() || !privatePathIsSafe(file)) throw new TeamError('integrity');
         }
-        const agent = await AgentFS.open({ path });
+        // Built-in SQLite is available without a flag from Node 22.13 onward.
+        // Resolve it only after opt-in, so disabled mode performs no team reads.
+        const { DatabaseSync } = await import('node:sqlite');
+        const connection = new DatabaseSync(path);
+        const agent: TeamDatabase = { getDatabase: () => connection, close: async () => connection.close() };
         try {
             const db = agent.getDatabase();
+            db.exec('PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;');
             await db.exec(`CREATE TABLE IF NOT EXISTS team_records (organization TEXT NOT NULL, project TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY(organization, project, kind, id));
                 CREATE TABLE IF NOT EXISTS team_meta (id TEXT PRIMARY KEY, value TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS team_audit (sequence INTEGER PRIMARY KEY, organization TEXT NOT NULL, project TEXT NOT NULL, value TEXT NOT NULL, digest TEXT NOT NULL);`);
-            const tx = db.transaction(async () => {
+            const org = await immediate(db, async () => {
                 const row = await db.prepare('SELECT value FROM team_meta WHERE id = ?').get('organization');
                 if (row) {
                     const org = valid(id, row.value);
@@ -94,7 +124,6 @@ export class TeamStore {
                 await db.prepare('INSERT INTO team_meta(id,value) VALUES(?,?)').run('schema_version', '1');
                 return options.organization;
             });
-            const org = await (tx as typeof tx & { immediate: typeof tx }).immediate();
             const version = await db.prepare('SELECT value FROM team_meta WHERE id = ?').get('schema_version');
             if (version?.value !== '1') throw new TeamError('integrity');
             const store = new TeamStore(agent, org, root);
@@ -109,19 +138,24 @@ export class TeamStore {
         }
     }
     private async transaction<T>(operation: () => Promise<T>): Promise<T> {
-        const result = this.queue.then(async () => {
+        const result = (queues.get(this.root) ?? Promise.resolve()).then(async () => {
             privateDirectory(this.root, false);
-            const tx = this.agent.getDatabase().transaction(operation);
-            try { return await (tx as typeof tx & { immediate: typeof tx }).immediate(); }
+            try { return await immediate(this.agent.getDatabase(), operation); }
             finally { this.harden(); }
         });
-        this.queue = result.catch(() => undefined);
+        queues.set(this.root, result.catch(() => undefined));
         return result;
+    }
+    private async rows(kind: string, project: string): Promise<Array<{ id: string; value: unknown }>> {
+        const rows = await this.agent.getDatabase().prepare('SELECT id,value FROM team_records WHERE organization=? AND project=? AND kind=? ORDER BY id').all(this.organization, project, kind);
+        return rows.map(row => {
+            try { return { id: sqlText(row.id), value: JSON.parse(sqlText(row.value)) }; } catch { throw new TeamError('integrity'); }
+        });
     }
     private async get(kind: string, project: string, recordId: string): Promise<unknown | undefined> {
         const row = await this.agent.getDatabase().prepare('SELECT value FROM team_records WHERE organization=? AND project=? AND kind=? AND id=?').get(this.organization, project, kind, recordId);
         if (!row) return undefined;
-        try { return JSON.parse(row.value); } catch { throw new TeamError('integrity'); }
+        try { return JSON.parse(sqlText(row.value)); } catch { throw new TeamError('integrity'); }
     }
     private async set(kind: string, project: string, recordId: string, value: unknown, immutable = false): Promise<void> {
         const sql = immutable ? 'INSERT INTO team_records(organization,project,kind,id,value) VALUES(?,?,?,?,?)'
@@ -131,7 +165,7 @@ export class TeamStore {
     private async appendAudit(project: string, subject: string, credentialClass: string, operation: string, result: string, objectDigest: string | null = null): Promise<void> {
         const db = this.agent.getDatabase();
         const last = await db.prepare('SELECT sequence,digest FROM team_audit ORDER BY sequence DESC LIMIT 1').get();
-        const sequence = (last?.sequence ?? 0) + 1;
+        const sequence = valid(z.number().int().nonnegative(), last?.sequence ?? 0) + 1;
         const entry = { schema_version: 1, sequence, organization: this.organization, project, subject, credential_class: credentialClass, operation, result, object_digest: objectDigest, previous_digest: last?.digest ?? null, request_id: randomUUID(), at: new Date().toISOString() };
         const value = JSON.stringify(entry);
         await db.prepare('INSERT INTO team_audit(sequence,organization,project,value,digest) VALUES(?,?,?,?,?)').run(sequence, this.organization, project, value, teamDigest(value));
@@ -148,10 +182,10 @@ export class TeamStore {
                 await this.set('project', request.project, request.project, { ...project, policy_revision: project.policy_revision + 1 });
             } else {
                 const rows = await this.agent.getDatabase().prepare('SELECT id,value FROM team_records WHERE organization=? AND project=? AND kind=?').all(this.organization, '', 'credential');
-                const found = rows.find(row => valid(credentialSchema, JSON.parse(row.value)).id === request.credential);
+                const found = rows.find(row => valid(credentialSchema, JSON.parse(String(row.value))).id === request.credential);
                 if (!found) throw new TeamError('invalid');
-                const credential = valid(credentialSchema, JSON.parse(found.value));
-                await this.set('credential', '', found.id, { ...credential, revoked: true });
+                const credential = valid(credentialSchema, JSON.parse(String(found.value)));
+                await this.set('credential', '', sqlText(found.id), { ...credential, revoked: true });
             }
             await this.appendAudit('project' in request ? request.project : '', 'local-operator', 'local-os', request.operation, 'accepted');
         });
@@ -175,27 +209,112 @@ export class TeamStore {
         if (credential.revoked || Date.parse(credential.expires_at) <= Date.now()) throw new TeamError('unauthorized');
         return credential;
     }
+    async checkCredential(token: string): Promise<{ subject: string }> {
+        return this.transaction(async () => ({ subject: (await this.authenticate(token)).subject }));
+    }
     async execute(token: string, input: unknown): Promise<unknown> {
         const request = valid(requestSchema, input);
-        return this.transaction(async () => {
+        try { return await this.transaction(async () => {
             const credential = await this.authenticate(token);
             const member = valid(memberSchema, await this.get('member', request.project, credential.subject) ?? { subject: credential.subject, roles: [] });
-            const permitted = request.organization === this.organization && member.roles.includes(request.operation === 'audit' ? 'auditor' : 'reader');
-            if (!permitted) {
-                // Commit denial evidence without committing any application writes.
-                await this.appendAudit(request.organization === this.organization ? request.project : '', credential.subject, credential.credential_class, request.operation, 'denied');
-                return { denied: true };
-            }
+            const required = request.operation === 'audit' ? 'auditor' : request.operation === 'propose' ? 'contributor' : request.operation === 'review' ? 'reviewer' : 'reader';
+            const proposalAccess = ['proposals', 'proposal-show'].includes(request.operation) && (member.roles.includes('contributor') || member.roles.includes('reviewer'));
+            if (request.organization !== this.organization || (!proposalAccess && !member.roles.includes(required))) throw new TeamError('denied');
+            if (request.operation === 'review' && credential.credential_class !== 'human') throw new TeamError('denied');
+            const project = valid(projectSchema, await this.get('project', request.project, request.project));
+            let result: unknown;
+            let objectDigest: string | null = null;
             if (request.operation === 'audit') {
                 const rows = await this.agent.getDatabase().prepare('SELECT value,digest FROM team_audit WHERE organization=? AND project=? ORDER BY sequence DESC LIMIT 100').all(this.organization, request.project);
-                return rows.map(row => ({ ...JSON.parse(row.value), digest: row.digest }));
+                result = rows.map(row => ({ ...JSON.parse(sqlText(row.value)), digest: row.digest }));
+            } else if (request.operation === 'propose') {
+                const { organization: _org, project: _project, operation: _op, ...rawInput } = request;
+                const selected = valid(proposalInput, rawInput);
+                if (selected.confirm !== teamDigest(selected.value) || Date.parse(selected.expires_at) <= Date.now() || Date.parse(selected.expires_at) > Date.now() + 30 * 86400000) throw new TeamError('invalid');
+                const prior = await this.get('proposal', request.project, selected.request_id);
+                if (prior) {
+                    const proposal = valid(proposalSchema, prior);
+                    if (proposal.subject !== credential.subject || JSON.stringify(proposal.input) !== JSON.stringify(selected)) throw new TeamError('conflict');
+                    result = { id: proposal.id, digest: proposal.digest };
+                } else {
+                    const body = { schema_version: 1 as const, id: selected.request_id, organization: this.organization, project: request.project, subject: credential.subject, policy_digest: teamDigest(JSON.stringify(project)), created_at: new Date().toISOString(), input: selected };
+                    const proposal = { ...body, digest: teamDigest(JSON.stringify(body)) };
+                    await this.set('proposal', request.project, proposal.id, proposal, true);
+                    objectDigest = proposal.digest;
+                    result = { id: proposal.id, digest: proposal.digest };
+                }
+            } else if (request.operation === 'review') {
+                const proposal = valid(proposalSchema, await this.get('proposal', request.project, request.proposal_id));
+                if (proposal.subject === credential.subject) throw new TeamError('denied');
+                if (proposal.digest !== request.confirm) throw new TeamError('conflict');
+                const prior = await this.get('review', request.project, request.proposal_id);
+                if (prior) {
+                    const review = valid(reviewSchema, prior);
+                    if (review.reviewer !== credential.subject || review.decision !== request.decision) throw new TeamError('conflict');
+                    result = review;
+                } else {
+                    if (Date.parse(proposal.input.expires_at) <= Date.now() || proposal.policy_digest !== teamDigest(JSON.stringify(project))) throw new TeamError('conflict');
+                    const head = await this.get('head', request.project, proposal.input.key);
+                    if (request.decision === 'approve' && (head ?? null) !== proposal.input.base_revision) throw new TeamError('conflict');
+                    const at = new Date().toISOString();
+                    let revisionDigest: string | null = null;
+                    if (request.decision === 'approve') {
+                        const body = { schema_version: 1 as const, organization: this.organization, project: request.project, key: proposal.input.key, value: proposal.input.value, proposal_id: proposal.id, proposal_digest: proposal.digest, reviewer: credential.subject, source_scope: proposal.input.source_scope, source_digest: proposal.input.source_digest, base_revision: proposal.input.base_revision, created_at: at };
+                        revisionDigest = teamDigest(JSON.stringify(body));
+                        await this.set('revision', request.project, revisionDigest, { ...body, revision_digest: revisionDigest }, true);
+                        await this.set('head', request.project, proposal.input.key, revisionDigest);
+                    }
+                    const review = { proposal_id: proposal.id, proposal_digest: proposal.digest, reviewer: credential.subject, decision: request.decision, revision_digest: revisionDigest, at };
+                    await this.set('review', request.project, proposal.id, review, true);
+                    objectDigest = revisionDigest ?? proposal.digest;
+                    result = review;
+                }
+            } else if (request.operation === 'proposal-show' || request.operation === 'proposals') {
+                const visible = (await this.rows('proposal', request.project)).map(row => valid(proposalSchema, row.value)).filter(proposal => member.roles.includes('reviewer') || proposal.subject === credential.subject);
+                if (request.operation === 'proposal-show') {
+                    const proposal = visible.find(proposal => proposal.id === request.proposal_id);
+                    if (!proposal) throw new TeamError('denied');
+                    result = proposal;
+                } else {
+                    result = await Promise.all(visible.slice(0, 100).map(async proposal => ({ id: proposal.id, digest: proposal.digest, key: proposal.input.key, subject: proposal.subject, expires_at: proposal.input.expires_at, status: (await this.get('review', request.project, proposal.id)) ? 'reviewed' : 'pending' })));
+                }
+            } else if (request.operation === 'read') {
+                const revisionDigest = request.revision ?? await this.get('head', request.project, request.key);
+                if (!revisionDigest) result = null;
+                else {
+                    const revision = valid(revisionSchema, await this.get('revision', request.project, valid(digest, revisionDigest)));
+                    if (revision.key !== request.key) throw new TeamError('denied');
+                    result = this.presentRevision(revision);
+                    objectDigest = revision.revision_digest;
+                }
+            } else if (request.operation === 'history') {
+                result = (await this.rows('revision', request.project)).map(row => valid(revisionSchema, row.value)).filter(revision => revision.key === request.key).sort((a, b) => b.created_at.localeCompare(a.created_at) || a.revision_digest.localeCompare(b.revision_digest)).slice(0, 100).map(({ value: _value, ...metadata }) => metadata);
+            } else {
+                const heads = await this.rows('head', request.project);
+                const revisions = await Promise.all(heads.map(async head => valid(revisionSchema, await this.get('revision', request.project, valid(digest, head.value)))));
+                if (request.operation === 'search') {
+                    const needle = request.query.toLowerCase();
+                    result = revisions.filter(revision => `${revision.key}\n${revision.value}`.toLowerCase().includes(needle)).slice(0, 10).map(revision => this.presentRevision(revision));
+                } else result = revisions.slice(0, 100).map(({ value: _value, ...metadata }) => metadata);
             }
-            return [];
-        }).then(result => {
-            if (result && typeof result === 'object' && 'denied' in result) throw new TeamError('denied');
+            await this.appendAudit(request.project, credential.subject, credential.credential_class, request.operation, 'accepted', objectDigest);
             return result;
-        });
+        }); } catch (error) {
+            // A failed transaction rolls back ALL publication writes. Record only
+            // bounded metadata afterward, never input text or bearer credentials.
+            if (error instanceof TeamError && ['denied', 'conflict', 'invalid'].includes(error.code)) {
+                await this.transaction(async () => {
+                    const credential = await this.authenticate(token);
+                    await this.appendAudit(request.organization === this.organization ? request.project : '', credential.subject, credential.credential_class, request.operation, error.code === 'denied' ? 'denied' : error.code);
+                }).catch(() => undefined);
+            }
+            throw error;
+        }
     }
-    async close(): Promise<void> { await this.queue; await this.agent.close(); }
+    private presentRevision(revision: z.infer<typeof revisionSchema>): unknown {
+        const { value, ...provenance } = revision;
+        return { key: revision.key, value, provenance };
+    }
+    async close(): Promise<void> { await queues.get(this.root); await this.agent.close(); }
 }
 export const openTeamStore = TeamStore.open;
