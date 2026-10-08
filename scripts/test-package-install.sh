@@ -60,6 +60,15 @@ env -u CAIRN_NOTE_DISTILLATION cairn notes --help >/dev/null \
   || fail "installed package omitted the notes command"
 
 installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
+cairn team --help >"$tmp/installed-team-help"
+grep -qF 'experimental token-first team continuity' "$tmp/installed-team-help" || fail "installed package omitted team preview"
+CAIRN_TEAM=1 cairn team init --organization demo-org --data "$tmp/installed-team" >"$tmp/team-init.json"
+CAIRN_TEAM=1 cairn team project create alpha --data "$tmp/installed-team" >/dev/null
+CAIRN_TEAM=1 cairn team backup --data "$tmp/installed-team" --output "$tmp/team-snapshot.json" >"$tmp/team-backup.json"
+snapshot_digest=$(node -p 'require(process.argv[1]).snapshot_digest' "$tmp/team-backup.json")
+CAIRN_TEAM=1 cairn team restore --input "$tmp/team-snapshot.json" --confirm "$snapshot_digest" --data "$tmp/installed-team-restored" >"$tmp/team-restore.json"
+CAIRN_TEAM=1 cairn team doctor --data "$tmp/installed-team-restored" >"$tmp/team-doctor.json"
+node -e 'if(!require(process.argv[1]).credentials_revoked||!require(process.argv[2]).ok)process.exit(1)' "$tmp/team-restore.json" "$tmp/team-doctor.json" || fail "installed team restore contract failed"
 cairn skill --help >"$tmp/installed-skill-help"
 cmp -s "$tmp/source-skill-help" "$tmp/installed-skill-help" || \
   fail "source and installed skill help differ"

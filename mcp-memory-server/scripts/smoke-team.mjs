@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { hardenPrivatePath } from '../dist/platform-security.js';
 import { mkdtempSync, existsSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openTeamStore, teamDigest } from '../dist/team-store.js';
 
 const base = mkdtempSync(join(tmpdir(), 'cairn-team-'));
+hardenPrivatePath(base);
 const root = join(base, 'team');
 let store;
 try {

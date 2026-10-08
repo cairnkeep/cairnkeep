@@ -692,3 +692,22 @@ skill readable; Cairnkeep never copies it into a harness or executes it.
 
 Pack digests and proposal digests protect integrity and stale-state detection;
 they do not authenticate a publisher or make extracted statements true.
+
+## Team preview flow and isolation
+
+The default-off [team preview](team.md) reads no personal memory automatically.
+Only explicitly supplied, inspected text becomes an immutable project proposal;
+only review by a different human credential publishes a shared revision.
+Workload tokens cannot review. The agent's local stdio bridge sends explicit
+organization/project requests and bearer authorization to the separately
+configured JSON API. Search uses substring matching, never an embedding/model
+provider. There is no background ingestion or sync.
+
+Membership and credentials, not cwd or local playbook actor labels, select
+authority. Server checks happen on every operation. Profile/capability
+restrictions only narrow MCP tools. Shared values, source digests and identities
+are stored privately; audit includes operation/outcome/digests without text or
+tokens. Backups include shared proposals and memberships and need separate
+encryption and access control. No unapproved personal content is discoverable.
+A hash confirmation does not establish human consent or content truth.
+Review and production admission remain separate operator responsibilities.

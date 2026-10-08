@@ -7,18 +7,24 @@ const MAX_RESPONSE = 2 * 1024 * 1024;
 function reply(response: ServerResponse, status: number, body: unknown): void {
     const bytes = Buffer.from(JSON.stringify(body));
     if (bytes.byteLength > MAX_RESPONSE) { reply(response, 503, { error: 'unavailable' }); return; }
-    response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Length': bytes.byteLength });
+    response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Length': bytes.byteLength, ...(status >= 400 ? { Connection: 'close' } : {}) });
     response.end(bytes);
 }
 async function body(request: IncomingMessage): Promise<unknown> {
     if (request.headers['content-type'] !== 'application/json') throw new TeamError('invalid');
     const chunks: Buffer[] = [];
-    let size = 0;
-    for await (const chunk of request) {
-        const bytes = Buffer.from(chunk); size += bytes.byteLength;
-        if (size > MAX_BODY) throw new RangeError('body-limit');
-        chunks.push(bytes);
-    }
+    await new Promise<void>((resolve, reject) => {
+        let size = 0;
+        const cleanup = () => { request.off('data', onData); request.off('end', onEnd); request.off('error', onError); request.off('aborted', onError); };
+        const onError = () => { cleanup(); reject(new TeamError('invalid')); };
+        const onEnd = () => { cleanup(); resolve(); };
+        const onData = (chunk: Buffer) => {
+            size += chunk.byteLength;
+            if (size > MAX_BODY) { cleanup(); request.pause(); reject(new RangeError('body-limit')); }
+            else chunks.push(chunk);
+        };
+        request.on('data', onData); request.once('end', onEnd); request.once('error', onError); request.once('aborted', onError);
+    });
     try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))); }
     catch { throw new TeamError('invalid'); }
 }
@@ -48,7 +54,7 @@ export function createTeamHttpServer(store: TeamStore) {
             if (request.method !== 'POST') { reply(response, 405, { error: 'method' }); return; }
             const authHeaders = request.rawHeaders.filter((_, i) => i % 2 === 0 && request.rawHeaders[i].toLowerCase() === 'authorization');
             const token = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(request.headers.authorization ?? '')?.[1];
-            if (!admitted('connection')) { reply(response, 429, { error: 'rate-limit' }); return; }
+            if (!admitted(teamDigest(`connection:${request.socket.remoteAddress ?? ''}`))) { reply(response, 429, { error: 'rate-limit' }); return; }
             if (!token || authHeaders.length !== 1) { reply(response, 401, { error: 'unauthorized' }); return; }
             const identity = await store.checkCredential(token);
             if (!admitted(teamDigest(identity.subject))) { reply(response, 429, { error: 'rate-limit' }); return; }

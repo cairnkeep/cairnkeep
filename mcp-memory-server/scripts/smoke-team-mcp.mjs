@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { hardenPrivatePath } from '../dist/platform-security.js';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -10,6 +11,7 @@ import { createTeamMcpServer, TEAM_TOOL_CATALOG } from '../dist/team-mcp.js';
 import { randomUUID } from 'node:crypto';
 
 const base = mkdtempSync(join(tmpdir(), 'cairn-team-mcp-'));
+hardenPrivatePath(base);
 delete process.env.CAIRN_TEAM;
 await assert.rejects(createTeamMcpServer({ url: 'invalid', organization: 'demo-org', token: () => '' }), /disabled/);
 process.env.CAIRN_TEAM = '1'; process.env.CAIRN_TEAM_HTTP = '1';
@@ -25,6 +27,7 @@ try {
   const issue = subject => store.issue({ subject, credential_class: subject === 'alice' ? 'workload' : 'human', expires_at: new Date(Date.now() + 60000).toISOString() });
   const alice = await issue('alice'), bob = await issue('bob');
   const tokenFile = join(base, 'alice.token'); writeFileSync(tokenFile, `${alice.token}\n`, { mode: 0o600 });
+  hardenPrivatePath(tokenFile);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(CAIRN_|OPENROUTER_|OPENAI_|ANTHROPIC_)/.test(name)));
   Object.assign(env, { CAIRN_TEAM: '1', CAIRN_TEAM_URL: `http://127.0.0.1:${server.address().port}`, CAIRN_TEAM_ORGANIZATION: 'demo-org', CAIRN_TEAM_TOKEN_FILE: tokenFile });

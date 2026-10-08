@@ -1531,3 +1531,14 @@ cairn proposals apply PROPOSAL_DIGEST --project /path/to/project --json
 
 No background process synchronizes OpenViking, creates proposals, applies
 memory, enables packs, or approves skills.
+
+## Team continuity (unreleased preview)
+
+The separate `cairn team` command implements explicitly selected and reviewed
+project memory. It is default off (`CAIRN_TEAM=1` required); serving also needs
+`CAIRN_TEAM_HTTP=1`. It does not change ordinary setup or existing MCP entries.
+Use [the team reference](team.md) for roles, private credentials, additional
+local stdio registration, human review, backup/restore and incident handling.
+Independent security review and an approved real pilot are still required.
+Existing personal HTTP remains a trusted single storage domain; token-first
+team JSON HTTP is a different service, not OAuth remote MCP HTTP.

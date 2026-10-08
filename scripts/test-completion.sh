@@ -17,6 +17,10 @@ eval_flags='--task-set --adapter --output --repetitions --seed --json --yes --di
 skill_commands='harvest list show review propose evaluate apply rollback'
 for shell in bash zsh fish; do
   grep -q 'capabilities' "$tmp/$shell"
+  grep -q 'team' "$tmp/$shell"
+  for team_command in init project member credential serve mcp list read search history propose proposals proposal-show review audit doctor backup restore memory-delete; do
+    grep -qF "$team_command" "$tmp/$shell"
+  done
   grep -q 'list.*status.*enable.*disable.*reset.*logging\|list status enable disable reset logging' "$tmp/$shell"
   grep -q -- '--json\|-l json' "$tmp/$shell"
   for capability_id in $capability_ids; do
@@ -152,6 +156,8 @@ for shell in bash zsh fish; do
   fi
 done
 "$ROOT/bin/cairn" completion powershell >"$tmp/powershell"
+grep -qF "'team'" "$tmp/powershell"
+grep -qF "'memory-delete'" "$tmp/powershell"
 grep -qF "'protocol'" "$tmp/powershell"
 grep -qF "'--trajectory'" "$tmp/powershell"
 grep -qF "'--codex-jsonl'" "$tmp/powershell"

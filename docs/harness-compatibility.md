@@ -353,3 +353,18 @@ Support should be added one client at a time with a clean install, a local
 stdio handshake, an authenticated HTTP handshake, a real write/recall canary,
 storage-path verification, and removal instructions. Documented MCP support by
 itself is not enough to claim Cairnkeep support.
+
+## Optional team bridge (unreleased preview)
+
+[Team continuity](team.md) adds an additional generic local stdio MCP:
+`cairn team mcp`. It does not replace `cairn-memory`, rewrite harness config
+or change existing setup. Every call supplies a server project ID explicitly;
+the same credentials/project IDs work regardless of the starting cwd.
+Configure private file-based credentials and the separate JSON API URL in the
+client environment. Human reviewer credentials must not enter the agent's
+environment; review is CLI-only.
+
+Maintained tests use actual SDK stdio clients, profiles and live revocation.
+They do not constitute a live test of every named harness. The bridge exposes
+four observations plus explicit proposal creation, never review/admin.
+Production support awaits independent review and an approved limited pilot.

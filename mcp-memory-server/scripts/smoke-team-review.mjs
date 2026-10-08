@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { hardenPrivatePath } from '../dist/platform-security.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,10 +10,16 @@ import { DatabaseSync } from 'node:sqlite';
 
 process.env.CAIRN_TEAM = '1';
 const base = mkdtempSync(join(tmpdir(), 'cairn-team-review-'));
+hardenPrivatePath(base);
 const store = await openTeamStore(join(base, 'team'), { create: true, organization: 'demo-org' });
 const call = (token, operation, extra = {}, project = 'alpha') => store.execute(token, { organization: 'demo-org', project, operation, ...extra });
 try {
   for (const project of ['alpha', 'beta']) await store.admin({ operation: 'project-create', project });
+  const existingOperation = store.admin({ operation: 'project-create', project: 'gamma' });
+  const concurrentOpen = openTeamStore(join(base, 'team'));
+  await existingOperation;
+  const otherConnection = await concurrentOpen;
+  await otherConnection.close();
   for (const [subject, roles] of [['alice', ['reader', 'contributor', 'reviewer']], ['bob', ['reader', 'reviewer']], ['worker', ['contributor', 'reviewer']], ['auditor', ['auditor']], ['admin', ['maintainer']]]) {
     await store.admin({ operation: 'member-set', project: 'alpha', subject, roles });
   }
@@ -44,6 +51,10 @@ try {
   await assert.rejects(call(auditor, 'read', { key: input.key }), /denied/);
   await assert.rejects(call(bob, 'read', { key: input.key }, 'beta'), /denied/);
   const stale = await call(alice, 'propose', { ...input, request_id: randomUUID(), base_revision: approved.provenance.revision_digest });
+  await store.admin({ operation: 'member-set', project: 'alpha', subject: 'alice', roles: ['reader'] });
+  await assert.rejects(call(alice, 'proposals'), /denied/, 'reader-only membership cannot inspect pending proposals');
+  await assert.rejects(call(alice, 'proposal-show', { proposal_id: stale.id }), /denied/);
+  await store.admin({ operation: 'member-set', project: 'alpha', subject: 'alice', roles: ['reader', 'contributor', 'reviewer'] });
   await store.admin({ operation: 'member-set', project: 'alpha', subject: 'admin', roles: ['maintainer'] });
   await assert.rejects(call(bob, 'review', { ...review, proposal_id: stale.id, confirm: stale.digest }), /conflict/);
   const atomic = await call(alice, 'propose', { ...input, request_id: randomUUID(), key: 'decisions/atomic' });

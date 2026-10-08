@@ -13,7 +13,7 @@ _cairn_complete() {
   COMPREPLY=()
   current=${COMP_WORDS[COMP_CWORD]}
   previous=${COMP_WORDS[COMP_CWORD-1]:-}
-  commands="bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor security trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help"
+  commands="bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help"
   if (( COMP_CWORD == 1 )); then
     COMPREPLY=( $(compgen -W "$commands" -- "$current") )
     return
@@ -27,6 +27,7 @@ _cairn_complete() {
     sync-omp) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
     doctor) COMPREPLY=( $(compgen -W "--repair" -- "$current") ) ;;
     security) COMPREPLY=( $(compgen -W "doctor --project --json" -- "$current") ) ;;
+    team) COMPREPLY=( $(compgen -W "init project member credential create set issue revoke serve mcp list read search history propose proposals proposal-show review audit doctor backup restore memory-delete --organization --data --project --roles --class --expires-at --output --input --confirm --port --key --query --proposal --decision --revision --project-root" -- "$current") ) ;;
     trajectory) COMPREPLY=( $(compgen -W "list show prune --json --dry-run" -- "$current") ) ;;
     artifact) COMPREPLY=( $(compgen -W "list show delete prune --kind --session --json --dry-run --include-protected" -- "$current") ) ;;
     evidence) COMPREPLY=( $(compgen -W "list show delete prune doctor --status --json --dry-run --repair" -- "$current") ) ;;
@@ -100,6 +101,7 @@ _cairn() {
     'sync-omp:install the oh-my-pi memory extension'
     'doctor:check runtime dependencies and endpoints'
     'security:audit local security posture'
+    'team:operate opt-in reviewed team continuity'
     'trajectory:inspect and prune local session trajectories'
     'artifact:inspect, delete, and prune local artifacts'
     'evidence:inspect and manage local Git-linked work evidence'
@@ -132,6 +134,7 @@ _cairn() {
     sync-omp) _arguments '--apply[apply changes]' '--live-root[omp agent root]:directory:_files -/' ;;
     doctor) _arguments '--repair[repair trajectory metadata and indexes]' ;;
     security) _values 'security command' doctor '--project[project root]:directory:_files -/' '--json[emit JSON]' ;;
+    team) _values 'team command' init project member credential create set issue revoke serve mcp list read search history propose proposals proposal-show review audit doctor backup restore memory-delete '--organization[team option]:value:' '--data[team option]:value:' '--project[team option]:value:' '--roles[team option]:value:' '--class[team option]:value:' '--expires-at[team option]:value:' '--output[team option]:value:' '--input[team option]:value:' '--confirm[team option]:value:' '--port[team option]:value:' '--key[team option]:value:' '--query[team option]:value:' '--proposal[team option]:value:' '--decision[team option]:value:' '--revision[team option]:value:' '--project-root[team option]:value:' ;;
     trajectory) _values 'trajectory command' list show prune ;;
     artifact)
       case $words[3] in
@@ -196,8 +199,8 @@ EOF
   fish)
     sed "s/__CAIRN_HARNESSES__/$harnesses/g" <<'EOF'
 complete -c cairn -f
-for command in bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor security trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help
-complete -c cairn -n "not __fish_seen_subcommand_from bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor security trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help" -a $command
+for command in bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help
+complete -c cairn -n "not __fish_seen_subcommand_from bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help" -a $command
 end
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l apply
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l live-root -r
@@ -219,6 +222,23 @@ complete -c cairn -n "__fish_seen_subcommand_from doctor" -l repair
 complete -c cairn -n "__fish_seen_subcommand_from security" -a "doctor"
 complete -c cairn -n "__fish_seen_subcommand_from security" -l project -r
 complete -c cairn -n "__fish_seen_subcommand_from security" -l json
+complete -c cairn -n "__fish_seen_subcommand_from team" -a "init project member credential create set issue revoke serve mcp list read search history propose proposals proposal-show review audit doctor backup restore memory-delete"
+complete -c cairn -n "__fish_seen_subcommand_from team" -l organization -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l data -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l project -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l roles -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l class -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l expires-at -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l output -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l input -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l confirm -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l port -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l key -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l query -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l proposal -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l decision -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l revision -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l project-root -r
 complete -c cairn -n "__fish_seen_subcommand_from trajectory" -a "list show prune"
 complete -c cairn -n "__fish_seen_subcommand_from artifact" -a "list show delete prune"
 complete -c cairn -n "__fish_seen_subcommand_from artifact; and __fish_seen_subcommand_from list" -l kind -r
