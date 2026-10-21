@@ -98,7 +98,7 @@ export function workspaceForDirectory(
 
     for (const entry of entries) {
         const slug = typeof entry?.slug === "string" ? entry.slug : "";
-        const path = typeof entry?.path === "string" ? expandHome(entry.path) : "";
+        const path = typeof entry?.path === "string" ? entry.path : "";
         if (!WORKSPACE_PATTERN.test(slug) || slug === SHARED_WORKSPACE || !isAbsolute(path)) continue;
 
         let root: string;

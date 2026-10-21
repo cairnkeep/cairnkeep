@@ -84,7 +84,8 @@ workspace; Cairnkeep cannot infer their private lookup rules.
 
 Mapping reads are descriptor-bound UTF-8 JSON, limited to 1 MiB and 4,096
 entries. Symlinked, special, changing and oversized mapping files are not read
-as trusted content. Project paths are canonicalized; relative declarations,
+as trusted content. Project paths must be absolute, without tilde expansion,
+matching the sync script. They are canonicalized; relative declarations,
 invalid workspace identifiers and the shared `engineering-patterns` slug are
 skipped. Conflicting slugs for the same deepest canonical project raise a
 controlled ambiguity error: specify `workspace` or correct the declarations.

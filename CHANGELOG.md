@@ -5,6 +5,20 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.23.1] - 2026-10-22
+
+### Domain knowledge
+
+- Resolve local AnythingLLM defaults from the existing absolute project-path
+  mapping, with deepest-project matching and the sync script's discovery order.
+  Preserve explicit workspace overrides, legacy fallback, remote HTTP session
+  routing, OpenViking selection and synchronization approval requirements.
+- Bound mapping reads and reject unsafe files, invalid slugs and ambiguous
+  canonical project declarations. Add pure, real stdio, HTTP and synchronization
+  regression controls; update operating guidance and the recording supplement.
+
+### Maintenance
+
 - Refresh pinned setup, artifact-upload and code-scanning actions; align the
   packaged CLI and server on Zod 4.6.7 with dependency-parity mutation controls.
 - Update the isolated historical Python MCP integration experiment to 2.2.0;

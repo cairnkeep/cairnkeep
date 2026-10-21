@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
@@ -72,6 +72,9 @@ check("mapping skips unsafe workspace identifiers", workspaceForDirectory(repoA,
 writeProjects([{ slug: "relative-docs", path: "." }]);
 check("relative project declarations do not float with the process directory",
     workspaceForDirectory(process.cwd(), env) === undefined);
+writeProjects([{ slug: "tilde-docs", path: "~" }]);
+check("project paths do not expand tildes differently from the sync script",
+    workspaceForDirectory(homedir(), env) === undefined);
 writeProjects([{ slug: "xdg-docs", path: repoA }]);
 const legacyDir = join(root, "legacy");
 mkdirSync(legacyDir);
