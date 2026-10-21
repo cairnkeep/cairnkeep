@@ -26,6 +26,9 @@ All notable user-facing changes are documented here. This project follows
 
 ### Maintenance
 
+- Allocate the remote-routing test provider's loopback port dynamically; retain
+  the formerly failing PID as a regression instead of hitting fetch's blocked
+  port 10080. Production routing and transport policy are unchanged.
 - Refresh pinned setup, artifact-upload and code-scanning actions; align the
   packaged CLI and server on Zod 4.6.7 with dependency-parity mutation controls.
 - Update the isolated historical Python MCP integration experiment to 2.2.0;

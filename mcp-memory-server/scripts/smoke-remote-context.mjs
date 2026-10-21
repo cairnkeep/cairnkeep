@@ -15,7 +15,6 @@ function check(name, condition) {
 }
 
 const PORT = 9500 + (process.pid % 500);
-const ANYTHING_PORT = PORT + 500;
 const TOKEN = "remote-context-smoke-token";
 const storeDir = mkdtempSync(join(tmpdir(), "cairn-remote-context-"));
 const anythingRequests = [];
@@ -30,7 +29,10 @@ const anythingServer = createServer(async (req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ textResponse: "project-alpha answer" }));
 });
-await new Promise((resolve) => anythingServer.listen(ANYTHING_PORT, "127.0.0.1", resolve));
+// PID-derived ports can land on fetch's blocked port 10080. Let the kernel
+// assign the mock's port instead of confusing a fixture failure with routing.
+await new Promise((resolve) => anythingServer.listen(0, "127.0.0.1", resolve));
+const ANYTHING_PORT = anythingServer.address().port;
 
 const server = spawn("node", [serverEntry], {
     cwd: storeDir,
