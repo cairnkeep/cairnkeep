@@ -27,6 +27,15 @@ constraints, recurring failures, or prior work:
 This protocol improves continuity without allowing stale memory to outrank
 code, tests, current documentation, or the user's request.
 
+When the discovered tool schema supports it, `strategy: "hybrid"` is useful for
+identifier-sensitive and mixed-wording queries. `explain: true` exposes selection
+reasons; explicit `query_aliases` can express names already known from the task.
+Do not invent aliases or broaden scopes to obtain a match. Semantic-only
+paraphrase retrieval needs an explicitly chosen positive `min_score` in hybrid
+mode; without a model-specific threshold, the existing semantic strategy remains
+available. Empty results are valid, and ranking scores are not factual confidence.
+See [memory retrieval and evidence](memory-retrieval.md).
+
 ## What setup installs
 
 `cairn setup` reconciles a delimited Cairnkeep block in the project's

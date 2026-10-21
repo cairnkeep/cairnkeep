@@ -15,6 +15,8 @@
         "check:embeddings": "node scripts/smoke-embeddings.mjs",
         "check:extract": "node scripts/smoke-extract-cli.mjs",
         "check:search": "node scripts/smoke-search-e2e.mjs",
+        "check:memory-retrieval": "node scripts/smoke-memory-retrieval.mjs && node scripts/smoke-memory-retrieval-mcp.mjs && node scripts/run-memory-retrieval-study.mjs --check --summary",
+        "study:memory-retrieval": "npm run build && node scripts/run-memory-retrieval-study.mjs --summary",
         "check:scope-guard": "node scripts/smoke-scope-guard.mjs",
         "check:http-guard": "node scripts/smoke-http-guard.mjs",
         "check:remote-context": "node scripts/smoke-remote-context.mjs",
