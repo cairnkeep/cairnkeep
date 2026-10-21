@@ -48,6 +48,9 @@ fails explicitly. Existing `memory_read` key/query semantics are unchanged.
    with at least two matched terms for multi-term queries or one for a single
    term. An exact key is admitted directly. Compound identifiers and numeric
    identifiers must match exactly within at least one explicit query variant.
+   Match complete identifiers, not prefixes: `ember-42` does not match
+   `ember-42-backup`, and `4.2.1` does not match `4.2.1-rc1`. Sentence-ending
+   punctuation is not part of an identifier.
 4. With embeddings available, semantic scores contribute to ranking. A match
    based only on semantics additionally requires an **explicit positive**
    `min_score`. Omitted or zero `min_score` never admits semantic-only matches.

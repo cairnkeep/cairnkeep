@@ -47,6 +47,7 @@ try {
   assert.equal(result.retrieval.embedding_status, 'unconfigured');
   assert.equal((await search(client, 'old-gateway-41')).count, 0, 'superseded history is not current retrieval');
   assert.equal((await search(client, 'current-gateway-43')).count, 0);
+  assert.equal((await search(client, 'current-gateway')).count, 0, 'a compound identifier prefix is not an exact identifier');
   assert.equal((await search(client, 'remote connection', { query_aliases: ['office tunnel access'] })).count, 1);
   assert.equal((await search(client, 'office tunnel access', { tags_all: ['absent'] })).count, 0);
   const unsupported = await client.callTool({ name: 'memory_search', arguments: { scope: 'identity', query: 'office', strategy: 'legacy', explain: true } });
@@ -69,6 +70,7 @@ try {
   const semantic = await connect('semantic', providerEnv);
   assert.equal((await search(semantic, 'sourdough bread')).count, 0, 'even a perfect mocked cosine needs explicit semantic-only consent');
   assert.equal((await search(semantic, 'remote connectivity', { min_score: 0.8 })).count, 1);
+  assert.equal((await search(semantic, 'current-gateway', { min_score: 0.8 })).count, 0, 'semantic admission cannot bypass whole-identifier matching');
   assert.equal(embeddingInputs.some(text => text.includes('must never cross scope')), false, 'scope filter runs before embedding');
   assert.equal(embeddingInputs.some(text => text.includes('old-gateway-41')), false, 'history is never sent for current retrieval');
   providerMode = 'fail';

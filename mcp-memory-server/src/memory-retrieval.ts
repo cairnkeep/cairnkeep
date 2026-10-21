@@ -21,14 +21,18 @@ export function retrievalTerms(text: string): string[] {
     }
     return result;
 }
-function variant(text: string) {
-    const normalized = normalize(text).trim();
+function identifiers(text: string): Set<string> {
     // Match ordinary words too, then select identifiers. Requiring a separator
     // in an unanchored greedy expression repeatedly rescans long plain words.
-    const identifiers = [...new Set([...normalized.matchAll(/[\p{L}\p{N}]+(?:[._:/-][\p{L}\p{N}]+)*/gu)]
-        .map(match => match[0]).filter(word => /[._:/\d-]/u.test(word)))];
-    const patterns = identifiers.map(id => new RegExp(`(^|[^\\p{L}\\p{N}])${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^\\p{L}\\p{N}])`, 'u'));
-    return { normalized, terms: [...new Set(retrievalTerms(text))].slice(0, 64), patterns };
+    const result = new Set<string>();
+    for (const match of text.matchAll(/[\p{L}\p{N}]+(?:[._:/-][\p{L}\p{N}]+)*/gu)) {
+        if (/[._:/\d-]/u.test(match[0])) result.add(match[0]);
+    }
+    return result;
+}
+function variant(text: string) {
+    const normalized = normalize(text).trim();
+    return { normalized, terms: [...new Set(retrievalTerms(text))].slice(0, 64), identifiers: identifiers(normalized) };
 }
 
 /** BM25 is also used by the transparent Markdown-folder baseline. */
@@ -66,10 +70,11 @@ export function rankHybridMemory<T extends RetrievalEntry>(entries: T[], query: 
     const candidates = entries.map((entry, index) => {
         const text = normalize([entry.key, entry.value, entry.node_type, ...(entry.tags ?? [])].filter(Boolean).join('\n'));
         const words = new Set(retrievalTerms(text));
+        const entryIdentifiers = identifiers(text);
         const matches = variants.map((item, v) => {
             const matched = item.terms.filter(term => words.has(term));
             const coverage = item.terms.length ? matched.length / item.terms.length : 0;
-            const identifierMatch = item.patterns.every(pattern => pattern.test(text));
+            const identifierMatch = [...item.identifiers].every(id => entryIdentifiers.has(id));
             const exactKey = normalize(entry.key) === item.normalized;
             return {
                 matched, coverage, identifierMatch, exactKey,

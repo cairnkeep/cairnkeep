@@ -14,6 +14,20 @@ const addresses = [entry('decisions/gateway-address', 'The gateway address is 19
 assert.equal(rankHybridMemory(addresses, '192.0.2.11', { topK: 5, minScore: 0 }).results.length, 0);
 assert.equal(rankHybridMemory(addresses, '192.0.2.10', { topK: 5, minScore: 0 }).results.length, 1);
 assert.equal(rankHybridMemory(addresses, 'firmware 4.2.2', { topK: 5, minScore: 0 }).results.length, 0);
+for (const [query, value] of [
+    ['192.0.2.10', 'The gateway address is 192.0.2.10.9.'],
+    ['ember-42', 'The gateway is ember-42-backup.'],
+    ['firmware 4.2.1', 'The firmware is 4.2.1-rc1.'],
+    ['gateway 42', 'The gateway is 42.1.'],
+]) {
+    const candidate = entry('decisions/identifier', value);
+    for (const minScore of [0, 0.8]) {
+        assert.equal(rankHybridMemory([candidate], query, {
+            topK: 5, minScore, semanticScores: new Map([[candidate, 0.99]]),
+        }).results.length, 0, `a compound identifier must not match a prefix: ${query}`);
+    }
+}
+assert.equal(rankHybridMemory(addresses, 'firmware 4.2.1', { topK: 5, minScore: 0 }).results.length, 1, 'sentence punctuation is not part of an identifier');
 assert.equal(search('relaybox').results[0].key, target.key, 'aliases curated into ordinary text remain searchable');
 assert.equal(search('home connection', { aliases: ['office tunnel access'] }).results[0].key, target.key);
 assert.equal(search('cooking sourdough bread', { semanticScores: new Map(entries.map(item => [item, 0.2])) }).results.length, 0, 'weak positive cosines cannot fill the result budget');
