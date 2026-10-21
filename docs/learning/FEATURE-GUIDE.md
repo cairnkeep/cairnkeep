@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.22.5
+**Baseline:** Cairnkeep 2.23.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -35,6 +35,12 @@ Version 2.22 adds the default-off direct-memory protocol audit, including
 explicit native Codex exec exports. See the L16 memory-protocol supplement;
 protocol observations and independently verified task correctness remain
 separate evidence, not a claim of model improvement.
+
+Version 2.23 adds opt-in hybrid memory retrieval, explicit query aliases and
+match/source/conflict explanations without changing legacy defaults. See
+[memory retrieval](../memory-retrieval.md), [L04](lessons/L04-memory-fundamentals.md)
+and its recording supplement. The synthetic Markdown comparison measures
+retrieval policy, not general task quality or a storage-format advantage.
 
 ## The three-layer model
 

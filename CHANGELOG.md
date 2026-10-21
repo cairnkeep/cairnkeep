@@ -5,6 +5,8 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.23.0] - 2026-10-21
+
 ### Memory retrieval
 
 - Add opt-in `memory_search` hybrid lexical/identifier admission, bounded query

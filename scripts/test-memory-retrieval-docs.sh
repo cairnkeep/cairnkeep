@@ -15,4 +15,5 @@ done
 grep -qF 'same admission' docs/memory-retrieval.md
 grep -qF 'HTTP 502' docs/memory-retrieval.md
 grep -qF 'ranking-not-confidence' docs/memory-retrieval.md
+grep -qF 'Status: available since Cairnkeep 2.23.0' docs/memory-retrieval.md
 echo 'PASS: hybrid retrieval, Markdown parity, provider limitations and learning/recording references'

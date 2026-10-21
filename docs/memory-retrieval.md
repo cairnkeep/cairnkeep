@@ -1,7 +1,7 @@
 # Memory retrieval and the Markdown baseline
 
-Status: unreleased opt-in strategy; use the source branch containing
-`memory-retrieval.ts` for these new examples.
+Status: available since Cairnkeep 2.23.0 as an opt-in strategy. Existing search
+defaults are unchanged; the developer study commands require a source checkout.
 
 Cairnkeep keeps authoritative memory text readable. Ordinary memory lives in
 AgentFS-backed SQLite; derived note address spaces and wiki pages use files.
