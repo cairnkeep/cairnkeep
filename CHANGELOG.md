@@ -5,6 +5,11 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+- Refresh pinned setup, artifact-upload and code-scanning actions; align the
+  packaged CLI and server on Zod 4.6.7 with dependency-parity mutation controls.
+- Update the isolated historical Python MCP integration experiment to 2.2.0;
+  this does not add Python or that experiment to the shipped Node runtime.
+
 ## [2.23.0] - 2026-10-21
 
 ### Memory retrieval
