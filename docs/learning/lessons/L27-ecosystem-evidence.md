@@ -1,6 +1,6 @@
 # L27 - Evaluate context companions without moving authority
 
-**Tested with:** Cairnkeep 2.22.5 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.23.0 and Node.js 22 or newer
 
 ## Outcome
 
