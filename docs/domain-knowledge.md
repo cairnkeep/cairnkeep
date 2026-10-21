@@ -29,7 +29,7 @@ work exactly the same without them.
 | `ANYTHINGLLM_API_KEY` | **Required** for the domain-knowledge tools. Unset → the tools error at call time (everything else works). |
 | `ANYTHINGLLM_BASE_URL` | AnythingLLM base URL. Default `http://localhost:3001`. |
 | `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` | Optional path to a custom document-sync script. Unset -> `domain_knowledge_sync` uses the bundled deployment-neutral example. |
-| `CAIRN_ANYTHINGLLM_PROJECTS_FILE` | Optional config path for the bundled sync script. Default `${XDG_CONFIG_HOME:-~/.config}/cairnkeep/anythingllm-projects.json`. |
+| `CAIRN_ANYTHINGLLM_PROJECTS_FILE` | Optional config path for the bundled sync script, also used to pick the default workspace per repository. Default `${XDG_CONFIG_HOME:-~/.config}/cairnkeep/anythingllm-projects.json`. |
 | `CAIRN_ANYTHINGLLM_STATE_FILE` | Optional state path for the bundled sync script. Default `${XDG_STATE_HOME:-~/.local/state}/cairnkeep/anythingllm-sync.json`. |
 
 The query security follow-up validates HTTP(S) URLs and rejects embedded
@@ -53,6 +53,27 @@ first of `.agent/memory.json`, `.opencode/memory.json`, `.claude/memory.json`, o
   "anythingllm_workspaces": ["engineering-patterns", "my-project-docs"]
 }
 ```
+
+### Which workspace a call targets
+
+A tool call without an explicit `workspace` resolves one in this order:
+
+1. The project in `anythingllm-projects.json` whose `path` contains the current
+   working directory. The deepest match wins, so a checkout nested inside
+   another project resolves to its own workspace.
+2. Otherwise the first entry in `anythingllm_workspaces` that is not
+   `engineering-patterns`, which is reserved for cross-project patterns and is
+   never chosen as a project default.
+
+Step 1 matters when one machine holds several checkouts that share a single
+global memory config. Without it every repository resolves to the same
+workspace, and a query made from a different repository reports "there is no
+relevant information" instead of revealing that it searched somewhere
+unrelated. Because the mapping is the same file the sync script uses, the
+workspace a repository reads from is the one it embeds into.
+
+If the mapping is absent, unreadable, or malformed, resolution falls back to
+step 2, so existing single-project setups are unaffected.
 
 `domain_knowledge_query` takes an explicit `workspace`, or falls back to the first
 configured workspace that is not `engineering-patterns` (the conventional shared

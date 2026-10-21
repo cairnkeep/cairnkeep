@@ -15,6 +15,8 @@ import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
+import { defaultAnythingLLMWorkspace as resolveDefaultAnythingLLMWorkspace } from "./anythingllm-workspace.js";
+
 import {
     artifactIdSchema,
     artifactKindSchema,
@@ -550,7 +552,9 @@ async function readStdin(): Promise<string> {
 }
 
 function defaultAnythingLLMWorkspace(config: MemoryConfig): string | undefined {
-    return config.anythingllm_workspaces?.find((workspace) => workspace !== "engineering-patterns");
+    // `anythingllm-projects.json` may also sit beside the bundled sync script,
+    // which is the legacy location the script still honours.
+    return resolveDefaultAnythingLLMWorkspace(config, process.cwd(), process.env, join(infraRoot, "examples", "anythingllm"));
 }
 
 type ScoredEntry = MemoryEntry & { score: number };
