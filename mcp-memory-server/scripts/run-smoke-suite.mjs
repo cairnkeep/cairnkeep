@@ -14,6 +14,7 @@ const node = (script, ...args) => [join("scripts", script), ...args];
 export const smokeChecks = Object.freeze([
   check("embeddings", 1, node("smoke-embeddings.mjs")),
   check("extract", 1, node("smoke-extract-cli.mjs")),
+  check("memory-retrieval", 10, node("smoke-memory-retrieval.mjs"), node("smoke-memory-retrieval-mcp.mjs"), node("run-memory-retrieval-study.mjs", "--check", "--summary")),
   check("scope-guard", 1, node("smoke-scope-guard.mjs")),
   check("http-guard", 10, node("smoke-http-guard.mjs")),
   check("remote-context", 1, node("smoke-remote-context.mjs")),

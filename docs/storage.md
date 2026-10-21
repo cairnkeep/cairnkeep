@@ -48,6 +48,11 @@ services used to process/search memory. They do not change where the SQLite
 databases are stored. Git-provider and routing configuration do not change
 storage either.
 
+`memory_search` can optionally select [hybrid retrieval](memory-retrieval.md).
+This changes read-time ranking only: aliases are request hints, explanations
+are returned to the caller without a new log, and original memory text remains
+authoritative. No new store, migration or automatic memory capture is introduced.
+
 Trajectory storage is deliberately separate from MCP memory. The harness hook
 writes `.agentfs/trajectory.db` on the client machine where Claude Code,
 OpenCode, or Pi is running; it is never redirected to the remote HTTP memory server.

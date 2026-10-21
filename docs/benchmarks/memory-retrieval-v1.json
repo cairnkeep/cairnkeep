@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "study": "synthetic-memory-continuity-v1",
+  "fixture_digest": "051a1ee175fc20d9e38c43d838b234c759133805ab335f74ef5603ee0871fce8",
+  "embedding": {
+    "mode": "none"
+  },
+  "limitations": [
+    "Synthetic retrieval scenarios, not autonomous task-quality or human-usability evidence.",
+    "Markdown baseline shares BM25/tokenization and receives identical alias information.",
+    "Markdown with the same admission policy is included to distinguish retrieval-policy gains from storage format.",
+    "Offline cases do not evaluate learned semantic paraphrase retrieval.",
+    "Explicit live threshold is an example, not universal calibration or a confidence probability.",
+    "Current-state fixture excludes archived history; actual supersession is covered by the MCP regression.",
+    "No automatic contradiction reconciliation, human consent or concurrent local-store access is claimed."
+  ],
+  "measurements": [
+    {
+      "adapter": "markdown-bm25",
+      "distractor_count": 0,
+      "hit_at_1": 0.8888888888888888,
+      "recall_at_5": 0.8888888888888888,
+      "negative_false_positive_rate": 0.75,
+      "irrelevant_bytes": 794
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "distractor_count": 0,
+      "hit_at_1": 0.8888888888888888,
+      "recall_at_5": 0.8888888888888888,
+      "negative_false_positive_rate": 0,
+      "irrelevant_bytes": 0
+    },
+    {
+      "adapter": "legacy-substring",
+      "distractor_count": 0,
+      "hit_at_1": 0.3333333333333333,
+      "recall_at_5": 0.3333333333333333,
+      "negative_false_positive_rate": 0,
+      "irrelevant_bytes": 0
+    },
+    {
+      "adapter": "hybrid-lexical",
+      "distractor_count": 0,
+      "hit_at_1": 0.8888888888888888,
+      "recall_at_5": 0.8888888888888888,
+      "negative_false_positive_rate": 0,
+      "irrelevant_bytes": 0
+    },
+    {
+      "adapter": "markdown-bm25",
+      "distractor_count": 100,
+      "hit_at_1": 0.8888888888888888,
+      "recall_at_5": 0.8888888888888888,
+      "negative_false_positive_rate": 0.75,
+      "irrelevant_bytes": 3359
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "distractor_count": 100,
+      "hit_at_1": 0.8888888888888888,
+      "recall_at_5": 0.8888888888888888,
+      "negative_false_positive_rate": 0,
+      "irrelevant_bytes": 0
+    },
+    {
+      "adapter": "legacy-substring",
+      "distractor_count": 100,
+      "hit_at_1": 0.3333333333333333,
+      "recall_at_5": 0.3333333333333333,
+      "negative_false_positive_rate": 0,
+      "irrelevant_bytes": 0
+    },
+    {
+      "adapter": "hybrid-lexical",
+      "distractor_count": 100,
+      "hit_at_1": 0.8888888888888888,
+      "recall_at_5": 0.8888888888888888,
+      "negative_false_positive_rate": 0,
+      "irrelevant_bytes": 0
+    },
+    {
+      "adapter": "markdown-bm25",
+      "distractor_count": 1000,
+      "hit_at_1": 0.8888888888888888,
+      "recall_at_5": 0.8888888888888888,
+      "negative_false_positive_rate": 0.75,
+      "irrelevant_bytes": 3359
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "distractor_count": 1000,
+      "hit_at_1": 0.8888888888888888,
+      "recall_at_5": 0.8888888888888888,
+      "negative_false_positive_rate": 0,
+      "irrelevant_bytes": 0
+    },
+    {
+      "adapter": "legacy-substring",
+      "distractor_count": 1000,
+      "hit_at_1": 0.3333333333333333,
+      "recall_at_5": 0.3333333333333333,
+      "negative_false_positive_rate": 0,
+      "irrelevant_bytes": 0
+    },
+    {
+      "adapter": "hybrid-lexical",
+      "distractor_count": 1000,
+      "hit_at_1": 0.8888888888888888,
+      "recall_at_5": 0.8888888888888888,
+      "negative_false_positive_rate": 0,
+      "irrelevant_bytes": 0
+    }
+  ]
+}

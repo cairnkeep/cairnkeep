@@ -66,6 +66,13 @@ or moved. If the tree-addressed candidate has expired, rerun CI for the exact
 release commit before retrying publication; the workflow never substitutes a
 different version or tree.
 
+CI job retries can also regenerate the same tree-addressed candidate. Its
+upload explicitly replaces an existing artifact of that name within the same
+workflow run, only after all platform/runtime dependencies succeed. This avoids
+an artifact-name conflict after a completed job is retried; it does not move
+versioned image tags, republish npm versions or replace GitHub Release assets.
+Candidate checksums and tree/version binding are verified as usual.
+
 ## Repository configuration
 
 ### Repeatable post-publication verification

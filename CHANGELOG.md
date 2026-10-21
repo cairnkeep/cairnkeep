@@ -5,6 +5,25 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Memory retrieval
+
+- Add opt-in `memory_search` hybrid lexical/identifier admission, bounded query
+  aliases, explicit semantic-only thresholds, deterministic ranking, duplicate
+  source locators and optional conflict/match explanations. Preserve existing
+  default responses, history, scope filters and storage layouts. Fall back to
+  lexical admission when optional embedding results are invalid or unavailable.
+- Add a frozen continuity study against real curated Markdown files, including
+  the same-policy Markdown parity control and 0/100/1,000 distractors. Document
+  synthetic limitations and unsuccessful live-provider evaluation; update the
+  agent guidance, learning lesson and recording supplement.
+
+### CI
+
+- Allow a retried, fully gated CI job to replace its run-local tree-addressed
+  release candidate instead of failing on the existing artifact name. Keep all
+  platform/runtime dependencies and immutable published versions unchanged; add
+  parsed-workflow positive and mutation controls.
+
 ## [2.22.5] - 2026-10-08
 
 ### Operations

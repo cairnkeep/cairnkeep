@@ -19,7 +19,14 @@ Read order (canonical sources still win over derived layers):
 
 <process>
 ## 1. AgentFS
-`memory_search` scope `project` with $ARGUMENTS. If nothing relevant, retry scope `all`.
+`memory_search` scope `project` with $ARGUMENTS. When the discovered schema
+supports it, use `strategy: "hybrid"` for identifier-sensitive or mixed-wording
+queries and `explain: true` to inspect matches. Supply only aliases already known
+from the task. Semantic-only hybrid matches require an explicitly chosen
+positive `min_score`; retain the existing semantic strategy for paraphrases
+when no model-specific threshold is available. Empty results are valid.
+Use broader configured scopes only when the question genuinely spans them;
+do not automatically widen a search merely to force a hit.
 
 ## 2. Wiki
 Read `.planning/wiki/index.md` if present and follow links relevant to $ARGUMENTS.

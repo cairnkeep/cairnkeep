@@ -222,3 +222,6 @@ jobs:
           path: artifacts/
           if-no-files-found: error
           retention-days: 30
+          # Retried jobs can regenerate this run-local candidate after all gates
+          # pass; published packages, tags and release assets are untouched.
+          overwrite: true

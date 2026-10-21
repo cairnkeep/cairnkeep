@@ -82,6 +82,9 @@ const BASELINE_TOOL_SCHEMAS = {
         query: { type: "string", minLength: 1 },
         top_k: { type: "integer", minimum: 1, maximum: 50 },
         min_score: { type: "number", minimum: 0, maximum: 1 },
+        strategy: { description: "Default legacy preserves current retrieval. Hybrid admits lexical/identifier matches and semantic-only matches above an explicit positive min_score.", type: "string", enum: ["legacy", "hybrid"] },
+        query_aliases: { description: "Explicit alternative query phrases for hybrid lexical retrieval; never widens scopes.", maxItems: 8, type: "array", items: { type: "string", minLength: 1, maxLength: 256 } },
+        explain: { description: "Include hybrid match reasons, provenance locators and possible conflicting live values.", type: "boolean" },
     }, ["scope", "query"]),
     memory_supersede: schema({
         scope: { type: "string" },
