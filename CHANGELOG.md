@@ -17,6 +17,13 @@ All notable user-facing changes are documented here. This project follows
   synthetic limitations and unsuccessful live-provider evaluation; update the
   agent guidance, learning lesson and recording supplement.
 
+### CI
+
+- Allow a retried, fully gated CI job to replace its run-local tree-addressed
+  release candidate instead of failing on the existing artifact name. Keep all
+  platform/runtime dependencies and immutable published versions unchanged; add
+  parsed-workflow positive and mutation controls.
+
 ## [2.22.5] - 2026-10-08
 
 ### Operations
