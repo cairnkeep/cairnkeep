@@ -10,6 +10,11 @@ inventory, or search commands such as `pwd`, `ls`, `rg --files`, `find`,
 - If `memory_search` is available, derive one short query from the task and
   search `scope: project` once. Derive it from the user's task; do not inspect
   the repository first merely to formulate the query.
+- When the discovered schema supports hybrid search, use it for explicit
+  identifiers or mixed wording; request explanations when needed. Supply only
+  aliases already known from the task. Hybrid semantic-only matches require an
+  explicit model-specific positive similarity threshold; otherwise keep the
+  existing semantic strategy for paraphrases. Empty results are acceptable.
 - Treat returned memory as a locator, not authority. Read and verify the
   maintained repository sources it references before implementing a result.
 - If the tool is unavailable or no relevant result exists, continue with

@@ -14,6 +14,8 @@ fail() {
 
 node - "$ROOT/package.json" "$ROOT/package-lock.json" "$CANDIDATE_WORKFLOW" "$PUBLISH_WORKFLOW" <<'NODE'
 const fs = require("node:fs");
+const assert = require("node:assert/strict");
+const { parse } = require("yaml");
 
 const manifest = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const lock = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
@@ -36,6 +38,36 @@ if (!candidateWorkflow.includes("release-candidate:")
   || !candidateWorkflow.includes("name: release-candidate-${{ steps.candidate.outputs.tree }}")) {
   throw new Error("CI must build and upload a tree-addressed release candidate after its required jobs");
 }
+function validateCandidateRetry(workflow) {
+  const job = workflow.jobs["release-candidate"];
+  assert.deepEqual(new Set(job.needs), new Set([
+    "memory-server", "native-windows", "repository", "shell-portability",
+    "server-boot", "container", "fresh-install-macos",
+  ]), "candidate retry must retain every platform/runtime gate");
+  assert.equal(job.if, undefined, "candidate retry must not bypass failed or pending gates");
+  const uploads = job.steps.filter(step => step.uses?.startsWith("actions/upload-artifact@"));
+  assert.equal(uploads.length, 1, "candidate retry must have one artifact publication");
+  assert.equal(uploads[0].with.name, "release-candidate-${{ steps.candidate.outputs.tree }}");
+  assert.equal(uploads[0].with.overwrite, true, "candidate upload must support same-run retries");
+  assert.equal(uploads[0].with["if-no-files-found"], "error");
+}
+const candidate = parse(candidateWorkflow);
+const positive = structuredClone(candidate);
+positive.jobs["release-candidate"].steps.find(step => step.uses?.startsWith("actions/upload-artifact@")).with.overwrite = true;
+validateCandidateRetry(positive);
+for (const overwrite of [undefined, false]) {
+  const invalid = structuredClone(positive);
+  invalid.jobs["release-candidate"].steps.find(step => step.uses?.startsWith("actions/upload-artifact@")).with.overwrite = overwrite;
+  assert.throws(() => validateCandidateRetry(invalid), /same-run retries/);
+}
+const missingGate = structuredClone(positive);
+missingGate.jobs["release-candidate"].needs = missingGate.jobs["release-candidate"].needs.filter(name => name !== "native-windows");
+assert.throws(() => validateCandidateRetry(missingGate), /every platform\/runtime gate/);
+const bypass = structuredClone(positive);
+bypass.jobs["release-candidate"].if = "always()";
+assert.throws(() => validateCandidateRetry(bypass), /must not bypass/);
+validateCandidateRetry(candidate);
+console.log("PASS: retry-safe candidate upload and four gate/replacement mutation controls");
 if (!publishWorkflow.includes("- name: Download the CI-verified release candidate")
   || !publishWorkflow.includes("jq -r '.conclusion'")
   || !publishWorkflow.includes("== success")

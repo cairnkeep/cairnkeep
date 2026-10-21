@@ -12,6 +12,46 @@ All notable user-facing changes are documented here. This project follows
   reject missing or empty role lists in `member set`. Update shell completions,
   team guidance and the learning/video rehearsal.
 
+## [2.23.1] - 2026-10-22
+
+### Domain knowledge
+
+- Resolve local AnythingLLM defaults from the existing absolute project-path
+  mapping, with deepest-project matching and the sync script's discovery order.
+  Preserve explicit workspace overrides, legacy fallback, remote HTTP session
+  routing, OpenViking selection and synchronization approval requirements.
+- Bound mapping reads and reject unsafe files, invalid slugs and ambiguous
+  canonical project declarations. Add pure, real stdio, HTTP and synchronization
+  regression controls; update operating guidance and the recording supplement.
+
+### Maintenance
+
+- Refresh pinned setup, artifact-upload and code-scanning actions; align the
+  packaged CLI and server on Zod 4.6.7 with dependency-parity mutation controls.
+- Update the isolated historical Python MCP integration experiment to 2.2.0;
+  this does not add Python or that experiment to the shipped Node runtime.
+
+## [2.23.0] - 2026-10-21
+
+### Memory retrieval
+
+- Add opt-in `memory_search` hybrid lexical/identifier admission, bounded query
+  aliases, explicit semantic-only thresholds, deterministic ranking, duplicate
+  source locators and optional conflict/match explanations. Preserve existing
+  default responses, history, scope filters and storage layouts. Fall back to
+  lexical admission when optional embedding results are invalid or unavailable.
+- Add a frozen continuity study against real curated Markdown files, including
+  the same-policy Markdown parity control and 0/100/1,000 distractors. Document
+  synthetic limitations and unsuccessful live-provider evaluation; update the
+  agent guidance, learning lesson and recording supplement.
+
+### CI
+
+- Allow a retried, fully gated CI job to replace its run-local tree-addressed
+  release candidate instead of failing on the existing artifact name. Keep all
+  platform/runtime dependencies and immutable published versions unchanged; add
+  parsed-workflow positive and mutation controls.
+
 ## [2.22.5] - 2026-10-08
 
 ### Operations

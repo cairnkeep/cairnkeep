@@ -22,7 +22,12 @@ const baselineSchemas = {
     memory_invalidate_reviewed: { scope: { type: "string" }, review_id: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" }, key: { type: "string", minLength: 1 }, reason: { type: "string", maxLength: 512 } },
     memory_list: { scope: { type: "string" }, prefix: { type: "string" } },
     memory_read: { scope: { type: "string" }, key: { type: "string" }, query: { type: "string" } },
-    memory_search: { scope: { type: "string" }, query: { type: "string", minLength: 1 }, top_k: { type: "integer", minimum: 1, maximum: 50 }, min_score: { type: "number", minimum: 0, maximum: 1 } },
+    memory_search: {
+        scope: { type: "string" }, query: { type: "string", minLength: 1 }, top_k: { type: "integer", minimum: 1, maximum: 50 }, min_score: { type: "number", minimum: 0, maximum: 1 },
+        strategy: { description: "Default legacy preserves current retrieval. Hybrid admits lexical/identifier matches and semantic-only matches above an explicit positive min_score.", type: "string", enum: ["legacy", "hybrid"] },
+        query_aliases: { description: "Explicit alternative query phrases for hybrid lexical retrieval; never widens scopes.", maxItems: 8, type: "array", items: { type: "string", minLength: 1, maxLength: 256 } },
+        explain: { description: "Include hybrid match reasons, provenance locators and possible conflicting live values.", type: "boolean" },
+    },
     memory_supersede: { scope: { type: "string" }, key: { type: "string", minLength: 1 }, value: { type: "string" }, reason: { type: "string" } },
     memory_write: { scope: { type: "string" }, key: { type: "string", minLength: 1 }, value: { type: "string" }, promote_to: { type: "string" } },
     route_check: { timeout_seconds: { type: "integer", minimum: 1, maximum: 60 } },

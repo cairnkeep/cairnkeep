@@ -32,6 +32,11 @@ sync command but never runs it automatically. This guide covers all three.
 - Optional: an OpenAI-compatible LLM endpoint for memory extraction and
   embedding-ranked search. Without it, memory search degrades to substring
   matching — everything else still works.
+  Explicit `memory_search` calls with `strategy: "hybrid"` additionally support
+  lexical/identifier admission without a provider, bounded `query_aliases`,
+  optional explanations and empty results. Semantic-only admission requires an
+  explicit positive `min_score`; see [memory retrieval](memory-retrieval.md)
+  for model-specific threshold limits and the Markdown comparison.
 - Optional: rootless Podman for the containerized memory server and isolated
   workspace base described in [Containers](containers.md).
 

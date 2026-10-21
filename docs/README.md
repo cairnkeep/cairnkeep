@@ -31,6 +31,9 @@ linked guides rather than the project landing page.
 
 ## Context intelligence
 
+- [Memory retrieval and the Markdown baseline](memory-retrieval.md) explains
+  optional hybrid admission, aliases, relevance diagnostics and reproducible
+  continuity evidence against searchable Markdown.
 - [Context intelligence](context-intelligence.md) connects progressive context-pack
   retrieval, the frozen benchmark, usage receipts, review-gated proposals, and
   the optional read-only OpenViking provider.

@@ -15,6 +15,8 @@ import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
+import { defaultAnythingLLMWorkspace as resolveDefaultAnythingLLMWorkspace } from "./anythingllm-workspace.js";
+
 import {
     artifactIdSchema,
     artifactKindSchema,
@@ -76,6 +78,7 @@ import { profileAllowsTool, resolveMcpToolProfile, type McpToolProfileStatus } f
 import { isWorkEvidenceEnabled } from "./work-evidence-schema.js";
 import { extractMemoryCandidates as extractMemoryCandidatesFromProvider } from "./memory-extraction.js";
 import { applyReviewedMemory, invalidateReviewedMemory } from "./reviewed-memory-store.js";
+import { rankHybridMemory } from "./memory-retrieval.js";
 
 type CapabilityWrapper = typeof import("./capability-adapter.js").withCapability;
 type AsyncToolCallback<Args extends AnySchema> = (
@@ -548,8 +551,14 @@ async function readStdin(): Promise<string> {
     return Buffer.concat(chunks).toString("utf8");
 }
 
-function defaultAnythingLLMWorkspace(config: MemoryConfig): string | undefined {
-    return config.anythingllm_workspaces?.find((workspace) => workspace !== "engineering-patterns");
+function defaultAnythingLLMWorkspace(config: MemoryConfig, remote = false): string | undefined {
+    // HTTP callers route by session metadata, never by the server's checkout.
+    if (remote || resolveDomainRetrievalProvider() !== "anythingllm") {
+        return config.anythingllm_workspaces?.find((workspace) => workspace !== "engineering-patterns");
+    }
+    // `anythingllm-projects.json` may also sit beside the bundled sync script,
+    // which is the legacy location the script still honours.
+    return resolveDefaultAnythingLLMWorkspace(config, process.cwd(), process.env, dirname(anythingllmSyncScript));
 }
 
 type ScoredEntry = MemoryEntry & { score: number };
@@ -570,8 +579,8 @@ async function semanticSearch(
     minScore: number,
     config: MemoryConfig = getMemoryConfig(),
     projectId?: string,
-    options: { typed?: boolean; filters?: MemoryFilters } = {},
-): Promise<{ results: ScoredEntry[]; mode: "semantic" | "substring"; model?: string }> {
+    options: { typed?: boolean; filters?: MemoryFilters; strategy?: "legacy" | "hybrid"; aliases?: string[]; explain?: boolean } = {},
+): Promise<{ results: ScoredEntry[]; mode: "semantic" | "substring" | "hybrid"; model?: string; retrieval?: ReturnType<typeof rankHybridMemory>["retrieval"] }> {
     const scopes = getSearchScopes(scope, config);
     const embeddingConfig = getEmbeddingConfig();
 
@@ -585,8 +594,14 @@ async function semanticSearch(
         })),
     );
     const allEntries = perScopeEntries.flatMap((group) => group.entries);
+    const hybrid = (embeddingStatus: "unconfigured" | "not_used" | "available" | "failed", semanticScores?: Map<MemoryEntry, number>) => ({
+        ...rankHybridMemory(allEntries, query, { topK, minScore, aliases: options.aliases, explain: options.explain, embeddingStatus, semanticScores }),
+        mode: "hybrid" as const,
+        ...(embeddingConfig ? { model: embeddingConfig.model } : {}),
+    });
 
     if (allEntries.length === 0) {
+        if (options.strategy === "hybrid") return hybrid(embeddingConfig ? "not_used" : "unconfigured");
         return { results: [], mode: embeddingConfig ? "semantic" : "substring" };
     }
 
@@ -600,6 +615,7 @@ async function semanticSearch(
     };
 
     if (!embeddingConfig) {
+        if (options.strategy === "hybrid") return hybrid("unconfigured");
         return substringFallback();
     }
 
@@ -636,8 +652,22 @@ async function semanticSearch(
         }
 
         const [queryVector] = await embedTexts(embeddingConfig, [query]);
+        if (options.strategy === "hybrid") {
+            const validVector = (vector: number[] | undefined): vector is number[] => {
+                if (!vector?.length || vector.length > 65536 || vector.some(value => !Number.isFinite(value))) return false;
+                const squaredNorm = vector.reduce((total, value) => total + value * value, 0);
+                return squaredNorm > 0 && Number.isFinite(squaredNorm);
+            };
+            if (!validVector(queryVector) || allEntries.some(entry => !validVector(vectors.get(entry)) || vectors.get(entry)!.length !== queryVector.length)) {
+                throw new Error("Embedding vectors are incomplete or invalid.");
+            }
+        }
         for (const cache of caches) {
             cache.save();
+        }
+
+        if (options.strategy === "hybrid") {
+            return hybrid("available", new Map(allEntries.map(entry => [entry, Math.max(-1, Math.min(1, cosineSimilarity(queryVector, vectors.get(entry)!)))])));
         }
 
         const exact = options.typed
@@ -659,6 +689,7 @@ async function semanticSearch(
         return { results: ranked, mode: "semantic", model: embeddingConfig.model };
     } catch {
         // Embedding endpoint failure — degrade gracefully to substring matching.
+        if (options.strategy === "hybrid") return hybrid("failed");
         return substringFallback();
     }
 }
@@ -1427,6 +1458,9 @@ registerCapabilityTool(
             query: z.string().min(1),
             top_k: z.number().int().min(1).max(50).optional(),
             min_score: z.number().min(0).max(1).optional(),
+            strategy: z.enum(["legacy", "hybrid"]).optional().describe("Default legacy preserves current retrieval. Hybrid admits lexical/identifier matches and semantic-only matches above an explicit positive min_score."),
+            query_aliases: z.array(z.string().trim().min(1).max(256)).max(8).optional().describe("Explicit alternative query phrases for hybrid lexical retrieval; never widens scopes."),
+            explain: z.boolean().optional().describe("Include hybrid match reasons, provenance locators and possible conflicting live values."),
             ...(typedNodesEnabled ? {
                 address_space: NODE_ADDRESS_SPACE_SCHEMA.optional(),
                 node_types: z.array(nodeTypeSchema).min(1).optional(),
@@ -1440,8 +1474,16 @@ registerCapabilityTool(
     },
     async (input) => {
         const { scope, query, top_k, min_score } = input;
+        if (input.strategy !== "hybrid" && (input.query_aliases !== undefined || input.explain !== undefined)) {
+            throw new Error("query_aliases and explain require strategy='hybrid'.");
+        }
+        if (input.strategy === "hybrid") {
+            // Validate bounds before opening scopes or contacting an embedding service.
+            rankHybridMemory([], query, { topK: top_k ?? 8, minScore: min_score ?? 0, aliases: input.query_aliases });
+        }
         const addressSpace = "address_space" in input && input.address_space !== undefined ? NODE_ADDRESS_SPACE_SCHEMA.parse(input.address_space) : undefined;
         if (addressSpace && addressSpace !== "memory") {
+            if (input.strategy === "hybrid") throw new Error("Hybrid retrieval currently supports the memory address space only.");
             const noteStore = await import("./note-store.js");
             const entries = noteStore.searchAddressedNotes({ ...noteTargetOptions(scope, addressSpace), query, ...memoryFiltersFromInput(input) }).slice(0, top_k ?? 8);
             const results = entries.map((entry) => ({ ...entry, score: 1 }));
@@ -1451,7 +1493,7 @@ registerCapabilityTool(
                 structuredContent: payload,
             };
         }
-        const { results, mode, model } = await semanticSearch(
+        const { results, mode, model, retrieval } = await semanticSearch(
             scope,
             query,
             top_k ?? 8,
@@ -1461,9 +1503,12 @@ registerCapabilityTool(
             {
                 typed: typedNodesEnabled,
                 filters: typedNodesEnabled ? memoryFiltersFromInput(input) : {},
+                strategy: input.strategy,
+                aliases: input.query_aliases,
+                explain: input.explain,
             },
         );
-        const payload = { mode, model, count: results.length, results };
+        const payload = { mode, model, count: results.length, results, ...(retrieval ? { retrieval } : {}) };
 
         return {
             content: [{ type: "text", text: asToolText(payload) }],
@@ -1772,7 +1817,7 @@ registerTool(
         },
     },
     async ({ workspace, query }) => {
-        const workspaceSlug = workspace ?? defaultAnythingLLMWorkspace(memoryConfig());
+        const workspaceSlug = workspace ?? defaultAnythingLLMWorkspace(memoryConfig(), context.remote);
         if (!workspaceSlug) {
             throw new Error("No AnythingLLM workspace provided and no project workspace found in memory config.");
         }
@@ -1806,7 +1851,7 @@ registerTool(
         }
         const syncMode = mode ?? "incremental";
         const config = memoryConfig();
-        const workspaceSlug = workspace ?? defaultAnythingLLMWorkspace(config);
+        const workspaceSlug = workspace ?? defaultAnythingLLMWorkspace(config, context.remote);
 
         if (!workspaceSlug) {
             throw new Error("No AnythingLLM workspace provided and no project workspace found in memory config.");
