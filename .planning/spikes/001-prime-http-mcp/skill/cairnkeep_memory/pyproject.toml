@@ -3,7 +3,7 @@ name = "prime-agent-skill-cairnkeep-memory"
 version = "0.1.0"
 description = "Experimental Cairnkeep HTTP MCP integration for Prime Agent."
 requires-python = ">=3.10"
-dependencies = ["mcp==2.0.0", "httpx", "prime-agent-runtime"]
+dependencies = ["mcp==2.2.0", "httpx", "prime-agent-runtime"]
 
 [build-system]
 requires = ["hatchling"]

@@ -130,8 +130,27 @@ function verifyPackageRoot({ label, directory }) {
   }
 }
 
+function verifySchemaDependencyParity() {
+  let expectedRange;
+  let expectedVersion;
+  for (const { label, directory } of PACKAGE_ROOTS) {
+    const manifest = readJson(`${directory}/package.json`);
+    const lock = readJson(`${directory}/package-lock.json`);
+    const range = manifest.dependencies?.zod;
+    assert.equal(typeof range, "string", `${label}: direct Zod range is missing`);
+    assert.equal(lock.packages?.[""].dependencies?.zod, range, `${label}: manifest and lock root Zod ranges differ`);
+    const version = lock.packages?.["node_modules/zod"]?.version;
+    parseVersion(version, `${label} direct Zod`);
+    expectedRange ??= range;
+    expectedVersion ??= version;
+    assert.equal(range, expectedRange, "root and server Zod ranges differ");
+    assert.equal(version, expectedVersion, "root and server resolved Zod versions differ");
+  }
+}
+
 try {
   PACKAGE_ROOTS.forEach(verifyPackageRoot);
+  verifySchemaDependencyParity();
   process.stdout.write("PASS: dependency manifests and lock graphs exclude known MCP transport advisories\n");
 } catch (error) {
   process.stderr.write(`FAIL: dependency security policy: ${error instanceof Error ? error.message : String(error)}\n`);
