@@ -51,6 +51,8 @@ try {
   assert.equal((await search(client, 'office tunnel access', { tags_all: ['absent'] })).count, 0);
   const unsupported = await client.callTool({ name: 'memory_search', arguments: { scope: 'identity', query: 'office', strategy: 'legacy', explain: true } });
   assert.equal(unsupported.isError, true);
+  const notes = await client.callTool({ name: 'memory_search', arguments: { scope: 'identity', query: 'office', address_space: 'project-notes', strategy: 'hybrid' } });
+  assert.equal(notes.isError, true, 'unsupported note strategy fails explicitly');
   assert.deepEqual(await tool(client, 'memory_search', { scope: 'identity', query: 'Office tunnel', top_k: 2 }), legacy, 'explicit hybrid calls do not change legacy default behavior');
   // A direct local AgentFS process owns the native database handle. Exercise
   // sequential handoff; concurrent clients belong on one shared HTTP server.
@@ -58,6 +60,11 @@ try {
   const fresh = await connect('second');
   assert.deepEqual((await search(fresh, 'office tunnel access')).results, result.results, 'new process/cwd preserves reviewed live context');
   await fresh.close();
+  const plain = await connect('untyped', { CAIRN_TYPED_MEMORY_NODES: '' });
+  const plainResult = await search(plain, 'office tunnel access');
+  assert.equal(plainResult.results[0].value, result.results[0].value, 'hybrid retrieval does not require optional typed metadata');
+  assert.equal(plainResult.results[0].node_type, undefined);
+  await plain.close();
   const providerEnv = { CAIRN_LLM_API_KEY: 'synthetic-retrieval-key', CAIRN_MEMORY_EMBEDDING_URL: `http://127.0.0.1:${provider.address().port}`, CAIRN_MEMORY_EMBEDDING_MODEL: 'fixture-vector-model' };
   const semantic = await connect('semantic', providerEnv);
   assert.equal((await search(semantic, 'sourdough bread')).count, 0, 'even a perfect mocked cosine needs explicit semantic-only consent');
