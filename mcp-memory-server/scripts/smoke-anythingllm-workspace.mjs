@@ -1,4 +1,6 @@
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -61,6 +63,48 @@ writeProjects([{ slug: "", path: repoA }, { path: repoB }, { slug: "ok-docs", pa
 check("skips entries missing slug or path", workspaceForDirectory(repoB, env) === "ok-docs");
 check("no projects file leaves previous behaviour intact",
     defaultAnythingLLMWorkspace(config, repoA, { XDG_CONFIG_HOME: join(root, "empty") }) === "legacy-project-docs");
+
+writeProjects([{ slug: "engineering-patterns", path: repoA }]);
+check("mapping cannot select the shared patterns workspace as a project default",
+    defaultAnythingLLMWorkspace(config, repoA, env) === "legacy-project-docs");
+writeProjects([{ slug: "unsafe/docs", path: repoA }]);
+check("mapping skips unsafe workspace identifiers", workspaceForDirectory(repoA, env) === undefined);
+writeProjects([{ slug: "relative-docs", path: "." }]);
+check("relative project declarations do not float with the process directory",
+    workspaceForDirectory(process.cwd(), env) === undefined);
+writeProjects([{ slug: "xdg-docs", path: repoA }]);
+const legacyDir = join(root, "legacy");
+mkdirSync(legacyDir);
+writeFileSync(join(legacyDir, "anythingllm-projects.json"), JSON.stringify({ projects: [{ slug: "legacy-docs", path: repoA }] }));
+check("legacy mapping precedes XDG exactly as the bundled sync script does",
+    workspaceForDirectory(repoA, env, legacyDir) === "legacy-docs");
+writeFileSync(projectsFile, JSON.stringify({ projects: [{ slug: "oversized-docs", path: repoA }], padding: "x".repeat(1024 * 1024) }));
+check("oversized mappings fall back under a fixed byte cap", workspaceForDirectory(repoA, env) === undefined);
+writeProjects(Array.from({ length: 4097 }, () => ({ slug: "too-many-docs", path: repoA })));
+check("mapping entry count is bounded", workspaceForDirectory(repoA, env) === undefined);
+writeFileSync(projectsFile, Buffer.concat([
+    Buffer.from(JSON.stringify({ projects: [{ slug: "invalid-text-docs", path: repoA }] }).slice(0, -1) + ',"note":"'),
+    Buffer.from([0xff]), Buffer.from('"}'),
+]));
+check("invalid UTF-8 mappings are not admitted", workspaceForDirectory(repoA, env) === undefined);
+writeProjects([{ slug: "alpha-docs", path: repoA }, { slug: "beta-docs", path: repoA }]);
+assert.throws(() => workspaceForDirectory(repoA, env), /Ambiguous project workspace mapping/);
+writeProjects([{ slug: "alpha-docs", path: repoA }, { slug: "alpha-docs", path: repoA }]);
+check("identical repeated declarations remain deterministic", workspaceForDirectory(repoA, env) === "alpha-docs");
+const dotted = join(repoA, "..cache");
+mkdirSync(dotted);
+check("a child name beginning with dots is still inside its project", workspaceForDirectory(dotted, env) === "alpha-docs");
+if (process.platform !== "win32") {
+    unlinkSync(projectsFile);
+    symlinkSync(override, projectsFile);
+    check("symlinked mappings fall back without following their content", workspaceForDirectory(repoA, env) === undefined);
+    unlinkSync(projectsFile);
+    assert.equal(spawnSync("mkfifo", [projectsFile]).status, 0);
+    const worker = spawnSync(process.execPath, ["--input-type=module", "-e",
+        `import { workspaceForDirectory } from ${JSON.stringify(new URL("../dist/anythingllm-workspace.js", import.meta.url).href)}; process.exit(workspaceForDirectory(process.argv[1], {XDG_CONFIG_HOME:process.argv[2]}) === undefined ? 0 : 1);`, repoA, configHome], { timeout: 3000 });
+    assert.ifError(worker.error);
+    check("FIFO mapping is rejected without blocking", worker.status === 0);
+}
 
 rmSync(root, { recursive: true, force: true });
 if (failures > 0) {

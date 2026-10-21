@@ -61,7 +61,7 @@ export const smokeChecks = Object.freeze([
   check("context-pack-v216-compat", 15, node("smoke-context-pack-v216-compat.mjs")),
   check("context-usage", 40, node("smoke-context-usage.mjs")),
   check("domain-retrieval", 4, node("smoke-domain-retrieval.mjs")),
-  check("anythingllm-workspace", 1, node("smoke-anythingllm-workspace.mjs")),
+  check("anythingllm-workspace", 3, node("smoke-anythingllm-workspace.mjs"), node("smoke-anythingllm-workspace-mcp.mjs")),
   check("retrieval-benchmark", 21,
     node("smoke-retrieval-benchmark.mjs"),
     node("run-retrieval-benchmark.mjs", "--check")),

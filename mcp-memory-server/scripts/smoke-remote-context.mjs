@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -20,6 +20,8 @@ const TOKEN = "remote-context-smoke-token";
 const storeDir = mkdtempSync(join(tmpdir(), "cairn-remote-context-"));
 const anythingRequests = [];
 const serverEntry = resolve(dirname(fileURLToPath(import.meta.url)), "..", "dist", "index.js");
+const projectsFile = join(storeDir, "anythingllm-projects.json");
+writeFileSync(projectsFile, JSON.stringify({ projects: [{ slug: "server-cwd-docs", path: storeDir }] }));
 
 const anythingServer = createServer(async (req, res) => {
     const chunks = [];
@@ -38,6 +40,7 @@ const server = spawn("node", [serverEntry], {
         MCP_HTTP_HOST: "127.0.0.1",
         CAIRN_MEMORY_HTTP_TOKEN: TOKEN,
         CAIRN_AGENTFS_BASE_DIR: storeDir,
+        CAIRN_ANYTHINGLLM_PROJECTS_FILE: projectsFile,
         ANYTHINGLLM_BASE_URL: `http://127.0.0.1:${ANYTHING_PORT}`,
         ANYTHINGLLM_API_KEY: "smoke-anything-key",
     },

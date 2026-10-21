@@ -20,7 +20,7 @@ been rehearsed.
 | Wiki, alignment, and repository quality workflows | L05-L06 | L05-L06 | Brief |
 | Optional local code graph, graph inspection, and harness delegates | L18 | L18 | Brief; default off |
 | Storage placement, export/import, and authenticated remote memory | L07 | L07-L08 | Brief |
-| Document RAG | L00 | L09 | Brief; optional |
+| Document RAG | L00 | L09 | Brief; optional; [V09 routing supplement](video-scripts/V09-workspace-routing-supplement.md) covers local mappings and HTTP isolation |
 | token-miser exploration and routing | L00 | L10 | Brief; optional |
 | Rootless containers and persistent service operation | L01 | L11 | L01 Ready; L11 Brief |
 | Private managed distributions | L12 | L12 | Brief; optional |
