@@ -15,6 +15,8 @@ import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
+import { defaultAnythingLLMWorkspace as resolveDefaultAnythingLLMWorkspace } from "./anythingllm-workspace.js";
+
 import {
     artifactIdSchema,
     artifactKindSchema,
@@ -549,8 +551,14 @@ async function readStdin(): Promise<string> {
     return Buffer.concat(chunks).toString("utf8");
 }
 
-function defaultAnythingLLMWorkspace(config: MemoryConfig): string | undefined {
-    return config.anythingllm_workspaces?.find((workspace) => workspace !== "engineering-patterns");
+function defaultAnythingLLMWorkspace(config: MemoryConfig, remote = false): string | undefined {
+    // HTTP callers route by session metadata, never by the server's checkout.
+    if (remote || resolveDomainRetrievalProvider() !== "anythingllm") {
+        return config.anythingllm_workspaces?.find((workspace) => workspace !== "engineering-patterns");
+    }
+    // `anythingllm-projects.json` may also sit beside the bundled sync script,
+    // which is the legacy location the script still honours.
+    return resolveDefaultAnythingLLMWorkspace(config, process.cwd(), process.env, dirname(anythingllmSyncScript));
 }
 
 type ScoredEntry = MemoryEntry & { score: number };
@@ -1809,7 +1817,7 @@ registerTool(
         },
     },
     async ({ workspace, query }) => {
-        const workspaceSlug = workspace ?? defaultAnythingLLMWorkspace(memoryConfig());
+        const workspaceSlug = workspace ?? defaultAnythingLLMWorkspace(memoryConfig(), context.remote);
         if (!workspaceSlug) {
             throw new Error("No AnythingLLM workspace provided and no project workspace found in memory config.");
         }
@@ -1843,7 +1851,7 @@ registerTool(
         }
         const syncMode = mode ?? "incremental";
         const config = memoryConfig();
-        const workspaceSlug = workspace ?? defaultAnythingLLMWorkspace(config);
+        const workspaceSlug = workspace ?? defaultAnythingLLMWorkspace(config, context.remote);
 
         if (!workspaceSlug) {
             throw new Error("No AnythingLLM workspace provided and no project workspace found in memory config.");

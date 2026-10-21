@@ -29,7 +29,7 @@ work exactly the same without them.
 | `ANYTHINGLLM_API_KEY` | **Required** for the domain-knowledge tools. Unset → the tools error at call time (everything else works). |
 | `ANYTHINGLLM_BASE_URL` | AnythingLLM base URL. Default `http://localhost:3001`. |
 | `CAIRN_ANYTHINGLLM_SYNC_SCRIPT` | Optional path to a custom document-sync script. Unset -> `domain_knowledge_sync` uses the bundled deployment-neutral example. |
-| `CAIRN_ANYTHINGLLM_PROJECTS_FILE` | Optional config path for the bundled sync script. Default `${XDG_CONFIG_HOME:-~/.config}/cairnkeep/anythingllm-projects.json`. |
+| `CAIRN_ANYTHINGLLM_PROJECTS_FILE` | Optional config path for the bundled sync script, also used to pick the default workspace per repository. Default `${XDG_CONFIG_HOME:-~/.config}/cairnkeep/anythingllm-projects.json`. |
 | `CAIRN_ANYTHINGLLM_STATE_FILE` | Optional state path for the bundled sync script. Default `${XDG_STATE_HOME:-~/.local/state}/cairnkeep/anythingllm-sync.json`. |
 
 The query security follow-up validates HTTP(S) URLs and rejects embedded
@@ -54,9 +54,43 @@ first of `.agent/memory.json`, `.opencode/memory.json`, `.claude/memory.json`, o
 }
 ```
 
-`domain_knowledge_query` takes an explicit `workspace`, or falls back to the first
-configured workspace that is not `engineering-patterns` (the conventional shared
-workspace). With no workspace given and none configured, it errors.
+### Which workspace a call targets
+
+A local stdio tool call without an explicit `workspace` resolves one in this order:
+
+1. The project in `anythingllm-projects.json` whose absolute `path` contains the current
+   working directory. The deepest match wins, so a checkout nested inside
+   another project resolves to its own workspace.
+2. Otherwise the first entry in `anythingllm_workspaces` that is not
+   `engineering-patterns`, which is reserved for cross-project patterns and is
+   never chosen as a project default.
+
+Step 1 matters when one machine holds several checkouts that share a single
+global memory config. Without it every repository resolves to the same
+workspace, and a query made from a different repository reports "there is no
+relevant information" instead of revealing that it searched somewhere
+unrelated. Because the mapping is the same file the sync script uses, the
+workspace a repository reads from is the one it embeds into.
+
+If the mapping is absent, unreadable, or malformed, resolution falls back to
+step 2, so existing single-project setups are unaffected.
+
+Mapping discovery follows the bundled sync script exactly:
+`CAIRN_ANYTHINGLLM_PROJECTS_FILE`, then a legacy file beside the selected sync
+script, then `${XDG_CONFIG_HOME:-~/.config}/cairnkeep/anythingllm-projects.json`.
+A missing explicit override does not select another mapping implicitly. Custom
+sync implementations must honor the same mapping or configure an explicit
+workspace; Cairnkeep cannot infer their private lookup rules.
+
+Mapping reads are descriptor-bound UTF-8 JSON, limited to 1 MiB and 4,096
+entries. Symlinked, special, changing and oversized mapping files are not read
+as trusted content. Project paths must be absolute, without tilde expansion,
+matching the sync script. They are canonicalized; relative declarations,
+invalid workspace identifiers and the shared `engineering-patterns` slug are
+skipped. Conflicting slugs for the same deepest canonical project raise a
+controlled ambiguity error: specify `workspace` or correct the declarations.
+Explicit tool arguments always win. With no resolved default, the tool errors.
+This lookup selects a destination; it does not grant approval to synchronize.
 
 In local stdio mode, that config is read from the client project's working
 directory. In remote HTTP mode, the server cannot read files from the client
@@ -64,6 +98,10 @@ PC. Configure `ANYTHINGLLM_BASE_URL`, `ANYTHINGLLM_API_KEY`, and any sync script
 on the HTTP server host, then send the project workspaces in the
 `X-Cairn-AnythingLLM-Workspaces` session header. See
 [Memory storage and deployment](storage.md#per-project-remote-sessions).
+HTTP calls never consult the server checkout's project mapping to choose a
+client's default, including on the synchronization write path. The optional
+OpenViking provider also retains its configured workspace selection rather
+than consulting an AnythingLLM-specific mapping.
 
 The HTTP server performs queries and runs the sync script on its own host. A
 remote sync script must therefore obtain project documents from a server-side
