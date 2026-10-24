@@ -5,6 +5,15 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Security
+
+- Refresh compatible transitive HTTP parser, URI and IP-address dependencies
+  in both lock graphs. Enforce the patched minimum versions, including nested
+  copies, with dependency-policy regression controls.
+- Normalize the container health-check directory's traversal permissions after
+  copying its probe. Verify the legacy entrypoint imports as the runtime UID;
+  do not count module-load failures as successful credential rejection.
+
 ## [2.23.1] - 2026-10-22
 
 ### Domain knowledge

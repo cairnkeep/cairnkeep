@@ -7,9 +7,10 @@ const ROOT = resolve(process.cwd());
 const MINIMUM_SDK = [1, 32, 1];
 const MINIMUM_NODE_SERVER = [2, 0, 5];
 const TRANSITIVE_MINIMUMS = new Map([
-  ["fast-uri", [3, 1, 8]],
+  ["body-parser", [2, 4, 0]],
+  ["fast-uri", [3, 1, 9]],
   ["hono", [4, 13, 13]],
-  ["ip-address", [10, 7, 3]],
+  ["ip-address", [10, 7, 4]],
   ["proxy-addr", [2, 0, 8]],
 ]);
 const DIRECT_HONO_PACKAGES = new Set(["hono", "@hono/node-server"]);

@@ -25,6 +25,16 @@ function check(label, mutate, expected) {
 }
 try {
   check("valid dependency graph", () => {}, null);
+  for (const lockPath of ['package-lock.json', 'mcp-memory-server/package-lock.json']) {
+    for (const [name, vulnerable] of [['body-parser', '2.3.0'], ['fast-uri', '3.1.8'], ['ip-address', '10.7.3']]) {
+      check(`${lockPath} rejects vulnerable ${name}`, x => {
+        x[lockPath].packages[`node_modules/${name}`].version = vulnerable;
+      }, new RegExp(`resolved ${name}: requires`));
+      check(`${lockPath} rejects nested vulnerable ${name}`, x => {
+        x[lockPath].packages[`node_modules/fixture/node_modules/${name}`] = { version: vulnerable };
+      }, new RegExp(`resolved ${name}: requires`));
+    }
+  }
   check("root manifest/lock mismatch", x => { x["package.json"].dependencies.zod = "^4.0.0"; }, /manifest and lock root Zod ranges differ/);
   check("server manifest/lock mismatch", x => { x["mcp-memory-server/package-lock.json"].packages[""].dependencies.zod = "^4.0.0"; }, /manifest and lock root Zod ranges differ/);
   check("matched server range differs from packaged CLI", x => {
@@ -34,7 +44,7 @@ try {
   check("different resolved schema version", x => { x["mcp-memory-server/package-lock.json"].packages["node_modules/zod"].version = "4.0.0"; }, /root and server resolved Zod versions differ/);
   check("missing direct schema", x => { delete x["package-lock.json"].packages["node_modules/zod"]; }, /direct Zod: version must be a string/);
   check("existing SDK advisory check retained", x => { x["package-lock.json"].packages["node_modules/@modelcontextprotocol/sdk"].version = "1.0.0"; }, /resolved @modelcontextprotocol\/sdk: requires/);
-  console.log("PASS: dependency policy positive control, schema parity mutations and SDK advisory rejection");
+  console.log("PASS: dependency policy positive control, both-lock/nested advisory rejection and schema parity mutations");
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }
