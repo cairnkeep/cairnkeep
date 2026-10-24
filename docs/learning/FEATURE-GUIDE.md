@@ -42,6 +42,12 @@ match/source/conflict explanations without changing legacy defaults. See
 and its recording supplement. The synthetic Markdown comparison measures
 retrieval policy, not general task quality or a storage-format advantage.
 
+The optional reranker development work adds a separately configured ranking
+service, not a chat agent or memory authority. It remains default-off. See
+[its bounded provider comparison and regression](../memory-retrieval.md#optional-learned-reranking)
+before enabling it; L04 and its recording supplement cover the privacy,
+doctor and fallback controls. This addition is not part of the 2.23.1 baseline.
+
 ## The three-layer model
 
 1. **Memory server:** an MCP process that owns scoped durable storage. The

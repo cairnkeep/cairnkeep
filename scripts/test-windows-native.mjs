@@ -88,10 +88,12 @@ try {
   writeFileSync(join(invalidDerivedPack, `${"e".repeat(64)}.json`), "{\"corrupt\":true}\n");
   process.env.CAIRN_PACK_BASE_DIR = packBase;
   const inheritedLlmUrl = process.env.CAIRN_LLM_API_URL;
+  const inheritedRerank = process.env.CAIRN_MEMORY_RERANK;
   const exitCodeBeforeDoctor = process.exitCode;
   const doctorWrite = process.stdout.write.bind(process.stdout);
   let doctorOutput = "";
   delete process.env.CAIRN_LLM_API_URL;
+  delete process.env.CAIRN_MEMORY_RERANK;
   process.stdout.write = ((chunk) => { doctorOutput += String(chunk); return true; });
   try {
     await runWindowsCommand({ command: "doctor", args: ["--repair"], root });
@@ -100,9 +102,12 @@ try {
     process.exitCode = exitCodeBeforeDoctor;
     if (inheritedLlmUrl === undefined) delete process.env.CAIRN_LLM_API_URL;
     else process.env.CAIRN_LLM_API_URL = inheritedLlmUrl;
+    if (inheritedRerank === undefined) delete process.env.CAIRN_MEMORY_RERANK;
+    else process.env.CAIRN_MEMORY_RERANK = inheritedRerank;
   }
   assert.equal(existsSync(invalidDerivedPack), false, "native Windows doctor forwards safe context-pack cache repair");
   assert.match(doctorOutput, /\[PASS\] context pack diagnostics passed/);
+  assert.match(doctorOutput, /\[SKIP\] memory reranker unset\/not 1/);
 
   let containerArgs = [];
   runNativeContainer(["stdio", "--image", "example/windows:1", "--volume", "windows-data"], root, (_engine, args) => { containerArgs = args; });

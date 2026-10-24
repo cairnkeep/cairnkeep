@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "description": "Synthetic continuity-ranking cases; engineering labels, not independent human gold or an agent-quality benchmark.",
+  "cases": [
+    {"id":"camera-remote-access","query":"connect camera outside home network","scope":"identity","documents":[
+      {"key":"patterns/a-wizard","value":"Connect camera outside home network: wizard screenshots and theme.","grade":0},
+      {"key":"decisions/camera-relay","value":"Connect camera outside home network through the approved encrypted relay. Direct public camera access is disabled; verify the current relay configuration before connecting.","grade":3},
+      {"key":"patterns/router-label","value":"Home network router label and camera inventory.","grade":0}]},
+    {"id":"office-tunnel-command","query":"office tunnel connection command","scope":"identity","documents":[
+      {"key":"patterns/a-manual","value":"Office tunnel connection command manual: heading style.","grade":0},
+      {"key":"decisions/tunnel-start","value":"Office tunnel connection command is tunnelctl connect relay-east. Use the existing identity certificate and verify the peer fingerprint from maintained configuration.","grade":3},
+      {"key":"patterns/tunnel-icons","value":"Office tunnel connection command icon resources.","grade":0}]},
+    {"id":"workstation-backup-location","query":"workstation backup recovery location","scope":"identity","documents":[
+      {"key":"patterns/a-catalog","value":"Workstation backup recovery location catalog screenshots.","grade":0},
+      {"key":"decisions/backup-path","value":"Workstation backup recovery location is the encrypted archive volume. Restore into a new directory, verify checksums, then explicitly choose whether to activate it.","grade":3},
+      {"key":"patterns/archive-layout","value":"The workstation archive browser displays backup recovery location labels.","grade":0}]},
+    {"id":"release-corrections","query":"release ledger corrections policy","scope":"project","documents":[
+      {"key":"patterns/a-theme","value":"Release ledger corrections policy: page styling.","grade":0},
+      {"key":"decisions/immutable-ledger","value":"Release ledger corrections policy requires appending a new immutable entry linked to the original. Published entries are never rewritten.","grade":3},
+      {"key":"patterns/release-icons","value":"Release ledger corrections policy icons and navigation.","grade":0}]},
+    {"id":"project-test-command","query":"project test command offline","scope":"project","documents":[
+      {"key":"patterns/a-heading","value":"Project test command offline documentation heading.","grade":0},
+      {"key":"conventions/test-command","value":"The project test command for offline verification is npm run test:offline. It uses loopback fixtures and needs no provider credential; run it before proposing a patch.","grade":3},
+      {"key":"patterns/test-colors","value":"Project test command offline status colors.","grade":0}]},
+    {"id":"deployment-rollback","query":"deployment rollback recovery procedure","scope":"work","documents":[
+      {"key":"patterns/a-template","value":"Deployment rollback recovery procedure template cover.","grade":0},
+      {"key":"decisions/rollback","value":"Deployment rollback recovery procedure: retain the verified prior artifact and snapshot, stop the candidate, restore into fresh storage and explicitly reactivate only after health checks.","grade":3},
+      {"key":"patterns/rollback-badge","value":"Deployment rollback recovery procedure badge assets.","grade":0}]},
+    {"id":"credential-rotation","query":"credential rotation revocation procedure","scope":"work","documents":[
+      {"key":"patterns/a-font","value":"Credential rotation revocation procedure font choices.","grade":0},
+      {"key":"conventions/revoke-first","value":"Credential rotation revocation procedure: revoke the exposed credential first, issue a fresh least-authority replacement, then verify the old token is refused on connected clients.","grade":3},
+      {"key":"patterns/key-label","value":"Credential rotation revocation procedure glossary index.","grade":0}]},
+    {"id":"safe-snapshot-restore","query":"snapshot restore existing directory","scope":"project","documents":[
+      {"key":"patterns/a-dialog","value":"Snapshot restore existing directory dialog layout.","grade":0},
+      {"key":"constraints/fresh-restore","value":"Snapshot restore must never overwrite an existing directory. Select a fresh destination, verify the inspected snapshot digest, and do not activate restored credentials automatically.","grade":3},
+      {"key":"patterns/directory-icons","value":"Snapshot restore existing directory icon set.","grade":0}]},
+    {"id":"service-port","query":"gateway service listen port","scope":"identity","documents":[
+      {"key":"patterns/a-table","value":"Gateway service listen port table formatting.","grade":0},
+      {"key":"decisions/gateway-port","value":"The gateway service listen port is 18443 on loopback. Use the authenticated private tunnel rather than publishing that listener directly.","grade":3},
+      {"key":"patterns/port-label","value":"Gateway service listen port label text.","grade":0}]},
+    {"id":"italian-backup","query":"ripristino backup cartella nuova","scope":"identity","documents":[
+      {"key":"patterns/a-indice","value":"Ripristino backup cartella nuova: indice grafico.","grade":0},
+      {"key":"conventions/ripristino","value":"Il ripristino del backup richiede una cartella nuova: verificare prima il digest e non sovrascrivere la directory esistente. Attivare i dati soltanto dopo i controlli.","grade":3},
+      {"key":"patterns/cartella","value":"Ripristino backup cartella nuova: scelta delle icone.","grade":0}]},
+    {"id":"exact-key-priority","query":"decisions/gateway","scope":"identity","documents":[
+      {"key":"decisions/gateway","value":"The approved gateway is relay-west.","grade":3},
+      {"key":"patterns/overview","value":"Overview for decisions/gateway and gateway instructions.","grade":0}]},
+    {"id":"full-device-identifier","query":"node-17 gateway","scope":"identity","documents":[
+      {"key":"patterns/a-inventory","value":"The node-17 gateway inventory label uses a compact font.","grade":0},
+      {"key":"decisions/node-gateway","value":"The node-17 gateway is relay-north; verify its current fingerprint before opening a tunnel.","grade":3},
+      {"key":"decisions/wrong-node","value":"The node-170 gateway uses relay-other.","grade":0}]},
+    {"id":"current-not-history","query":"office tunnel gateway","scope":"identity","documents":[
+      {"key":"decisions/previous-gateway","value":"Office tunnel gateway uses retired-relay.","current":false,"grade":0},
+      {"key":"decisions/current-gateway","value":"Office tunnel gateway now uses current-relay; the reviewed update replaced the retired host.","grade":3},
+      {"key":"patterns/a-icon","value":"Office tunnel gateway icon catalog.","grade":0}]},
+    {"id":"scope-isolation","query":"project deployment endpoint","scope":"project","documents":[
+      {"key":"decisions/foreign-endpoint","scope":"work","value":"Project deployment endpoint secret fixture: forbidden-scope-canary.","grade":0},
+      {"key":"decisions/project-endpoint","value":"Project deployment endpoint is the isolated staging service, selected only after approval.","grade":3},
+      {"key":"patterns/a-index","value":"Project deployment endpoint documentation index.","grade":0}]},
+    {"id":"duplicate-provenance","query":"backup verification checksums","scope":"identity","documents":[
+      {"key":"patterns/a-design","value":"Backup verification checksums dashboard colors.","grade":0},
+      {"key":"conventions/verify","value":"Backup verification checksums must match the inspected manifest before recovery is activated.","grade":3},
+      {"key":"conventions/verify","value":"Backup verification checksums must match the inspected manifest before recovery is activated.","grade":3}]},
+    {"id":"identifier-prefix-denial","query":"node-17 gateway","scope":"identity","documents":[
+      {"key":"decisions/wrong-device","value":"The node-170 gateway is unrelated.","grade":0},
+      {"key":"patterns/wrong-suffix","value":"The node-17-backup gateway is a different device.","grade":0}]},
+    {"id":"version-prefix-denial","query":"firmware 4.2.1","scope":"identity","documents":[
+      {"key":"decisions/other-version","value":"Firmware 4.2.10 changes the gateway.","grade":0},
+      {"key":"decisions/prerelease","value":"Firmware 4.2.1-rc1 is not the released version.","grade":0}]},
+    {"id":"unrelated-query","query":"sourdough fermentation bread","scope":"identity","documents":[
+      {"key":"decisions/tunnel","value":"Office tunnel connects to the approved gateway.","grade":0},
+      {"key":"patterns/release","value":"Release ledger entries are immutable.","grade":0}]},
+    {"id":"explicit-alias","query":"relaybox access","aliases":["office tunnel gateway"],"scope":"identity","documents":[
+      {"key":"patterns/a-widget","value":"Office tunnel gateway widget artwork.","grade":0},
+      {"key":"decisions/alias-target","value":"Office tunnel gateway access uses the reviewed relaybox identity certificate and private network route.","grade":3}]},
+    {"id":"empty-visible-scope","query":"gateway access policy","scope":"project","documents":[
+      {"key":"decisions/not-visible","scope":"work","value":"Gateway access policy belongs to a different scope.","grade":0},
+      {"key":"decisions/history-only","current":false,"value":"Gateway access policy was superseded.","grade":0}]}
+  ]
+}
