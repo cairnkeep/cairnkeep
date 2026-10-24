@@ -43,6 +43,21 @@ image_user=$("$ENGINE" image inspect --format '{{.Config.User}}' "$server_image"
   exit 1
 }
 
+# Check the real legacy entrypoint before a failing credential probe can mask
+# a module-load or directory-traversal error as an expected authentication denial.
+"$ENGINE" run --rm --entrypoint node "$server_image" --input-type=module -e '
+  import assert from "node:assert/strict";
+  import { accessSync, constants, realpathSync } from "node:fs";
+  import { pathToFileURL } from "node:url";
+  assert.equal(process.getuid(), 10001);
+  accessSync("/opt/cairnkeep/containers", constants.R_OK | constants.X_OK);
+  const target = realpathSync("/usr/local/lib/cairnkeep/container-healthcheck.mjs");
+  assert.equal(target, "/opt/cairnkeep/containers/healthcheck.mjs");
+  accessSync(target, constants.R_OK);
+  await import(pathToFileURL(target).href);
+  console.log("container health entrypoint: readable, searchable and importable as runtime UID");
+'
+
 "$ENGINE" volume create "$volume" >/dev/null
 node scripts/probe-memory-server.mjs --command \
   "$ENGINE" run --rm -i --volume "$volume:/data" "$server_image" stdio
@@ -112,10 +127,15 @@ done
 cat "$tmp/write.out"
 # Exec probes see the original container environment, not the entrypoint's
 # loaded secret. The deliberately public bind fixture must be rejected.
-if "$ENGINE" exec "$name" node /usr/local/lib/cairnkeep/container-healthcheck.mjs; then
+if "$ENGINE" exec "$name" node /usr/local/lib/cairnkeep/container-healthcheck.mjs >"$tmp/health.out" 2>"$tmp/health.err"; then
   echo "FAIL: healthcheck accepted a non-private token file" >&2
   exit 1
 fi
+[[ ! -s "$tmp/health.out" && ! -s "$tmp/health.err" ]] || {
+  cat "$tmp/health.out" "$tmp/health.err" >&2
+  echo "FAIL: healthcheck must reject unsafe credentials without a runtime error" >&2
+  exit 1
+}
 # Exercise the same legacy entrypoint against a private, container-owned file.
 "$ENGINE" exec "$name" sh -c 'umask 077; cat /run/secrets/http-token > /tmp/health-token; CAIRN_MEMORY_HTTP_TOKEN_FILE=/tmp/health-token node /usr/local/lib/cairnkeep/container-healthcheck.mjs; status=$?; rm -f /tmp/health-token; exit "$status"'
 "$ENGINE" rm -f "$name" >/dev/null

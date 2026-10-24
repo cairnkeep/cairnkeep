@@ -1,6 +1,12 @@
 # Team mode design contract
 
-**Status:** design only; not shipped in Cairnkeep 2.15
+**Status:** broader design contract; token-first project-memory subset implemented
+in the experimental team-continuity branch, not production-admitted.
+
+See [the implemented preview](../team.md) for exact commands and remaining
+admission gates. The 2.22.5 release baseline is unchanged. This design includes
+future collections, identity adapters, packs and policy sharing that the preview
+does not implement. Local playbook actor fields remain unauthenticated labels.
 
 Cairnkeep 2.15 remains a local, single-operator product. Its playbook receipts
 carry provider-neutral project and actor fields so a future authenticated team

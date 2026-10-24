@@ -91,6 +91,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Refuse an overlapping purge before any harness files or registrations change.
+purge_targets=()
+[[ $PURGE_MEMORY -eq 1 ]] && purge_targets+=("$STORE_DIR")
+[[ $PURGE_PACKS -eq 1 ]] && purge_targets+=("$PACK_DIR")
+if [[ $PURGE_MEMORY -eq 1 ]]; then
+  for project in "${PROJECTS[@]}"; do purge_targets+=("$project/.agentfs"); done
+fi
+if [[ ${#purge_targets[@]} -gt 0 ]]; then
+  command -v node >/dev/null 2>&1 || { echo 'Uninstall purge requires Node to verify team-data retention.' >&2; exit 1; }
+  node "$CAIRN_ROOT/scripts/verify-team-retention.mjs" "${purge_targets[@]}" || exit 1
+fi
+
 # ---- backup bundle -----------------------------------------------------------
 # Timestamp comes from the runtime clock on the user's machine.
 BACKUP_DIR="$HOME/.cairnkeep-uninstall-$(date +%Y%m%d-%H%M%S)"
@@ -197,6 +209,7 @@ echo "  Pi live root: $PI_LIVE_ROOT"
 echo "  Kimi root:    $KIMI_LIVE_ROOT"
 echo "  memory store: $STORE_DIR ($([[ $PURGE_MEMORY -eq 1 ]] && echo 'WILL be purged' || echo 'kept'))"
 echo "  context packs: $PACK_DIR ($([[ $PURGE_PACKS -eq 1 ]] && echo 'WILL be purged' || echo 'kept'))"
+echo "  team data: retained (separate operator-managed store; no team purge option)"
 [[ ${#PROJECTS[@]} -gt 0 ]] && echo "  projects:     ${PROJECTS[*]}"
 
 if [[ $DRY_RUN -eq 0 && $ASSUME_YES -eq 0 ]]; then

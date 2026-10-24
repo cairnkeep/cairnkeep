@@ -27,6 +27,7 @@ import { homedir, tmpdir } from "node:os";
 import { HARNESS_IDS, harnessProjectAssets } from "./harness-registry.mjs";
 import { reconcilePlaybookInstructions, removePlaybookInstructions } from "./playbook-instructions.mjs";
 import { readStableFile, readStableText, readStableJson } from "./lib/stable-file.mjs";
+import { assertUninstallRetainsTeam } from "./lib/team-retention.mjs";
 
 const BOOTSTRAP_FILES = [
   ["env.example.template", ".ai/env.example"],
@@ -687,6 +688,8 @@ function uninstallWindows(root, args) {
   if (options.has("--purge-memory")) targets.push(resolve(expandHome(process.env.CAIRN_AGENTFS_BASE_DIR || join(homedir(), ".cairnkeep"))));
   if (options.has("--purge-packs")) targets.push(resolve(expandHome(process.env.CAIRN_PACK_BASE_DIR || join(homedir(), ".cairnkeep", "packs"))));
   const candidates = [...new Set(targets)].filter(existsSync);
+  assertUninstallRetainsTeam(candidates);
+  console.log('team data: retained (separate operator-managed store; no team purge option)');
   const existing = candidates.filter((target) => !candidates.some((parent) => parent !== target && target.toLowerCase().startsWith(`${parent.toLowerCase()}${sep}`)));
   if (dryRun) { for (const target of existing) console.log(`would remove: ${target}`); return; }
   const backup = join(homedir(), "cairnkeep-uninstall-backups", new Date().toISOString().replace(/[:.]/g, "-"));
@@ -762,14 +765,15 @@ export function powershellCompletion() {
   const harnesses = HARNESS_IDS.map((id) => `'${id}'`).join(",");
   return `Register-ArgumentCompleter -Native -CommandName cairn -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
-  $commands = 'bootstrap','setup','memory-server','sync','sync-pi','sync-kimi','doctor','security','trajectory','artifact','evidence','playbook','capabilities','mcp-tools','pack','proposals','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
+  $commands = 'bootstrap','setup','memory-server','sync','sync-pi','sync-kimi','doctor','security','team','trajectory','artifact','evidence','playbook','capabilities','mcp-tools','pack','proposals','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
   $setup = '--git','--harness','--memory','--policy','--yes','--json','init','existing','none',${harnesses},'local'
   $playbook = 'list','status','init','set','enable','disable','reset','check','record','receipts','instructions','doctor','minimal','balanced','strict','must','should','may','off','start','finish','install','remove','context.recall','context.explore','work.plan','verify.tests','review.repository','review.security','docs.update','learning.capture','--project','--json','--enforce','--complexity','--familiarity','--risk','--public-change','--changed','--change-type','--completed','--skipped','--failed','--actor','--actor-kind','--session','--policy','--decision','--event','--action','--outcome','--reason'
   $pack = 'init','lock','validate','install','import-okf','validate-okf','export-okf','list','show','remove','enable','disable','update','skills','approve-skill','revoke-skill','doctor','--repair','--project','--project-id','--json'
   $proposals = 'create','list','show','apply','doctor','--session','--scope','--model','--category','--project','--json'
   $security = 'doctor','--project','--json'
+  $team = 'init','project','member','credential','create','set','remove','issue','revoke','serve','mcp','list','read','search','history','propose','proposals','proposal-show','review','audit','doctor','backup','restore','memory-delete','--organization','--data','--project','--roles','--class','--expires-at','--output','--input','--confirm','--port','--key','--query','--proposal','--decision','--revision','--project-root'
   $evaluation = 'validate','run','ablate','report','prune','delete','protocol','--task-set','--adapter','--output','--repetitions','--seed','--yes','--json','--disable','--experiment','--older-than-days','--dry-run','--trajectory','--codex-jsonl','--capture-authorized'
-  $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+playbook(?:\\s|$)') { $playbook } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+pack(?:\\s|$)') { $pack } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+proposals(?:\\s|$)') { $proposals } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+security(?:\\s|$)') { $security } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+eval(?:\\s|$)') { $evaluation } else { $commands }
+  $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+team(?:\\s|$)') { $team } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+playbook(?:\\s|$)') { $playbook } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+pack(?:\\s|$)') { $pack } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+proposals(?:\\s|$)') { $proposals } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+security(?:\\s|$)') { $security } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+eval(?:\\s|$)') { $evaluation } else { $commands }
   $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
     [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
   }

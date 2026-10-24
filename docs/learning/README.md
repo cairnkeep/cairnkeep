@@ -63,6 +63,7 @@ expanded only after their labs are executable.
 | L26 | [Context intelligence with explicit authority](lessons/L26-context-intelligence.md) | Ready | 45 min |
 | L27 | [Evaluate context companions without moving authority](lessons/L27-ecosystem-evidence.md) | Ready | 30 min |
 | L28 | [Verify Cairnkeep's security posture](lessons/L28-security-assurance.md) | Ready | 30 min |
+| L29 | [Reviewed team continuity preview](lessons/L29-team-continuity.md) | Brief; unreleased preview | 40 min |
 
 The [curriculum coverage map](CURRICULUM-MAP.md) records where every public
 feature is introduced, practised, and operated. It also marks design-only work
@@ -89,6 +90,7 @@ feature.
 
 Use [the lesson template](templates/lesson-template.md). Commands in finished
 lessons must be tested against the current release before publication.
-Unpublished editorial plans and recording scripts are intentionally maintained
-outside the public product repository; stable video links or transcripts can
-be added here after publication.
+Technical lesson and rehearsal scripts in `video-scripts/` are maintained with
+the product; private editorial plans and recording evidence stay outside this
+repository. Preview scripts must not present unreleased behavior as installed
+release behavior. Stable video links can be added after publication.

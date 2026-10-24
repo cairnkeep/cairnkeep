@@ -1,0 +1,60 @@
+import assert from 'node:assert/strict';
+import { hardenPrivatePath } from '../dist/platform-security.js';
+import { mkdirSync, mkdtempSync, existsSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { openTeamStore, teamDigest } from '../dist/team-store.js';
+
+const base = mkdtempSync(join(tmpdir(), 'cairn-team-'));
+hardenPrivatePath(base);
+const root = join(base, 'team');
+let store;
+try {
+  delete process.env.CAIRN_TEAM;
+  await assert.rejects(openTeamStore(root), /disabled/);
+  assert.equal(existsSync(root), false, 'disabled means no team reads or creation');
+  process.env.CAIRN_TEAM = '1';
+  const missing = join(base, 'missing-db'); mkdirSync(missing, { mode: 0o700 }); hardenPrivatePath(missing);
+  await assert.rejects(openTeamStore(missing), /invalid/);
+  assert.equal(existsSync(join(missing, 'team.db')), false, 'opening does not create a missing database');
+  const occupied = join(base, 'occupied'); mkdirSync(occupied, { mode: 0o700 }); hardenPrivatePath(occupied);
+  const sentinel = join(occupied, 'team.db'); writeFileSync(sentinel, 'preserve existing file', { mode: 0o600 }); hardenPrivatePath(sentinel);
+  await assert.rejects(openTeamStore(occupied, { create: true, organization: 'demo-org' }));
+  assert.equal(readFileSync(sentinel, 'utf8'), 'preserve existing file', 'exclusive creation never truncates another file');
+  store = await openTeamStore(root, { create: true, organization: 'demo-org' });
+  await store.admin({ operation: 'project-create', project: 'alpha' });
+  await store.admin({ operation: 'project-create', project: 'beta' });
+  await store.admin({ operation: 'member-set', project: 'alpha', subject: 'alice', roles: ['reader', 'contributor'] });
+  await store.admin({ operation: 'member-set', project: 'alpha', subject: 'bob', roles: ['reader', 'reviewer'] });
+  await store.admin({ operation: 'member-set', project: 'alpha', subject: 'worker', roles: ['reader', 'contributor', 'reviewer'] });
+  await store.admin({ operation: 'member-set', project: 'alpha', subject: 'auditor', roles: ['auditor'] });
+  // Normal fixtures must outlive slow native ACL checks; expiry is tested separately below.
+  const issue = (subject, credential_class = 'human', expires_at = new Date(Date.now() + 3600000).toISOString()) => store.issue({ subject, credential_class, expires_at });
+  const alice = await issue('alice');
+  const bob = await issue('bob');
+  const worker = await issue('worker', 'workload');
+  const auditor = await issue('auditor');
+  const call = (token, operation, extra = {}, project = 'alpha') => store.execute(token, { organization: 'demo-org', project, operation, ...extra });
+  assert.deepEqual(await call(alice.token, 'list'), []);
+  await assert.rejects(call(alice.token, 'list', {}, 'beta'), /denied/);
+  await assert.rejects(store.execute(alice.token, { organization: 'other-org', project: 'alpha', operation: 'list' }), /denied/);
+  await assert.rejects(call(alice.token, 'list', { subject: 'bob' }), /invalid/);
+  await assert.rejects(call('not-a-token', 'list'), /unauthorized/);
+  await assert.rejects(call(auditor.token, 'list'), /denied/);
+  const expired = await issue('alice', 'human', new Date(Date.now() + 20).toISOString());
+  await new Promise(resolve => setTimeout(resolve, 30));
+  await assert.rejects(call(expired.token, 'list'), /unauthorized/);
+  const revoked = await issue('alice');
+  await store.admin({ operation: 'credential-revoke', credential: revoked.id });
+  await assert.rejects(call(revoked.token, 'list'), /unauthorized/);
+  await store.admin({ operation: 'member-set', project: 'alpha', subject: 'alice', roles: [] });
+  await assert.rejects(call(alice.token, 'list'), /denied/);
+  await store.admin({ operation: 'member-set', project: 'alpha', subject: 'alice', roles: ['reader', 'contributor'] });
+  assert.equal(teamDigest('selected text').length, 64);
+  const bytes = readFileSync(join(root, 'team.db'));
+  for (const token of [alice.token, bob.token, worker.token, auditor.token]) assert.equal(bytes.includes(Buffer.from(token)), false);
+  console.log('ok: team identity, roles, strict requests, organization/project isolation, expiry and revocation');
+} finally {
+  await store?.close();
+  rmSync(base, { recursive: true, force: true });
+}
