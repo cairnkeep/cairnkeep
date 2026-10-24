@@ -1,6 +1,6 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.24.0
+**Baseline:** Cairnkeep 2.25.0
 **Last reviewed:** 2026-10-22
 
 This map prevents the course from drifting behind the product. It assigns each
@@ -45,6 +45,7 @@ been rehearsed.
 | Progressive pack retrieval, frozen benchmark, context-usage receipts, review-gated memory proposals, optional provider adapter | L26 | V26 | Ready; default flat search and AnythingLLM remain compatible; OpenViking and receipt mutation are explicitly gated |
 | Branchable agent state, model-managed context, and learned decision-model comparisons | L27 | V27 | Ready; evidence runners are operator-invoked and no companion is a runtime dependency or authority |
 | Threat model, local posture check, portable-path adversarial tests, and release security controls | L28 | V28 | Ready; diagnostic is read-only and evidence is not certification |
+| Token-first team identity, reviewed project memory, local stdio bridge, revocation and fresh-only restore | L29 | V29 | Brief; opt-in 2.25 preview; deployment-specific production admission required |
 
 ## Release Review
 
@@ -98,6 +99,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn sync-omp` | L02 |
 | `cairn doctor` | L03; advanced repair in L13-L14 |
 | `cairn security` | L28 |
+| `cairn team` | L29 opt-in preview, included from 2.25.0 |
 | `cairn playbook` | L25 |
 | `cairn trajectory` | L13 |
 | `cairn artifact` | L13 |

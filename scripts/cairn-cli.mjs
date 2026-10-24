@@ -21,6 +21,7 @@ const NODE_COMMANDS = new Map([
   ["evidence", "work-evidence-cli.js"],
   ["playbook", "playbook-cli.js"],
   ["security", "security-cli.js"],
+  ["team", "team-cli.js"],
 ]);
 
 const POSIX_COMMANDS = new Map([
@@ -61,6 +62,7 @@ Usage:
   cairn evidence <list|show|delete|prune|doctor>
   cairn playbook <list|status|init|set|enable|disable|reset|check|record|receipts|instructions|doctor>
   cairn security doctor [--project PATH] [--json]
+  cairn team <init|project|member|credential|serve|mcp|list|read|search|history|propose|proposals|proposal-show|review|audit|doctor|backup|restore|memory-delete>
   cairn memory <path|export|import>
   cairn audit-timer [--on-calendar SPEC] [--para-root PATH] [--render-only DIR]
   cairn uninstall [--dry-run] [--yes] [--purge-memory] [--purge-packs] [PROJECT ...]

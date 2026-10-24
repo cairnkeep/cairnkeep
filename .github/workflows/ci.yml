@@ -31,7 +31,8 @@ jobs:
   native-windows:
     name: native-windows (${{ matrix.node }})
     runs-on: windows-latest
-    timeout-minutes: 15
+    # Native private-ACL subprocesses are part of the team security contracts.
+    timeout-minutes: 20
     strategy:
       matrix:
         include:

@@ -1,12 +1,18 @@
 # Team mode design contract
 
-**Status:** design only; not shipped in Cairnkeep 2.15
+**Status:** broader design contract; the token-first project-memory subset ships
+as an opt-in experimental preview in Cairnkeep 2.25.0, not general production admission.
 
-Cairnkeep 2.15 remains a local, single-operator product. Its playbook receipts
-carry provider-neutral project and actor fields so a future authenticated team
-service can preserve provenance, but those fields are caller assertions and
-must not be used for authorization. This document defines the boundary a team
-implementation must satisfy before that statement can change.
+See [the implemented preview](../team.md) for exact commands and remaining
+admission gates. Existing personal memory is unchanged. This design includes
+future collections, identity adapters, packs and policy sharing that the preview
+does not implement. Local playbook actor fields remain unauthenticated labels.
+
+Local playbook receipts carry provider-neutral project and actor labels; those
+fields remain caller assertions and must not be used for authorization. Only
+the separate team service's verified credentials and server-side memberships
+authorize team operations. This broader design is not a claim that collections,
+identity adapters, policy distribution or every admission gate is implemented.
 
 ## Goal and non-goals
 
@@ -126,7 +132,8 @@ export paths must be documented before general availability.
 
 ## Admission gates
 
-Team mode is not releasable until all of the following have evidence:
+General production admission requires evidence for all of the following;
+shipping the bounded default-off preview does not waive these gates:
 
 1. Threat model and independent security review covering authentication,
    authorization, confused-deputy attacks, tenant isolation, and audit integrity.
@@ -141,5 +148,6 @@ Team mode is not releasable until all of the following have evidence:
 6. Operational ownership for identity-provider failures, revocation latency,
    incident response, audit export, and key rotation.
 
-Until these gates pass, Cairnkeep documentation and output must describe actor
-identity as unverified and team support as deferred.
+Until these gates pass, documentation must distinguish local unverified actor
+labels from the authenticated team preview, and experimental preview availability
+from general production admission. No production sharing is enabled by a release.
