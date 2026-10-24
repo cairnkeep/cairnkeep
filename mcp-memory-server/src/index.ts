@@ -44,6 +44,7 @@ import {
     hashText,
 } from "./embeddings.js";
 import { queryDomainKnowledge, resolveDomainRetrievalProvider } from "./domain-retrieval-provider.js";
+import { getMemoryRerankerConfig, memoryRerankCandidateCount, rerankMemoryResults } from "./memory-reranker.js";
 import { formatHostAuthority, normalizeHostAuthority, normalizeHttpHost, parseHttpPort, resolveHttpToken } from "./http-security.js";
 import {
     type ExploreEvidence,
@@ -572,7 +573,7 @@ function embeddingCachePath(scope: string, projectId?: string): string {
     return join(getBaseDir(), ".embeddings", `${hashText(resolveScopePath(scope, { projectId }))}.json`);
 }
 
-async function semanticSearch(
+async function semanticSearchCandidates(
     scope: string,
     query: string,
     topK: number,
@@ -692,6 +693,32 @@ async function semanticSearch(
         if (options.strategy === "hybrid") return hybrid("failed");
         return substringFallback();
     }
+}
+
+async function semanticSearch(...args: Parameters<typeof semanticSearchCandidates>): ReturnType<typeof semanticSearchCandidates> {
+    const reranker = getMemoryRerankerConfig();
+    if (!reranker) return semanticSearchCandidates(...args);
+    const [, query, topK] = args;
+    const options = args[6] ?? {};
+    const candidateArgs: Parameters<typeof semanticSearchCandidates> = [...args];
+    candidateArgs[2] = memoryRerankCandidateCount(topK, reranker);
+    // The existing path still owns scope, current-value, typed and relevance
+    // admission. The external ranker never sees records rejected by that path.
+    const candidate = await semanticSearchCandidates(...candidateArgs);
+    const exactKeys = new Set([query, ...(options.aliases ?? [])].map(value => value.normalize('NFKC').toLowerCase().trim()));
+    const pinned = (entry: ScoredEntry) => options.strategy === 'hybrid'
+        ? exactKeys.has(entry.key.normalize('NFKC').toLowerCase())
+        : Boolean(options.typed && isExactTextHit(entry, query));
+    const { results } = await rerankMemoryResults(candidate.results, query, topK, reranker, pinned);
+    const retrieval = candidate.retrieval;
+    if (retrieval?.possible_conflicts) {
+        const keys = new Set(results.map(entry => entry.key));
+        // Explain only selected keys, including when the larger candidate pool
+        // falls back. Do not leak explanations for unreturned candidates.
+        return { ...candidate, results, retrieval: { ...retrieval,
+            possible_conflicts: retrieval.possible_conflicts.filter(row => keys.has(row.key)) } };
+    }
+    return { ...candidate, results };
 }
 
 // Confines a candidate wiki source file to inside `<repoRoot>/.planning/wiki/sources`
@@ -966,12 +993,13 @@ function buildMemoryServer(
     toolProfile: McpToolProfileStatus = resolveMcpToolProfile({ projectRoot: process.cwd() }),
 ): McpServer {
     const server = new McpServer({ name: "cairn-memory", version: "0.1.0" });
+    const memoryReranking = getMemoryRerankerConfig() !== null;
     const registerTool = <Args extends AnySchema>(
         name: string,
         config: CapabilityToolConfig<Args>,
         callback: AsyncToolCallback<Args>,
     ): void => {
-        const metadata = metadataForTool(name);
+        const metadata = metadataForTool(name, { memoryReranking });
         if (!profileAllowsTool(toolProfile, name)) return;
         server.registerTool(name, {
             ...config,

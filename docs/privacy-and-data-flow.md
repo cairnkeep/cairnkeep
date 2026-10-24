@@ -3,7 +3,8 @@
 Cairnkeep has no telemetry, analytics collector, hosted control plane, or
 automatic remote-service discovery. A default local stdio installation stores
 memory in SQLite on the machine running the MCP server and makes no model or RAG
-request unless the corresponding endpoint and credential are configured.
+request unless the corresponding feature is explicitly configured as described
+below (some operator-owned endpoints do not require a credential).
 
 ## Data flows
 
@@ -11,6 +12,7 @@ request unless the corresponding endpoint and credential are configured.
 |---|---|---|
 | Local substring search | None | Local SQLite only |
 | Embedding-ranked search | Stored memory values that are not cached, plus the search query | `CAIRN_MEMORY_EMBEDDING_URL` or `CAIRN_LLM_API_URL` |
+| Separately opted-in memory reranking | Query and at most 50 scope/current/filter-admitted key/value excerpts, each at most 4 KiB | Only the explicit `CAIRN_MEMORY_RERANK_URL`; separate optional credential, no retries/redirects/alternate hosts |
 | `memory_extract` | The transcript supplied to the tool | `CAIRN_LLM_API_URL` |
 | `domain_knowledge_query` | Workspace slug and query | `ANYTHINGLLM_BASE_URL` |
 | `domain_knowledge_sync` | Files selected by the sync configuration | `ANYTHINGLLM_BASE_URL` |
@@ -50,6 +52,10 @@ Model endpoints may be local or remote. Cairnkeep cannot determine a provider's
 retention, training, or logging policy; verify it before sending confidential
 material. Disabling `CAIRN_LLM_API_KEY`, `ANYTHINGLLM_API_KEY`, remote HTTP
 registration, and delegated tools keeps the core memory workflow local.
+Also leave `CAIRN_MEMORY_RERANK` unset to disable its independent data flow;
+it does not require or inherit `CAIRN_LLM_API_KEY`. A local provider is still a
+separate process that receives these excerpts. Neither a chat agent nor a
+research assistant is part of reranking or authorization.
 
 ## Playbook decision and receipt flow
 
@@ -91,11 +97,14 @@ backups/journals are sensitive local data at rest. Dry-run and commit responses
 contain scopes/address spaces, digests, keys, actions, and counts—not supplied
 or displaced values. No model, API key, endpoint, or network is required.
 
-The existing explicitly configured embedding search is the sole related egress:
-eligible key/value/type/tag text and the query may be sent to
+Explicitly configured embedding search can send eligible key/value/type/tag
+text and the query to
 `CAIRN_MEMORY_EMBEDDING_URL` (or its documented fallback). Hard filters run
 before that request; endpoint failure returns to local substring search. Note
-search is always local and never uses embeddings.
+search is always local and never uses embeddings or reranking. Separately
+opting into the [bounded reranker](memory-retrieval.md#optional-learned-reranking)
+can also send admitted memory excerpts and the query. It only changes ordering,
+never scope, history admission, approval, factual authority or durable memory.
 
 Canonical note storage includes manifest records, Markdown, indexes, history,
 import replay state, staged bytes, backups, and journals. Prepared/committing

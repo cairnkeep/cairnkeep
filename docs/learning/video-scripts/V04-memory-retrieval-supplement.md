@@ -32,3 +32,16 @@ not confidence, and that the attempted live study failed with HTTP 502. Do not
 invent a successful live result or claim general task-quality improvements.
 Use short terminal zooms and side-by-side result comparisons instead of static
 slides; keep credentials and real memory off screen.
+
+## Optional reranker segment (feature checkout)
+
+Record real `check:memory-reranker` output, pausing on the no-network default,
+scope/history canaries and provider-failure fallback. With explicit synthetic
+provider configuration, run `run-memory-reranker-study.mjs --live --summary`.
+Do not show credentials or endpoint addresses. Compare the two arms using the
+same embeddings: the first frozen run improved first hits from 6/16 to 15/16,
+but `current-not-history` regressed. Zoom into that failure rather than hiding
+it. Explain that the earlier HTTP-502 study is separate and remains a failed
+run. Demonstrate the doctor's synthetic request, then disable reranking and
+show unchanged memory text and provenance. This is a recording brief, not a
+claim that this segment has been filmed or published.
