@@ -58,7 +58,10 @@ export function isCairnToolName(value: string): value is CairnToolName {
     return Object.hasOwn(MCP_TOOL_CATALOG, value);
 }
 
-export function metadataForTool(name: string): CairnToolMetadata {
+export function metadataForTool(name: string, options: { memoryReranking?: boolean } = {}): CairnToolMetadata {
     if (!isCairnToolName(name)) throw new Error(`MCP tool ${name} has no annotation contract.`);
+    if (name === 'memory_search' && options.memoryReranking) {
+        return { ...MCP_TOOL_CATALOG[name], annotations: { ...MCP_TOOL_CATALOG[name].annotations, openWorldHint: true } };
+    }
     return MCP_TOOL_CATALOG[name];
 }

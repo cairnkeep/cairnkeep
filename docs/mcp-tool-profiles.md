@@ -41,3 +41,10 @@ The default `full` profile preserves the same tool names, schemas, responses,
 feature gates, and ordering as an unconfigured server. The annotations help
 conservative clients distinguish observations from actions; they do not grant
 permission or replace the client's approval policy.
+
+With a valid, explicitly enabled memory reranker, `memory_search` advertises
+`openWorldHint: true` because query and bounded candidate excerpts can reach
+the configured service. It remains `readOnlyHint: true`, so a read-only
+profile still exposes it. Tool restriction is not network consent: omit it
+from a custom profile or disable reranking if that data flow is unwanted.
+With reranking off, existing discovery metadata is unchanged.

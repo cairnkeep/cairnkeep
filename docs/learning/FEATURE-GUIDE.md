@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.23.1
+**Baseline:** Cairnkeep 2.24.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -41,6 +41,13 @@ match/source/conflict explanations without changing legacy defaults. See
 [memory retrieval](../memory-retrieval.md), [L04](lessons/L04-memory-fundamentals.md)
 and its recording supplement. The synthetic Markdown comparison measures
 retrieval policy, not general task quality or a storage-format advantage.
+
+Version 2.24 adds an optional, separately configured ranking
+service, not a chat agent or memory authority. It remains default-off. See
+[its bounded provider comparison and regression](../memory-retrieval.md#optional-learned-reranking)
+before enabling it; L04 and its recording supplement cover the privacy,
+doctor and fallback controls. The default-off team preview is separate and is
+not included in this release.
 
 ## The three-layer model
 

@@ -53,6 +53,18 @@ fact and starting a fresh client, verifying the new value and explicit history.
 - No extracted candidate becomes durable without an explicit review action.
 - Enabling typed nodes changes discovery structure, not the authority of a fact.
 
+## Optional reranker extension
+
+From a source checkout of 2.24.0 or newer, run `npm --prefix mcp-memory-server run check:memory-reranker`
+without a provider. Then, only with explicit synthetic-data/provider consent,
+compare the frozen live study in the retrieval guide. Explain both the 6/16
+to 15/16 first-result improvement and the single regression; this is not a
+general accuracy or agent-productivity claim. Show that reranking is off by
+default, has a separate credential, preserves admission and exact-key priority,
+and falls back without mutating stored facts. A failed provider must make
+`cairn doctor` fail even though search still works. Read-only is not a promise
+of zero network traffic: configured search advertises open-world behavior.
+
 ## Source material
 
 - [Operating guide](../../operating.md#the-workflow)
