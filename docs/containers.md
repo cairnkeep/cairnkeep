@@ -86,6 +86,10 @@ configuration fails without issuing a request; probes target only
 `127.0.0.1` and refuse redirects. The existing
 `/usr/local/lib/cairnkeep/container-healthcheck.mjs` command remains available
 as an alias to the packaged probe. Stdio mode requires no HTTP probe.
+The image explicitly makes the probe directory searchable by its unprivileged
+runtime user after copying the file. The OCI regression imports that legacy
+entrypoint as UID 10001 before testing credentials, so a missing or inaccessible
+module cannot be mistaken for a successful authentication rejection.
 File-based probes require a private token readable by the container user;
 world-readable secret mounts fail closed. The Quadlet example explicitly mounts
 its secret as UID/GID 10001 with mode `0400`. For other engines, verify the
