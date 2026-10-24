@@ -5,6 +5,12 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Security
+
+- Refresh compatible transitive HTTP parser, URI and IP-address dependencies
+  in both lock graphs. Enforce the patched minimum versions, including nested
+  copies, with dependency-policy regression controls.
+
 ## [2.23.1] - 2026-10-22
 
 ### Domain knowledge
