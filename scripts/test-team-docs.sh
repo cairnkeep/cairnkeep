@@ -10,6 +10,16 @@ for doc in docs/team.md "$lesson" "$video"; do
   grep -qi 'independent.*review' "$doc"
   grep -qi 'pilot' "$doc"
 done
+[[ -f docs/team-pilot.md ]]
+grep -qF 'team-pilot.md' docs/team.md
+grep -qF 'team-pilot.md' "$lesson"
+grep -qF 'team-pilot.md' "$video"
+grep -qF 'not production admission' docs/team-pilot.md
+grep -qF 'reviewer.token' docs/team-pilot.md
+if grep -qF 'released 2.22.5 baseline' docs/README.md || grep -qF 'Cairnkeep 2.22.5 baseline' "$lesson"; then
+  echo 'Team guidance must not pin an obsolete released baseline' >&2
+  exit 1
+fi
 grep -q '^\*\*Status:\*\* Brief' "$lesson"
 grep -q '^## Acceptance criteria$' "$lesson"
 grep -q '^## Privacy and trust boundary$' "$lesson"
@@ -30,4 +40,5 @@ for control in team team-review team-http team-mcp team-restore team-cli; do
   grep -qF "smoke-$control.mjs" "$lesson"
   [[ -f "mcp-memory-server/scripts/smoke-$control.mjs" ]]
 done
+node scripts/test-team-pilot.mjs
 echo 'PASS: team preview reference, source controls, admission boundary, learning and video routing'

@@ -2,7 +2,7 @@
 
 **Status:** Brief; unreleased feature-branch preview
 **Compatibility:** source checkout containing `team-cli.ts`; Node 22.13 or newer.
-The released Cairnkeep 2.22.5 baseline does not include this exercise.
+The released Cairnkeep CLI does not include this feature-branch exercise.
 
 ## Outcome
 
@@ -16,6 +16,9 @@ Complete L20 and L28. Use only synthetic subjects and disposable local stores.
 Build the feature checkout with `npm --prefix mcp-memory-server ci` followed by
 `npm --prefix mcp-memory-server run build`. Read [Team continuity](../../team.md).
 Do not connect a real organization or reuse a production credential.
+For an explicitly approved native-harness trial, follow the
+[isolated pilot guide](../../team-pilot.md); do not use automated rehearsal as
+a substitute for the human review or release-admission steps.
 
 ## Source-checkout rehearsal
 

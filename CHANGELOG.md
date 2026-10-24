@@ -11,6 +11,15 @@ All notable user-facing changes are documented here. This project follows
   offboarding. Preserve credentials, other memberships and audit history;
   reject missing or empty role lists in `member set`. Update shell completions,
   team guidance and the learning/video rehearsal.
+- Add an isolated, opt-in pilot guide with an executable setup regression:
+  separate stores, file-only expiring credentials and client profiles, unchanged
+  personal configuration, and an explicit human review boundary.
+
+### Security
+
+- Refresh compatible transitive HTTP parser, URI and IP-address dependencies
+  in both lock graphs. Enforce the patched minimum versions, including nested
+  copies, with dependency-policy regression controls.
 
 ## [2.23.1] - 2026-10-22
 

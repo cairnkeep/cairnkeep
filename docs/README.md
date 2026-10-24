@@ -78,7 +78,8 @@ linked guides rather than the project landing page.
 
 - [Team continuity preview](team.md) documents the default-off, separately
   authenticated shared-memory store, human review, local MCP bridge and recovery.
-  It is not production-admitted or part of the released 2.22.5 baseline.
+  It is not production-admitted or part of the released CLI. The
+  [isolated pilot guide](team-pilot.md) keeps trials separate from personal memory.
 - [Building an overlay](building-an-overlay.md) explains how to add private
   provider or organization policy without forking the core.
 - [Managed overlay distributions](overlay-distributions.md) covers wrapper CLIs,

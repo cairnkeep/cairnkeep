@@ -9,6 +9,10 @@ context. It never scans or uploads personal stores, prompts, transcripts or
 repositories. The same project IDs work across harnesses and working folders.
 Sharing changes visibility: inspect and redact the selected text first.
 
+For a trial alongside unchanged personal memory, use the
+[isolated pilot guide](team-pilot.md). It keeps stores, credentials, ports and
+client profiles separate and distinguishes actual human review from rehearsal.
+
 ## Trust boundary
 
 The initial service has one organization, server-owned subjects, explicit

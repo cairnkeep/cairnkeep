@@ -3,6 +3,8 @@
 Status: technical rehearsal brief for an unreleased preview. Target: 10–12
 minutes, experienced-developer audience. Record/publish release claims only
 after independent review, platform evidence and an approved real pilot.
+Use the [isolated pilot guide](../../team-pilot.md) for a separately authorized
+native-harness trial, not as authorization to record private review or credentials.
 
 ## 0:00–1:30 — Continuity is the goal
 
