@@ -5,6 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readStableFile } from './lib/stable-file.mjs';
 
 if (process.platform === 'win32') {
   console.log('SKIP: isolated pilot Bash recipe is Linux/macOS; native CLI controls run separately');
@@ -27,6 +28,9 @@ const pilot = join(base, 'new lab');
 const environment = { PATH: process.env.PATH, LANG: 'C.UTF-8',
   TEAM_CAIRN: join(root, 'bin/cairn'), TEAM_PILOT_DIR: pilot };
 try {
+  const readToken = name => readStableFile(join(pilot, name), {
+    label: 'Pilot credential', maxBytes: 256, privateMode: 0o600,
+  }).bytes;
   const execute = () => spawnSync('bash', ['-c', blocks[0][1]], {
     cwd: base, env: environment, encoding: 'utf8', timeout: 120000,
   });
@@ -36,19 +40,18 @@ try {
   assert.equal(statSync(pilot).mode & 0o777, 0o700);
   const files = ['author.token', 'reader.token', 'reviewer.token'];
   const hashes = files.map(name => {
-    const path = join(pilot, name);
-    assert.equal(statSync(path).mode & 0o777, 0o600);
-    const token = readFileSync(path, 'utf8').trim();
+    const bytes = readToken(name);
+    const token = bytes.toString('utf8').trim();
     assert.equal(result.stdout.includes(token), false, 'credential never appears in setup output');
     assert.equal(result.stderr.includes(token), false);
-    return hash(readFileSync(path));
+    return hash(bytes);
   });
   assert.equal(new Set(hashes).size, 3, 'separate credentials, not a shared token');
   assert.equal(existsSync(join(pilot, 'author-workspace/reviewer.token')), false);
   assert.equal(existsSync(join(pilot, 'reader-workspace/reviewer.token')), false);
   const retry = execute();
   assert.notEqual(retry.status, 0, 'existing lab must not be reused or overwritten');
-  assert.deepEqual(files.map(name => hash(readFileSync(join(pilot, name)))), hashes);
+  assert.deepEqual(files.map(name => hash(readToken(name))), hashes);
   assert.deepEqual(fingerprint(), before, 'production harness configurations unchanged');
   console.log('PASS: documented pilot setup, isolated identities, private credentials, no token output and no overwrite');
 } finally {
