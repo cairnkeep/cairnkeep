@@ -527,6 +527,14 @@ async function doctorWindows(root, args) {
       } catch { line("FAIL", `embedding endpoint request failed (${process.env.CAIRN_MEMORY_EMBEDDING_URL})`); }
     }
   } else line("SKIP", "embedding endpoint unset");
+  if (process.env.CAIRN_MEMORY_RERANK === "1") {
+    let status = 3;
+    try { status = await (await import("./probe-memory-reranker.mjs")).probeMemoryReranker(); } catch {}
+    line(status === 0 ? "PASS" : "FAIL", status === 0
+      ? "memory reranker accepted a synthetic ranking request"
+      : status === 2 ? "memory reranker configuration invalid — set URL/model and a timeout within 100–10000 ms"
+        : "memory reranker unavailable or returned invalid ranking data — search falls back to its existing order");
+  } else line("SKIP", "memory reranker unset/not 1");
   const provider = process.env.CAIRN_GIT_PROVIDER?.trim();
   if (!provider || provider === "none") line("SKIP", "git provider unset/none; collaboration commands are off");
   else if (["github", "gitlab", "codeberg", "forgejo"].includes(provider)) line("PASS", `git provider configured: ${provider}`);

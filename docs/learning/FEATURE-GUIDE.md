@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.23.1
+**Baseline:** Cairnkeep 2.25.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -41,6 +41,18 @@ match/source/conflict explanations without changing legacy defaults. See
 [memory retrieval](../memory-retrieval.md), [L04](lessons/L04-memory-fundamentals.md)
 and its recording supplement. The synthetic Markdown comparison measures
 retrieval policy, not general task quality or a storage-format advantage.
+
+Version 2.24 adds an optional, separately configured ranking
+service, not a chat agent or memory authority. It remains default-off. See
+[its bounded provider comparison and regression](../memory-retrieval.md#optional-learned-reranking)
+before enabling it; L04 and its recording supplement cover the privacy,
+doctor and fallback controls.
+
+Version 2.25 adds the separate default-off team-continuity preview: selected
+project context, exact human review, revocable project roles and an additional
+local stdio MCP bridge. Installing it enables no sharing. L29/V29 cover its
+bounded trial and the distinction between preview availability and production
+admission; team search does not use personal-memory embeddings or reranking.
 
 ## The three-layer model
 
@@ -171,9 +183,9 @@ approval, project-isolation, or release authority. See
 [video script](video-scripts/V27-ecosystem-evidence.md), and the pinned
 [evidence report](../research/ecosystem-evidence-2026-10.md).
 
-## Team continuity preview, outside the release baseline
+## Optional team continuity preview
 
-The unreleased `cairn team` surface is default off and separate from local
+The `cairn team` surface, included from 2.25.0, is default off and separate from local
 memory. It adds project-scoped credentials/roles, immutable selected proposals,
 human-only review and an additional local stdio MCP bridge. It never scans
 personal memory or automatically installs a harness entry. Serving requires
@@ -187,5 +199,7 @@ Removing the MCP entry or disabling its service stops team access without
 changing personal memory. Uninstall retains the separate store.
 Read [the reference](../team.md), [L29](lessons/L29-team-continuity.md) and its
 [V29 rehearsal brief](video-scripts/V29-team-continuity.md).
-Independent review and a separately approved real pilot remain open; the
-2.22.5 released-feature baseline above is intentionally unchanged.
+The governed internal review and approved isolated native pilot are complete;
+neither substitutes for independent production review and a deployment-specific
+approved real-data pilot. This is a bounded experimental preview, not general
+production admission.

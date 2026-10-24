@@ -1,2 +1,3 @@
-# The bundled evaluation binding requires exact canonical JSON bytes on every OS.
+# Frozen evaluation bindings require exact canonical JSON bytes on every OS.
 examples/eval/task-set.json text eol=lf
+mcp-memory-server/scripts/fixtures/memory-reranker-study-v1.json text eol=lf

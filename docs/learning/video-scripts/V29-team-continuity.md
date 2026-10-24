@@ -1,8 +1,8 @@
 # V29 - Remember together without sharing everything
 
-Status: technical rehearsal brief for an unreleased preview. Target: 10–12
-minutes, experienced-developer audience. Record/publish release claims only
-after independent review, platform evidence and an approved real pilot.
+Status: technical rehearsal brief for the opt-in Cairnkeep 2.25.0 preview.
+Target: 10–12 minutes, experienced-developer audience. Describe a released
+experimental preview, not a generally production-admitted team service.
 Use the [isolated pilot guide](../../team-pilot.md) for a separately authorized
 native-harness trial, not as authorization to record private review or credentials.
 
@@ -50,8 +50,11 @@ Explain that logical deletion is not secure disk erasure or backup deletion.
 ## 10:00–11:30 — Honest closing
 
 End on the admission checklist in `docs/team.md`, not a production deployment.
-Synthetic regression tests are complete controls, not independent security
-review or a real pilot. Distinguish the JSON API/local stdio bridge from OAuth
+Distinguish completed regression controls, the internal governed review and
+the approved isolated native pilot from independent production review and a
+deployment-specific real-data pilot. Do not imply two independent human testers.
+Explain that personal-memory embeddings/reranking never process team search.
+Distinguish the JSON API/local stdio bridge from OAuth
 remote MCP. Call out OIDC, team packs and multi-organization tenancy as deferred.
 
 ## Recording contract

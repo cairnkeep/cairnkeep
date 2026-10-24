@@ -9,6 +9,14 @@ for doc in docs/team.md "$lesson" "$video"; do
   grep -qi 'preview' "$doc"
   grep -qi 'independent.*review' "$doc"
   grep -qi 'pilot' "$doc"
+  if ! grep -qF '2.25.0' "$doc"; then
+    echo "Missing team preview release compatibility: $doc" >&2
+    exit 1
+  fi
+  if grep -qiE 'unreleased|feature-branch preview|released Cairnkeep CLI does not include' "$doc"; then
+    echo 'Released team preview guidance must not claim the feature is absent' >&2
+    exit 1
+  fi
 done
 [[ -f docs/team-pilot.md ]]
 grep -qF 'team-pilot.md' docs/team.md

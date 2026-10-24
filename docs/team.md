@@ -1,8 +1,16 @@
 # Team continuity preview
 
-Status: experimental feature-branch preview, **not production-admitted**.
-Independent security review and a separately approved limited real pilot remain
-required. Existing local memory and trusted shared-token HTTP are unchanged.
+Status: opt-in experimental preview included in **Cairnkeep 2.25.0**;
+**not general production admission**. Existing local memory and trusted
+shared-token HTTP are unchanged. Installing or upgrading does not enable team
+sharing, enroll users or start a team service.
+
+The governed internal security review and a separately approved isolated
+native-harness pilot are complete. That pilot used selected synthetic context,
+one actual human reviewer and two workload identities; it was not a study with
+two independent human participants or an external professional assessment.
+Independent production review and deployment-specific acceptance remain
+necessary before using this preview with real organization data.
 
 Team memory is a separate store of explicitly selected, reviewed project
 context. It never scans or uploads personal stores, prompts, transcripts or
@@ -37,7 +45,8 @@ rewriting the database. Digests establish integrity, not publisher authenticity.
 ## Enable explicitly
 
 Use Node 22.13 or newer for the optional built-in SQLite store. Node 24/26 are
-also supported by the implementation; platform admission requires CI evidence.
+also supported. The core's Node engine floor remains 22; the optional team
+store needs the later built-in SQLite API. Use current maintained patch releases.
 No new runtime dependency or personal-store migration is needed.
 
 ```sh
@@ -83,6 +92,8 @@ authority. Existing personal memory remains independently available.
 Tools: `team_memory_list`, `team_memory_read`, `team_memory_search`,
 `team_memory_history` and `team_memory_propose`. No review/admin MCP exists.
 Retrieval is deterministic substring matching, with no model/provider calls.
+Personal-memory embeddings and reranking settings do not apply to team
+retrieval; enabling them cannot send shared team text to a provider.
 The remote boundary is marked open-world in MCP annotations; four retrieval
 tools are observations, while proposal creation is an additive mutation and
 requires the harness's explicit mutation consent. Approved memory is context,
@@ -210,9 +221,14 @@ clicked approval. MCP hosts must obtain mutation consent. Only separate human
 CLI credentials can review, and the OS owner remains trusted to assign them.
 No automatic setup, existing MCP replacement or fleet deployment is performed.
 
-Before production: independent security review; Node 22/24/26, native Windows,
-real Bash 3.2, installed-package and container verification; then a separately
-approved limited real pilot covering offboarding, role changes, restore and
-project isolation. Synthetic controls are regression evidence, not that pilot.
+Release checks cover Node 22/24/26, native Windows, real Bash 3.2,
+installed-package and container behavior. The internal governed review and
+approved isolated native pilot covered exact human proposal approval,
+cross-harness recall, offboarding, restore and project isolation. Automated
+fixtures are regression evidence, not proof of human consent. These results do
+not admit arbitrary production deployments: establish an independent security
+review appropriate to the deployment, named operational ownership, a separately
+approved limited real-data pilot with rollback, and explicit operator acceptance
+before enabling a real organization. Keep reviewer credentials out of agents.
 OIDC/SSO, multi-organization tenancy, team packs, remote maintainer administration,
 provider retrieval and externally anchored audit are deferred.

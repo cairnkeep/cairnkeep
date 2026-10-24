@@ -5,8 +5,22 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
-### Team preview
+## [2.25.0] - 2026-10-24
 
+### Team continuity preview
+
+- Add default-off `cairn team` continuity with a separate organization/project
+  store, explicit roles and expiring/revocable human or workload credentials.
+  Share only selected text through immutable proposals and different-human
+  exact-digest review. Publish approved revisions and scoped audit atomically;
+  reject self/workload review and stale policy/base revisions.
+- Add a bounded authenticated loopback JSON API and an additional local stdio
+  MCP bridge. Four observation tools and additive proposal creation intersect
+  MCP profiles/capabilities with server authorization; no review/admin MCP,
+  automatic upload, personal-store migration or production activation.
+- Add consistent verified backups, fresh-only restore with copied credentials
+  revoked, private file/ACL controls, logical deletion and uninstall retention.
+  Document manual retention, size limits and trusted-OS-owner limitations.
 - Add `cairn team member remove SUBJECT --project ID` for explicit project
   offboarding. Preserve credentials, other memberships and audit history;
   reject missing or empty role lists in `member set`. Update shell completions,
@@ -14,6 +28,24 @@ All notable user-facing changes are documented here. This project follows
 - Add an isolated, opt-in pilot guide with an executable setup regression:
   separate stores, file-only expiring credentials and client profiles, unchanged
   personal configuration, and an explicit human review boundary.
+
+## [2.24.0] - 2026-10-24
+
+### Memory retrieval
+
+- Add optional provider-neutral learned reranking for ordinary memory search,
+  with explicit endpoint/model consent and a separate optional credential.
+  Preserve existing scope, current-value, typed and relevance admission;
+  bound candidate text, streamed responses and deadlines. Provider failures
+  preserve the original ranking. Exact keys, including explicit aliases,
+  retain priority. Default search behavior stays unchanged.
+- Add functional POSIX/native-Windows diagnostics, real MCP isolation/fallback
+  controls and a frozen synthetic provider comparison. Document both improved
+  first-result ordering and the regression; do not claim better general recall
+  or agent productivity. Update retrieval/privacy guidance and L04/V04 material.
+- Preserve frozen fixture bytes on Windows and verify linked-install probes.
+  No new runtime dependency, storage migration, automatic provider discovery
+  or team-feature activation is included.
 
 ### Security
 

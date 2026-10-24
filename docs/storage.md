@@ -603,7 +603,7 @@ Context-usage receipts are strict links in the existing work-evidence store.
 They inherit work-evidence inspection, retention, and doctor behavior; there is
 no separate prompt or retrieved-content log.
 
-## Separate team store (unreleased preview)
+## Separate team store (opt-in 2.25 preview)
 
 [Team continuity](team.md) keeps organization/project records in a separate
 `team.db` under `CAIRN_TEAM_BASE_DIR` (default `~/.cairnkeep/team`). Built-in

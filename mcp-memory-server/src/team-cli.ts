@@ -36,8 +36,8 @@ CAIRN_TEAM=1 is required. Personal memory is never uploaded.
 
 Clients require CAIRN_TEAM_URL, CAIRN_TEAM_ORGANIZATION and CAIRN_TEAM_TOKEN_FILE.
 Never put tokens in command arguments, source trees or harness config.
-Team API is not OAuth MCP HTTP. Independent security review and a separately
-approved real pilot remain production admission gates. See docs/team.md.
+Team API is not OAuth MCP HTTP. Independent production security review and a
+deployment-specific approved real-data pilot remain admission gates. See docs/team.md.
 `;
 function parse(args: string[]): { words: string[]; flags: Record<string, string> } {
     const words: string[] = []; const flags: Record<string, string> = {};

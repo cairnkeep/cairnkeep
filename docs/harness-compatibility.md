@@ -354,7 +354,7 @@ stdio handshake, an authenticated HTTP handshake, a real write/recall canary,
 storage-path verification, and removal instructions. Documented MCP support by
 itself is not enough to claim Cairnkeep support.
 
-## Optional team bridge (unreleased preview)
+## Optional team bridge (opt-in 2.25 preview)
 
 [Team continuity](team.md) adds an additional generic local stdio MCP:
 `cairn team mcp`. It does not replace `cairn-memory`, rewrite harness config
@@ -367,4 +367,6 @@ environment; review is CLI-only.
 Maintained tests use actual SDK stdio clients, profiles and live revocation.
 They do not constitute a live test of every named harness. The bridge exposes
 four observations plus explicit proposal creation, never review/admin.
-Production support awaits independent review and an approved limited pilot.
+The completed internal review and isolated native pilot are not independent
+production review or a deployment-specific approved real-data pilot; both
+remain required for production support.

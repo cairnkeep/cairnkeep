@@ -18,12 +18,14 @@ export HOME="$tmp/home"
 mkdir -p "$HOME"
 # Clean the inherited env so the test controls what is "configured".
 unset CAIRN_LLM_API_URL CAIRN_MEMORY_EMBEDDING_URL CAIRN_GIT_PROVIDER CAIRN_AGENTFS_BASE_DIR
+unset CAIRN_MEMORY_RERANK CAIRN_MEMORY_RERANK_URL CAIRN_MEMORY_RERANK_MODEL CAIRN_MEMORY_RERANK_API_KEY CAIRN_MEMORY_RERANK_TIMEOUT_MS
 
 # 1. Nothing configured → only SKIP/PASS/WARN, exit 0.
 proj="$tmp/clean"; mkdir -p "$proj"
 ( cd "$proj" && "$doctor" ) >"$tmp/out1" 2>&1 || fail "doctor exited non-zero with nothing configured:\n$(cat "$tmp/out1")"
 grep -q "\[SKIP\]" "$tmp/out1" || fail "expected SKIP lines when nothing is configured"
 grep -q "typed metadata and note transaction state" "$tmp/out1" || fail "expected typed/note diagnostics in the public doctor output"
+grep -qF "[SKIP] memory reranker" "$tmp/out1" || fail "expected default-off reranker diagnostic"
 grep -q "artifact store (not present" "$tmp/out1" || fail "expected absent opt-in artifact diagnostics"
 grep -q "capability configuration (not present — managed overrides are unused)" "$tmp/out1" ||
   fail "expected absent capability configuration diagnostics"
@@ -92,6 +94,12 @@ const server = createServer((request, response) => {
   request.on("end", () => {
     let body = {};
     try { body = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch {}
+    if (request.url === "/v1/rerank") {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ results: body.model === "invalid-ranker" ? [] :
+        body.documents.map((_, index) => ({ index, relevance_score: -index })) }));
+      return;
+    }
     const routeValid = request.url === "/v1/embeddings";
     const keyValid = request.headers.authorization === "Bearer test-key";
     const modelValid = body.model === "test-embedding";
@@ -151,6 +159,26 @@ EOF
     fail "expected a sanitized missing embedding model diagnostic"
   ! grep -q "private upstream detail\|private-request-id" "$tmp/out5" ||
     fail "missing-model diagnostic leaked an upstream body or request id"
+fi
+
+# Reranker diagnostics validate configuration and actual data, not HTTP status alone.
+if [[ -n "${port:-}" ]]; then
+  ( cd "$proj" && CAIRN_MEMORY_RERANK=1 CAIRN_MEMORY_RERANK_URL="http://127.0.0.1:$port/v1" \
+      CAIRN_MEMORY_RERANK_MODEL=test-ranker "$doctor" ) >"$tmp/reranker-ok" 2>&1 ||
+    fail "doctor rejected a valid reranking response"
+  grep -qF "[PASS] memory reranker accepted a synthetic ranking request" "$tmp/reranker-ok" ||
+    fail "doctor did not probe reranking"
+  if ( cd "$proj" && CAIRN_MEMORY_RERANK=1 "$doctor" ) >"$tmp/reranker-config" 2>&1; then
+    fail "doctor accepted an incomplete opted-in reranker"
+  fi
+  grep -qF "[FAIL] memory reranker configuration invalid" "$tmp/reranker-config" ||
+    fail "doctor omitted the reranker configuration diagnostic"
+  if ( cd "$proj" && CAIRN_MEMORY_RERANK=1 CAIRN_MEMORY_RERANK_URL="http://127.0.0.1:$port/v1" \
+      CAIRN_MEMORY_RERANK_MODEL=invalid-ranker "$doctor" ) >"$tmp/reranker-invalid" 2>&1; then
+    fail "doctor mistook fallback for a healthy reranker"
+  fi
+  grep -qF "[FAIL] memory reranker unavailable or returned invalid ranking data" "$tmp/reranker-invalid" ||
+    fail "doctor omitted the invalid ranking response diagnostic"
 fi
 
 # 5. Artifact doctor passes a valid store, repairs only derived state, and

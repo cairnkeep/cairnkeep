@@ -243,7 +243,10 @@ evidence, and same-account processes remain trusted. Hash-linked local audit
 cannot detect an OS owner rewriting the entire chain; backups are unencrypted.
 Capacity exhaustion fails closed rather than removing audit history.
 
-Independent security review, platform/package/container verification and a
-separately approved real pilot remain mandatory production gates. This
-source-verified implementation and inline review are not independent review.
+The governed internal separate-context review and approved isolated native
+pilot are complete; this is not an external professional assessment or a study
+with two independent human participants. The released preview remains default
+off. Independent production security review, platform/package/container
+verification and a deployment-specific approved real-data pilot remain
+mandatory production gates. Inline review alone is not independent review.
 The service is token-first JSON HTTP plus local stdio MCP, not OAuth remote MCP.

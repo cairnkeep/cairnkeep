@@ -161,8 +161,90 @@ Its sample threshold of 0.75 is an evaluation arm, not a recommended default.
 An attempted live run during development accepted short probes but failed with
 HTTP 502 on some fixture inputs. No successful live-model result is claimed.
 The offline suite never requires a model, API key, paid service or network beyond
-its own loopback fixture. An optional learned reranker remains deferred until
-provider-specific evidence demonstrates a benefit beyond this simpler policy.
+its own loopback fixture. A separate optional reranker comparison below does
+not replace this older study or retroactively make that failed run successful.
+
+## Optional learned reranking
+
+Available since Cairnkeep 2.24.0. This feature improves ordering, not guaranteed
+recall: the small live comparison below retained the same Recall@3 in both arms.
+
+The optional reranker is default-off and independent of extraction and
+embeddings. Set `CAIRN_MEMORY_RERANK=1`, `CAIRN_MEMORY_RERANK_URL` (a base URL,
+normally ending in `/v1`) and `CAIRN_MEMORY_RERANK_MODEL` on the memory-server
+process. The client appends `/rerank`. If authentication is needed, set the
+separate `CAIRN_MEMORY_RERANK_API_KEY`; extraction/embedding credentials are
+never reused. `CAIRN_MEMORY_RERANK_TIMEOUT_MS` defaults to 2,000 ms and accepts
+100–10,000 ms. Restart the server after configuration changes.
+
+Only `memory_search` in the `memory` address space is reranked, for either
+legacy or hybrid strategy. Notes, context packs, documents and the separate
+team store are unchanged. Existing scope, current-value, typed and relevance
+filters admit candidates first. The provider receives the original query
+(at most 4 KiB) and at most 50 admitted key/value excerpts (at most 4 KiB each),
+not the whole store. Candidate depth is `min(50, max(32, 4 * top_k))`.
+Exact-key priority in hybrid search (including explicit aliases) and typed legacy exact-hit priority remain
+ahead of model scores. The provider only reorders admitted records; it cannot
+add facts, change authority, write memory or recover a candidate already
+rejected by admission. A small final `top_k` can include a candidate outside
+the original top-k prefix after reranking.
+
+The endpoint must return every candidate index exactly once in a `results`
+array with finite `relevance_score` numbers. Negative raw scores are accepted;
+these are ranking values, not calibrated confidence. Returned memory text,
+provenance and existing retrieval scores are unchanged; those scores need not
+be descending after learned reranking. Ties preserve the
+existing order. Timeout, HTTP errors, redirects, oversized responses, invalid
+configuration or malformed/partial indices preserve the original order.
+No retries or alternate provider fallback are made. Unset/disabled configuration
+performs no reranker request and preserves existing discovery and responses.
+When configured, `memory_search` remains read-only but advertises
+`openWorldHint: true` because it can export candidate text.
+
+`cairn doctor` uses synthetic text to check configured reranking and fails if
+the configuration or response is invalid. Ordinary searches still fall back
+safely; doctor does not mistake fallback for a healthy provider.
+
+### Bounded provider comparison
+
+The frozen `memory-reranker-study-v1.json` fixture contains 20 synthetic
+continuity cases, including 16 positive and four negative cases. Both arms use
+the same embedding vectors, admission rules, aliases and final top three.
+Labels and the fixture digest were frozen before the first live ranking run.
+
+| Metric | Hybrid + embeddings | Same candidates + reranker |
+|---|---:|---:|
+| Relevant first result, 16 positive cases | 6/16 | 15/16 |
+| MRR@3 | 0.635417 | 0.968750 |
+| NDCG@3 | 0.728416 | 0.976933 |
+| Recall@3 | 1.0 | 1.0 |
+| Negative queries returning results, 4 cases | 0/4 | 0/4 |
+
+Ten cases improved and **one regressed**: `current-not-history` ranked a
+topical interface distractor above the correct current fact. Hidden history
+was still excluded. No scope/history violation or provider failure occurred.
+Observed additional ranking latency was 9 ms median and 46 ms p95 in this
+small local run; this is not a deployment latency guarantee.
+
+This is an engineering-labeled synthetic comparison with deliberately
+ambiguous topical distractors, not an independent holdout, a human study or
+proof of general agent-quality gains. It justifies an optional experiment,
+not default enablement. Evaluate your provider and corpus before opting in;
+disable `CAIRN_MEMORY_RERANK` to reverse the change.
+
+From a source checkout (these developer study scripts are not installed CLI
+commands):
+
+```sh
+npm --prefix mcp-memory-server run check:memory-reranker
+# Requires explicit existing embedding and reranker configuration:
+node mcp-memory-server/scripts/run-memory-reranker-study.mjs --live --summary
+```
+
+Without `--live`, the study makes no provider calls even when configured.
+Reports include fixture, implementation and model-ID digests, no URLs or keys.
+The frozen fixture SHA-256 is
+`f6a5d2de8d2846dd5a8de764096d92255716592805e8abfdc771181eac23beb1`.
 
 ## Research connection
 

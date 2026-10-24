@@ -1,8 +1,9 @@
 # L29 - Reviewed team continuity preview
 
-**Status:** Brief; unreleased feature-branch preview
-**Compatibility:** source checkout containing `team-cli.ts`; Node 22.13 or newer.
-The released Cairnkeep CLI does not include this feature-branch exercise.
+**Status:** Brief; opt-in experimental preview in Cairnkeep 2.25.0
+**Compatibility:** Cairnkeep 2.25.0 or newer; Node 22.13 or newer for team storage.
+Use a matching source checkout for the executable regression exercises below.
+Installing the released CLI does not enable team sharing.
 
 ## Outcome
 
@@ -13,7 +14,7 @@ Explain the difference between a restrictive MCP profile and server membership.
 ## Prerequisites
 
 Complete L20 and L28. Use only synthetic subjects and disposable local stores.
-Build the feature checkout with `npm --prefix mcp-memory-server ci` followed by
+Build the matching checkout with `npm --prefix mcp-memory-server ci` followed by
 `npm --prefix mcp-memory-server run build`. Read [Team continuity](../../team.md).
 Do not connect a real organization or reuse a production credential.
 For an explicitly approved native-harness trial, follow the
@@ -71,7 +72,8 @@ an explicit nonempty `--roles` list; revoke credentials separately when needed.
 - Backup verifies digests and audit links; restored data needs fresh credentials.
 - CLI administration returns to the shell; credentials are never printed.
 - Temporary restore remnants are reported, never silently deleted or activated.
-- Independent security review and an explicitly approved real pilot remain open.
+- Independent production review and a deployment's approved real-data pilot are
+  separate from the completed internal review and isolated native pilot.
 
 ## Privacy and trust boundary
 
@@ -80,6 +82,7 @@ private and encrypted by the surrounding storage/backup system. Roles do not
 make retrieved text executable authority. The OS owner administers membership
 and can rewrite the local database; hash links are not independent signatures.
 Team search is deterministic substring matching with no provider request.
+Personal-memory embedding and reranking settings do not apply to team search.
 This token-first JSON API plus local stdio bridge is not OAuth remote MCP HTTP.
 
 ## Recovery

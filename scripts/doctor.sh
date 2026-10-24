@@ -112,6 +112,23 @@ else
   skip "embedding endpoint (CAIRN_MEMORY_EMBEDDING_URL unset)"
 fi
 
+# Optional learned reranking: use the runtime validator and a synthetic request.
+# Never print provider bodies, credentials, URLs or user memory in diagnostics.
+if [[ "${CAIRN_MEMORY_RERANK:-}" == 1 ]]; then
+  if node "$CAIRN_ROOT/scripts/probe-memory-reranker.mjs" >/dev/null 2>&1; then
+    pass "memory reranker accepted a synthetic ranking request"
+  else
+    rerank_status=$?
+    if [[ "$rerank_status" == 2 ]]; then
+      fail "memory reranker configuration invalid — set CAIRN_MEMORY_RERANK_URL and CAIRN_MEMORY_RERANK_MODEL; timeout must be 100–10000 ms"
+    else
+      fail "memory reranker unavailable or returned invalid ranking data — search falls back to its existing order"
+    fi
+  fi
+else
+  skip "memory reranker (CAIRN_MEMORY_RERANK unset/not 1)"
+fi
+
 # 4. Git provider (collaboration commands). Report configuration only — auth is
 #    provider- and host-specific and lives in the wrapper, not the core.
 case "${CAIRN_GIT_PROVIDER:-}" in

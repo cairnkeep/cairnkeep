@@ -1,10 +1,11 @@
 # An isolated team-continuity pilot
 
-This guide is for the unreleased feature-branch preview. It is **not production admission**.
+This guide is for the opt-in Cairnkeep 2.25.0 team preview. It is **not production admission**.
 Obtain explicit pilot approval first. Keep automated rehearsal, human review,
 native-harness observations and release authorization as separate evidence.
-The released CLI does not include this exercise: use the exact feature checkout
-being reviewed, not your globally installed command or a production overlay.
+Use the exact matching source checkout for the source controls below, not an
+unverified global command or a production overlay. The released CLI includes
+the optional team commands, but installation does not authorize this pilot.
 
 The pilot runs beside existing personal memory: a new private store, expiring
 credentials, a separate loopback port and additional isolated client profiles.
@@ -13,7 +14,7 @@ Use synthetic project decisions, not employer, personal or customer data.
 
 ## 1. Prepare a private lab
 
-Build the feature checkout. The following setup uses Bash on Linux/macOS; on
+Build the matching checkout. The following setup uses Bash on Linux/macOS; on
 native Windows use the equivalent explicit CLI commands from [Team continuity](team.md).
 Choose an absolute, **nonexistent** lab directory outside source checkouts,
 personal memory, backup stores and other private stores. Do not reuse an old lab.

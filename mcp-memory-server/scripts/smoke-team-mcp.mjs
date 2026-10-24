@@ -9,16 +9,40 @@ import { openTeamStore, teamDigest } from '../dist/team-store.js';
 import { createTeamHttpServer } from '../dist/team-http.js';
 import { createTeamMcpServer, TEAM_TOOL_CATALOG } from '../dist/team-mcp.js';
 import { randomUUID } from 'node:crypto';
+import { createServer } from 'node:http';
 
 const base = mkdtempSync(join(tmpdir(), 'cairn-team-mcp-'));
 hardenPrivatePath(base);
 delete process.env.CAIRN_TEAM;
 await assert.rejects(createTeamMcpServer({ url: 'invalid', organization: 'demo-org', token: () => '' }), /disabled/);
 process.env.CAIRN_TEAM = '1'; process.env.CAIRN_TEAM_HTTP = '1';
-const store = await openTeamStore(join(base, 'team'), { create: true, organization: 'demo-org' });
-const server = createTeamHttpServer(store);
+let store, server;
 const connections = [];
+let providerRequests = 0;
+const provider = createServer((request, response) => {
+  providerRequests++;
+  request.resume();
+  response.writeHead(503, { 'Content-Type': 'application/json' });
+  response.end('{"error":"synthetic-provider-trap"}');
+});
 try {
+  await new Promise(resolve => provider.listen(0, '127.0.0.1', resolve));
+  const providerUrl = `http://127.0.0.1:${provider.address().port}/v1`;
+  assert.equal((await fetch(`${providerUrl}/control`)).status, 503);
+  assert.equal(providerRequests, 1, 'the provider trap must actually be reachable');
+  const providerEnv = {
+    CAIRN_LLM_API_KEY: 'synthetic-embedding-key',
+    CAIRN_MEMORY_EMBEDDING_URL: providerUrl,
+    CAIRN_MEMORY_EMBEDDING_MODEL: 'synthetic-embedding-model',
+    CAIRN_MEMORY_RERANK: '1',
+    CAIRN_MEMORY_RERANK_URL: providerUrl,
+    CAIRN_MEMORY_RERANK_MODEL: 'synthetic-reranker',
+    CAIRN_MEMORY_RERANK_API_KEY: 'synthetic-reranking-key',
+  };
+  // Cover the service and the separate bridge process, including startup.
+  Object.assign(process.env, providerEnv);
+  store = await openTeamStore(join(base, 'team'), { create: true, organization: 'demo-org' });
+  server = createTeamHttpServer(store);
   for (const project of ['alpha', 'beta']) {
     await store.admin({ operation: 'project-create', project });
     await store.admin({ operation: 'member-set', project, subject: 'alice', roles: ['reader', 'contributor'] });
@@ -55,6 +79,12 @@ try {
   assert.equal((await client.callTool({ name: 'team_memory_read', arguments: { project: 'beta', key: 'decisions/gateway' } })).structuredContent.result, null);
   const other = await connect({}, tmpdir());
   assert.deepEqual((await other.callTool({ name: 'team_memory_read', arguments: { project: 'alpha', key: 'decisions/gateway' } })).structuredContent.result, read.structuredContent.result, 'different harness working folder preserves exact project context');
+  const withProviders = await connect(providerEnv);
+  const search = await withProviders.callTool({ name: 'team_memory_search', arguments: { project: 'alpha', query: 'gateway' } });
+  assert.deepEqual(search.structuredContent.result, [read.structuredContent.result]);
+  assert.deepEqual((await withProviders.callTool({ name: 'team_memory_search', arguments: { project: 'beta', query: 'gateway' } })).structuredContent.result, []);
+  assert.equal((await withProviders.callTool({ name: 'team_memory_search', arguments: { project: 'unrelated', query: 'gateway' } })).isError, true);
+  assert.equal(providerRequests, 1, 'team retrieval must never send context or denied queries to personal-memory providers');
   const readonly = await connect({ CAIRN_MCP_TOOL_PROFILE: 'read-only' });
   assert.equal((await readonly.listTools()).tools.some(x => x.name === 'team_memory_propose'), false);
   const custom = await connect({ CAIRN_TEAM_MCP_TOOL_PROFILE: 'custom', CAIRN_TEAM_MCP_ALLOWED_TOOLS: 'team_memory_read' });
@@ -63,9 +93,10 @@ try {
   assert.equal((await capabilities.listTools()).tools.some(x => ['team_memory_propose', 'team_memory_search'].includes(x.name)), false);
   await store.admin({ operation: 'credential-revoke', credential: alice.id });
   assert.equal((await client.callTool({ name: 'team_memory_read', arguments: { project: 'alpha', key: 'decisions/gateway' } })).isError, true);
-  console.log('ok: actual stdio MCP, tool classifications, human-only review boundary, profiles/capabilities, cwd/harness continuity and live revocation');
+  console.log('ok: actual stdio MCP, tool classifications, human-only review boundary, profiles/capabilities, cwd/harness continuity, provider isolation and live revocation');
 } finally {
   for (const { client, transport } of connections) { await client.close().catch(() => {}); await transport.close().catch(() => {}); }
-  await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
-  await store.close(); rmSync(base, { recursive: true, force: true });
+  if (server) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
+  await new Promise(resolve => { provider.close(resolve); provider.closeAllConnections(); });
+  await store?.close(); rmSync(base, { recursive: true, force: true });
 }

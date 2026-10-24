@@ -495,6 +495,11 @@ vendor or host.
 | `CAIRN_MEMORY_EMBEDDING_URL` | Embeddings endpoint (falls back to `CAIRN_LLM_API_URL`) |
 | `CAIRN_MEMORY_EMBEDDING_MODEL` | Embedding model name (required for semantic search) |
 | `CAIRN_MEMORY_EMBEDDING_TIMEOUT_MS` | Embedding request timeout before substring fallback (default `15000`) |
+| `CAIRN_MEMORY_RERANK` | Explicit `1` enables optional learned memory-search reranking; off by default |
+| `CAIRN_MEMORY_RERANK_URL` | Explicit HTTP(S) base URL; client appends `/rerank`; no embedded credentials, query or fragment |
+| `CAIRN_MEMORY_RERANK_MODEL` | Required model identifier when reranking is enabled |
+| `CAIRN_MEMORY_RERANK_API_KEY` | Optional separate reranker credential; no extraction/embedding key fallback |
+| `CAIRN_MEMORY_RERANK_TIMEOUT_MS` | Reranking deadline, default `2000`, allowed `100`–`10000`; failure preserves existing search order |
 | `CAIRN_AGENTFS_BASE_DIR` | Server-side base dir for named/global memory scopes (default `~/.cairnkeep`); it does not affect `project` scope |
 | `CAIRN_TRAJECTORY_CAPTURE` | Opt in to local structured session capture (`1`, `true`, `yes`, or `on`; unset/default → no capture work) |
 | `CAIRN_TRAJECTORY_SESSION_MAX_BYTES` | Maximum serialized bytes per session (default `5242880`, 5 MiB; minimum 1024) |
@@ -957,9 +962,10 @@ cairn playbook record --help
 ```
 
 Inspect receipts with `cairn playbook receipts list|show`; validate state with
-`cairn playbook doctor`. Actor and session options are provenance labels only:
-v2.15 does not authenticate them and does not provide team ACLs. See
-[team mode](design/team-mode.md) for the future admission contract.
+`cairn playbook doctor`. Actor and session options remain unverified provenance
+labels, not team ACLs. The separate [team preview](team.md) authenticates its own
+credentials and project memberships; it never trusts local playbook labels.
+See [team mode](design/team-mode.md) for the broader admission contract.
 
 The corresponding process overrides are optional:
 
@@ -1537,13 +1543,15 @@ cairn proposals apply PROPOSAL_DIGEST --project /path/to/project --json
 No background process synchronizes OpenViking, creates proposals, applies
 memory, enables packs, or approves skills.
 
-## Team continuity (unreleased preview)
+## Team continuity (opt-in 2.25 preview)
 
 The separate `cairn team` command implements explicitly selected and reviewed
 project memory. It is default off (`CAIRN_TEAM=1` required); serving also needs
 `CAIRN_TEAM_HTTP=1`. It does not change ordinary setup or existing MCP entries.
 Use [the team reference](team.md) for roles, private credentials, additional
 local stdio registration, human review, backup/restore and incident handling.
-Independent security review and an approved real pilot are still required.
+The internal governed review and approved isolated native pilot are complete;
+independent production review and a deployment-specific approved real-data pilot
+are still required before using real organization data.
 Existing personal HTTP remains a trusted single storage domain; token-first
 team JSON HTTP is a different service, not OAuth remote MCP HTTP.
