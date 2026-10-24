@@ -32,10 +32,17 @@ export function memoryRerankCandidateCount(topK: number, config: MemoryRerankerC
     return config ? Math.min(MAX_CANDIDATES, Math.max(32, topK * 4)) : topK;
 }
 
+function textPrefix(value: string, maxUnits: number): string {
+    let end = Math.min(value.length, maxUnits);
+    const last = value.charCodeAt(end - 1);
+    if (end < value.length && last >= 0xD800 && last <= 0xDBFF) end--;
+    return value.slice(0, end);
+}
+
 function rankingText(entry: { key: string; value: string }): string {
     // Bound allocation before UTF-8 encoding, then discard an incomplete final
     // code point rather than introducing replacement characters at the cutoff.
-    const text = `${entry.key.slice(0, 1024)}\n${entry.value.slice(0, MAX_TEXT_BYTES)}`;
+    const text = `${textPrefix(entry.key, 1024)}\n${textPrefix(entry.value, MAX_TEXT_BYTES)}`;
     const bytes = Buffer.from(text);
     return new TextDecoder().decode(bytes.subarray(0, MAX_TEXT_BYTES), { stream: true });
 }

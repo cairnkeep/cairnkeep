@@ -166,6 +166,9 @@ not replace this older study or retroactively make that failed run successful.
 
 ## Optional learned reranking
 
+Available since Cairnkeep 2.24.0. This feature improves ordering, not guaranteed
+recall: the small live comparison below retained the same Recall@3 in both arms.
+
 The optional reranker is default-off and independent of extraction and
 embeddings. Set `CAIRN_MEMORY_RERANK=1`, `CAIRN_MEMORY_RERANK_URL` (a base URL,
 normally ending in `/v1`) and `CAIRN_MEMORY_RERANK_MODEL` on the memory-server

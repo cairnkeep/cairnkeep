@@ -71,6 +71,8 @@ try {
   const long = entries.map(e => ({ ...e, value: '😀'.repeat(10000) }));
   await rerankMemoryResults(long, 'q', 2, config);
   assert.ok(seen.at(-1).body.documents.every(s => Buffer.byteLength(s) <= 4096 && !s.includes('\uFFFD')));
+  await rerankMemoryResults(entries.map(e => ({ ...e, key: 'a'.repeat(1023) + '😀' })), 'q', 2, config);
+  assert.ok(seen.at(-1).body.documents.every(s => !s.includes('\uFFFD')), 'key prefix truncation must not split a valid surrogate pair');
   const count = seen.length;
   await rerankMemoryResults(entries, 'x'.repeat(4097), 1, config);
   await rerankMemoryResults([], 'q', 1, config);

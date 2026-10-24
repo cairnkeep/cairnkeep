@@ -33,7 +33,7 @@ invent a successful live result or claim general task-quality improvements.
 Use short terminal zooms and side-by-side result comparisons instead of static
 slides; keep credentials and real memory off screen.
 
-## Optional reranker segment (feature checkout)
+## Optional reranker segment (2.24.0 or newer source checkout)
 
 Record real `check:memory-reranker` output, pausing on the no-network default,
 scope/history canaries and provider-failure fallback. With explicit synthetic

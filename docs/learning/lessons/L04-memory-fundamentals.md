@@ -55,7 +55,7 @@ fact and starting a fresh client, verifying the new value and explicit history.
 
 ## Optional reranker extension
 
-From the feature checkout, run `npm --prefix mcp-memory-server run check:memory-reranker`
+From a source checkout of 2.24.0 or newer, run `npm --prefix mcp-memory-server run check:memory-reranker`
 without a provider. Then, only with explicit synthetic-data/provider consent,
 compare the frozen live study in the retrieval guide. Explain both the 6/16
 to 15/16 first-result improvement and the single regression; this is not a

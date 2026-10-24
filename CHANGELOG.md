@@ -5,6 +5,24 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.24.0] - 2026-10-24
+
+### Memory retrieval
+
+- Add optional provider-neutral learned reranking for ordinary memory search,
+  with explicit endpoint/model consent and a separate optional credential.
+  Preserve existing scope, current-value, typed and relevance admission;
+  bound candidate text, streamed responses and deadlines. Provider failures
+  preserve the original ranking. Exact keys, including explicit aliases,
+  retain priority. Default search behavior stays unchanged.
+- Add functional POSIX/native-Windows diagnostics, real MCP isolation/fallback
+  controls and a frozen synthetic provider comparison. Document both improved
+  first-result ordering and the regression; do not claim better general recall
+  or agent productivity. Update retrieval/privacy guidance and L04/V04 material.
+- Preserve frozen fixture bytes on Windows and verify linked-install probes.
+  No new runtime dependency, storage migration, automatic provider discovery
+  or team-feature activation is included.
+
 ### Security
 
 - Refresh compatible transitive HTTP parser, URI and IP-address dependencies
