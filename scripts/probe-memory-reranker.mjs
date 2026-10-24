@@ -1,7 +1,7 @@
 // Exit codes are a value-free doctor protocol: 0 disabled/healthy,
 // 2 invalid opt-in configuration, 3 unavailable or invalid ranking response.
 import { getMemoryRerankerConfig, rerankMemoryResults } from '../mcp-memory-server/dist/memory-reranker.js';
-import { resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 export async function probeMemoryReranker() {
@@ -15,6 +15,8 @@ export async function probeMemoryReranker() {
   return result.status === 'reranked' ? 0 : 3;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+let invokedDirectly = false;
+try { invokedDirectly = Boolean(process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)); } catch {}
+if (invokedDirectly) {
   process.exitCode = await probeMemoryReranker();
 }

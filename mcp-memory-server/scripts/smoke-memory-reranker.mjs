@@ -3,6 +3,9 @@ import { createServer } from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync, symlinkSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { getMemoryRerankerConfig, memoryRerankCandidateCount, rerankMemoryResults } from '../dist/memory-reranker.js';
 
 const entries = [
@@ -84,6 +87,12 @@ try {
   await assert.rejects(execute(process.execPath, [probe], { env: { ...probeEnv, CAIRN_MEMORY_RERANK_MODEL: '' } }), e => e.code === 2);
   mode = 'partial';
   await assert.rejects(execute(process.execPath, [probe], { env: probeEnv }), e => e.code === 3 && !e.stdout && !e.stderr);
+  const linked = mkdtempSync(join(tmpdir(), 'cairn-reranker-probe-link-'));
+  try {
+    symlinkSync(dirname(probe), join(linked, 'scripts'), 'junction');
+    await assert.rejects(execute(process.execPath, [join(linked, 'scripts', 'probe-memory-reranker.mjs')], { env: probeEnv }),
+      e => e.code === 3, 'linked installations must not skip the functional CLI probe');
+  } finally { rmSync(linked, { recursive: true, force: true }); }
   const beforeImport = seen.length;
   const { probeMemoryReranker } = await import('../../scripts/probe-memory-reranker.mjs');
   assert.equal(seen.length, beforeImport, 'native Windows imports do not run CLI probes implicitly');
