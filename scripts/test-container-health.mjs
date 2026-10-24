@@ -11,6 +11,8 @@ assert.match(quadlet, /^Secret=cairnkeep-http-token,type=mount,target=http-token
   "the managed container secret must satisfy the probe's private-file contract");
 assert.match(containerfile, /COPY --chmod=644 containers\/healthcheck\.mjs \/opt\/cairnkeep\/containers\/healthcheck\.mjs/, "probe imports must resolve within the packaged server");
 assert.match(containerfile, /ln -s \/opt\/cairnkeep\/containers\/healthcheck\.mjs \/usr\/local\/lib\/cairnkeep\/container-healthcheck\.mjs/, "keep the established container probe path");
+assert.match(containerfile, /COPY --chmod=644 containers\/healthcheck\.mjs[^\n]*\nRUN chmod 755 \/opt\/cairnkeep\/containers\b/,
+  "normalize the probe directory's traversal mode after COPY for unprivileged runtime users");
 assert.match(source, /parseHttpPort/, "health destination must use the server's numeric port parser");
 assert.match(source, /resolveHttpToken/, "health tokens must use the server's bounded resolver");
 const { containerHealthcheck } = await import("../containers/healthcheck.mjs");
