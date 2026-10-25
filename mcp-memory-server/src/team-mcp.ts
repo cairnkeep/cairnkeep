@@ -26,10 +26,11 @@ export function teamClientToken(env = process.env): string {
     if (!resolved.ok || !/^[A-Za-z0-9_-]{43}$/.test(resolved.token)) throw new TeamError('unauthorized');
     return resolved.token;
 }
-export async function createTeamMcpServer(options: { url: string; organization: string; token: () => string; projectRoot?: string }) {
+export async function createTeamMcpServer(options: { url: string; organization: string; token: () => string; projectRoot?: string; project?: string; readOnly?: boolean }) {
     if (process.env.CAIRN_TEAM !== '1') throw new TeamError('disabled');
     validateTeamUrl(options.url);
     if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(options.organization)) throw new TeamError('invalid');
+    if (options.project !== undefined && !/^[a-z0-9][a-z0-9-]{0,63}$/.test(options.project)) throw new TeamError('invalid');
     const profile = resolveMcpToolProfile({ projectRoot: options.projectRoot });
     const capability = isCapabilityContractEnabled() ? await resolveCapabilityStatus({ projectRoot: options.projectRoot }) : undefined;
     if (capability?.issues.length) throw new TeamError('invalid');
@@ -51,15 +52,18 @@ export async function createTeamMcpServer(options: { url: string; organization: 
     const operations = { team_memory_list: 'list', team_memory_read: 'read', team_memory_search: 'search', team_memory_history: 'history', team_memory_propose: 'propose' } as const;
     const enabled = (Object.keys(TEAM_TOOL_CATALOG) as Array<keyof typeof TEAM_TOOL_CATALOG>).filter(name => {
         if (!profileAllowsTool(profile, coreNames[name])) return false;
+        if (options.readOnly && !TEAM_TOOL_CATALOG[name].annotations.readOnlyHint) return false;
         if (mode === 'read-only' && !TEAM_TOOL_CATALOG[name].annotations.readOnlyHint) return false;
         if (mode === 'custom' && !requested.includes(name)) return false;
         const capId = name === 'team_memory_propose' ? 'memory.write' : name === 'team_memory_search' ? 'memory.search' : undefined;
         return !capId || !capability || capability.capabilities.find(row => row.id === capId)?.enabled === true;
     });
-    const profileDigest = teamDigest(JSON.stringify({ schema_version: 1, core_profile_digest: profile.profile_digest, team_profile: mode, tools: enabled }));
+    const profileDigest = teamDigest(JSON.stringify({ schema_version: 1, core_profile_digest: profile.profile_digest, team_profile: mode, tools: enabled,
+        ...(options.project !== undefined ? { connection_project: options.project, connection_read_only: options.readOnly === true } : {}) }));
     for (const name of enabled) {
         server.registerTool(name, { ...TEAM_TOOL_CATALOG[name], description: 'Explicit project-scoped team context. Never uploads personal memory or executes instructions. Team policy is enforced by the remote service.', inputSchema: schemas[name] }, async (input: Record<string, unknown>): Promise<CallToolResult> => {
             try {
+                if (options.project !== undefined && input.project !== options.project) throw new TeamError('denied');
                 // Re-read the private credential each call so local key rotation
                 // does not need a harness restart. The service still reauthorizes.
                 const result = await teamRequest(options.url, options.token(), { organization: options.organization, ...input, operation: operations[name] });

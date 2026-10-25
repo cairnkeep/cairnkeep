@@ -19,8 +19,11 @@ for shell in bash zsh fish; do
   grep -q 'capabilities' "$tmp/$shell"
   grep -q 'team' "$tmp/$shell"
   grep -q 'credential create set remove issue revoke' "$tmp/$shell"
-  for team_command in init project member credential serve mcp list read search history propose proposals proposal-show review audit doctor backup restore memory-delete; do
+  for team_command in connect disconnect init project member credential serve mcp list read search history propose proposals proposal-show review audit doctor backup restore memory-delete; do
     grep -qF "$team_command" "$tmp/$shell"
+  done
+  for team_flag in connection client url token-file harness access apply yes; do
+    grep -q -- "--$team_flag\|-l $team_flag" "$tmp/$shell"
   done
   grep -q 'list.*status.*enable.*disable.*reset.*logging\|list status enable disable reset logging' "$tmp/$shell"
   grep -q -- '--json\|-l json' "$tmp/$shell"

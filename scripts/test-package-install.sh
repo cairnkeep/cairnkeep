@@ -62,6 +62,7 @@ env -u CAIRN_NOTE_DISTILLATION cairn notes --help >/dev/null \
 installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
 cairn team --help >"$tmp/installed-team-help"
 grep -qF 'experimental token-first team continuity' "$tmp/installed-team-help" || fail "installed package omitted team preview"
+node "$ROOT/scripts/test-team-installed.mjs" "$installed_root" || fail "installed team onboarding failed"
 CAIRN_TEAM=1 cairn team init --organization demo-org --data "$tmp/installed-team" >"$tmp/team-init.json"
 CAIRN_TEAM=1 cairn team project create alpha --data "$tmp/installed-team" >/dev/null
 CAIRN_TEAM=1 cairn team backup --data "$tmp/installed-team" --output "$tmp/team-snapshot.json" >"$tmp/team-backup.json"

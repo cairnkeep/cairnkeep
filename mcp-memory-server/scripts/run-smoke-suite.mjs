@@ -20,6 +20,7 @@ export const smokeChecks = Object.freeze([
   check("team-mcp", 80, node("smoke-team-mcp.mjs")),
   check("team-restore", 120, node("smoke-team-restore.mjs")),
   check("team-cli", 100, node("smoke-team-cli.mjs")),
+  check("team-onboarding", 120, node("smoke-team-onboarding.mjs")),
   check("embeddings", 1, node("smoke-embeddings.mjs")),
   check("extract", 1, node("smoke-extract-cli.mjs")),
   check("memory-retrieval", 10, node("smoke-memory-retrieval.mjs"), node("smoke-memory-retrieval-mcp.mjs"), node("run-memory-retrieval-study.mjs", "--check", "--summary")),

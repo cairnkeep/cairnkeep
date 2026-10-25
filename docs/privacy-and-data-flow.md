@@ -728,3 +728,15 @@ tokens. Backups include shared proposals and memberships and need separate
 encryption and access control. No unapproved personal content is discoverable.
 A hash confirmation does not establish human consent or content truth.
 Review and production admission remain separate operator responsibilities.
+
+The opt-in guided connection workflow stores endpoint/org/project IDs and a
+credential **file path**, never the credential bytes, in private client state.
+Its project-local MCP entry references that connection file; personal/global
+MCP configuration is not replaced. Private recovery snapshots copy the original
+harness configuration and may therefore contain preexisting operator secrets;
+keep them out of source control and protect/encrypt backups separately.
+Client doctor's authenticated metadata probe discloses the chosen project ID
+to the configured service and returns only subject, roles and credential
+ID/class/expiry. It neither reads memory text nor sends data to model providers.
+It appends a normal value-free service audit event. Disconnect retains backups
+and tokens and is not server-side revocation. See [onboarding](team-onboarding.md).

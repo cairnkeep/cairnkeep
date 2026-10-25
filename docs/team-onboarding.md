@@ -76,6 +76,112 @@ never replace `cairn-memory` or its entire configuration. See
 Each tool call names `trial-project`; cwd and display names grant no access.
 The MCP profile restricts tools; server membership independently restricts data.
 
+## Guided connection (next release / matching source checkout)
+
+The original preview and reader card above work on 2.25.0. The guided commands
+below require the next client **and team API** (2.26 or newer); use matching
+source builds until that release is published. They do not change ordinary
+`cairn setup`, personal memory or the preview's production-admission boundary.
+
+After the operator supplies a **workload reader** credential, opt in explicitly:
+
+```sh
+CAIRN_TEAM=1 cairn team connect --project-root /absolute/project
+```
+
+The wizard asks for URL, organization/project IDs, a private credential-file
+path and harness checkboxes. Its default tool profile is read-only. It displays
+the planned files and asks before applying. Cancellation returns to the shell.
+For automation, supply every choice; without `--apply` this only plans:
+
+```sh
+CAIRN_TEAM=1 cairn team connect --project-root /absolute/project \
+  --url http://127.0.0.1:17955 --organization trial-org --project trial-project \
+  --token-file /absolute/private/reader.token --harness claude,opencode
+# Repeat the same command with --apply --yes to connect.
+CAIRN_TEAM=1 cairn team doctor --client --project-root /absolute/project
+```
+
+Never pass a token value. Keep the credential file outside this project's
+source tree and owner-only (POSIX 0600; native Windows private ACL). URLs must
+be loopback HTTP or HTTPS, without credentials, query, fragment or path prefix.
+Use the operator's encrypted authenticated tunnel, not a public unauthenticated
+listener. The command authenticates reader access before changing a harness.
+It refuses human-class credentials: the operator must issue a workload token
+for the agent, keeping human review credentials in the separate human terminal.
+
+| Harness choice | Project-local file | Additional entry |
+|----------------|--------------------|------------------|
+| `claude` | `.mcp.json` | `mcpServers.cairn-team-memory` |
+| `opencode` | `opencode.json` | `mcp.cairn-team-memory` |
+| `qwen` | `.qwen/settings.json` | `mcpServers.cairn-team-memory` |
+| `codex` | `.codex/config.toml` | marked `mcp_servers.cairn-team-memory` block |
+
+No global harness file is written. Existing unrelated entries are preserved;
+an existing team entry, duplicate JSON keys, JSONC or unsupported inline TOML
+causes refusal rather than replacement. OpenCode `opencode.jsonc` is not edited.
+Pi/OMP/Kimi use the manual bridge recipe; this wizard does not claim automated
+configuration for them. Harness-native trust/enablement prompts still apply.
+Adapter regression uses real SDK stdio calls, not live model/harness UI sessions.
+
+The generated entry invokes the verified Node/CLI paths with a private
+`--connection` file. It pins the server project even if the harness starts in
+another folder; each tool call still names that ID. It does not grant server
+membership. Contributors can explicitly select `--access full` to expose
+proposal creation, still subject to existing profile/capability restrictions
+and server authorization. Human review/admin tools never become available.
+Changing connection settings requires disconnect/reconnect; credentials may be
+rotated in place without a harness restart because the bridge rereads the file.
+
+### Client diagnosis and recovery
+
+Client doctor verifies the active managed entries and private credential file,
+then makes one authenticated `connection-check` request. It reports the current
+subject, credential ID/class/expiry, project and roles, **not** memory text,
+proposals, token values or environment snapshots. The service appends its normal
+value-free audit event. It opens no local administrator store and cannot issue
+credentials, grant membership or repair permissions. Wrong org/project, missing
+reader membership and expired/revoked credentials require the operator; failed
+team access never falls back to personal memory. Check the tunnel/TLS and API
+version on connection failure. Store doctor remains `team doctor --data DIR`.
+
+```sh
+CAIRN_TEAM=1 cairn team disconnect --project-root /absolute/project
+# Inspect the no-write plan, then:
+CAIRN_TEAM=1 cairn team disconnect --project-root /absolute/project --apply --yes
+```
+
+Disconnect removes only unchanged owned entries. It restores exact original
+bytes when nothing else changed; otherwise it preserves unrelated edits and
+refuses an altered team entry. It keeps the token and private backups. Restart
+existing harness sessions; disconnect is **not revocation**. The operator must
+revoke a credential/remove membership for immediate denial in running sessions.
+
+Connection records and original configuration snapshots are private under
+`~/.cairnkeep/team-clients/<canonical-project-path-sha256>/`. Backups may include
+secrets already present in your original MCP config: never commit or publish
+them; use separately encrypted backups as appropriate. No token content is
+copied from its file. Disconnected records are retained in uniquely named
+`.disconnected-*` siblings. Uninstall/purge refuses to delete this retained state.
+
+A per-project exclusive `operation.lock` serializes Cairnkeep writers. A failed
+multi-file connect keeps its recovery record in `preparing`; the bridge refuses
+startup until **all** entries are written and activation is committed. Run
+disconnect to undo an interrupted operation after checking for configuration
+drift. An interrupted disconnect is likewise resumable. Do not restore a whole
+backup over newer unrelated edits. If the process crashed holding its lock,
+first verify no connection/disconnection process is running, preserve the state
+directory, then manually remove **only that project's** `operation.lock` and
+retry disconnect. The tool never guesses that a live lock is stale.
+
+Configuration directories must be owned/trusted and not writable by other users;
+links and unsafe files are rejected. Writers use bounded descriptor-first reads,
+exclusive creation and atomic replacement with a final drift check. This is not
+an OS compare-and-swap against a hostile process running as your own identity;
+stop concurrent editor writes before applying. No root-directory or global
+configuration target, automatic permission changes to existing directories,
+automatic enrollment or background synchronization is introduced.
+
 ## Contributor and reviewer
 
 Contributors get their **own** workload credential and explicit contributor

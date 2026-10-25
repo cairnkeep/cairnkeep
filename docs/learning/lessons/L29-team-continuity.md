@@ -32,6 +32,7 @@ node mcp-memory-server/scripts/smoke-team-http.mjs
 node mcp-memory-server/scripts/smoke-team-mcp.mjs
 node mcp-memory-server/scripts/smoke-team-restore.mjs
 node mcp-memory-server/scripts/smoke-team-cli.mjs
+node mcp-memory-server/scripts/smoke-team-onboarding.mjs
 ```
 
 These create disposable local fixtures and an authenticated loopback service,
@@ -42,9 +43,33 @@ it does not infer authority from the working folder or a display name.
 
 Use the [role-based handoff](../../team-onboarding.md) to separate operator,
 reader/contributor and human-reviewer tasks. Its executable reader check uses
-the existing 2.25.0 CLI, not an auto-enrollment or deployment wizard. Complete
+the existing 2.25.0 CLI. The next-release guided connection exercise below is
+still opt-in, not automatic enrollment or deployment. Complete
 the readiness checklist with missing decisions marked pending; do not enroll
 real users or introduce real data during this exercise.
+
+## Guided client exercise (matching next-release checkout)
+
+Use the [guided connection recipe](../../team-onboarding.md#guided-connection-next-release--matching-source-checkout)
+with a disposable project and the operator's synthetic workload-reader file.
+Run `cairn team connect` once without `--apply`: inspect its selected project,
+read-only profile and additional harness files. Confirm that personal/unrelated
+MCP entries remain present. Explicitly apply, then run
+`cairn team doctor --client --project-root PATH`. Explain the reported credential
+expiry/roles and why no memory text is needed to check project access.
+
+Move to another folder: the saved connection still names the explicit team
+project. Try an unrelated project and a revoked credential; both must fail.
+Compare a disconnect plan with `disconnect --apply --yes`: tokens/backups stay,
+only owned unchanged entries disappear. Existing sessions require restart or
+server-side revocation; removing local config is not offboarding.
+
+The onboarding regression uses two workload identities and four generated
+adapter configurations, actual MCP reads from different folders, a synthetic
+review-policy fixture, interrupted activation/recovery and competing writers.
+It does not claim two independent humans, a real user approval, every native
+harness UI or an LLM quality advantage. No paid model is used. Keep the lesson
+Brief until the release-verified learner lab is independently rehearsed.
 
 Trace the lifecycle beside the operator commands in the reference:
 

@@ -7,6 +7,7 @@ import { hardenPrivatePath } from './platform-security.js';
 import { openTeamStore, restoreTeamSnapshot, verifyTeamSnapshot, prepareTeamPrivateDirectory, TEAM_SNAPSHOT_MAX_BYTES, TeamError, type TeamStore } from './team-store.js';
 import { createTeamHttpServer, teamRequest } from './team-http.js';
 import { createTeamMcpServer, teamClientToken } from './team-mcp.js';
+import { readTeamConnection, connectionToken } from './team-client.js';
 
 const HELP = `cairn team — experimental token-first team continuity (default off)
 
@@ -19,7 +20,10 @@ CAIRN_TEAM=1 is required. Personal memory is never uploaded.
   cairn team credential issue SUBJECT --class human|workload --expires-at ISO --output FILE [--data DIR]
   cairn team credential revoke ID [--data DIR]
   cairn team serve [--data DIR] [--port PORT]  # requires CAIRN_TEAM_HTTP=1; loopback only
-  cairn team mcp [--project-root PATH]        # local stdio MCP; no review/admin tools
+  cairn team connect [--project-root PATH] [--url URL --organization ID --project ID --token-file FILE --harness LIST] [--access read-only|full] [--apply --yes]
+  cairn team disconnect [--project-root PATH] [--apply --yes]
+  cairn team doctor --client [--project-root PATH]
+  cairn team mcp [--project-root PATH | --connection FILE] # local stdio MCP; no review/admin tools
   cairn team list --project ID
   cairn team proposals --project ID
   cairn team audit --project ID             # scoped, value-free metadata
@@ -41,7 +45,7 @@ deployment-specific approved real-data pilot remain admission gates. See docs/te
 `;
 function parse(args: string[]): { words: string[]; flags: Record<string, string> } {
     const words: string[] = []; const flags: Record<string, string> = {};
-    const known = new Set(['data', 'organization', 'project', 'roles', 'class', 'expires-at', 'output', 'port', 'project-root', 'key', 'revision', 'query', 'proposal', 'input', 'confirm', 'decision']);
+    const known = new Set(['data', 'organization', 'project', 'roles', 'class', 'expires-at', 'output', 'port', 'project-root', 'key', 'revision', 'query', 'proposal', 'input', 'confirm', 'decision', 'connection']);
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
         if (arg.startsWith('--')) {
@@ -68,7 +72,7 @@ async function main(args: string[]): Promise<void> {
     const allowed: Record<string, string[]> = {
         init: ['data', 'organization'], project: ['data'], member: subcommand === 'remove' ? ['data', 'project'] : ['data', 'project', 'roles'],
         credential: subcommand === 'issue' ? ['data', 'class', 'expires-at', 'output'] : ['data'],
-        serve: ['data', 'port'], mcp: ['project-root'], doctor: ['data'], backup: ['data', 'output'],
+        serve: ['data', 'port'], mcp: ['project-root', 'connection'], doctor: ['data'], backup: ['data', 'output'],
         restore: ['data', 'input', 'confirm'], 'memory-delete': ['data', 'project', 'key', 'confirm'],
         list: ['project'], proposals: ['project'], audit: ['project'], read: ['project', 'key', 'revision'],
         history: ['project', 'key'], search: ['project', 'query'], 'proposal-show': ['project', 'proposal'],
@@ -83,8 +87,13 @@ async function main(args: string[]): Promise<void> {
     try {
         if (command === 'mcp') {
             if (words.length !== 1) throw new TeamError('invalid');
-            teamClientToken(); // validate private credential before startup
-            const server = await createTeamMcpServer({ url: process.env.CAIRN_TEAM_URL ?? '', organization: process.env.CAIRN_TEAM_ORGANIZATION ?? '', token: () => teamClientToken(), projectRoot: flags['project-root'] });
+            if (flags.connection && flags['project-root']) throw new TeamError('invalid');
+            const connection = flags.connection ? readTeamConnection(resolve(flags.connection)) : undefined;
+            const token = connection ? () => connectionToken(connection) : () => teamClientToken();
+            token(); // validate private credential before startup
+            const server = await createTeamMcpServer(connection
+                ? { url: connection.url, organization: connection.organization, project: connection.project, readOnly: connection.access === 'read-only', token, projectRoot: connection.project_root }
+                : { url: process.env.CAIRN_TEAM_URL ?? '', organization: process.env.CAIRN_TEAM_ORGANIZATION ?? '', token, projectRoot: flags['project-root'] });
             await server.connect(new StdioServerTransport());
             return;
         }

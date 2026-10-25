@@ -21,6 +21,8 @@
 15. [L28 - Verify Cairnkeep's security posture](../lessons/L28-security-assurance.md)
 16. Optional 2.25 preview: [L29 - Reviewed team continuity](../lessons/L29-team-continuity.md).
     Do not enable it in production before the independent review and approved pilot.
+    The matching next-release checkout adds guided additive connection, client
+    diagnostics and disconnect/recovery exercises; no production enrollment.
 
 All modules are optional. The track is complete when the operator can add and
 remove each integration without breaking the standalone local workflow and can

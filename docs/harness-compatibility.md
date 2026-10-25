@@ -357,8 +357,11 @@ itself is not enough to claim Cairnkeep support.
 ## Optional team bridge (opt-in 2.25 preview)
 
 [Team continuity](team.md) adds an additional generic local stdio MCP:
-`cairn team mcp`. It does not replace `cairn-memory`, rewrite harness config
-or change existing setup. Every call supplies a server project ID explicitly;
+`cairn team mcp`. It does not replace `cairn-memory` or change existing setup.
+The next-release explicit `team connect` wizard adds only a project-local team
+entry for Claude Code, OpenCode, Qwen Code or Codex; global config is unchanged.
+See [supported files and safe recovery](team-onboarding.md#guided-connection-next-release--matching-source-checkout).
+Other adapters retain the manual connection recipe. Every call supplies a server project ID explicitly;
 the same credentials/project IDs work regardless of the starting cwd.
 Configure private file-based credentials and the separate JSON API URL in the
 client environment. Human reviewer credentials must not enter the agent's

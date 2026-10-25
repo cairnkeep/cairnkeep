@@ -24,7 +24,7 @@ const adminSchema = z.discriminatedUnion('operation', [
     z.object({ operation: z.literal('credential-revoke'), credential: z.string().uuid() }).strict(),
     z.object({ operation: z.literal('memory-delete'), project: id, key: memoryKey, confirm: digest }).strict(),
 ]);
-const auditEntrySchema = z.object({ schema_version: z.literal(1), sequence: z.number().int().positive(), organization: id, project: id.or(z.literal('')), subject: id, credential_class: z.enum(['human', 'workload', 'local-os']), operation: z.enum(['project-create', 'member-set', 'credential-revoke', 'credential-issue', 'memory-delete', 'list', 'audit', 'read', 'history', 'search', 'propose', 'proposals', 'proposal-show', 'review', 'snapshot', 'restore']), result: z.enum(['accepted', 'denied', 'conflict', 'invalid']), object_digest: digest.nullable(), previous_digest: digest.nullable(), request_id: z.string().uuid(), at: date }).strict();
+const auditEntrySchema = z.object({ schema_version: z.literal(1), sequence: z.number().int().positive(), organization: id, project: id.or(z.literal('')), subject: id, credential_class: z.enum(['human', 'workload', 'local-os']), operation: z.enum(['project-create', 'member-set', 'credential-revoke', 'credential-issue', 'memory-delete', 'list', 'audit', 'read', 'history', 'search', 'propose', 'proposals', 'proposal-show', 'review', 'snapshot', 'restore', 'connection-check']), result: z.enum(['accepted', 'denied', 'conflict', 'invalid']), object_digest: digest.nullable(), previous_digest: digest.nullable(), request_id: z.string().uuid(), at: date }).strict();
 const snapshotSchema = z.object({ schema_version: z.literal(1), organization: id, records: z.array(z.object({ organization: id, project: id.or(z.literal('')), kind: z.enum(['project', 'member', 'credential', 'proposal', 'review', 'revision', 'head']), id: z.string().min(1).max(128), value: z.unknown() }).strict()).max(32768), audit: z.array(z.object({ sequence: z.number().int().positive(), organization: id, project: id.or(z.literal('')), value: z.string().max(4096), digest }).strict()).max(100000), digest }).strict();
 export type TeamSnapshot = z.infer<typeof snapshotSchema>;
 const MAX_RECORD_BYTES = 16 * 1024 * 1024;
@@ -32,6 +32,7 @@ const MAX_AUDIT_BYTES = 16 * 1024 * 1024;
 export const TEAM_SNAPSHOT_MAX_BYTES = 64 * 1024 * 1024;
 const requestBase = { organization: id, project: id };
 const requestSchema = z.discriminatedUnion('operation', [
+    z.object({ ...requestBase, operation: z.literal('connection-check') }).strict(),
     z.object({ ...requestBase, operation: z.literal('list') }).strict(),
     z.object({ ...requestBase, operation: z.literal('audit') }).strict(),
     z.object({ ...requestBase, operation: z.literal('search'), query: z.string().min(1).max(256) }).strict(),
@@ -338,7 +339,11 @@ export class TeamStore {
             const project = valid(projectSchema, await this.get('project', request.project, request.project));
             let result: unknown;
             let objectDigest: string | null = null;
-            if (request.operation === 'audit') {
+            if (request.operation === 'connection-check') {
+                result = { schema_version: 1, organization: this.organization, project: request.project,
+                    subject: credential.subject, credential_id: credential.id, credential_class: credential.credential_class,
+                    expires_at: credential.expires_at, roles: member.roles };
+            } else if (request.operation === 'audit') {
                 const rows = await this.agent.getDatabase().prepare('SELECT value,digest FROM team_audit WHERE organization=? AND project=? ORDER BY sequence DESC LIMIT 100').all(this.organization, request.project);
                 result = rows.map(row => ({ ...JSON.parse(sqlText(row.value)), digest: row.digest }));
             } else if (request.operation === 'propose') {

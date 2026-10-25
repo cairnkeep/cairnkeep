@@ -80,6 +80,15 @@ OIDC/SSO and standards-compliant remote MCP HTTP authorization are deferred.
 
 ## Harness connection
 
+The next release (2.26; matching client/API source builds until published) adds
+the opt-in [guided connection and recovery workflow](team-onboarding.md#guided-connection-next-release--matching-source-checkout):
+`cairn team connect`, `cairn team doctor --client` and `cairn team disconnect`.
+It adds only a dedicated project-local entry, defaults to read-only, references
+a private token file and pins the server project. No global MCP replacement or
+personal upload occurs. The manual environment recipe below remains supported
+on 2.25.0. The diagnostics API returns only authenticated project/credential
+metadata and records a value-free audit event, not memory text.
+
 Set `CAIRN_TEAM_URL`, `CAIRN_TEAM_ORGANIZATION` and `CAIRN_TEAM_TOKEN_FILE` in the
 local harness environment, alongside `CAIRN_TEAM=1`. Tokens are file-only.
 The URL may be loopback HTTP through a tunnel or HTTPS, without embedded
