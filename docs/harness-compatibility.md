@@ -358,7 +358,7 @@ itself is not enough to claim Cairnkeep support.
 
 [Team continuity](team.md) adds an additional generic local stdio MCP:
 `cairn team mcp`. It does not replace `cairn-memory` or change existing setup.
-The next-release explicit `team connect` wizard adds only a project-local team
+The 2.26.0 explicit `team connect` wizard adds only a project-local team
 entry for Claude Code, OpenCode, Qwen Code or Codex; global config is unchanged.
 See [supported files and safe recovery](team-onboarding.md#guided-connection-next-release--matching-source-checkout).
 Other adapters retain the manual connection recipe. Every call supplies a server project ID explicitly;

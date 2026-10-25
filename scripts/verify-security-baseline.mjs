@@ -33,6 +33,25 @@ function walk(value, visit, path = "workflow") {
     }
 }
 
+export function validateCodeqlCohort(workflows, dependabot) {
+    const references = [];
+    for (const workflow of workflows) walk(workflow, (key, value) => {
+        if (key === "uses" && typeof value === "string" && value.startsWith("github/codeql-action/")) {
+            assert.match(value, /^github\/codeql-action\/[^@\s]+@[a-f0-9]{40}$/, "CodeQL actions must be pinned to a full commit");
+            references.push(value);
+        }
+    });
+    assert.ok(references.length > 0, "CodeQL cohort is missing");
+    assert.equal(new Set(references.map(value => value.split("@")[1])).size, 1, "CodeQL cohort must use the same commit across workflows");
+    for (const action of ["init", "analyze", "upload-sarif"]) {
+        assert.ok(references.some(value => value.startsWith(`github/codeql-action/${action}@`)), `CodeQL cohort is missing ${action}`);
+    }
+    const updates = dependabot?.updates?.filter(update => update["package-ecosystem"] === "github-actions" && update.directory === "/") ?? [];
+    assert.equal(updates.length, 1, "CodeQL cohort requires one root GitHub Actions update group");
+    const group = updates[0].groups?.["codeql-action"];
+    assert.deepEqual(group, { patterns: ["github/codeql-action/*"] }, "CodeQL dependency group must cover the entire cohort without exclusions or update-type restrictions");
+}
+
 function validateWorkflow(name, workflow) {
     assert.ok(workflow && typeof workflow === "object" && !Array.isArray(workflow), `${name} is not a workflow mapping`);
     assert.ok(workflow.permissions && typeof workflow.permissions === "object" && !Array.isArray(workflow.permissions), `${name} must have an explicit workflow permission mapping`);
@@ -123,6 +142,7 @@ for (const [index, [fixture, expected]] of maliciousFixtures.entries()) {
 
 for (const { name, workflow } of sources) validateWorkflow(name, workflow);
 validatePublicationPermissions(publish);
+validateCodeqlCohort(sources.map(source => source.workflow), parse(readFileSync(join(root, ".github", "dependabot.yml"), "utf8")));
 
 const security = sources.find(({ name }) => name === "security.yml")?.text ?? "";
 assert.match(security, /github\/codeql-action\/init@[a-f0-9]{40}/);

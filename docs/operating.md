@@ -1550,7 +1550,7 @@ project memory. It is default off (`CAIRN_TEAM=1` required); serving also needs
 `CAIRN_TEAM_HTTP=1`. It does not change ordinary setup or existing MCP entries.
 Use [the team reference](team.md) for roles, private credentials, additional
 local stdio registration, human review, backup/restore and incident handling.
-The next-release guided client workflow is documented in
+The 2.26.0 guided client workflow is documented in
 [team onboarding](team-onboarding.md#guided-connection-next-release--matching-source-checkout):
 `team connect` plans before explicit apply, `team doctor --client` checks only
 authenticated project/credential metadata, and `team disconnect` preserves
