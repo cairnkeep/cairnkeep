@@ -20,6 +20,10 @@ Use a disposable source checkout and only synthetic fixtures. Show
 `docs/team.md`; highlight that a reviewer token is human-only and is never
 handed to the agent. Briefly show initialization/membership command forms,
 with no token contents on screen. The server is loopback-only.
+Use the [role-based handoff](../../team-onboarding.md) connection card to show
+which steps belong to the operator, reader and human reviewer. Run its actual
+reader check in the disposable lab; never film a credential or replace the
+personal memory entry. Keep a pause on the pending deployment decisions.
 
 ## 3:30–6:00 — Make the boundary visible
 

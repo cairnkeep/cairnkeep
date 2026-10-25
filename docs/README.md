@@ -80,6 +80,8 @@ linked guides rather than the project landing page.
   authenticated shared-memory store, human review, local MCP bridge and recovery.
   It ships as an opt-in experimental preview from 2.25.0, not general production admission. The
   [isolated pilot guide](team-pilot.md) keeps trials separate from personal memory.
+  [Role-based onboarding](team-onboarding.md) adds a tested reader check and
+  the deployment decisions to resolve before any real-data pilot.
 - [Building an overlay](building-an-overlay.md) explains how to add private
   provider or organization policy without forking the core.
 - [Managed overlay distributions](overlay-distributions.md) covers wrapper CLIs,

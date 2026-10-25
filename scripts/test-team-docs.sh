@@ -19,6 +19,15 @@ for doc in docs/team.md "$lesson" "$video"; do
   fi
 done
 [[ -f docs/team-pilot.md ]]
+[[ -f docs/team-onboarding.md ]]
+for doc in docs/team.md docs/team-pilot.md "$lesson" "$video"; do
+  grep -qF 'team-onboarding.md' "$doc"
+done
+for heading in 'Choose the right workflow' 'Operator handoff' 'Reader quick-check' 'Contributor and reviewer' 'Deployment readiness'; do
+  grep -qF "$heading" docs/team-onboarding.md
+done
+grep -qF 'not production admission' docs/team-onboarding.md
+grep -qF 'no real-data deployment is authorized' docs/team-onboarding.md
 grep -qF 'team-pilot.md' docs/team.md
 grep -qF 'team-pilot.md' "$lesson"
 grep -qF 'team-pilot.md' "$video"

@@ -40,6 +40,12 @@ No model, personal store, external API or corporate system is used. The MCP
 control changes client identity/cwd and retrieves the same approved decision;
 it does not infer authority from the working folder or a display name.
 
+Use the [role-based handoff](../../team-onboarding.md) to separate operator,
+reader/contributor and human-reviewer tasks. Its executable reader check uses
+the existing 2.25.0 CLI, not an auto-enrollment or deployment wizard. Complete
+the readiness checklist with missing decisions marked pending; do not enroll
+real users or introduce real data during this exercise.
+
 Trace the lifecycle beside the operator commands in the reference:
 
 ```text

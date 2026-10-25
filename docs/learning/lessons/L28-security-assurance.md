@@ -80,6 +80,10 @@ node mcp-memory-server/scripts/smoke-note-mcp.mjs --fixture-security-only
 node scripts/verify-phase19-runtime-evidence.mjs --self-test
 ```
 
+The aggregate serializes fixtures that patch Node's shared filesystem hooks.
+Read the [provider data-flow review](../../provider-data-flow-review.md): a
+read-only network tool can still disclose a configured workspace and query.
+
 The baseline rejects unpinned external Actions, `pull_request_target` and
 workflow-wide write permissions. It also checks the exact preparation/npm/OCI
 job permission maps, including missing provenance grants and unnecessary write
