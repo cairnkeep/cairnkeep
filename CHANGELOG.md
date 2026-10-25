@@ -23,6 +23,11 @@ All notable user-facing changes are documented here. This project follows
 
 ### Verification
 
+- Retry bounded capability-lock acquisition when the previous writer removes
+  the lock between contention and inspection. Keep other inspection failures
+  denied and add a deterministic disappearance regression; preserve concurrent
+  child diagnostics on lifecycle-test failure.
+
 - Serialize asynchronous security fixtures that patch shared filesystem
   built-ins, with an aggregate hook-ownership/restoration regression. Preserve
   runtime read guards and all actual replacement/growth injection assertions.

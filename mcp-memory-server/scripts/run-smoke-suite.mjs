@@ -48,7 +48,7 @@ export const smokeChecks = Object.freeze([
   check("artifact-store", 29, node("smoke-artifact-store.mjs")),
   check("artifact-mcp", 15, node("smoke-artifact-mcp.mjs")),
   check("compaction-capture", 1, node("smoke-compaction-capture.mjs")),
-  check("capability-contract", 9, node("smoke-capability-contract.mjs")),
+  check("capability-contract", 9, node("smoke-capability-lock.mjs"), node("smoke-capability-contract.mjs")),
   check("capability-logging", 8, node("smoke-capability-logging.mjs")),
   check("capability-harness", 119, node("smoke-capability-harness.mjs")),
   check("capability-mcp", 31, node("smoke-capability-mcp.mjs")),

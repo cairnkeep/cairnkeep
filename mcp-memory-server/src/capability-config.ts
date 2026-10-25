@@ -311,7 +311,15 @@ async function acquireLock(lockPath: string): Promise<() => Promise<void>> {
             return () => rm(lockPath, { recursive: true, force: true });
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-            const info = await lstat(lockPath);
+            let info;
+            try { info = await lstat(lockPath); }
+            catch (inspectionError) {
+                // The current writer may release its lock after our mkdir
+                // reports contention but before inspection. Only disappearance
+                // admits another bounded acquisition attempt, never ownership.
+                if ((inspectionError as NodeJS.ErrnoException).code === 'ENOENT') continue;
+                throw inspectionError;
+            }
             if (info.isSymbolicLink() || !info.isDirectory()) {
                 throw new Error("Capability configuration lock is unsafe.");
             }
