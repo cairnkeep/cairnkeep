@@ -28,7 +28,7 @@ export function readTeamConnection(path: string): TeamConnection {
     try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
     catch { throw new TeamClientError('Team connection contains invalid UTF-8 or JSON.'); }
     const connection = validateTeamConnection(value);
-    const receipt = readStableJson(join(dirname(path), 'receipt.json'), { label: 'Team connection activation', maxBytes: 8 * 1024 * 1024, private: true });
+    const receipt = readStableJson(join(dirname(path), 'receipt.json'), { label: 'Team connection activation', maxBytes: 16 * 1024 * 1024, private: true });
     if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)
         || (receipt as Record<string, unknown>).schema_version !== 1
         || (receipt as Record<string, unknown>).status !== 'connected'

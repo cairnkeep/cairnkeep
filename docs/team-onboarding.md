@@ -174,8 +174,10 @@ first verify no connection/disconnection process is running, preserve the state
 directory, then manually remove **only that project's** `operation.lock` and
 retry disconnect. The tool never guesses that a live lock is stale.
 
-Configuration directories must be owned/trusted and not writable by other users;
-links and unsafe files are rejected. Writers use bounded descriptor-first reads,
+Configuration directories must be owned/trusted and not writable by other users.
+Each configuration is bounded to 1 MiB and the four-file recovery record to
+16 MiB, including both original/new bytes and base64 overhead.
+Links and unsafe files are rejected. Writers use bounded descriptor-first reads,
 exclusive creation and atomic replacement with a final drift check. This is not
 an OS compare-and-swap against a hostile process running as your own identity;
 stop concurrent editor writes before applying. No root-directory or global

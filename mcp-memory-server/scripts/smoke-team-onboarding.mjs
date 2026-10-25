@@ -136,6 +136,19 @@ try {
   assert.equal(competitors.filter(r => r.status === 'fulfilled').length, 1, 'one connection writer wins');
   await disconnectTeamConnection({ projectRoot: concurrent.projectRoot, home });
 
+  const large = { ...fresh('large-configurations'), harnesses: ['claude', 'opencode', 'qwen', 'codex'] };
+  const largeBytes = `${JSON.stringify({ note: 'x'.repeat(900 * 1024) })}\n`;
+  mkdirSync(join(large.projectRoot, '.qwen'), { mode: 0o700 });
+  mkdirSync(join(large.projectRoot, '.codex'), { mode: 0o700 });
+  for (const name of ['.mcp.json', 'opencode.json', '.qwen/settings.json']) writeFileSync(join(large.projectRoot, name), largeBytes, { mode: 0o600 });
+  const largeToml = `# ${'x'.repeat(900 * 1024)}\n`;
+  writeFileSync(join(large.projectRoot, '.codex/config.toml'), largeToml, { mode: 0o600 });
+  const largeConnection = await applyTeamConnection(planTeamConnection(large));
+  assert.equal(readTeamConnection(largeConnection.connection_file).project, 'trial-project', 'all four near-limit configs fit the bounded recovery receipt');
+  await disconnectTeamConnection({ projectRoot: large.projectRoot, home });
+  assert.equal(readFileSync(join(large.projectRoot, '.mcp.json'), 'utf8'), largeBytes);
+  assert.equal(readFileSync(join(large.projectRoot, '.codex/config.toml'), 'utf8'), largeToml);
+
   const recover = fresh('disconnect-recovery');
   await applyTeamConnection(planTeamConnection(recover));
   const recoverFile = join(recover.projectRoot, '.mcp.json');

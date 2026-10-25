@@ -14,6 +14,8 @@ import { validateTeamConnection, readTeamConnection, connectionToken, connection
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const NAME = 'cairn-team-memory';
 const MAX = 1024 * 1024;
+// Four before/after 1 MiB files, base64 encoded, plus bounded metadata.
+const MAX_RECEIPT = 16 * MAX;
 const ADAPTERS = Object.freeze({ claude: '.mcp.json', opencode: 'opencode.json', qwen: '.qwen/settings.json', codex: '.codex/config.toml' });
 const HELP = `cairn team connect — opt-in, project-local team MCP (personal memory unchanged)
 
@@ -54,9 +56,9 @@ function locations(projectRoot, home = homedir()) {
   safeAncestors(state);
   return { target, state, connectionFile: join(state, 'connection.json'), receiptFile: join(state, 'receipt.json') };
 }
-function snapshot(path) {
+function snapshot(path, maxBytes = MAX) {
   if (!info(path)) return null;
-  const current = readStableFile(path, { label: 'Harness configuration', maxBytes: MAX });
+  const current = readStableFile(path, { label: 'Harness configuration', maxBytes });
   if (process.platform !== 'win32' && (current.stat.mode & 0o022)) fail('Harness configuration must not be writable by other users.');
   return current;
 }
@@ -116,7 +118,7 @@ function tomlBlock(entry, nonce) {
 }
 function receiptAt(loc) {
   if (!info(loc.receiptFile)) return null;
-  const receipt = readStableJson(loc.receiptFile, { label: 'Team connection receipt', maxBytes: 8 * MAX, private: true });
+  const receipt = readStableJson(loc.receiptFile, { label: 'Team connection receipt', maxBytes: MAX_RECEIPT, private: true });
   if (!object(receipt) || receipt.schema_version !== 1 || receipt.project_root !== loc.target
     || typeof receipt.connection_digest !== 'string' || !/^[a-f0-9]{64}$/.test(receipt.connection_digest)
     || !['preparing', 'connected', 'disconnecting'].includes(receipt.status) || !Array.isArray(receipt.files) || receipt.files.length < 1 || receipt.files.length > 4
@@ -233,7 +235,7 @@ export async function applyTeamConnection(plan, hooks = {}) {
       const destination = join(loc.target, row.path); makeParents(loc.target, dirname(destination));
       publish(destination, Buffer.from(row.after, 'base64'), row.mode, row.expected);
     }
-    const current = snapshot(loc.receiptFile);
+    const current = snapshot(loc.receiptFile, MAX_RECEIPT);
     publish(loc.receiptFile, Buffer.from(`${JSON.stringify({ ...receipt, status: 'connected' })}\n`), 0o600, current.stat);
     return { connected: true, unchanged: false, connection_file: loc.connectionFile, access: connection.access };
   } finally { unlock(); }
@@ -269,7 +271,7 @@ export async function disconnectTeamConnection(options) {
       const current = snapshot(destination); return { row, destination, current, bytes: removal(row, current, receipt.status === 'disconnecting') };
     });
     if (options.dryRun) return { planned: true, disconnect: true, project_root: loc.target, files: receipt.files.map(row => row.path) };
-    const receiptSnapshot = snapshot(loc.receiptFile);
+    const receiptSnapshot = snapshot(loc.receiptFile, MAX_RECEIPT);
     publish(loc.receiptFile, Buffer.from(`${JSON.stringify({ ...receipt, status: 'disconnecting' })}\n`), 0o600, receiptSnapshot.stat);
     for (const { row, destination, current, bytes } of changes) {
       if (bytes === undefined) continue;
