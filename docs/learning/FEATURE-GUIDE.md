@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.25.0
+**Baseline:** Cairnkeep 2.26.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -190,6 +190,12 @@ memory. It adds project-scoped credentials/roles, immutable selected proposals,
 human-only review and an additional local stdio MCP bridge. It never scans
 personal memory or automatically installs a harness entry. Serving requires
 separate HTTP consent; this JSON API is not OAuth remote MCP HTTP.
+
+From 2.26.0, `cairn team connect` plans an additive project-local connection,
+`cairn team doctor --client` checks authenticated metadata, and `disconnect`
+supports drift-aware recovery. Both client and team API must be 2.26 or newer.
+These commands do not enroll users or enable sharing automatically. See the
+[guided recipe](../team-onboarding.md#guided-connection-226-or-newer).
 
 Authority is rechecked per request. Backup/restore validates integrity and
 revokes restored credentials; retention is manual, and logical deletion is not

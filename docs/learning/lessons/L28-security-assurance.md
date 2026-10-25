@@ -1,7 +1,7 @@
 # L28 - Verify Cairnkeep's security posture
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.25.0 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.26.0 and Node.js 22 or newer
 
 ## Outcome
 

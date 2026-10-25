@@ -5,6 +5,8 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.26.0] - 2026-10-26
+
 ### Guided team onboarding
 
 - Add opt-in `cairn team connect` with terminal harness selectors, a no-write
@@ -23,6 +25,9 @@ All notable user-facing changes are documented here. This project follows
 
 ### Verification
 
+- Keep all CodeQL actions on one reviewed commit and group their dependency
+  updates; reject split or unpinned cohorts with mutation controls. Refresh
+  pinned CodeQL, Scorecard and release artifact-download actions.
 - Retry bounded capability-lock acquisition when the previous writer removes
   the lock between contention and inspection. Keep other inspection failures
   denied and add a deterministic disappearance regression; preserve concurrent

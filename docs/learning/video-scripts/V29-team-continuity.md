@@ -1,6 +1,7 @@
 # V29 - Remember together without sharing everything
 
-Status: technical rehearsal brief for the opt-in Cairnkeep 2.25.0 preview.
+Status: technical rehearsal brief for Cairnkeep 2.26.0 guided onboarding to the
+opt-in preview introduced in 2.25.0. Not a recorded or independently rehearsed lesson.
 Target: 10–12 minutes, experienced-developer audience. Describe a released
 experimental preview, not a generally production-admitted team service.
 Use the [isolated pilot guide](../../team-pilot.md) for a separately authorized
@@ -51,7 +52,7 @@ on “restored credentials revoked”: copying a backup must not silently restor
 access. Show fresh-only restore, no-overwrite and uninstall-retention controls.
 Explain that logical deletion is not secure disk erasure or backup deletion.
 
-For the matching next-release checkout, insert a short dynamic client segment:
+With a matching 2.26.0-or-newer client and team API, insert a short dynamic client segment:
 open the harness checkboxes in `team connect`, pause on the no-write plan and
 read-only default, then explicitly apply in a disposable project. Keep the
 personal MCP entry visible beside the new team entry. Run `team doctor --client`
@@ -61,8 +62,8 @@ Explain that disconnect is not revocation and running sessions need a restart.
 Use the maintained `smoke-team-onboarding.mjs` results for interruption/drift
 controls, not a fabricated typing transcript. The automated human-class policy
 fixture is not actual human consent; no independent-human trial is claimed.
-Do not record this addition against a 2.25-only client/API or claim it is already
-published; follow the version note in the onboarding guide.
+Do not record this addition against a 2.25-only client/API; follow the version
+note in the onboarding guide and verify the published package before recording.
 
 ## 10:00–11:30 — Honest closing
 

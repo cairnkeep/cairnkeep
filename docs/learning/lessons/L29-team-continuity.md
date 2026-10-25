@@ -1,7 +1,8 @@
 # L29 - Reviewed team continuity preview
 
 **Status:** Brief; opt-in experimental preview in Cairnkeep 2.25.0
-**Compatibility:** Cairnkeep 2.25.0 or newer; Node 22.13 or newer for team storage.
+**Compatibility:** Cairnkeep 2.25.0 or newer for manual connection; 2.26.0 or newer
+on both client and team API for guided connection. Node 22.13 or newer for team storage.
 Use a matching source checkout for the executable regression exercises below.
 Installing the released CLI does not enable team sharing.
 
@@ -43,12 +44,12 @@ it does not infer authority from the working folder or a display name.
 
 Use the [role-based handoff](../../team-onboarding.md) to separate operator,
 reader/contributor and human-reviewer tasks. Its executable reader check uses
-the existing 2.25.0 CLI. The next-release guided connection exercise below is
+the original 2.25.0 CLI or newer. The 2.26.0 guided connection exercise below is
 still opt-in, not automatic enrollment or deployment. Complete
 the readiness checklist with missing decisions marked pending; do not enroll
 real users or introduce real data during this exercise.
 
-## Guided client exercise (matching next-release checkout)
+## Guided client exercise (2.26 or newer)
 
 Use the [guided connection recipe](../../team-onboarding.md#guided-connection-next-release--matching-source-checkout)
 with a disposable project and the operator's synthetic workload-reader file.

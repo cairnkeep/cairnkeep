@@ -80,7 +80,7 @@ OIDC/SSO and standards-compliant remote MCP HTTP authorization are deferred.
 
 ## Harness connection
 
-The next release (2.26; matching client/API source builds until published) adds
+Cairnkeep 2.26.0 (both client and team API) adds
 the opt-in [guided connection and recovery workflow](team-onboarding.md#guided-connection-next-release--matching-source-checkout):
 `cairn team connect`, `cairn team doctor --client` and `cairn team disconnect`.
 It adds only a dedicated project-local entry, defaults to read-only, references

@@ -76,12 +76,14 @@ never replace `cairn-memory` or its entire configuration. See
 Each tool call names `trial-project`; cwd and display names grant no access.
 The MCP profile restricts tools; server membership independently restricts data.
 
-## Guided connection (next release / matching source checkout)
+<a id="guided-connection-next-release--matching-source-checkout"></a>
+
+## Guided connection (2.26 or newer)
 
 The original preview and reader card above work on 2.25.0. The guided commands
-below require the next client **and team API** (2.26 or newer); use matching
-source builds until that release is published. They do not change ordinary
-`cairn setup`, personal memory or the preview's production-admission boundary.
+below require both the client **and team API** at 2.26.0 or newer. They do not
+change ordinary `cairn setup`, personal memory or the preview's
+production-admission boundary.
 
 After the operator supplies a **workload reader** credential, opt in explicitly:
 
