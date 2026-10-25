@@ -11,6 +11,8 @@ The pilot runs beside existing personal memory: a new private store, expiring
 credentials, a separate loopback port and additional isolated client profiles.
 It never imports a personal store or replaces an existing MCP registration.
 Use synthetic project decisions, not employer, personal or customer data.
+For a shorter role-by-role route and reader connection card, see
+[Team onboarding](team-onboarding.md). It does not grant deployment consent.
 
 ## 1. Prepare a private lab
 

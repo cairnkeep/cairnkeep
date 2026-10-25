@@ -60,6 +60,10 @@ npm --prefix mcp-memory-server run check:http-guard
 Highlight full-SHA action pins, CodeQL, dependency review, token non-leakage,
 portable Windows/POSIX path cases, and the HTTP 413 test. Do not show repository
 secrets or live security-alert details.
+Explain that a passing retry is not a root-cause fix: the aggregate now
+serializes filesystem-hook fixtures without weakening read/growth assertions.
+Use the [provider flow review](../../provider-data-flow-review.md) to distinguish
+an intentional workspace/query disclosure from arbitrary-file upload.
 
 Include the offline pointer-lock control in a source checkout:
 `node mcp-memory-server/scripts/smoke-context-pack-lock.mjs`. It reproduces

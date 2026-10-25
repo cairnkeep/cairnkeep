@@ -14,6 +14,12 @@ All notable user-facing changes are documented here. This project follows
   verify destination, credential and selected-content boundaries without
   suppressing static-analysis findings.
 
+### Documentation
+
+- Add role-based team-preview onboarding, a tested reader connection card and
+  deployment-readiness checklist; align the reference, pilot, lesson and video
+  brief without enabling sharing or changing the released CLI.
+
 ## [2.25.0] - 2026-10-24
 
 ### Team continuity preview

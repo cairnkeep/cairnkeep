@@ -20,6 +20,8 @@ Sharing changes visibility: inspect and redact the selected text first.
 For a trial alongside unchanged personal memory, use the
 [isolated pilot guide](team-pilot.md). It keeps stores, credentials, ports and
 client profiles separate and distinguishes actual human review from rehearsal.
+Start with the [role-based handoff](team-onboarding.md) for operator, coding
+client and human-reviewer tasks, a tested reader check and readiness checklist.
 
 ## Trust boundary
 

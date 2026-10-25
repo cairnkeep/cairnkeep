@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { readStableFile } from './lib/stable-file.mjs';
 
 if (process.platform === 'win32') {
@@ -15,6 +16,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const guide = readFileSync(join(root, 'docs/team-pilot.md'), 'utf8');
 const blocks = [...guide.matchAll(/<!-- team-pilot-setup:start -->\s*```sh\n([\s\S]*?)```\s*<!-- team-pilot-setup:end -->/g)];
 assert.equal(blocks.length, 1, 'exactly one maintained executable setup block');
+const onboarding = readFileSync(join(root, 'docs/team-onboarding.md'), 'utf8');
+const readerBlocks = [...onboarding.matchAll(/<!-- team-reader-check:start -->\s*```sh\n([\s\S]*?)```\s*<!-- team-reader-check:end -->/g)];
+assert.equal(readerBlocks.length, 1, 'exactly one maintained reader check');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const productionPaths = ['.codex/config.toml', '.claude.json', '.qwen/settings.json',
   '.qwen/trustedFolders.json', '.config/opencode/opencode.json'];
@@ -52,7 +56,45 @@ try {
   const retry = execute();
   assert.notEqual(retry.status, 0, 'existing lab must not be reused or overwritten');
   assert.deepEqual(files.map(name => hash(readToken(name))), hashes);
+  const previousTeam = process.env.CAIRN_TEAM;
+  let store, server;
+  try {
+    process.env.CAIRN_TEAM = '1';
+    const { openTeamStore } = await import('../mcp-memory-server/dist/team-store.js');
+    const { createTeamHttpServer } = await import('../mcp-memory-server/dist/team-http.js');
+    store = await openTeamStore(join(pilot, 'store'));
+    const previousHttp = process.env.CAIRN_TEAM_HTTP;
+    try {
+      process.env.CAIRN_TEAM_HTTP = '1';
+      server = createTeamHttpServer(store);
+    } finally {
+      if (previousHttp === undefined) delete process.env.CAIRN_TEAM_HTTP;
+      else process.env.CAIRN_TEAM_HTTP = previousHttp;
+    }
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const readerEnvironment = { ...environment, TEAM_PILOT_URL: `http://127.0.0.1:${server.address().port}` };
+    // Asynchronous child execution lets the parent serve the real API request.
+    const runReader = (extra = '', env = readerEnvironment) => promisify(execFile)('bash', ['-c', readerBlocks[0][1] + extra], {
+      cwd: base, env, timeout: 30000, maxBuffer: 16384,
+    });
+    const reader = await runReader();
+    assert.deepEqual(JSON.parse(reader.stdout), [], 'reader lists no unapproved content');
+    for (const name of files) {
+      const token = readToken(name).toString('utf8').trim();
+      assert.equal((reader.stdout + reader.stderr).includes(token), false);
+    }
+    await assert.rejects(runReader('\nteam_pilot_reader proposals\n'), error => error.code === 1 && /denied/.test(error.stderr));
+    const { TEAM_PILOT_URL, ...missingUrl } = readerEnvironment;
+    await assert.rejects(runReader('', missingUrl), error => error.code !== 0 && /TEAM_PILOT_URL/.test(error.stderr));
+    assert.deepEqual(files.map(name => hash(readToken(name))), hashes, 'reader check does not rewrite credentials');
+  } finally {
+    if (server) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+    await store?.close();
+    if (previousTeam === undefined) delete process.env.CAIRN_TEAM;
+    else process.env.CAIRN_TEAM = previousTeam;
+  }
   assert.deepEqual(fingerprint(), before, 'production harness configurations unchanged');
+  console.log('PASS: documented real reader request, server role denial, required inputs and credential preservation');
   console.log('PASS: documented pilot setup, isolated identities, private credentials, no token output and no overwrite');
 } finally {
   rmSync(base, { recursive: true, force: true });
