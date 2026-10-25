@@ -620,3 +620,17 @@ pages, WAL or backup copies. Uninstall retains team data and refuses purge
 targets overlapping its configured directory. Independently selected
 `--data` stores must be outside purge targets or also configured through
 `CAIRN_TEAM_BASE_DIR`. Keep encrypted backups separately protected.
+
+Guided client connection state is separate from the organization database:
+`~/.cairnkeep/team-clients/<sha256-of-canonical-project-path>/` holds a strict
+versioned connection, private recovery receipt/original config snapshots and
+an exclusive sibling `<project-path-hash>.operation.lock`. Keeping the open lock
+outside the archived directory preserves native Windows rename semantics and
+continuous writer exclusion. Records contain token-file paths, not raw tokens.
+Original MCP configs can contain other secrets, so protect these backups.
+Activation is committed only after all selected entries are written. An
+interrupted connect stays inactive; interrupted disconnect can resume without
+overwriting unrelated edits. There is no automatic stale-lock cleanup.
+Disconnect archives state in a unique `.disconnected-*` sibling and retains
+credentials; uninstall/purge refuses to delete team client state/backups.
+See [client diagnostics/recovery](team-onboarding.md#client-diagnosis-and-recovery).

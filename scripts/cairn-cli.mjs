@@ -62,7 +62,7 @@ Usage:
   cairn evidence <list|show|delete|prune|doctor>
   cairn playbook <list|status|init|set|enable|disable|reset|check|record|receipts|instructions|doctor>
   cairn security doctor [--project PATH] [--json]
-  cairn team <init|project|member|credential|serve|mcp|list|read|search|history|propose|proposals|proposal-show|review|audit|doctor|backup|restore|memory-delete>
+  cairn team <connect|disconnect|init|project|member|credential|serve|mcp|list|read|search|history|propose|proposals|proposal-show|review|audit|doctor|backup|restore|memory-delete>
   cairn memory <path|export|import>
   cairn audit-timer [--on-calendar SPEC] [--para-root PATH] [--render-only DIR]
   cairn uninstall [--dry-run] [--yes] [--purge-memory] [--purge-packs] [PROJECT ...]
@@ -96,6 +96,11 @@ export async function main(argv) {
     return;
   }
 
+  if (command === 'team' && (['connect', 'disconnect'].includes(args[0]) || (args[0] === 'doctor' && args.includes('--client')))) {
+    const { runTeamConnection } = await import('./team-connect.mjs');
+    process.exitCode = await runTeamConnection(args);
+    return;
+  }
   const nodeEntry = NODE_COMMANDS.get(command);
   if (nodeEntry) {
     // Preserve the historical dispatcher contract: child Node resolution comes

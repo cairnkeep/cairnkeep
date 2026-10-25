@@ -11,7 +11,7 @@ function canonical(path) {
 
 /** Uninstall never grants permission to purge the separate team store. */
 export function assertUninstallRetainsTeam(targets, env = process.env, home = homedir()) {
-  const stores = new Set([join(home, '.cairnkeep', 'team'), ...(env.CAIRN_TEAM_BASE_DIR ? [env.CAIRN_TEAM_BASE_DIR] : [])]);
+  const stores = new Set([join(home, '.cairnkeep', 'team'), join(home, '.cairnkeep', 'team-clients'), ...(env.CAIRN_TEAM_BASE_DIR ? [env.CAIRN_TEAM_BASE_DIR] : [])]);
   const normalized = path => {
     const value = canonical(path);
     return process.platform === 'win32' ? value.toLowerCase() : value;

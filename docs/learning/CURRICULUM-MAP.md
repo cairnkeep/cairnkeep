@@ -99,7 +99,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn sync-omp` | L02 |
 | `cairn doctor` | L03; advanced repair in L13-L14 |
 | `cairn security` | L28 |
-| `cairn team` | L29 opt-in preview, included from 2.25.0 |
+| `cairn team` | L29 opt-in preview, included from 2.25.0; next-release guided connect/client doctor/disconnect requires matching client/API |
 | `cairn playbook` | L25 |
 | `cairn trajectory` | L13 |
 | `cairn artifact` | L13 |

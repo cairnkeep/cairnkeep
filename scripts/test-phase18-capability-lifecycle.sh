@@ -215,8 +215,8 @@ NODE
   local first_pid=$!
   run_capability "$project" disable security.audit >"$tmp/concurrent-two.out" 2>&1 &
   local second_pid=$!
-  wait "$first_pid" || fail "first concurrent mutation failed"
-  wait "$second_pid" || fail "second concurrent mutation failed"
+  wait "$first_pid" || { cat "$tmp/concurrent-one.out" >&2; fail "first concurrent mutation failed"; }
+  wait "$second_pid" || { cat "$tmp/concurrent-two.out" >&2; fail "second concurrent mutation failed"; }
   node - "$config_path" <<'NODE'
 const fs = require("fs");
 const value = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));

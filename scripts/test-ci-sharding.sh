@@ -17,7 +17,7 @@ assert.equal(flattened.length, smokeChecks.length);
 assert.equal(new Set(flattened).size, smokeChecks.length);
 assert.deepEqual([...flattened].sort(), smokeChecks.map(({ name }) => name).sort());
 assert.ok(plan.every(({ checks }) => checks.length > 0));
-const teamContracts = ['team', 'team-review', 'team-http', 'team-mcp', 'team-restore', 'team-cli'];
+const teamContracts = ['team', 'team-review', 'team-http', 'team-mcp', 'team-restore', 'team-cli', 'team-onboarding'];
 for (const name of teamContracts) assert.ok(flattened.includes(name), `missing team contract: ${name}`);
 assert.ok(plan.every(({ checks }) => checks.some(({ name }) => teamContracts.includes(name))),
   'native ACL-heavy team contracts must be distributed across all Windows shards');

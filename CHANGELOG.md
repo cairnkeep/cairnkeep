@@ -5,7 +5,28 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Guided team onboarding
+
+- Add opt-in `cairn team connect` with terminal harness selectors, a no-write
+  plan, explicit apply/confirmation and a read-only default. Add a dedicated
+  project-local MCP entry for Claude Code, OpenCode, Qwen Code or Codex without
+  replacing personal/unrelated MCPs. Store only private token-file references;
+  pin the bridge to one explicit server project.
+- Add `cairn team doctor --client` with authenticated, metadata-only project
+  diagnostics; no local admin store or memory payload. Add drift-aware
+  `disconnect`, private recoverable backups, serialized writers and a committed
+  activation record so interrupted multi-file connections stay inactive.
+- Add synthetic two-identity, adapter/cwd continuity, denied self-publication,
+  revocation and interrupted-recovery controls, plus actual installed-package
+  onboarding checks. Update completions, storage/privacy and learning/video
+  briefs. No new dependency, automatic enrollment or production admission.
+
 ### Verification
+
+- Retry bounded capability-lock acquisition when the previous writer removes
+  the lock between contention and inspection. Keep other inspection failures
+  denied and add a deterministic disappearance regression; preserve concurrent
+  child diagnostics on lifecycle-test failure.
 
 - Serialize asynchronous security fixtures that patch shared filesystem
   built-ins, with an aggregate hook-ownership/restoration regression. Preserve
