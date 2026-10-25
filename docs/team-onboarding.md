@@ -164,14 +164,16 @@ them; use separately encrypted backups as appropriate. No token content is
 copied from its file. Disconnected records are retained in uniquely named
 `.disconnected-*` siblings. Uninstall/purge refuses to delete this retained state.
 
-A per-project exclusive `operation.lock` serializes Cairnkeep writers. A failed
+A per-project exclusive `<project-path-hash>.operation.lock` beside the state
+directory serializes Cairnkeep writers and stays held while state is archived,
+including on native Windows. A failed
 multi-file connect keeps its recovery record in `preparing`; the bridge refuses
 startup until **all** entries are written and activation is committed. Run
 disconnect to undo an interrupted operation after checking for configuration
 drift. An interrupted disconnect is likewise resumable. Do not restore a whole
 backup over newer unrelated edits. If the process crashed holding its lock,
 first verify no connection/disconnection process is running, preserve the state
-directory, then manually remove **only that project's** `operation.lock` and
+directory, then manually remove **only that project's** sibling `.operation.lock` and
 retry disconnect. The tool never guesses that a live lock is stale.
 
 Configuration directories must be owned/trusted and not writable by other users.

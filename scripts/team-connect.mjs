@@ -203,13 +203,18 @@ function publish(path, bytes, mode, expected = null) {
     if (info(temporary)) unlinkSync(temporary);
   }
 }
+function lockPath(loc) { return `${loc.state}.operation.lock`; }
 function lock(loc) {
-  prepareTeamPrivateDirectory(loc.state, true);
-  const path = join(loc.state, 'operation.lock');
+  // Keep the lock outside the directory we atomically archive on disconnect.
+  // Native Windows cannot rename a directory containing an open lock handle.
+  prepareTeamPrivateDirectory(dirname(loc.state), true);
+  const path = lockPath(loc);
   let fd;
   try { fd = openSync(path, 'wx', 0o600); }
   catch { fail('Team connection is locked or interrupted. Check running operations before manually clearing operation.lock; see recovery guide.'); }
   try { hardenPrivatePath(path); } catch (error) { closeSync(fd); unlinkSync(path); throw error; }
+  try { prepareTeamPrivateDirectory(loc.state, true); }
+  catch (error) { closeSync(fd); unlinkSync(path); throw error; }
   let released = false;
   return (location = path) => { if (released) return; released = true; closeSync(fd); unlinkSync(location); };
 }
@@ -285,7 +290,7 @@ export async function disconnectTeamConnection(options) {
     // restart or server-side revocation; disconnect does not revoke a token.
     const archive = `${loc.state}.disconnected-${randomUUID()}`;
     renameSync(loc.state, archive);
-    unlock(join(archive, 'operation.lock'));
+    unlock();
     return { disconnected: true, credentials_retained: true, backups_retained: true };
   } finally { unlock(); }
 }
@@ -314,7 +319,7 @@ export async function runTeamConnection(args, streams = {}) {
     if (command === 'doctor') {
       if (!flags.client) fail('Use team doctor --client for connection diagnostics.');
       const loc = locations(options.projectRoot, options.home); const receipt = receiptAt(loc);
-      if (!receipt || receipt.status !== 'connected' || info(join(loc.state, 'operation.lock'))) fail('No completed, unlocked team connection; inspect recovery state.');
+      if (!receipt || receipt.status !== 'connected' || info(lockPath(loc))) fail('No completed, unlocked team connection; inspect recovery state.');
       for (const row of receipt.files) {
         const current = snapshot(join(loc.target, row.path));
         if (!current || removal(row, current) === undefined) fail('Managed team entry is missing; reconnect or inspect recovery state.');

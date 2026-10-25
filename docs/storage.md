@@ -624,7 +624,9 @@ targets overlapping its configured directory. Independently selected
 Guided client connection state is separate from the organization database:
 `~/.cairnkeep/team-clients/<sha256-of-canonical-project-path>/` holds a strict
 versioned connection, private recovery receipt/original config snapshots and
-an exclusive operation lock. Records contain token-file paths, not raw tokens.
+an exclusive sibling `<project-path-hash>.operation.lock`. Keeping the open lock
+outside the archived directory preserves native Windows rename semantics and
+continuous writer exclusion. Records contain token-file paths, not raw tokens.
 Original MCP configs can contain other secrets, so protect these backups.
 Activation is committed only after all selected entries are written. An
 interrupted connect stays inactive; interrupted disconnect can resume without

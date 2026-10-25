@@ -11,6 +11,9 @@ import { connectionDoctor, readTeamConnection } from '../dist/team-client.js';
 import { planTeamConnection, applyTeamConnection, disconnectTeamConnection, runTeamConnection } from '../../scripts/team-connect.mjs';
 import { randomUUID } from 'node:crypto';
 import { assertUninstallRetainsTeam } from '../../scripts/lib/team-retention.mjs';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+import { sep } from 'node:path';
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'cairn-team-onboarding-')));
 hardenPrivatePath(base);
@@ -107,7 +110,30 @@ try {
   // Unrelated edits survive disconnect; an edited owned entry does not get removed.
   merged.permissions.new = 'keep too';
   writeFileSync(join(projectRoot, '.mcp.json'), JSON.stringify(merged));
-  await disconnectTeamConnection({ projectRoot, home });
+  const originalOpen = fs.openSync, originalClose = fs.closeSync, originalRename = fs.renameSync;
+  const descriptors = new Map();
+  let archived = false;
+  fs.openSync = (...args) => { const fd = originalOpen(...args); descriptors.set(fd, resolve(String(args[0]))); return fd; };
+  fs.closeSync = fd => { descriptors.delete(fd); return originalClose(fd); };
+  fs.renameSync = (source, destination) => {
+    if (String(destination).includes('.disconnected-')) {
+      archived = true;
+      // Reproduce native Windows' refusal to rename a directory while a child
+      // file remains open. The operation lock must stay outside the moved tree.
+      if ([...descriptors.values()].some(path => path.startsWith(`${resolve(source)}${sep}`))) {
+        throw Object.assign(new Error('synthetic Windows open-child rename denial'), { code: 'EPERM' });
+      }
+      assert.ok([...descriptors.values()].includes(`${resolve(source)}.operation.lock`), 'sibling lock stays held throughout directory archive');
+    }
+    return originalRename(source, destination);
+  };
+  syncBuiltinESMExports();
+  try { await disconnectTeamConnection({ projectRoot, home }); }
+  finally {
+    fs.openSync = originalOpen; fs.closeSync = originalClose; fs.renameSync = originalRename;
+    syncBuiltinESMExports();
+  }
+  assert.equal(archived, true, 'actual directory archive path must be exercised');
   const disconnected = JSON.parse(readFileSync(join(projectRoot, '.mcp.json'), 'utf8'));
   assert.deepEqual(disconnected.mcpServers, { 'cairn-memory': personal, other: unrelated });
   assert.equal(disconnected.permissions.new, 'keep too');
