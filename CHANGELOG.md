@@ -5,6 +5,15 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Verification
+
+- Serialize asynchronous security fixtures that patch shared filesystem
+  built-ins, with an aggregate hook-ownership/restoration regression. Preserve
+  runtime read guards and all actual replacement/growth injection assertions.
+- Add real MCP coverage and a review of file-derived provider workspace flows;
+  verify destination, credential and selected-content boundaries without
+  suppressing static-analysis findings.
+
 ## [2.25.0] - 2026-10-24
 
 ### Team continuity preview

@@ -1,8 +1,4 @@
 import assert from "node:assert/strict";
-import "./smoke-runtime-file-reads.mjs";
-import "./smoke-bounded-input-reads.mjs";
-import "./smoke-workspace-file-security.mjs";
-import "./smoke-outbound-security.mjs";
 import { mkdtempSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync, chmodSync, lstatSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -16,6 +12,12 @@ import { portablePathCollisionKey, portableRelativePathIssue } from "../dist/pat
 import { hardenPrivatePath, posixOwnerIsTrusted, posixPrivateMetadataIsSafe, windowsPrivateAclHardeningPlan, windowsPrivateAclIsSafe, windowsReplacementAclIsSafe } from "../dist/platform-security.js";
 import { projectEnvironment } from "../dist/project-environment.js";
 import { securityDoctor } from "../dist/security-doctor.js";
+
+// These fixtures patch process-global built-ins. Static sibling imports with
+// top-level await can overlap and restore another fixture's active hooks.
+for (const fixture of ["runtime-file-reads", "bounded-input-reads", "workspace-file-security", "outbound-security"]) {
+    await import(`./smoke-${fixture}.mjs`);
+}
 
 const root = mkdtempSync(join(tmpdir(), "cairn-security-assurance-"));
 const project = join(root, "project");

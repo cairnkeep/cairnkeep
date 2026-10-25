@@ -69,7 +69,7 @@ export const smokeChecks = Object.freeze([
   check("context-pack-retrieval", 34, node("smoke-context-pack-retrieval.mjs")),
   check("context-pack-v216-compat", 15, node("smoke-context-pack-v216-compat.mjs")),
   check("context-usage", 40, node("smoke-context-usage.mjs")),
-  check("domain-retrieval", 4, node("smoke-domain-retrieval.mjs")),
+  check("domain-retrieval", 4, node("smoke-domain-retrieval.mjs"), node("smoke-provider-config-flow.mjs")),
   check("anythingllm-workspace", 3, node("smoke-anythingllm-workspace.mjs"), node("smoke-anythingllm-workspace-mcp.mjs")),
   check("retrieval-benchmark", 21,
     node("smoke-retrieval-benchmark.mjs"),
@@ -77,7 +77,7 @@ export const smokeChecks = Object.freeze([
   check("work-evidence", 106, node("smoke-work-evidence.mjs")),
   check("okf", 23, node("smoke-okf.mjs")),
   check("playbook", 208, node("smoke-playbook.mjs")),
-  check("security-assurance", 65, node("smoke-security-assurance.mjs")),
+  check("security-assurance", 65, node("smoke-security-fixture-order.mjs")),
 ]);
 
 export function buildShardPlan(total) {

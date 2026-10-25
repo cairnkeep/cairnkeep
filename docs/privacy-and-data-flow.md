@@ -14,7 +14,7 @@ below (some operator-owned endpoints do not require a credential).
 | Embedding-ranked search | Stored memory values that are not cached, plus the search query | `CAIRN_MEMORY_EMBEDDING_URL` or `CAIRN_LLM_API_URL` |
 | Separately opted-in memory reranking | Query and at most 50 scope/current/filter-admitted key/value excerpts, each at most 4 KiB | Only the explicit `CAIRN_MEMORY_RERANK_URL`; separate optional credential, no retries/redirects/alternate hosts |
 | `memory_extract` | The transcript supplied to the tool | `CAIRN_LLM_API_URL` |
-| `domain_knowledge_query` | Workspace slug and query | `ANYTHINGLLM_BASE_URL` |
+| `domain_knowledge_query` | Workspace identifier and query | Configured domain provider: `ANYTHINGLLM_BASE_URL`, or separately enabled `CAIRN_OPENVIKING_BASE_URL` |
 | `domain_knowledge_sync` | Files selected by the sync configuration | `ANYTHINGLLM_BASE_URL` |
 | `route_check` | A health request, with no memory or prompt content | `CAIRN_ROUTE_ENDPOINT` |
 | `context_explore` | Repository path and query are passed to the configured local executable | `CAIRN_EXPLORE_BINARY`; any further data flow is controlled by that tool |
@@ -56,6 +56,14 @@ Also leave `CAIRN_MEMORY_RERANK` unset to disable its independent data flow;
 it does not require or inherit `CAIRN_LLM_API_KEY`. A local provider is still a
 separate process that receives these excerpts. Neither a chat agent nor a
 research assistant is part of reranking or authorization.
+
+## Domain retrieval configuration
+
+Domain queries may derive a workspace identifier from local configuration;
+that identifier is intentionally disclosed to the chosen provider. This does
+not upload the configuration file or other local documents. See the
+[provider data-flow review](provider-data-flow-review.md) for the exact tested
+boundary and its limitations.
 
 ## Playbook decision and receipt flow
 

@@ -138,6 +138,10 @@ prove a future privileged publish run succeeds.
 
 ## Verification evidence
 
+The [domain retrieval data-flow review](provider-data-flow-review.md) records
+the intentional file-derived workspace disclosure and its tested destination,
+credential and content boundaries. Static-analysis alerts are not suppressed.
+
 The maintained gates are `npm run security:baseline`, both production
 `npm audit` checks, `scripts/test-security-baseline.sh`, the memory-server
 security-assurance and HTTP-guard smoke tests, native-Windows tests, and the
@@ -161,6 +165,7 @@ node mcp-memory-server/scripts/smoke-runtime-file-reads.mjs
 node mcp-memory-server/scripts/smoke-bounded-input-reads.mjs
 node mcp-memory-server/scripts/smoke-workspace-file-security.mjs
 node mcp-memory-server/scripts/smoke-outbound-security.mjs
+node mcp-memory-server/scripts/smoke-security-fixture-order.mjs
 node scripts/test-runtime-file-security.mjs
 node scripts/test-omp-staged-security.mjs
 node scripts/test-container-health.mjs
@@ -172,6 +177,12 @@ Build the server first when testing a source checkout. These regressions do not
 assert that every historical CodeQL/Scorecard alert is fixed. Triage findings
 individually and use a fresh default-branch analysis to confirm alert status;
 never dismiss an uninvestigated finding merely to improve the score.
+
+The aggregate imports filesystem-hook fixtures sequentially. Top-level-await
+siblings are not a serial test runner: overlapping imports can restore another
+fixture's hooks and create a false failure before growth injection. The
+aggregate ownership/restoration observer covers this test-isolation contract;
+runtime reader checks and injection assertions remain unchanged.
 
 The developer-evidence follow-up also hardens the shared runtime note pre-image
 hasher: it reads from an inspected descriptor under a 64 MiB cap and rejects
