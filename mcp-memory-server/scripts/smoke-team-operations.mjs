@@ -107,8 +107,27 @@ try {
   const backupFile=join(base,'backup.json'), archiveFile=join(base,'archive.json');
   const childEnv=teamLabEnvironment(base,{CAIRN_TEAM:'1',CAIRN_TEAM_BASE_DIR:join(base,'never-open')});
   const childTimeout=process.platform==='win32'?120000:30000;
+  const diagnose=()=>{
+    const script=`
+      const [root,parent,storeUrl,securityUrl]=process.argv.slice(1);
+      const {join}=await import('node:path');const {existsSync}=await import('node:fs');
+      const {openTeamStore,prepareTeamPrivateDirectory}=await import(storeUrl);
+      const {privatePathIsSafe}=await import(securityUrl);
+      let stage='private-parent',connection;
+      try {
+        console.log(JSON.stringify({parent_private:privatePathIsSafe(parent),root_private:privatePathIsSafe(root),system_root_present:!!process.env.SystemRoot}));
+        console.log(JSON.stringify({files:['','-wal','-shm'].map(suffix=>({suffix,exists:existsSync(join(root,'team.db'+suffix)),private:privatePathIsSafe(join(root,'team.db'+suffix))}))}));
+        prepareTeamPrivateDirectory(parent,false);stage='open';connection=await openTeamStore(root);
+        stage='snapshot';await connection.snapshot({audit:false});console.log(JSON.stringify({stage,result:'pass'}));
+      } catch(error) {console.log(JSON.stringify({stage,code:error.code??'unavailable',locations:error.stack?.match(/(?:team-store|team-files|team-audit)\\.js:\\d+:\\d+/g)??[]}));}
+      finally {await connection?.close();}
+    `;
+    const probe=spawnSync(process.execPath,['--input-type=module','-e',script,join(base,'restored'),base,new URL('../dist/team-store.js',import.meta.url).href,new URL('../dist/platform-security.js',import.meta.url).href],{env:childEnv,encoding:'utf8',timeout:childTimeout,maxBuffer:8192});
+    process.stderr.write('TEAM_CHILD_DIAGNOSTIC '+(probe.stdout || JSON.stringify({status:probe.status}))+'\n');
+  };
   const cli=(args,status=0)=>{
     const result=spawnSync(process.execPath,[fileURLToPath(new URL('../dist/team-cli.js',import.meta.url)),...args,...(args[0]==='audit-verify' ? [] : ['--data',join(base,'restored')])],{encoding:'utf8',timeout:childTimeout,env:childEnv});
+    if(result.status!==status)diagnose();
     assert.equal(result.status,status,result.stderr);
     for(const token of[alice.token,bob.token,other.token])assert.equal((result.stdout+result.stderr).includes(token),false);
     return result.stdout ? JSON.parse(result.stdout) : null;
