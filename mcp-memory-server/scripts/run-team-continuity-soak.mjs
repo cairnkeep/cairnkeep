@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync,mkdirSync,writeFileSync,renameSync,rmSync,existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join,dirname,resolve } from 'node:path';
+import { join,dirname,resolve,basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -14,12 +14,13 @@ import { hardenPrivatePath } from '../dist/platform-security.js';
 import { openTeamStore,restoreTeamSnapshot,teamDigest } from '../dist/team-store.js';
 import { createTeamHttpServer,teamRequest } from '../dist/team-http.js';
 import { writePrivateExclusive } from '../dist/team-files.js';
+import {teamLabEnvironment} from './team-lab-env.mjs';
 
 const args=process.argv.slice(2);
 if(args[0]==='--serve') {
   assert.equal(process.env.CAIRN_TEAM_SOAK,'1');assert.equal(args.length,3);
   const root=resolve(args[1]),port=Number(args[2]);
-  assert(dirname(root).startsWith(join(tmpdir(),'cairn-team-soak-')));
+  assert(/^cairn-team-soak-[A-Za-z0-9]+$/.test(basename(dirname(root))));
   assert(Number.isInteger(port)&&port>=0&&port<=65535);
   const childStore=await openTeamStore(root),listener=createTeamHttpServer(childStore);
   await new Promise((ok,no)=>{listener.once('error',no);listener.listen(port,'127.0.0.1',ok);});
@@ -45,7 +46,7 @@ const counts={cycles:0,server_restarts:0,credential_rotations:0,revocations_veri
 const started=performance.now();
 const pause=ms=>new Promise(ok=>setTimeout(ok,ms));
 async function start() {
-  server=spawn(process.execPath,[fileURLToPath(import.meta.url),'--serve',root,String(port)],{env:{PATH:process.env.PATH,HOME:base,CAIRN_TEAM:'1',CAIRN_TEAM_HTTP:'1',CAIRN_TEAM_SOAK:'1'},stdio:['ignore','pipe','pipe']});
+  server=spawn(process.execPath,[fileURLToPath(import.meta.url),'--serve',root,String(port)],{env:teamLabEnvironment(base,{CAIRN_TEAM:'1',CAIRN_TEAM_HTTP:'1',CAIRN_TEAM_SOAK:'1'}),stdio:['ignore','pipe','pipe']});
   server.stderr.resume();
   port=await new Promise((ok,no)=>{
     let text='';const timer=setTimeout(()=>no(Error('Synthetic API startup timeout')),15000);
@@ -77,7 +78,7 @@ try {
   for(let i=0;i<2;i++) {
     const cwd=join(base,'client-'+i);mkdirSync(cwd,{mode:0o700});hardenPrivatePath(cwd);
     files.push(join(base,'reader-'+i+'.token'));tokenFile(i,credentials[i].token);
-    const env={PATH:process.env.PATH,HOME:base,XDG_CONFIG_HOME:join(base,'config'),CAIRN_TEAM:'1',CAIRN_TEAM_URL:`http://127.0.0.1:${port}`,CAIRN_TEAM_ORGANIZATION:'soak-org',CAIRN_TEAM_TOKEN_FILE:files[i],CAIRN_MCP_TOOL_PROFILE:'read-only',CAIRN_TEAM_MCP_TOOL_PROFILE:'read-only'};
+    const env=teamLabEnvironment(base,{CAIRN_TEAM:'1',CAIRN_TEAM_URL:`http://127.0.0.1:${port}`,CAIRN_TEAM_ORGANIZATION:'soak-org',CAIRN_TEAM_TOKEN_FILE:files[i],CAIRN_MCP_TOOL_PROFILE:'read-only',CAIRN_TEAM_MCP_TOOL_PROFILE:'read-only'});
     const client=new Client({name:'synthetic-reader',version:'1'},{capabilities:{}});clients.push(client);
     await client.connect(new StdioClientTransport({command:process.execPath,args:[join(serverRoot,'dist/team-cli.js'),'mcp','--project-root',cwd],cwd,env,stderr:'pipe'}));
     assert(!(await client.listTools()).tools.some(tool=>/review|propose|admin/.test(tool.name)));

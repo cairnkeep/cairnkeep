@@ -21,7 +21,7 @@ export const smokeChecks = Object.freeze([
   check("team-restore", 86, node("smoke-team-restore.mjs")),
   check("team-cli", 125, node("smoke-team-cli.mjs")),
   check("team-onboarding", 233, node("smoke-team-onboarding.mjs")),
-  check("team-operations", 120, node("smoke-team-operations.mjs")),
+  check("team-operations", 240, node("smoke-team-operations.mjs")),
   check("embeddings", 1, node("smoke-embeddings.mjs")),
   check("extract", 1, node("smoke-extract-cli.mjs")),
   check("memory-retrieval", 7, node("smoke-memory-retrieval.mjs"), node("smoke-memory-retrieval-mcp.mjs"), node("run-memory-retrieval-study.mjs", "--check", "--summary")),
@@ -90,7 +90,11 @@ export function buildShardPlan(total) {
   const shards = Array.from({ length: total }, () => ({ weight: 0, checks: [] }));
   const weighted = [...smokeChecks].sort((left, right) =>
     right.weight - left.weight || positions.get(left.name) - positions.get(right.name));
-  for (const entry of weighted) {
+  // Keep native team ACL coverage in every runtime lane even when a new
+  // expensive group changes the unconstrained greedy placement.
+  const seeds = weighted.filter(({ name }) => name === 'team' || name.startsWith('team-')).slice(0, total);
+  seeds.forEach((entry, index) => { shards[index].checks.push(entry); shards[index].weight += entry.weight; });
+  for (const entry of weighted.filter(entry => !seeds.includes(entry))) {
     const target = shards.reduce((best, candidate) =>
       candidate.weight < best.weight ? candidate : best, shards[0]);
     target.checks.push(entry);

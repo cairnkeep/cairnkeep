@@ -10,6 +10,7 @@ import {syncBuiltinESMExports} from 'node:module';
 import { hardenPrivatePath } from '../dist/platform-security.js';
 import { openTeamStore, restoreTeamSnapshot, teamDigest, verifyTeamSnapshot } from '../dist/team-store.js';
 import {writePrivateExclusive} from '../dist/team-files.js';
+import {teamLabEnvironment} from './team-lab-env.mjs';
 
 const base = mkdtempSync(join(tmpdir(), 'cairn-team-operations-'));
 hardenPrivatePath(base); process.env.CAIRN_TEAM = '1';
@@ -104,8 +105,10 @@ try {
   await assert.rejects(issue('alice'),/conflict/);
   assert.equal((await store.snapshot({audit:false})).digest,fullBackup.digest,'full record store denies issuance atomically');
   const backupFile=join(base,'backup.json'), archiveFile=join(base,'archive.json');
+  const childEnv=teamLabEnvironment(base,{CAIRN_TEAM:'1',CAIRN_TEAM_BASE_DIR:join(base,'never-open')});
+  const childTimeout=process.platform==='win32'?120000:30000;
   const cli=(args,status=0)=>{
-    const result=spawnSync(process.execPath,[fileURLToPath(new URL('../dist/team-cli.js',import.meta.url)),...args,...(args[0]==='audit-verify' ? [] : ['--data',join(base,'restored')])],{encoding:'utf8',timeout:30000,env:{PATH:process.env.PATH,HOME:base,CAIRN_TEAM:'1',CAIRN_TEAM_BASE_DIR:join(base,'never-open')}});
+    const result=spawnSync(process.execPath,[fileURLToPath(new URL('../dist/team-cli.js',import.meta.url)),...args,...(args[0]==='audit-verify' ? [] : ['--data',join(base,'restored')])],{encoding:'utf8',timeout:childTimeout,env:childEnv});
     assert.equal(result.status,status,result.stderr);
     for(const token of[alice.token,bob.token,other.token])assert.equal((result.stdout+result.stderr).includes(token),false);
     return result.stdout ? JSON.parse(result.stdout) : null;
@@ -121,9 +124,9 @@ try {
   const args=['audit-archive','--input',archiveFile,'--backup',backupFile,'--confirm',exported.archive_digest];
   assert.equal(cli(args).applied,false);
   const concurrent=()=>new Promise((ok,no)=>{
-    const child=spawn(process.execPath,[fileURLToPath(new URL('../dist/team-cli.js',import.meta.url)),...args,'--apply','--data',join(base,'restored')],{env:{PATH:process.env.PATH,HOME:base,CAIRN_TEAM:'1'},stdio:['ignore','pipe','pipe']});
+    const child=spawn(process.execPath,[fileURLToPath(new URL('../dist/team-cli.js',import.meta.url)),...args,'--apply','--data',join(base,'restored')],{env:childEnv,stdio:['ignore','pipe','pipe']});
     let stdout='',stderr='';child.stdout.on('data',chunk=>stdout+=chunk);child.stderr.on('data',chunk=>stderr+=chunk);
-    const timer=setTimeout(()=>child.kill(),30000);
+    const timer=setTimeout(()=>child.kill(),childTimeout);
     child.once('error',no);child.once('exit',status=>{clearTimeout(timer);ok({status,stdout,stderr});});
   });
   const racers=await Promise.all([concurrent(),concurrent()]);

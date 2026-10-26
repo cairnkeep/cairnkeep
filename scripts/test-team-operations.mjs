@@ -3,12 +3,13 @@ import { mkdtempSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import {teamLabEnvironment} from '../mcp-memory-server/scripts/team-lab-env.mjs';
 
 const lab=mkdtempSync(join(tmpdir(),'cairn-team-endurance-contract-'));
 try {
   const script=resolve('mcp-memory-server/scripts/run-team-continuity-soak.mjs');
   const out=join(lab,'report.json');
-  const env={PATH:process.env.PATH,HOME:lab};
+  const env=teamLabEnvironment(lab);
   const run=(args,enabled=false)=>spawnSync(process.execPath,[script,...args],{env:{...env,...(enabled?{CAIRN_TEAM_SOAK:'1'}:{})},encoding:'utf8',timeout:60000,maxBuffer:1024*1024});
   assert.equal(run(['--help']).status,0);
   assert.notEqual(run(['--out',out]).status,0,'endurance must be explicitly enabled');
