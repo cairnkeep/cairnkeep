@@ -1,7 +1,8 @@
 # V29 - Remember together without sharing everything
 
-Status: technical rehearsal brief for Cairnkeep 2.26.0 guided onboarding to the
-opt-in preview introduced in 2.25.0. Not a recorded or independently rehearsed lesson.
+Status: technical rehearsal brief for Cairnkeep 2.27.0 operations and guided
+onboarding to the opt-in preview introduced in 2.25.0. Not a recorded or
+independently rehearsed lesson.
 Target: 10–12 minutes, experienced-developer audience. Describe a released
 experimental preview, not a generally production-admitted team service.
 Use the [isolated pilot guide](../../team-pilot.md) for a separately authorized
@@ -77,14 +78,14 @@ remote MCP. Call out OIDC, team packs and multi-organization tenancy as deferred
 
 ## Recording contract
 
-For a future operations supplement, use the source-only
+For an operations supplement on 2.27.0 or newer client/API/admin binaries, use the
 [operations recipe](../../team-operations.md). Show the capacity counters,
 optional page envelope and stale-cursor refusal, then a stopped disposable
 service, read-only backup, audit export, no-write archive plan and exact apply.
 Pause on “older server binaries cannot reopen v2”; keep all backups and tokens
 off screen. Show the synthetic endurance counts without claiming real human
 consent, native-harness UI coverage or a quality benchmark. Do not record these
-commands against the published 2.26.0 CLI; this remains a rehearsal brief.
+commands against an older CLI/API; this remains a rehearsal brief.
 
 Use legible real terminals, short scene changes, natural pauses and emphasis
 around each changed authority boundary. Keep credentials, personal memory,

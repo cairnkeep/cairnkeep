@@ -1556,6 +1556,10 @@ The 2.26.0 guided client workflow is documented in
 authenticated project/credential metadata, and `team disconnect` preserves
 personal memory and credentials. Both client and team API must support 2.26's
 connection check. No ordinary setup or production sharing is enabled implicitly.
+From 2.27.0, [team operations](team-operations.md) covers optional paging,
+capacity and offline, backup-bound audit archival. Keep matching client/API/admin
+binaries, stop older writers and retain all archives/backups. The no-write plan
+does not change a store; only explicit exact-digest apply upgrades it to v2.
 The internal governed review and approved isolated native pilot are complete;
 independent production review and a deployment-specific approved real-data pilot
 are still required before using real organization data.

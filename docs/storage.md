@@ -605,7 +605,7 @@ no separate prompt or retrieved-content log.
 
 ## Separate team store (opt-in 2.25 preview)
 
-Next-minor [team operations](team-operations.md) keep unarchived stores/snapshots
+From 2.27.0, [team operations](team-operations.md) keep unarchived stores/snapshots
 at v1. Only explicit offline archive/apply changes this team database to v2,
 retaining the terminal sequence/hash and archive/backup digests. All exported
 segments/backups remain external private files. New snapshots include the

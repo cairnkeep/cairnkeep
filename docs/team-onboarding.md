@@ -206,9 +206,9 @@ subscription use is authorized by this guide.
 
 ## Deployment readiness
 
-The [next-minor operations guide](team-operations.md) adds source-only paging,
-capacity diagnostics and backup-bound explicit audit archival. It is not part
-of the published 2.26.0 client/API. Do not infer enrollment or admission from it.
+The [operations guide](team-operations.md) adds paging, capacity diagnostics
+and backup-bound explicit audit archival from 2.27.0. Use matching upgraded
+client/API/admin binaries. Do not infer enrollment or admission from it.
 
 Before requesting a real-data pilot, record an owner and evidence for:
 

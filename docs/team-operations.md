@@ -1,7 +1,7 @@
 # Team operations: bounded history without automatic deletion
 
-Status: **next-minor source feature**, not included in the published 2.26.0
-package. Use matching client/API/admin source builds for these exercises.
+Available from **Cairnkeep 2.27.0**. Use 2.27.0 or newer client/API/admin
+binaries for paging and archival; older releases do not include these commands.
 The team preview remains default off and is not general production admission.
 
 ## Optional pagination

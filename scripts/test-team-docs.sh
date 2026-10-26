@@ -49,9 +49,17 @@ done
 for doc in docs/team.md docs/team-onboarding.md "$lesson" "$video"; do
   grep -qF 'team-operations.md' "$doc"
 done
-for term in '2.26.0' 'audit-verify' 'audit-archive' 'read-only' 'capacity' 'schema' 'synthetic' 'integrity'; do
+for term in '2.27.0' 'audit-verify' 'audit-archive' 'read-only' 'capacity' 'schema' 'synthetic' 'integrity'; do
   grep -qiF "$term" docs/team-operations.md
 done
+if grep -qiE 'next-minor|source-only|next.minor source feature' docs/team-operations.md; then
+  echo 'Released team operations must not be described as source-only' >&2
+  exit 1
+fi
+if grep -qiE 'no audit archival/compaction command|currently has no pagination' docs/team.md; then
+  echo 'Team reference must describe released paging and archival' >&2
+  exit 1
+fi
 grep -qF 'One successful segment check is not a claim' docs/team-operations.md
 node mcp-memory-server/dist/team-cli.js --help | grep -qF 'member remove SUBJECT --project ID'
 for doc in docs/team.md "$lesson" "$video"; do
