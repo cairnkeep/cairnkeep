@@ -12,12 +12,17 @@ const root = process.argv[2];
 const { buildShardPlan, smokeChecks } = await import(
   pathToFileURL(join(root, "mcp-memory-server", "scripts", "run-smoke-suite.mjs")));
 const plan = buildShardPlan(3);
+const measured = JSON.parse(readFileSync(join(root, 'mcp-memory-server/scripts/fixtures/windows-smoke-timings.json'), 'utf8'));
+assert.equal(measured.schema_version,1);
+for (const [name,seconds] of Object.entries(measured.measurements)) {
+  assert.equal(smokeChecks.find(row=>row.name===name)?.weight,seconds,`measured weight drift: ${name}`);
+}
 const flattened = plan.flatMap(({ checks }) => checks.map(({ name }) => name));
 assert.equal(flattened.length, smokeChecks.length);
 assert.equal(new Set(flattened).size, smokeChecks.length);
 assert.deepEqual([...flattened].sort(), smokeChecks.map(({ name }) => name).sort());
 assert.ok(plan.every(({ checks }) => checks.length > 0));
-const teamContracts = ['team', 'team-review', 'team-http', 'team-mcp', 'team-restore', 'team-cli', 'team-onboarding'];
+const teamContracts = ['team', 'team-review', 'team-http', 'team-mcp', 'team-restore', 'team-cli', 'team-onboarding', 'team-operations'];
 for (const name of teamContracts) assert.ok(flattened.includes(name), `missing team contract: ${name}`);
 assert.ok(plan.every(({ checks }) => checks.some(({ name }) => teamContracts.includes(name))),
   'native ACL-heavy team contracts must be distributed across all Windows shards');

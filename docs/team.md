@@ -214,6 +214,10 @@ store are refused before any uninstall changes; a store selected only through
 
 ## Bounded preview and admission
 
+For the next-minor source-only pagination, capacity and explicitly confirmed
+audit archival workflow, see [team operations](team-operations.md). Published
+2.26.0 has the limits described below; it does not include those new commands.
+
 Selected values are at most 64 KiB UTF-8; requests 512 KiB; responses 2 MiB;
 snapshots 64 MiB. Records are capped at 32,768 and 16 MiB of stored JSON;
 audit at 100,000 events and 16 MiB, with a 1,000-event/256 KiB OS-operator reserve.

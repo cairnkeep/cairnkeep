@@ -65,6 +65,14 @@ async function bytesFrom(url, maxBytes, headers = {}, blobRedirects = false) {
 const parse = bytes => JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
 const digest = bytes => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 
+export function npmVerificationCommands(prefix, version) {
+  const fresh = ['--cache', join(prefix, '.verification-cache'), '--prefer-online', '--prefer-offline=false', '--offline=false', '--registry', 'https://registry.npmjs.org'];
+  return [
+    ['install', '--prefix', prefix, `@cairnkeep/cli@${version}`, '--ignore-scripts', '--no-audit', '--no-fund', ...fresh],
+    ['audit', 'signatures', '--prefix', prefix, ...fresh],
+  ];
+}
+
 async function main(args) {
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) { console.log(usage); return; }
   const options = optionsFrom(args);
@@ -95,12 +103,13 @@ async function main(args) {
       tarball: async url => bytesFrom(url, 64 * 1024 * 1024),
       verifyNpm: async tarball => {
         const prefix = join(scratch, "npm");
-        run(npm, ["install", "--prefix", prefix, `@cairnkeep/cli@${expected.version}`, "--ignore-scripts", "--no-audit", "--no-fund", "--registry", "https://registry.npmjs.org"]);
+        const [install, audit] = npmVerificationCommands(prefix, expected.version);
+        run(npm, install);
         const lock = parse(readStableFile(join(prefix, "package-lock.json"), { label: "Verification install lock", maxBytes: 8 * 1024 * 1024 }).bytes);
         if (lock.packages?.["node_modules/@cairnkeep/cli"]?.integrity !== `sha512-${createHash("sha512").update(tarball).digest("base64")}`) {
           throw new Error("Release verification failed: audited package/candidate binding.");
         }
-        const audited = run(npm, ["audit", "signatures", "--prefix", prefix, "--registry", "https://registry.npmjs.org"]);
+        const audited = run(npm, audit);
         return /[1-9][0-9]* packages have verified registry signatures/.test(audited)
           && /[1-9][0-9]* packages have verified attestations/.test(audited);
       },

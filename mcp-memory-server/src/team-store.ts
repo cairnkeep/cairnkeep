@@ -4,6 +4,10 @@ import { basename, dirname, isAbsolute, join, parse, resolve } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { hardenPrivatePath, privatePathIsSafe } from './platform-security.js';
+import { TeamError } from './team-errors.js';
+export { TeamError } from './team-errors.js';
+import { teamAuditCheckpointSchema, teamAuditRowSchema, verifyTeamAuditRows, verifyTeamAuditArchive, type TeamAuditCheckpoint, type TeamAuditArchive } from './team-audit.js';
+import { teamPageSchema, pageTeamItems } from './team-pages.js';
 
 const id = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/);
 const roles = z.array(z.enum(['reader', 'contributor', 'reviewer', 'maintainer', 'auditor'])).max(5);
@@ -24,8 +28,8 @@ const adminSchema = z.discriminatedUnion('operation', [
     z.object({ operation: z.literal('credential-revoke'), credential: z.string().uuid() }).strict(),
     z.object({ operation: z.literal('memory-delete'), project: id, key: memoryKey, confirm: digest }).strict(),
 ]);
-const auditEntrySchema = z.object({ schema_version: z.literal(1), sequence: z.number().int().positive(), organization: id, project: id.or(z.literal('')), subject: id, credential_class: z.enum(['human', 'workload', 'local-os']), operation: z.enum(['project-create', 'member-set', 'credential-revoke', 'credential-issue', 'memory-delete', 'list', 'audit', 'read', 'history', 'search', 'propose', 'proposals', 'proposal-show', 'review', 'snapshot', 'restore', 'connection-check']), result: z.enum(['accepted', 'denied', 'conflict', 'invalid']), object_digest: digest.nullable(), previous_digest: digest.nullable(), request_id: z.string().uuid(), at: date }).strict();
-const snapshotSchema = z.object({ schema_version: z.literal(1), organization: id, records: z.array(z.object({ organization: id, project: id.or(z.literal('')), kind: z.enum(['project', 'member', 'credential', 'proposal', 'review', 'revision', 'head']), id: z.string().min(1).max(128), value: z.unknown() }).strict()).max(32768), audit: z.array(z.object({ sequence: z.number().int().positive(), organization: id, project: id.or(z.literal('')), value: z.string().max(4096), digest }).strict()).max(100000), digest }).strict();
+const legacySnapshotSchema = z.object({ schema_version: z.literal(1), organization: id, records: z.array(z.object({ organization: id, project: id.or(z.literal('')), kind: z.enum(['project', 'member', 'credential', 'proposal', 'review', 'revision', 'head']), id: z.string().min(1).max(128), value: z.unknown() }).strict()).max(32768), audit: z.array(z.object({ sequence: z.number().int().positive(), organization: id, project: id.or(z.literal('')), value: z.string().max(4096), digest }).strict()).max(100000), digest }).strict();
+const snapshotSchema = z.discriminatedUnion('schema_version', [legacySnapshotSchema, legacySnapshotSchema.extend({schema_version:z.literal(2),audit_checkpoint:teamAuditCheckpointSchema})]);
 export type TeamSnapshot = z.infer<typeof snapshotSchema>;
 const MAX_RECORD_BYTES = 16 * 1024 * 1024;
 const MAX_AUDIT_BYTES = 16 * 1024 * 1024;
@@ -33,13 +37,13 @@ export const TEAM_SNAPSHOT_MAX_BYTES = 64 * 1024 * 1024;
 const requestBase = { organization: id, project: id };
 const requestSchema = z.discriminatedUnion('operation', [
     z.object({ ...requestBase, operation: z.literal('connection-check') }).strict(),
-    z.object({ ...requestBase, operation: z.literal('list') }).strict(),
-    z.object({ ...requestBase, operation: z.literal('audit') }).strict(),
-    z.object({ ...requestBase, operation: z.literal('search'), query: z.string().min(1).max(256) }).strict(),
+    z.object({ ...requestBase, operation: z.literal('list'), page: teamPageSchema.optional() }).strict(),
+    z.object({ ...requestBase, operation: z.literal('audit'), page: teamPageSchema.optional() }).strict(),
+    z.object({ ...requestBase, operation: z.literal('search'), page: teamPageSchema.optional(), query: z.string().min(1).max(256) }).strict(),
     z.object({ ...requestBase, operation: z.literal('read'), key: memoryKey, revision: digest.optional() }).strict(),
-    z.object({ ...requestBase, operation: z.literal('history'), key: memoryKey }).strict(),
+    z.object({ ...requestBase, operation: z.literal('history'), page: teamPageSchema.optional(), key: memoryKey }).strict(),
     z.object({ ...requestBase, operation: z.literal('propose'), ...proposalInput.shape }).strict(),
-    z.object({ ...requestBase, operation: z.literal('proposals') }).strict(),
+    z.object({ ...requestBase, operation: z.literal('proposals'), page: teamPageSchema.optional() }).strict(),
     z.object({ ...requestBase, operation: z.literal('proposal-show'), proposal_id: z.string().uuid() }).strict(),
     z.object({ ...requestBase, operation: z.literal('review'), proposal_id: z.string().uuid(), confirm: digest, decision: z.enum(['approve', 'reject']) }).strict(),
 ]);
@@ -52,9 +56,6 @@ async function immediate<T>(db: DatabaseSync, operation: () => Promise<T>): Prom
     db.exec('BEGIN IMMEDIATE');
     try { const result = await operation(); db.exec('COMMIT'); return result; }
     catch (error) { db.exec('ROLLBACK'); throw error; }
-}
-export class TeamError extends Error {
-    constructor(public readonly code: 'disabled' | 'invalid' | 'unauthorized' | 'denied' | 'conflict' | 'integrity') { super(`Team ${code}.`); }
 }
 export function teamDigest(text: string): string { return createHash('sha256').update(text).digest('hex'); }
 function checkedProposal(input: unknown): z.infer<typeof proposalSchema> {
@@ -120,14 +121,7 @@ export function verifyTeamSnapshot(input: unknown): TeamSnapshot {
                 }
             }
         }
-        let previous: string | null = null; let sequence = 0; let auditBytes = 0;
-        for (const row of snapshot.audit) {
-            const entry = valid(auditEntrySchema, JSON.parse(row.value));
-            auditBytes += Buffer.byteLength(row.value);
-            if (row.organization !== snapshot.organization || row.sequence !== ++sequence || entry.sequence !== sequence || entry.previous_digest !== previous || entry.organization !== row.organization || entry.project !== row.project || row.digest !== teamDigest(row.value)) throw new Error();
-            previous = row.digest;
-        }
-        if (auditBytes > MAX_AUDIT_BYTES + 256 * 1024) throw new Error();
+        verifyTeamAuditRows(snapshot.organization, snapshot.audit, snapshot.schema_version === 2 ? snapshot.audit_checkpoint : null);
         return snapshot;
     } catch { throw new TeamError('integrity'); }
 }
@@ -218,7 +212,7 @@ export class TeamStore {
                     return options.organization;
                 });
                 const version = await db.prepare('SELECT value FROM team_meta WHERE id = ?').get('schema_version');
-                if (version?.value !== '1') throw new TeamError('integrity');
+                if (!['1','2'].includes(String(version?.value))) throw new TeamError('integrity');
                 const store = new TeamStore(agent, org, root);
                 store.harden();
                 return store;
@@ -263,8 +257,9 @@ export class TeamStore {
     private async appendAudit(project: string, subject: string, credentialClass: string, operation: string, result: string, objectDigest: string | null = null): Promise<void> {
         const db = this.agent.getDatabase();
         const last = await db.prepare('SELECT sequence,digest FROM team_audit ORDER BY sequence DESC LIMIT 1').get();
-        const sequence = valid(z.number().int().nonnegative(), last?.sequence ?? 0) + 1;
-        const entry = { schema_version: 1, sequence, organization: this.organization, project, subject, credential_class: credentialClass, operation, result, object_digest: objectDigest, previous_digest: last?.digest ?? null, request_id: randomUUID(), at: new Date().toISOString() };
+        const checkpoint = this.auditCheckpoint();
+        const sequence = valid(z.number().int().nonnegative(), last?.sequence ?? checkpoint?.sequence ?? 0) + 1;
+        const entry = { schema_version: 1, sequence, organization: this.organization, project, subject, credential_class: credentialClass, operation, result, object_digest: objectDigest, previous_digest: last?.digest ?? checkpoint?.digest ?? null, request_id: randomUUID(), at: new Date().toISOString() };
         const value = JSON.stringify(entry);
         const size = db.prepare('SELECT count(*) AS entries,coalesce(sum(length(CAST(value AS BLOB))),0) AS bytes FROM team_audit').get();
         // Reserve bounded space for local revocation/recovery after a client's
@@ -344,8 +339,8 @@ export class TeamStore {
                     subject: credential.subject, credential_id: credential.id, credential_class: credential.credential_class,
                     expires_at: credential.expires_at, roles: member.roles };
             } else if (request.operation === 'audit') {
-                const rows = await this.agent.getDatabase().prepare('SELECT value,digest FROM team_audit WHERE organization=? AND project=? ORDER BY sequence DESC LIMIT 100').all(this.organization, request.project);
-                result = rows.map(row => ({ ...JSON.parse(sqlText(row.value)), digest: row.digest }));
+                const rows = await this.agent.getDatabase().prepare('SELECT value,digest FROM team_audit WHERE organization=? AND project=? ORDER BY sequence DESC'+(request.page ? '' : ' LIMIT 100')).all(this.organization, request.project);
+                result = (request.page ? rows : rows.slice(0,100)).map(row => ({ ...JSON.parse(sqlText(row.value)), digest: row.digest }));
             } else if (request.operation === 'propose') {
                 const { organization: _org, project: _project, operation: _op, ...rawInput } = request;
                 const selected = valid(proposalInput, rawInput);
@@ -395,7 +390,7 @@ export class TeamStore {
                     if (!proposal) throw new TeamError('denied');
                     result = proposal;
                 } else {
-                    result = await Promise.all(visible.slice(0, 100).map(async proposal => ({ id: proposal.id, digest: proposal.digest, key: proposal.input.key, subject: proposal.subject, expires_at: proposal.input.expires_at, status: (await this.get('review', request.project, proposal.id)) ? 'reviewed' : 'pending' })));
+                    result = await Promise.all(visible.slice(0, request.page ? undefined : 100).map(async proposal => ({ id: proposal.id, digest: proposal.digest, key: proposal.input.key, subject: proposal.subject, expires_at: proposal.input.expires_at, status: (await this.get('review', request.project, proposal.id)) ? 'reviewed' : 'pending' })));
                 }
             } else if (request.operation === 'read') {
                 const revisionDigest = request.revision ?? await this.get('head', request.project, request.key);
@@ -407,14 +402,22 @@ export class TeamStore {
                     objectDigest = revision.revision_digest;
                 }
             } else if (request.operation === 'history') {
-                result = (await this.rows('revision', request.project)).map(row => checkedRevision(row.value)).filter(revision => revision.key === request.key).sort((a, b) => b.created_at.localeCompare(a.created_at) || a.revision_digest.localeCompare(b.revision_digest)).slice(0, 100).map(({ value: _value, ...metadata }) => metadata);
+                result = (await this.rows('revision', request.project)).map(row => checkedRevision(row.value)).filter(revision => revision.key === request.key).sort((a, b) => b.created_at.localeCompare(a.created_at) || a.revision_digest.localeCompare(b.revision_digest)).slice(0, request.page ? undefined : 100).map(({ value: _value, ...metadata }) => metadata);
             } else {
                 const heads = await this.rows('head', request.project);
                 const revisions = await Promise.all(heads.map(async head => checkedRevision(await this.get('revision', request.project, valid(digest, head.value)))));
                 if (request.operation === 'search') {
                     const needle = request.query.toLowerCase();
-                    result = revisions.filter(revision => `${revision.key}\n${revision.value}`.toLowerCase().includes(needle)).slice(0, 10).map(revision => this.presentRevision(revision));
-                } else result = revisions.slice(0, 100).map(({ value: _value, ...metadata }) => metadata);
+                    result = revisions.filter(revision => `${revision.key}\n${revision.value}`.toLowerCase().includes(needle)).slice(0, request.page ? undefined : 10).map(revision => this.presentRevision(revision));
+                } else result = revisions.slice(0, request.page ? undefined : 100).map(({ value: _value, ...metadata }) => metadata);
+            }
+            if ('page' in request && request.page) {
+                if (!Array.isArray(result) || (request.operation === 'search' && request.page.size > 10)) throw new TeamError('invalid');
+                const db=this.agent.getDatabase();
+                let secret=db.prepare('SELECT value FROM team_meta WHERE id=?').get('pagination-secret')?.value;
+                if (!secret) { secret=randomBytes(32).toString('hex'); db.prepare('INSERT INTO team_meta(id,value) VALUES(?,?)').run('pagination-secret',secret); }
+                const scope=JSON.stringify([this.organization,request.project,credential.id,credential.subject,credential.credential_class,member.roles,project.policy_revision,request.operation,'key' in request ? request.key : null,'query' in request ? request.query : null,request.page.size,this.auditCheckpoint()?.archive_digest ?? null]);
+                result=pageTeamItems(result,valid(digest,secret),scope,request.page,request.operation==='audit');
             }
             await this.appendAudit(request.project, credential.subject, credential.credential_class, request.operation, 'accepted', objectDigest);
             return result;
@@ -438,22 +441,68 @@ export class TeamStore {
         const db = this.agent.getDatabase();
         const records = db.prepare('SELECT organization,project,kind,id,value FROM team_records ORDER BY organization,project,kind,id').all().map(row => ({ organization: sqlText(row.organization), project: sqlText(row.project), kind: sqlText(row.kind), id: sqlText(row.id), value: JSON.parse(sqlText(row.value)) }));
         const audit = db.prepare('SELECT sequence,organization,project,value,digest FROM team_audit ORDER BY sequence').all();
-        const body = { schema_version: 1, organization: this.organization, records, audit };
+        const checkpoint=this.auditCheckpoint();
+        const body = checkpoint ? { schema_version: 2, organization: this.organization, records, audit, audit_checkpoint: checkpoint } : { schema_version: 1, organization: this.organization, records, audit };
         return verifyTeamSnapshot({ ...body, digest: teamDigest(JSON.stringify(body)) });
     }
-    async snapshot(): Promise<TeamSnapshot> {
+    private auditCheckpoint(): TeamAuditCheckpoint | null {
+        const db=this.agent.getDatabase();
+        const version=db.prepare('SELECT value FROM team_meta WHERE id=?').get('schema_version')?.value;
+        const row=db.prepare('SELECT value FROM team_meta WHERE id=?').get('audit-checkpoint');
+        if(version==='1' && !row) return null;
+        if(version!=='2' || !row) throw new TeamError('integrity');
+        try { return teamAuditCheckpointSchema.parse(JSON.parse(sqlText(row.value))); }
+        catch { throw new TeamError('integrity'); }
+    }
+    private capacity() {
+        const db=this.agent.getDatabase();
+        const usage=(table:'team_records'|'team_audit',limit:number,bytesLimit:number)=>{
+            const row=db.prepare(`SELECT count(*) AS entries,coalesce(sum(length(CAST(value AS BLOB))),0) AS bytes FROM ${table}`).get();
+            const entries=Number(row?.entries),bytes=Number(row?.bytes);
+            return {entries,bytes,limit,bytes_limit:bytesLimit,remaining_entries:Math.max(0,limit-entries),remaining_bytes:Math.max(0,bytesLimit-bytes),status:entries>=limit || bytes>=bytesLimit ? 'exhausted' : entries>=limit*0.8 || bytes>=bytesLimit*0.8 ? 'near-limit' : 'available'};
+        };
+        return {records:usage('team_records',32768,MAX_RECORD_BYTES),audit:usage('team_audit',99000,MAX_AUDIT_BYTES),local_audit_reserve:{entries:1000,bytes:256*1024},checkpoint:this.auditCheckpoint()};
+    }
+    async exportAudit(input: unknown): Promise<TeamAuditArchive> {
+        const backup=verifyTeamSnapshot(input);
+        return this.transaction(async()=>{
+            const current=this.collectSnapshot();
+            if(current.digest!==backup.digest) throw new TeamError('conflict');
+            const body={schema_version:1 as const,organization:this.organization,backup_digest:backup.digest,previous_checkpoint:this.auditCheckpoint(),entries:current.audit};
+            return verifyTeamAuditArchive({...body,digest:teamDigest(JSON.stringify(body))});
+        });
+    }
+    async archiveAudit(input: unknown, backupInput: unknown, confirm: string, apply=false): Promise<{applied:boolean;events:number;archive_digest:string;backup_digest:string;last_sequence:number}> {
+        const archive=verifyTeamAuditArchive(input),backup=verifyTeamSnapshot(backupInput);
+        if(archive.digest!==confirm || archive.organization!==this.organization || archive.backup_digest!==backup.digest) throw new TeamError('conflict');
+        return this.transaction(async()=>{
+            const current=this.collectSnapshot();
+            if(current.digest!==backup.digest || JSON.stringify(current.audit)!==JSON.stringify(archive.entries) || JSON.stringify(this.auditCheckpoint())!==JSON.stringify(archive.previous_checkpoint)) throw new TeamError('conflict');
+            const last=archive.entries[archive.entries.length-1];
+            if(apply) {
+                const db=this.agent.getDatabase();
+                const checkpoint:TeamAuditCheckpoint={sequence:last.sequence,digest:last.digest,archive_digest:archive.digest,backup_digest:backup.digest,previous_archive_digest:archive.previous_checkpoint?.archive_digest ?? null};
+                db.prepare('INSERT INTO team_meta(id,value) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET value=excluded.value').run('audit-checkpoint',JSON.stringify(checkpoint));
+                db.prepare('UPDATE team_meta SET value=? WHERE id=?').run('2','schema_version');
+                db.exec('DELETE FROM team_audit');
+                await this.appendAudit('', 'local-operator','local-os','audit-archive','accepted',archive.digest);
+            }
+            return {applied:apply,events:archive.entries.length,archive_digest:archive.digest,backup_digest:backup.digest,last_sequence:last.sequence};
+        });
+    }
+    async snapshot(options: {audit?:boolean} = {}): Promise<TeamSnapshot> {
         return this.transaction(async () => {
-            await this.appendAudit('', 'local-operator', 'local-os', 'snapshot', 'accepted');
+            if (options.audit !== false) await this.appendAudit('', 'local-operator', 'local-os', 'snapshot', 'accepted');
             return this.collectSnapshot();
         });
     }
-    async doctor(): Promise<{ ok: true; records: number; audit_events: number; digest: string; temporary_remnants: number }> {
+    async doctor(): Promise<{ ok: true; records: number; audit_events: number; digest: string; temporary_remnants: number; capacity: ReturnType<TeamStore['capacity']> }> {
         return this.transaction(async () => {
             if (this.agent.getDatabase().prepare('PRAGMA quick_check').get()?.quick_check !== 'ok') throw new TeamError('integrity');
             const snapshot = this.collectSnapshot();
             // Report only a count. Never select a restore, expose paths or delete remnants.
             const remnants = readdirSync(dirname(this.root)).filter(name => name.startsWith('.team-restore-') || name === `.${basename(this.root)}.restore.lock`).length;
-            return { ok: true, records: snapshot.records.length, audit_events: snapshot.audit.length, digest: snapshot.digest, temporary_remnants: remnants };
+            return { ok: true, records: snapshot.records.length, audit_events: snapshot.audit.length, digest: snapshot.digest, temporary_remnants: remnants, capacity: this.capacity() };
         });
     }
     static async restore(root: string, input: unknown, confirm: string): Promise<TeamStore> {
@@ -478,6 +527,10 @@ export class TeamStore {
                 for (const row of snapshot.records) {
                     const value = row.kind === 'credential' ? { ...valid(credentialSchema, row.value), revoked: true } : row.value;
                     db.prepare('INSERT INTO team_records(organization,project,kind,id,value) VALUES(?,?,?,?,?)').run(row.organization, row.project, row.kind, row.id, JSON.stringify(value));
+                }
+                if (snapshot.schema_version === 2) {
+                    db.prepare('UPDATE team_meta SET value=? WHERE id=?').run('2','schema_version');
+                    db.prepare('INSERT INTO team_meta(id,value) VALUES(?,?)').run('audit-checkpoint',JSON.stringify(snapshot.audit_checkpoint));
                 }
                 for (const row of snapshot.audit) db.prepare('INSERT INTO team_audit(sequence,organization,project,value,digest) VALUES(?,?,?,?,?)').run(row.sequence, row.organization, row.project, row.value, row.digest);
                 await store!.appendAudit('', 'local-operator', 'local-os', 'restore', 'accepted', snapshot.digest);

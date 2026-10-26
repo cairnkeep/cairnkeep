@@ -100,6 +100,12 @@ npm supporting registry-signature and provenance verification. Use `--gh PATH`
 or `--npm PATH` for explicit tool selection; stale trust data or unsupported
 flags fail closed rather than skipping a check. No runtime dependency is added.
 
+The npm verification install and signature audit use a fresh cache inside the
+disposable verification prefix and explicitly request online metadata. Ambient
+offline/prefer-offline settings cannot hide a newly published version behind
+an older cached package listing. This writes no global npm configuration and
+does not relax exact bytes, registry authority, signatures or provenance checks.
+
 The tool checks successful maintained CI, security and publication workflows, immutable
 tag/commit/tree binding, retained CI candidate checksums and exact release-asset
 bytes, CycloneDX 1.6, registry bytes/integrity, npm signatures/attestations, both

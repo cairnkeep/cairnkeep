@@ -605,6 +605,15 @@ no separate prompt or retrieved-content log.
 
 ## Separate team store (opt-in 2.25 preview)
 
+Next-minor [team operations](team-operations.md) keep unarchived stores/snapshots
+at v1. Only explicit offline archive/apply changes this team database to v2,
+retaining the terminal sequence/hash and archive/backup digests. All exported
+segments/backups remain external private files. New snapshots include the
+checkpoint; restore revokes credentials and invalidates paging cursors. The
+cursor signing key is local metadata, not exported as a credential. Ordinary
+memory, trajectories, context packs and their layouts are unchanged. Old server
+binaries cannot reopen the v2 store; retain a pre-archive v1 backup for rollback.
+
 [Team continuity](team.md) keeps organization/project records in a separate
 `team.db` under `CAIRN_TEAM_BASE_DIR` (default `~/.cairnkeep/team`). Built-in
 SQLite transactions serialize state and audit across processes; personal

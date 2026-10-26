@@ -6,6 +6,7 @@ import { isCapabilityContractEnabled, resolveCapabilityStatus } from './capabili
 import { teamRequest, validateTeamUrl } from './team-http.js';
 import { TeamError, teamDigest } from './team-store.js';
 import { resolveHttpToken } from './http-security.js';
+import { teamPageSchema } from './team-pages.js';
 
 const observation = (title: string) => ({ title, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true } });
 // The bridge crosses the local process boundary into a remote team service;
@@ -43,10 +44,10 @@ export async function createTeamMcpServer(options: { url: string; organization: 
     const key = z.string().regex(/^(decisions|patterns|constraints|pitfalls|conventions|bugs)\/[a-z0-9][a-z0-9-]{0,95}$/);
     const hash = z.string().regex(/^[a-f0-9]{64}$/);
     const schemas = {
-        team_memory_list: { project },
+        team_memory_list: { project, page: teamPageSchema.optional() },
         team_memory_read: { project, key, revision: hash.optional() },
-        team_memory_search: { project, query: z.string().min(1).max(256) },
-        team_memory_history: { project, key },
+        team_memory_search: { project, query: z.string().min(1).max(256), page: teamPageSchema.extend({size:z.number().int().min(1).max(10)}).optional() },
+        team_memory_history: { project, key, page: teamPageSchema.optional() },
         team_memory_propose: { project, request_id: z.string().uuid(), key, value: z.string().min(1).max(65536), source_scope: z.enum(['selected-local', 'selected-project']), source_digest: hash, base_revision: hash.nullable(), expires_at: z.iso.datetime(), confirm: hash },
     };
     const operations = { team_memory_list: 'list', team_memory_read: 'read', team_memory_search: 'search', team_memory_history: 'history', team_memory_propose: 'propose' } as const;

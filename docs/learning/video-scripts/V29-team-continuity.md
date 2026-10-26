@@ -77,6 +77,15 @@ remote MCP. Call out OIDC, team packs and multi-organization tenancy as deferred
 
 ## Recording contract
 
+For a future operations supplement, use the source-only
+[operations recipe](../../team-operations.md). Show the capacity counters,
+optional page envelope and stale-cursor refusal, then a stopped disposable
+service, read-only backup, audit export, no-write archive plan and exact apply.
+Pause on “older server binaries cannot reopen v2”; keep all backups and tokens
+off screen. Show the synthetic endurance counts without claiming real human
+consent, native-harness UI coverage or a quality benchmark. Do not record these
+commands against the published 2.26.0 CLI; this remains a rehearsal brief.
+
 Use legible real terminals, short scene changes, natural pauses and emphasis
 around each changed authority boundary. Keep credentials, personal memory,
 source excerpts from private projects and raw snapshot text off screen.

@@ -51,6 +51,14 @@ real users or introduce real data during this exercise.
 
 ## Guided client exercise (2.26 or newer)
 
+The separate [next-minor operations exercise](../../team-operations.md) requires
+a matching source build, not the published 2.26.0 CLI. Practice paging, capacity,
+read-only backup, metadata export, no-write archive plan, exact apply and fresh
+v2 restore only in a disposable lab. Keep archive files/private backups, explain
+old-server rollback requirements, and distinguish active suffix integrity from
+complete retained history. The longer two-process endurance run is synthetic
+transport/policy evidence, not independent human review or native UI validation.
+
 Use the [guided connection recipe](../../team-onboarding.md#guided-connection-next-release--matching-source-checkout)
 with a disposable project and the operator's synthetic workload-reader file.
 Run `cairn team connect` once without `--apply`: inspect its selected project,
