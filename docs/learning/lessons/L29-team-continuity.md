@@ -2,7 +2,8 @@
 
 **Status:** Brief; opt-in experimental preview in Cairnkeep 2.25.0
 **Compatibility:** Cairnkeep 2.25.0 or newer for manual connection; 2.26.0 or newer
-on both client and team API for guided connection. Node 22.13 or newer for team storage.
+on both client and team API for guided connection; 2.27.0 or newer client/API/admin
+for operations. Node 22.13 or newer for team storage.
 Use a matching source checkout for the executable regression exercises below.
 Installing the released CLI does not enable team sharing.
 
@@ -51,8 +52,8 @@ real users or introduce real data during this exercise.
 
 ## Guided client exercise (2.26 or newer)
 
-The separate [next-minor operations exercise](../../team-operations.md) requires
-a matching source build, not the published 2.26.0 CLI. Practice paging, capacity,
+The separate [operations exercise](../../team-operations.md) requires
+2.27.0 or newer client/API/admin binaries. Practice paging, capacity,
 read-only backup, metadata export, no-write archive plan, exact apply and fresh
 v2 restore only in a disposable lab. Keep archive files/private backups, explain
 old-server rollback requirements, and distinguish active suffix integrity from

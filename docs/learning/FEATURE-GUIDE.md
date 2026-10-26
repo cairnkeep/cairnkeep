@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.26.0
+**Baseline:** Cairnkeep 2.27.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -196,6 +196,12 @@ From 2.26.0, `cairn team connect` plans an additive project-local connection,
 supports drift-aware recovery. Both client and team API must be 2.26 or newer.
 These commands do not enroll users or enable sharing automatically. See the
 [guided recipe](../team-onboarding.md#guided-connection-226-or-newer).
+
+From 2.27.0, [team operations](../team-operations.md) adds optional authenticated
+paging, capacity diagnostics and offline, backup-bound audit archival. Upgrade
+client/API/admin binaries together. Archival defaults to a no-write plan and
+requires exact-digest apply; it alone upgrades the separate team store to v2.
+Keep every archive and backup. Installation never compacts or activates a team.
 
 Authority is rechecked per request. Backup/restore validates integrity and
 revokes restored credentials; retention is manual, and logical deletion is not

@@ -214,17 +214,19 @@ store are refused before any uninstall changes; a store selected only through
 
 ## Bounded preview and admission
 
-For the next-minor source-only pagination, capacity and explicitly confirmed
-audit archival workflow, see [team operations](team-operations.md). Published
-2.26.0 has the limits described below; it does not include those new commands.
+From 2.27.0, optional pagination, capacity diagnostics and explicitly confirmed
+audit archival are available in [team operations](team-operations.md). Upgrade
+the client, API and admin binary before using these operations.
 
 Selected values are at most 64 KiB UTF-8; requests 512 KiB; responses 2 MiB;
 snapshots 64 MiB. Records are capped at 32,768 and 16 MiB of stored JSON;
-audit at 100,000 events and 16 MiB, with a 1,000-event/256 KiB OS-operator reserve.
+ordinary audit at 99,000 events and 16 MiB, with a separate
+1,000-event/256 KiB OS-operator reserve.
 Limits fail closed rather than discarding records. Back up and review retention
-before approaching them; the preview has no audit archival/compaction command.
-Retrieval is bounded (100 list/history items, ten search results); the API
-currently has no pagination. HTTP separately limits malformed authentication
+before approaching them; archival is offline, manual and backup-bound, never
+automatic. Retrieval is bounded (100 list/history items, ten search results);
+optional authenticated paging is available from 2.27.0. HTTP separately limits
+malformed authentication
 per connection address and authenticated requests per subject to 120 per minute;
 invalid token-shaped credentials receive ten attempts per token digest. Each
 budget holds at most 512 identities, and invalid authentication cannot consume

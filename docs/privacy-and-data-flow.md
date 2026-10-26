@@ -712,7 +712,7 @@ they do not authenticate a publisher or make extracted statements true.
 
 ## Team preview flow and isolation
 
-The next-minor [operations workflow](team-operations.md) adds only explicit
+The 2.27.0 [operations workflow](team-operations.md) adds only explicit
 local audit export/archival, not automatic collection, sharing or deletion.
 Audit exports contain activity/subject metadata and digests, not selected memory
 values or bearer tokens; keep them private. Full backups still contain selected

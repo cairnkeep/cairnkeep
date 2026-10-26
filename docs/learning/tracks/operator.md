@@ -23,6 +23,9 @@
     Do not enable it in production before the independent review and approved pilot.
     Version 2.26.0 adds guided additive connection, client
     diagnostics and disconnect/recovery exercises; no production enrollment.
+    Version 2.27.0 adds optional paging, capacity and explicit offline audit
+    archival. Rehearse only in a disposable lab; retain backups and stop older
+    writers before the explicit v2 store-format change.
 
 All modules are optional. The track is complete when the operator can add and
 remove each integration without breaking the standalone local workflow and can

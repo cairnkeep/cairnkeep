@@ -5,7 +5,9 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
-### Team operations (next minor, source only)
+## [2.27.0] - 2026-10-26
+
+### Team operations
 
 - Add opt-in bounded paging to team listings with authenticated,
   credential/project/filter/policy/view-bound cursors and unchanged legacy arrays.
