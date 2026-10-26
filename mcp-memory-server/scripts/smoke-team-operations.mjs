@@ -14,8 +14,27 @@ import {teamLabEnvironment} from './team-lab-env.mjs';
 
 const base = mkdtempSync(join(tmpdir(), 'cairn-team-operations-'));
 hardenPrivatePath(base); process.env.CAIRN_TEAM = '1';
+const childEnv=teamLabEnvironment(base,{CAIRN_TEAM:'1',CAIRN_TEAM_BASE_DIR:join(base,'never-open')});
+const childTimeout=process.platform==='win32'?120000:30000;
 let store, restored;
 try {
+  if(process.platform==='win32') {
+    const script=String.raw`
+      const {privatePathIsSafe}=await import(process.argv[2]);
+      const safe=privatePathIsSafe(process.argv[1]);
+      if(!safe) {
+        const {spawnSync}=await import('node:child_process');
+        const identity=spawnSync('whoami.exe',['/user','/fo','csv','/nh'],{encoding:'utf8',timeout:10000});
+        const command="try{$sections=[System.Security.AccessControl.AccessControlSections]::Owner -bor [System.Security.AccessControl.AccessControlSections]::Access;$acl=[System.Security.AccessControl.DirectorySecurity]::new($env:CK_INTERNAL_ACL_PATH,$sections);[pscustomobject]@{protected=$acl.AreAccessRulesProtected}|ConvertTo-Json -Compress}catch{[Console]::WriteLine($_.Exception.GetType().Name);exit 1}";
+        const shell=spawnSync('powershell.exe',['-NoLogo','-NoProfile','-NonInteractive','-Command',command],{encoding:'utf8',timeout:10000,env:{...process.env,CK_INTERNAL_ACL_PATH:process.argv[1]}});
+        let acl='unparsed';try{acl=JSON.parse(shell.stdout).protected===true?'protected':'not-protected';}catch{if(/^[A-Za-z]+Exception\s*$/.test(shell.stdout??''))acl=shell.stdout.trim();}
+        console.log(JSON.stringify({private_safe:safe,identity_status:identity.status,identity_error:identity.error?.code??null,identity_parse:/^"[^"]+","S-1-[0-9-]+"/im.test(identity.stdout??''),powershell_status:shell.status,powershell_error:shell.error?.code??null,acl}));
+      }
+      process.exit(safe?0:1);
+    `;
+    const probe=spawnSync(process.execPath,['--input-type=module','-e',script,base,new URL('../dist/platform-security.js',import.meta.url).href],{env:childEnv,encoding:'utf8',timeout:childTimeout});
+    assert.equal(probe.status,0,'Isolated Windows child must inspect the protected lab before expensive fixtures: '+(probe.stdout??'').trim());
+  }
   const originalSync=fs.fsyncSync,flushes=[];
   try {
     fs.fsyncSync=fd=>{flushes.push(fs.fstatSync(fd).isDirectory()?'directory':'file');return originalSync(fd);};syncBuiltinESMExports();
@@ -105,8 +124,6 @@ try {
   await assert.rejects(issue('alice'),/conflict/);
   assert.equal((await store.snapshot({audit:false})).digest,fullBackup.digest,'full record store denies issuance atomically');
   const backupFile=join(base,'backup.json'), archiveFile=join(base,'archive.json');
-  const childEnv=teamLabEnvironment(base,{CAIRN_TEAM:'1',CAIRN_TEAM_BASE_DIR:join(base,'never-open')});
-  const childTimeout=process.platform==='win32'?120000:30000;
   const diagnose=()=>{
     const script=`
       const [root,parent,storeUrl,securityUrl]=process.argv.slice(1);
