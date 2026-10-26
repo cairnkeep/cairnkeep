@@ -712,6 +712,15 @@ they do not authenticate a publisher or make extracted statements true.
 
 ## Team preview flow and isolation
 
+The next-minor [operations workflow](team-operations.md) adds only explicit
+local audit export/archival, not automatic collection, sharing or deletion.
+Audit exports contain activity/subject metadata and digests, not selected memory
+values or bearer tokens; keep them private. Full backups still contain selected
+team values and credential hashes. Doctor verifies active history from a stored
+checkpoint, not unseen external archive retention. Digests are integrity checks,
+not publisher authentication or secure erasure. Optional cursors are bound to
+credentials and the visible query view; every page still checks current access.
+
 The default-off [team preview](team.md) reads no personal memory automatically.
 Only explicitly supplied, inspected text becomes an immutable project proposal;
 only review by a different human credential publishes a shared revision.

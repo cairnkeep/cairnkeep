@@ -14,71 +14,72 @@ const node = (script, ...args) => [join("scripts", script), ...args];
 export const smokeChecks = Object.freeze([
   // Native ACL validation dominates these controls; distribute them rather
   // than adding all six to a single Windows matrix shard.
-  check("team", 80, node("smoke-team.mjs")),
-  check("team-review", 120, node("smoke-team-review.mjs")),
+  check("team", 70, node("smoke-team.mjs")),
+  check("team-review", 137, node("smoke-team-review.mjs")),
   check("team-http", 40, node("smoke-team-http.mjs")),
-  check("team-mcp", 80, node("smoke-team-mcp.mjs")),
-  check("team-restore", 120, node("smoke-team-restore.mjs")),
-  check("team-cli", 100, node("smoke-team-cli.mjs")),
-  check("team-onboarding", 120, node("smoke-team-onboarding.mjs")),
+  check("team-mcp", 69, node("smoke-team-mcp.mjs")),
+  check("team-restore", 86, node("smoke-team-restore.mjs")),
+  check("team-cli", 125, node("smoke-team-cli.mjs")),
+  check("team-onboarding", 233, node("smoke-team-onboarding.mjs")),
+  check("team-operations", 120, node("smoke-team-operations.mjs")),
   check("embeddings", 1, node("smoke-embeddings.mjs")),
   check("extract", 1, node("smoke-extract-cli.mjs")),
-  check("memory-retrieval", 10, node("smoke-memory-retrieval.mjs"), node("smoke-memory-retrieval-mcp.mjs"), node("run-memory-retrieval-study.mjs", "--check", "--summary")),
-  check("memory-reranker", 20, node("smoke-memory-reranker.mjs"), node("smoke-memory-reranker-mcp.mjs"), node("run-memory-reranker-study.mjs", "--check", "--summary")),
+  check("memory-retrieval", 7, node("smoke-memory-retrieval.mjs"), node("smoke-memory-retrieval-mcp.mjs"), node("run-memory-retrieval-study.mjs", "--check", "--summary")),
+  check("memory-reranker", 5, node("smoke-memory-reranker.mjs"), node("smoke-memory-reranker-mcp.mjs"), node("run-memory-reranker-study.mjs", "--check", "--summary")),
   check("scope-guard", 1, node("smoke-scope-guard.mjs")),
-  check("http-guard", 10, node("smoke-http-guard.mjs")),
-  check("remote-context", 1, node("smoke-remote-context.mjs"), node("smoke-remote-context-ports.mjs")),
-  check("explore-guard", 3, node("smoke-explore-guard.mjs")),
-  check("explore-cache", 3, node("smoke-explore-cache.mjs")),
-  check("explore-crossref", 1, node("smoke-explore-crossref.mjs")),
-  check("route-guard", 3, node("smoke-route-guard.mjs")),
-  check("reviewed-memory", 1, node("smoke-reviewed-memory.mjs")),
-  check("memory-proposals", 11, node("smoke-memory-proposals.mjs")),
-  check("trajectory-roundtrip", 1, node("smoke-trajectory-roundtrip.mjs")),
-  check("trajectory-redaction", 1, node("smoke-trajectory-redaction.mjs")),
-  check("trajectory-retention", 3, node("smoke-trajectory-retention.mjs")),
+  check("http-guard", 9, node("smoke-http-guard.mjs")),
+  check("remote-context", 14, node("smoke-remote-context.mjs"), node("smoke-remote-context-ports.mjs")),
+  check("explore-guard", 4, node("smoke-explore-guard.mjs")),
+  check("explore-cache", 4, node("smoke-explore-cache.mjs")),
+  check("explore-crossref", 2, node("smoke-explore-crossref.mjs")),
+  check("route-guard", 4, node("smoke-route-guard.mjs")),
+  check("reviewed-memory", 2, node("smoke-reviewed-memory.mjs")),
+  check("memory-proposals", 16, node("smoke-memory-proposals.mjs")),
+  check("trajectory-roundtrip", 2, node("smoke-trajectory-roundtrip.mjs")),
+  check("trajectory-redaction", 2, node("smoke-trajectory-redaction.mjs")),
+  check("trajectory-retention", 4, node("smoke-trajectory-retention.mjs")),
   check("note-signatures", 1, node("smoke-note-signatures.mjs")),
   check("note-distillation", 3, node("smoke-note-distillation.mjs")),
   check("note-enrichment", 1, node("smoke-note-enrichment.mjs")),
   check("node-compat", 2, node("smoke-node-compat.mjs")),
   check("typed-nodes", 2, node("smoke-typed-nodes.mjs")),
   check("memory-import", 2, node("smoke-memory-import.mjs")),
-  check("note-mcp", 8, node("smoke-note-mcp.mjs")),
+  check("note-mcp", 9, node("smoke-note-mcp.mjs")),
   check("node-doctor", 2, node("smoke-node-doctor.mjs")),
-  check("artifact-store", 29, node("smoke-artifact-store.mjs")),
-  check("artifact-mcp", 15, node("smoke-artifact-mcp.mjs")),
+  check("artifact-store", 35, node("smoke-artifact-store.mjs")),
+  check("artifact-mcp", 17, node("smoke-artifact-mcp.mjs")),
   check("compaction-capture", 1, node("smoke-compaction-capture.mjs")),
-  check("capability-contract", 9, node("smoke-capability-lock.mjs"), node("smoke-capability-contract.mjs")),
-  check("capability-logging", 8, node("smoke-capability-logging.mjs")),
-  check("capability-harness", 119, node("smoke-capability-harness.mjs")),
-  check("capability-mcp", 31, node("smoke-capability-mcp.mjs")),
-  check("eval-schema", 3, node("smoke-eval-schema.mjs")),
-  check("eval-process", 15, node("smoke-eval-process.mjs")),
+  check("capability-contract", 10, node("smoke-capability-lock.mjs"), node("smoke-capability-contract.mjs")),
+  check("capability-logging", 10, node("smoke-capability-logging.mjs")),
+  check("capability-harness", 148, node("smoke-capability-harness.mjs")),
+  check("capability-mcp", 39, node("smoke-capability-mcp.mjs")),
+  check("eval-schema", 4, node("smoke-eval-schema.mjs")),
+  check("eval-process", 18, node("smoke-eval-process.mjs")),
   check("eval-statistics", 1, node("smoke-eval-statistics.mjs")),
   check("eval-protocol", 2, node("smoke-eval-protocol.mjs")),
   check("codex-protocol", 2, node("smoke-codex-protocol.mjs")),
-  check("skill-lifecycle", 185, node("smoke-skill-lifecycle.mjs")),
+  check("skill-lifecycle", 244, node("smoke-skill-lifecycle.mjs")),
   check("graph-cli", 3, node("smoke-graph-cli.mjs")),
-  check("mcp-trust", 10, node("smoke-mcp-trust.mjs")),
-  check("pi-mcp-bridge", 3, node("smoke-pi-mcp-bridge.mjs")),
+  check("mcp-trust", 14, node("smoke-mcp-trust.mjs")),
+  check("pi-mcp-bridge", 4, node("smoke-pi-mcp-bridge.mjs")),
   check("pi-bridge-env", 1, node("smoke-pi-bridge-env.mjs")),
-  check("pi-bridge-child", 7, node("smoke-pi-bridge-child.mjs")),
-  check("context-pack", 58,
+  check("pi-bridge-child", 11, node("smoke-pi-bridge-child.mjs")),
+  check("context-pack", 75,
     node("smoke-context-pack-state.mjs"),
     node("smoke-context-pack-lock.mjs"),
     node("smoke-context-pack.mjs")),
-  check("context-pack-retrieval", 34, node("smoke-context-pack-retrieval.mjs")),
-  check("context-pack-v216-compat", 15, node("smoke-context-pack-v216-compat.mjs")),
-  check("context-usage", 40, node("smoke-context-usage.mjs")),
-  check("domain-retrieval", 4, node("smoke-domain-retrieval.mjs"), node("smoke-provider-config-flow.mjs")),
+  check("context-pack-retrieval", 43, node("smoke-context-pack-retrieval.mjs")),
+  check("context-pack-v216-compat", 24, node("smoke-context-pack-v216-compat.mjs")),
+  check("context-usage", 57, node("smoke-context-usage.mjs")),
+  check("domain-retrieval", 6, node("smoke-domain-retrieval.mjs"), node("smoke-provider-config-flow.mjs")),
   check("anythingllm-workspace", 3, node("smoke-anythingllm-workspace.mjs"), node("smoke-anythingllm-workspace-mcp.mjs")),
-  check("retrieval-benchmark", 21,
+  check("retrieval-benchmark", 25,
     node("smoke-retrieval-benchmark.mjs"),
     node("run-retrieval-benchmark.mjs", "--check")),
-  check("work-evidence", 106, node("smoke-work-evidence.mjs")),
-  check("okf", 23, node("smoke-okf.mjs")),
-  check("playbook", 208, node("smoke-playbook.mjs")),
-  check("security-assurance", 65, node("smoke-security-fixture-order.mjs")),
+  check("work-evidence", 136, node("smoke-work-evidence.mjs")),
+  check("okf", 31, node("smoke-okf.mjs")),
+  check("playbook", 279, node("smoke-playbook.mjs")),
+  check("security-assurance", 139, node("smoke-security-fixture-order.mjs")),
 ]);
 
 export function buildShardPlan(total) {
@@ -127,22 +128,33 @@ function parseSelection(args) {
   throw new Error("Usage: run-smoke-suite.mjs [--shard INDEX/TOTAL | --plan TOTAL]");
 }
 
-function run(selected) {
+export function runSmokeChecks(selected, { spawn = spawnSync, now = () => performance.now(), write = value => process.stdout.write(value) } = {}) {
   for (const entry of selected) {
-    process.stdout.write(`\n==> smoke:${entry.name}\n`);
+    write(`\n==> smoke:${entry.name}\n`);
+    const started = now();
+    let status = 0;
+    try {
     for (const args of entry.commands) {
-      const result = spawnSync(process.execPath, args, {
+      const result = spawn(process.execPath, args, {
         cwd: serverRoot,
         env: process.env,
         stdio: "inherit",
       });
-      if (result.error) throw result.error;
-      if (result.status !== 0) process.exit(result.status ?? 1);
+      if (result.error) { status = 1; throw result.error; }
+      if (result.status !== 0) { status = result.status ?? 1; break; }
     }
+    } catch (error) {
+      status = status || 1;
+      throw error;
+    } finally {
+      write(`SMOKE_TIMING ${JSON.stringify({ schema_version: 1, name: entry.name, duration_ms: Math.max(0, Math.round(now() - started)), status })}\n`);
+    }
+    if (status !== 0) return status;
   }
+  return 0;
 }
 
-if (fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const selected = parseSelection(process.argv.slice(2));
-  if (selected) run(selected);
+  if (selected) process.exitCode = runSmokeChecks(selected);
 }

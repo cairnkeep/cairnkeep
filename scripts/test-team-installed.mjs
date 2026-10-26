@@ -44,6 +44,17 @@ try {
   await run(['disconnect', '--project-root', project, '--apply', '--yes']);
   assert.equal(readFileSync(config, 'utf8'), original, 'installed disconnect restores exact untouched original');
   assert.equal(readFileSync(tokenFile, 'utf8'), credential.token);
+  Object.assign(env,{CAIRN_TEAM_URL:`http://127.0.0.1:${server.address().port}`,CAIRN_TEAM_ORGANIZATION:'trial-org',CAIRN_TEAM_TOKEN_FILE:tokenFile});
+  assert.deepEqual(JSON.parse((await run(['list','--project','trial-project','--page-size','1'])).stdout),{items:[],next_cursor:null});
+  await new Promise(r=>{server.close(r);server.closeAllConnections();});server=undefined;
+  const backup=join(base,'backup.json'),archive=join(base,'audit.json');
+  await run(['backup','--data',data,'--read-only','--output',backup]);
+  const exported=JSON.parse((await run(['audit-export','--data',data,'--backup',backup,'--output',archive])).stdout);
+  const archival=['audit-archive','--data',data,'--backup',backup,'--input',archive,'--confirm',exported.archive_digest];
+  assert.equal(JSON.parse((await run(archival)).stdout).applied,false);
+  assert.equal(JSON.parse((await run([...archival,'--apply'])).stdout).applied,true);
+  assert.equal(JSON.parse((await run(['doctor','--data',data])).stdout).capacity.checkpoint.archive_digest,exported.archive_digest);
+  assert(existsSync(backup) && existsSync(archive));
   console.log('PASS: actual installed team plan/connect/client doctor/disconnect, preserved MCPs and no admin store');
 } finally {
   if (server) await new Promise(r => { server.close(r); server.closeAllConnections(); });

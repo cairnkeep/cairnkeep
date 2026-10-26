@@ -1,13 +1,15 @@
-import { closeSync, existsSync, openSync, writeFileSync, fsyncSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { readStableJson } from './stable-file.js';
-import { hardenPrivatePath } from './platform-security.js';
-import { openTeamStore, restoreTeamSnapshot, verifyTeamSnapshot, prepareTeamPrivateDirectory, TEAM_SNAPSHOT_MAX_BYTES, TeamError, type TeamStore } from './team-store.js';
+import { openTeamStore, restoreTeamSnapshot, verifyTeamSnapshot, TEAM_SNAPSHOT_MAX_BYTES, TeamError, type TeamStore } from './team-store.js';
+import { writePrivateExclusive } from './team-files.js';
+export { writePrivateExclusive } from './team-files.js';
 import { createTeamHttpServer, teamRequest } from './team-http.js';
 import { createTeamMcpServer, teamClientToken } from './team-mcp.js';
 import { readTeamConnection, connectionToken } from './team-client.js';
+import { verifyTeamAuditArchive } from './team-audit.js';
 
 const HELP = `cairn team — experimental token-first team continuity (default off)
 
@@ -24,7 +26,7 @@ CAIRN_TEAM=1 is required. Personal memory is never uploaded.
   cairn team disconnect [--project-root PATH] [--apply --yes]
   cairn team doctor --client [--project-root PATH]
   cairn team mcp [--project-root PATH | --connection FILE] # local stdio MCP; no review/admin tools
-  cairn team list --project ID
+  cairn team list --project ID [--page-size N --cursor CURSOR]
   cairn team proposals --project ID
   cairn team audit --project ID             # scoped, value-free metadata
   cairn team read --project ID --key KEY [--revision DIGEST]
@@ -33,8 +35,11 @@ CAIRN_TEAM=1 is required. Personal memory is never uploaded.
   cairn team proposal-show --project ID --proposal ID
   cairn team propose --project ID --input FILE --confirm VALUE_DIGEST
   cairn team review --project ID --proposal ID --decision approve|reject --confirm PROPOSAL_DIGEST
-  cairn team doctor [--data DIR]
-  cairn team backup --output FILE [--data DIR]
+  cairn team doctor [--data DIR]             # capacity and audit checkpoint
+  cairn team backup --output FILE [--read-only] [--data DIR]
+  cairn team audit-export --backup FILE --output FILE [--data DIR]
+  cairn team audit-verify --input FILE [--previous FILE]
+  cairn team audit-archive --input FILE --backup FILE --confirm DIGEST [--apply] [--data DIR]
   cairn team restore --input FILE --confirm SNAPSHOT_DIGEST --data NEW_DIR
   cairn team memory-delete --project ID --key KEY --confirm REVISION_DIGEST [--data DIR]
 
@@ -42,27 +47,27 @@ Clients require CAIRN_TEAM_URL, CAIRN_TEAM_ORGANIZATION and CAIRN_TEAM_TOKEN_FIL
 Never put tokens in command arguments, source trees or harness config.
 Team API is not OAuth MCP HTTP. Independent production security review and a
 deployment-specific approved real-data pilot remain admission gates. See docs/team.md.
+Paging is optional for list/search/history/proposals/audit. Repeat filters and
+page size with the returned next_cursor. Search pages are at most ten items.
+Audit export is metadata-only and does not mutate the store. Archival defaults
+to a no-write plan, retains files, and explicitly upgrades the team store to v2.
 `;
 function parse(args: string[]): { words: string[]; flags: Record<string, string> } {
     const words: string[] = []; const flags: Record<string, string> = {};
-    const known = new Set(['data', 'organization', 'project', 'roles', 'class', 'expires-at', 'output', 'port', 'project-root', 'key', 'revision', 'query', 'proposal', 'input', 'confirm', 'decision', 'connection']);
+    const known = new Set(['data', 'organization', 'project', 'roles', 'class', 'expires-at', 'output', 'port', 'project-root', 'key', 'revision', 'query', 'proposal', 'input', 'confirm', 'decision', 'connection','backup','apply','read-only','page-size','cursor','previous']);
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
         if (arg.startsWith('--')) {
             const name = arg.slice(2);
+            if(['apply','read-only'].includes(name)) {
+                if(flags[name]!==undefined) throw new TeamError('invalid');
+                flags[name]='true'; continue;
+            }
             if (!known.has(name) || flags[name] !== undefined || !args[i + 1] || args[i + 1].startsWith('--')) throw new TeamError('invalid');
             flags[name] = args[++i];
         } else words.push(arg);
     }
     return { words, flags };
-}
-export function writePrivateExclusive(path: string, bytes: string): void {
-    path = resolve(path);
-    const directory = dirname(path);
-    prepareTeamPrivateDirectory(directory, true);
-    const fd = openSync(path, 'wx', 0o600);
-    try { hardenPrivatePath(path); writeFileSync(fd, bytes, 'utf8'); fsyncSync(fd); }
-    finally { closeSync(fd); }
 }
 async function main(args: string[]): Promise<void> {
     if (args.length === 0 || args.includes('--help') || args.includes('-h')) { console.log(HELP); return; }
@@ -72,10 +77,12 @@ async function main(args: string[]): Promise<void> {
     const allowed: Record<string, string[]> = {
         init: ['data', 'organization'], project: ['data'], member: subcommand === 'remove' ? ['data', 'project'] : ['data', 'project', 'roles'],
         credential: subcommand === 'issue' ? ['data', 'class', 'expires-at', 'output'] : ['data'],
-        serve: ['data', 'port'], mcp: ['project-root', 'connection'], doctor: ['data'], backup: ['data', 'output'],
+        serve: ['data', 'port'], mcp: ['project-root', 'connection'], doctor: ['data'], backup: ['data', 'output','read-only'],
+        'audit-export':['data','backup','output'], 'audit-archive':['data','backup','input','confirm','apply'],
+        'audit-verify':['input','previous'],
         restore: ['data', 'input', 'confirm'], 'memory-delete': ['data', 'project', 'key', 'confirm'],
-        list: ['project'], proposals: ['project'], audit: ['project'], read: ['project', 'key', 'revision'],
-        history: ['project', 'key'], search: ['project', 'query'], 'proposal-show': ['project', 'proposal'],
+        list: ['project','page-size','cursor'], proposals: ['project','page-size','cursor'], audit: ['project','page-size','cursor'], read: ['project', 'key', 'revision'],
+        history: ['project', 'key','page-size','cursor'], search: ['project', 'query','page-size','cursor'], 'proposal-show': ['project', 'proposal'],
         propose: ['project', 'input', 'confirm'], review: ['project', 'proposal', 'decision', 'confirm'],
     };
     if (!allowed[command] || Object.keys(flags).some(flag => !allowed[command].includes(flag))) throw new TeamError('invalid');
@@ -85,6 +92,16 @@ async function main(args: string[]): Promise<void> {
     const print = (result: unknown) => console.log(JSON.stringify(result, null, 2));
     let store: TeamStore | undefined;
     try {
+        if(command==='audit-verify') {
+            if(words.length!==1 || !flags.input) throw new TeamError('invalid');
+            const load=(path:string)=>verifyTeamAuditArchive(readStableJson(resolve(path),{label:'Team audit archive',maxBytes:TEAM_SNAPSHOT_MAX_BYTES,private:true}));
+            const archive=load(flags.input);
+            if(flags.previous) {
+                const previous=load(flags.previous),last=previous.entries[previous.entries.length-1],checkpoint=archive.previous_checkpoint;
+                if(previous.organization!==archive.organization || !checkpoint || checkpoint.archive_digest!==previous.digest || checkpoint.backup_digest!==previous.backup_digest || checkpoint.sequence!==last.sequence || checkpoint.digest!==last.digest || checkpoint.previous_archive_digest!==(previous.previous_checkpoint?.archive_digest ?? null)) throw new TeamError('integrity');
+            }
+            print({verified:true,archive_digest:archive.digest,events:archive.entries.length,first_sequence:archive.entries[0].sequence,last_sequence:archive.entries[archive.entries.length-1].sequence,previous_archive_digest:archive.previous_checkpoint?.archive_digest ?? null,previous_link_verified:!!flags.previous,history_scope:'single-segment-and-optional-previous-link'});return;
+        }
         if (command === 'mcp') {
             if (words.length !== 1) throw new TeamError('invalid');
             if (flags.connection && flags['project-root']) throw new TeamError('invalid');
@@ -103,15 +120,30 @@ async function main(args: string[]): Promise<void> {
             store = await restoreTeamSnapshot(root, snapshot, flags.confirm);
             print({ restored: true, organization: store.organization, credentials_revoked: true }); return;
         }
-        if (['init', 'project', 'member', 'credential', 'serve', 'doctor', 'backup', 'memory-delete'].includes(command)) {
+        if (['init', 'project', 'member', 'credential', 'serve', 'doctor', 'backup', 'memory-delete','audit-export','audit-archive'].includes(command)) {
             if (command === 'init' && (words.length !== 1 || !flags.organization)) throw new TeamError('invalid');
             store = await openTeamStore(root, command === 'init' ? { create: true, organization: flags.organization } : {});
             if (command === 'doctor' && words.length === 1) { print(await store.doctor()); return; }
             if (command === 'backup' && words.length === 1) {
                 if (!flags.output) throw new TeamError('invalid');
-                const snapshot = await store.snapshot();
+                const snapshot = await store.snapshot({audit:flags['read-only']!=='true'});
                 writePrivateExclusive(flags.output, `${JSON.stringify(snapshot)}\n`);
                 print({ snapshot_digest: snapshot.digest, written: true }); return;
+            }
+            if(['audit-export','audit-archive'].includes(command) && words.length===1) {
+                if(!flags.backup) throw new TeamError('invalid');
+                const backup=verifyTeamSnapshot(readStableJson(resolve(flags.backup),{label:'Team archival backup',maxBytes:TEAM_SNAPSHOT_MAX_BYTES,private:true}));
+                if(command==='audit-export') {
+                    if(!flags.output) throw new TeamError('invalid');
+                    const archive=await store.exportAudit(backup);
+                    writePrivateExclusive(flags.output,`${JSON.stringify(archive)}\n`);
+                    print({written:true,archive_digest:archive.digest,backup_digest:archive.backup_digest,events:archive.entries.length});
+                } else {
+                    if(!flags.input || !flags.confirm) throw new TeamError('invalid');
+                    const archive=verifyTeamAuditArchive(readStableJson(resolve(flags.input),{label:'Team audit archive',maxBytes:TEAM_SNAPSHOT_MAX_BYTES,private:true}));
+                    print(await store.archiveAudit(archive,backup,flags.confirm,flags.apply==='true'));
+                }
+                return;
             }
             if (command === 'memory-delete' && words.length === 1) { await store.admin({ operation: 'memory-delete', project: flags.project, key: flags.key, confirm: flags.confirm }); print({ deleted: true, backup_copies_retained: true }); return; }
             if (command === 'init') { print({ initialized: true, organization: store.organization, experimental: true }); return; }
@@ -153,6 +185,11 @@ async function main(args: string[]): Promise<void> {
             if (!selected || typeof selected !== 'object' || Array.isArray(selected)) throw new TeamError('invalid');
             input = { ...selected, ...common, confirm: flags.confirm };
         } else throw new TeamError('invalid');
+        if(flags['page-size'] || flags.cursor) {
+            const raw=flags['page-size'] ?? '100';
+            if(!/^[1-9][0-9]{0,2}$/.test(raw) || Number(raw)>100 || (command==='search' && Number(raw)>10)) throw new TeamError('invalid');
+            input.page={size:Number(raw),...(flags.cursor ? {cursor:flags.cursor} : {})};
+        }
         print(await teamRequest(process.env.CAIRN_TEAM_URL ?? '', teamClientToken(), input));
     } finally { await store?.close(); }
 }

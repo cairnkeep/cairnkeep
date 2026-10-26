@@ -76,6 +76,10 @@ linked guides rather than the project landing page.
 
 ## Overlays and teams
 
+- [Next-minor team operations](team-operations.md): source-only scoped paging,
+  capacity, explicit backup-bound audit archival and synthetic endurance. Not
+  included in the published 2.26.0 package or permission to enable sharing.
+
 - [Team continuity preview](team.md) documents the default-off, separately
   authenticated shared-memory store, human review, local MCP bridge and recovery.
   It ships as an opt-in experimental preview from 2.25.0, not general production admission. The

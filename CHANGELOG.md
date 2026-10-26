@@ -5,6 +5,27 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Team operations (next minor, source only)
+
+- Add opt-in bounded paging to team listings with authenticated,
+  credential/project/filter/policy/view-bound cursors and unchanged legacy arrays.
+- Add payload-free capacity diagnostics, metadata-only audit export/verification
+  and backup-bound, exact-digest archival. Default to a no-write plan; explicit
+  apply atomically retains a chain checkpoint and frees the active audit prefix.
+  Retain external archives/backups; do not enable automatic retention or sharing.
+- Keep existing team stores/snapshots at v1 until explicit archival; compacted
+  stores use v2 and require the new server/admin binary. Restore revokes copied
+  credentials. Document offline operation and old-format rollback requirements.
+- Add disposable cross-process continuity endurance and adversarial/installed
+  package controls. Update operating/privacy/storage and learning/video briefs;
+  no new recording, independent-human trial or production admission is claimed.
+
+### Release maintenance
+
+- Use fresh process-scoped npm verification metadata/cache without weakening
+  signature, provenance or exact-byte checks. Record per-contract smoke timings
+  and rebalance complete Windows shards using measured hosted durations.
+
 ## [2.26.0] - 2026-10-26
 
 ### Guided team onboarding

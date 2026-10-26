@@ -12,6 +12,11 @@ const root = process.argv[2];
 const { buildShardPlan, smokeChecks } = await import(
   pathToFileURL(join(root, "mcp-memory-server", "scripts", "run-smoke-suite.mjs")));
 const plan = buildShardPlan(3);
+const measured = JSON.parse(readFileSync(join(root, 'mcp-memory-server/scripts/fixtures/windows-smoke-timings.json'), 'utf8'));
+assert.equal(measured.schema_version,1);
+for (const [name,seconds] of Object.entries(measured.measurements)) {
+  assert.equal(smokeChecks.find(row=>row.name===name)?.weight,seconds,`measured weight drift: ${name}`);
+}
 const flattened = plan.flatMap(({ checks }) => checks.map(({ name }) => name));
 assert.equal(flattened.length, smokeChecks.length);
 assert.equal(new Set(flattened).size, smokeChecks.length);

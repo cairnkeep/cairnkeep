@@ -82,6 +82,12 @@ try {
   const withProviders = await connect(providerEnv);
   const search = await withProviders.callTool({ name: 'team_memory_search', arguments: { project: 'alpha', query: 'gateway' } });
   assert.deepEqual(search.structuredContent.result, [read.structuredContent.result]);
+  const paged=await withProviders.callTool({name:'team_memory_search',arguments:{project:'alpha',query:'gateway',page:{size:1}}});
+  assert.deepEqual(paged.structuredContent.result,{items:[read.structuredContent.result],next_cursor:null});
+  const listed=await client.callTool({name:'team_memory_list',arguments:{project:'alpha',page:{size:1}}});
+  assert.equal(listed.structuredContent.result.items.length,1);
+  assert.equal((await client.callTool({name:'team_memory_history',arguments:{project:'alpha',key:'decisions/gateway',page:{size:1}}})).structuredContent.result.items.length,1);
+  assert.equal((await client.callTool({name:'team_memory_list',arguments:{project:'alpha',page:{size:1,cursor:'tampered'}}})).isError,true);
   assert.deepEqual((await withProviders.callTool({ name: 'team_memory_search', arguments: { project: 'beta', query: 'gateway' } })).structuredContent.result, []);
   assert.equal((await withProviders.callTool({ name: 'team_memory_search', arguments: { project: 'unrelated', query: 'gateway' } })).isError, true);
   assert.equal(providerRequests, 1, 'team retrieval must never send context or denied queries to personal-memory providers');

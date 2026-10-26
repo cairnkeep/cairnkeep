@@ -27,7 +27,7 @@ _cairn_complete() {
     sync-omp) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
     doctor) COMPREPLY=( $(compgen -W "--repair" -- "$current") ) ;;
     security) COMPREPLY=( $(compgen -W "doctor --project --json" -- "$current") ) ;;
-    team) COMPREPLY=( $(compgen -W "connect disconnect init project member credential create set remove issue revoke serve mcp list read search history propose proposals proposal-show review audit doctor backup restore memory-delete --organization --data --project --roles --class --expires-at --output --input --confirm --port --key --query --proposal --decision --revision --project-root --connection --client --url --token-file --harness --access --apply --yes" -- "$current") ) ;;
+    team) COMPREPLY=( $(compgen -W "connect disconnect init project member credential create set remove issue revoke serve mcp list read search history propose proposals proposal-show review audit audit-export audit-verify audit-archive doctor backup restore memory-delete --backup --previous --page-size --cursor --read-only --organization --data --project --roles --class --expires-at --output --input --confirm --port --key --query --proposal --decision --revision --project-root --connection --client --url --token-file --harness --access --apply --yes" -- "$current") ) ;;
     trajectory) COMPREPLY=( $(compgen -W "list show prune --json --dry-run" -- "$current") ) ;;
     artifact) COMPREPLY=( $(compgen -W "list show delete prune --kind --session --json --dry-run --include-protected" -- "$current") ) ;;
     evidence) COMPREPLY=( $(compgen -W "list show delete prune doctor --status --json --dry-run --repair" -- "$current") ) ;;
@@ -134,7 +134,7 @@ _cairn() {
     sync-omp) _arguments '--apply[apply changes]' '--live-root[omp agent root]:directory:_files -/' ;;
     doctor) _arguments '--repair[repair trajectory metadata and indexes]' ;;
     security) _values 'security command' doctor '--project[project root]:directory:_files -/' '--json[emit JSON]' ;;
-    team) _values 'team command' connect disconnect init project member credential create set remove issue revoke serve mcp list read search history propose proposals proposal-show review audit doctor backup restore memory-delete '--organization[team option]:value:' '--data[team option]:value:' '--project[team option]:value:' '--roles[team option]:value:' '--class[team option]:value:' '--expires-at[team option]:value:' '--output[team option]:value:' '--input[team option]:value:' '--confirm[team option]:value:' '--port[team option]:value:' '--key[team option]:value:' '--query[team option]:value:' '--proposal[team option]:value:' '--decision[team option]:value:' '--revision[team option]:value:' '--apply[apply plan]' '--yes[confirm plan]' '--client[client diagnostics]' '--url[team URL]:value:' '--token-file[private credential file]:file:_files' '--harness[team adapters]:value:' '--access[tool profile]:value:(read-only full)' '--connection[private connection file]:file:_files' '--project-root[team option]:value:' ;;
+    team) _values 'team command' connect disconnect init project member credential create set remove issue revoke serve mcp list read search history propose proposals proposal-show review audit audit-export audit-verify audit-archive doctor backup restore memory-delete '--previous[previous archive segment]:file:_files' '--backup[verified backup file]:file:_files' '--page-size[page bound]:value:' '--cursor[continuation]:value:' '--read-only[observe-only backup]' '--organization[team option]:value:' '--data[team option]:value:' '--project[team option]:value:' '--roles[team option]:value:' '--class[team option]:value:' '--expires-at[team option]:value:' '--output[team option]:value:' '--input[team option]:value:' '--confirm[team option]:value:' '--port[team option]:value:' '--key[team option]:value:' '--query[team option]:value:' '--proposal[team option]:value:' '--decision[team option]:value:' '--revision[team option]:value:' '--apply[apply plan]' '--yes[confirm plan]' '--client[client diagnostics]' '--url[team URL]:value:' '--token-file[private credential file]:file:_files' '--harness[team adapters]:value:' '--access[tool profile]:value:(read-only full)' '--connection[private connection file]:file:_files' '--project-root[team option]:value:' ;;
     trajectory) _values 'trajectory command' list show prune ;;
     artifact)
       case $words[3] in
@@ -222,7 +222,12 @@ complete -c cairn -n "__fish_seen_subcommand_from doctor" -l repair
 complete -c cairn -n "__fish_seen_subcommand_from security" -a "doctor"
 complete -c cairn -n "__fish_seen_subcommand_from security" -l project -r
 complete -c cairn -n "__fish_seen_subcommand_from security" -l json
-complete -c cairn -n "__fish_seen_subcommand_from team" -a "connect disconnect init project member credential create set remove issue revoke serve mcp list read search history propose proposals proposal-show review audit doctor backup restore memory-delete"
+complete -c cairn -n "__fish_seen_subcommand_from team" -a "connect disconnect init project member credential create set remove issue revoke serve mcp list read search history propose proposals proposal-show review audit audit-export audit-verify audit-archive doctor backup restore memory-delete"
+complete -c cairn -n "__fish_seen_subcommand_from team" -l previous -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l backup -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l page-size -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l cursor -r
+complete -c cairn -n "__fish_seen_subcommand_from team" -l read-only
 complete -c cairn -n "__fish_seen_subcommand_from team" -l organization -r
 complete -c cairn -n "__fish_seen_subcommand_from team" -l data -r
 complete -c cairn -n "__fish_seen_subcommand_from team" -l project -r
