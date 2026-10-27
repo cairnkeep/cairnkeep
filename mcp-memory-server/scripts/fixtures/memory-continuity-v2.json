@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "study": "native-memory-continuity-v2",
+  "clock": "2026-01-15T12:00:00.000Z",
+  "baseline": "2.27.0",
+  "records": [
+    { "id": "gateway-old", "project": "alpha", "scope": "identity", "key": "decisions/office-tunnel", "value": "Office tunnel access uses gateway ember-41." },
+    { "id": "gateway-current", "project": "alpha", "scope": "identity", "key": "decisions/office-tunnel", "value": "Office tunnel access uses gateway ember-42. Alias: relaybox." },
+    { "id": "route-old", "project": "alpha", "scope": "project", "key": "facts/old-office-route", "value": "Office route gateway is ember-41." },
+    { "id": "route-current", "project": "alpha", "scope": "project", "key": "facts/current-office-route", "value": "Office route gateway is ember-42." },
+    { "id": "device", "project": "alpha", "scope": "project", "key": "devices/sensor-lumen", "value": "Sensor lumen uses tunnel cobalt." },
+    { "id": "tunnel", "project": "alpha", "scope": "project", "key": "tunnels/cobalt", "value": "Tunnel cobalt uses gateway ember-42." },
+    { "id": "endpoint", "project": "alpha", "scope": "project", "key": "gateways/ember-42", "value": "Gateway ember-42 accepts tunnel cobalt." },
+    { "id": "alias-one", "project": "alpha", "scope": "project", "key": "devices/relay-one", "value": "Alias relay names the orange workstation." },
+    { "id": "alias-two", "project": "alpha", "scope": "project", "key": "devices/relay-two", "value": "Alias relay names the violet workstation." },
+    { "id": "renamed", "project": "alpha", "scope": "project", "key": "devices/lumen-name", "value": "Current sensor name lumen. Explicit former alias: glimmer." },
+    { "id": "ledger", "project": "alpha", "scope": "project", "key": "constraints/release-ledger", "value": "Published release entries are append-only. Corrections append a linked entry." },
+    { "id": "foreign", "project": "beta", "scope": "project", "key": "facts/secret-route", "value": "Forbidden sentinel onyx-99 belongs only to the beta project." },
+    { "id": "aba-a", "project": "alpha", "scope": "project", "key": "facts/revision", "value": "Revision fixture is amber." },
+    { "id": "aba-b", "project": "alpha", "scope": "project", "key": "facts/revision", "value": "Revision fixture is blue." }
+  ],
+  "events": [
+    { "write": "gateway-old" },
+    { "write": "route-old" },
+    { "write": "foreign" },
+    { "supersede": "gateway-current" },
+    { "write": "route-current" },
+    { "write": "device" },
+    { "write": "tunnel" },
+    { "write": "endpoint" },
+    { "write": "alias-one" },
+    { "write": "alias-two" },
+    { "write": "renamed" },
+    { "write": "ledger" },
+    { "write": "aba-a" },
+    { "supersede": "aba-b" },
+    { "supersede": "aba-a" },
+    { "delete": "aba-a" },
+    { "write": "aba-a" }
+  ],
+  "queries": [
+    { "id": "current-gateway", "project": "alpha", "scope": "identity", "query": "office tunnel access", "relevant": ["gateway-current"], "split": "development" },
+    { "id": "cross-harness-cwd", "project": "neutral", "scope": "identity", "query": "office tunnel access", "relevant": ["gateway-current"], "split": "held-out" },
+    { "id": "alias-current", "project": "alpha", "scope": "identity", "query": "relaybox", "relevant": ["gateway-current"], "split": "development" },
+    { "id": "stale-cross-key", "project": "alpha", "scope": "project", "query": "office route gateway", "relevant": ["route-current"], "stale": ["route-old"], "split": "held-out" },
+    { "id": "linked-route", "project": "alpha", "scope": "project", "query": "sensor lumen", "relevant": ["device", "tunnel", "endpoint"], "split": "held-out", "needs_links": true },
+    { "id": "ambiguous-alias", "project": "alpha", "scope": "project", "query": "alias relay", "relevant": ["alias-one", "alias-two"], "split": "held-out", "ambiguous": true },
+    { "id": "explicit-rename", "project": "alpha", "scope": "project", "query": "glimmer", "relevant": ["renamed"], "split": "development" },
+    { "id": "exact-key", "project": "alpha", "scope": "project", "query": "constraints/release-ledger", "relevant": ["ledger"], "split": "development" },
+    { "id": "aba-current", "project": "alpha", "scope": "project", "query": "revision amber", "relevant": ["aba-a"], "split": "development" },
+    { "id": "history-negative", "project": "neutral", "scope": "identity", "query": "ember-41", "relevant": [], "split": "held-out" },
+    { "id": "foreign-project-negative", "project": "alpha", "scope": "all", "query": "onyx-99", "relevant": [], "split": "held-out" },
+    { "id": "nearby-identifier-negative", "project": "alpha", "scope": "all", "query": "ember-43", "relevant": [], "split": "held-out" },
+    { "id": "unrelated-negative", "project": "alpha", "scope": "all", "query": "sourdough cooking recipe", "relevant": [], "split": "held-out" }
+  ],
+  "links": [
+    { "from": "device", "to": "tunnel", "predicate": "uses-tunnel", "evidence": ["device"] },
+    { "from": "tunnel", "to": "endpoint", "predicate": "uses-gateway", "evidence": ["tunnel", "endpoint"] }
+  ],
+  "held_out_event_orders": [
+    ["create", "replace", "replace-original", "delete", "recreate"],
+    ["create", "backup", "replace", "restore", "renew-epoch", "reject-old-receipt"]
+  ],
+  "future_tools": ["memory_inspect", "memory_related", "memory_map", "memory_context_search", "memory_feedback_record"],
+  "limits": { "top_k": 5, "query_bytes": 4096, "search_response_bytes": 32768, "inspect_candidates": 16, "curation_bytes": 65536, "map_default_bytes": 4096, "map_max_bytes": 8192, "map_entries": 50, "traversal_depth": 2, "traversal_nodes": 50, "traversal_edges": 100, "scan_assertions": 5000, "receipt_ttl_seconds": 86400, "feedback_rows_per_project": 10000, "feedback_max_delta": 0.02 }
+}

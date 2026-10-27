@@ -1,0 +1,241 @@
+{
+  "schema_version": 1,
+  "source_version": "2.27.0",
+  "source_commit": "62e4acf67432d719bbef174e231f50994480aa84",
+  "configurations": {
+    "default": {
+      "discovery_digest": "2426309e6030bba85fbcb22bdc3db3341867f0b494bade870a8193112642f739",
+      "names": [
+        "memory_read",
+        "memory_write",
+        "memory_list",
+        "memory_delete",
+        "memory_search",
+        "memory_extract",
+        "memory_supersede",
+        "memory_apply_reviewed",
+        "memory_invalidate_reviewed",
+        "memory_history",
+        "domain_knowledge_query",
+        "domain_knowledge_sync",
+        "context_explore",
+        "route_check"
+      ]
+    },
+    "typed": {
+      "discovery_digest": "ed9a6eb94413ac2b7062bcce3661de6efbf8b2d939ef761d0cfa20d694e3dd6c",
+      "names": [
+        "memory_read",
+        "memory_write",
+        "memory_list",
+        "memory_delete",
+        "memory_search",
+        "memory_extract",
+        "memory_supersede",
+        "memory_apply_reviewed",
+        "memory_invalidate_reviewed",
+        "memory_history",
+        "memory_import",
+        "domain_knowledge_query",
+        "domain_knowledge_sync",
+        "context_explore",
+        "route_check"
+      ]
+    },
+    "packs": {
+      "discovery_digest": "7104fdeb287e6c019d3e5e45840590cda053487577e0f31ec54fff310f13a22e",
+      "names": [
+        "memory_read",
+        "memory_write",
+        "memory_list",
+        "memory_delete",
+        "memory_search",
+        "memory_extract",
+        "memory_supersede",
+        "memory_apply_reviewed",
+        "memory_invalidate_reviewed",
+        "memory_history",
+        "domain_knowledge_query",
+        "domain_knowledge_sync",
+        "context_explore",
+        "route_check",
+        "context_pack_list",
+        "context_pack_tree",
+        "context_pack_search",
+        "context_pack_read",
+        "context_pack_related"
+      ]
+    },
+    "all_gates": {
+      "discovery_digest": "09c96d30c6c4aafad941f05a19d44fa088729ee4ecf984e42fa7b73ec2e3313c",
+      "names": [
+        "artifact_write",
+        "artifact_read",
+        "artifact_list",
+        "artifact_delete",
+        "memory_read",
+        "memory_write",
+        "memory_list",
+        "memory_delete",
+        "memory_search",
+        "memory_extract",
+        "memory_supersede",
+        "memory_apply_reviewed",
+        "memory_invalidate_reviewed",
+        "memory_history",
+        "memory_import",
+        "domain_knowledge_query",
+        "domain_knowledge_sync",
+        "context_explore",
+        "route_check",
+        "context_pack_list",
+        "context_pack_tree",
+        "context_pack_search",
+        "context_pack_read",
+        "context_pack_related",
+        "context_usage_record",
+        "work_evidence_list",
+        "work_evidence_read"
+      ]
+    },
+    "read_only": {
+      "discovery_digest": "18c7fd11cafb283303d066939f2c95d695ac93dce1a886636944e442ca8226dc",
+      "names": [
+        "memory_read",
+        "memory_list",
+        "memory_search",
+        "memory_extract",
+        "memory_history",
+        "domain_knowledge_query",
+        "context_explore",
+        "route_check"
+      ]
+    },
+    "custom": {
+      "discovery_digest": "b934253ba6d769077887fa526d9a250fb4f6fb943726899b247befd201c6ac0c",
+      "names": [
+        "memory_read",
+        "memory_search"
+      ]
+    },
+    "search_disabled": {
+      "discovery_digest": "30071bf5ea29b6131627586e19ed2b623b9ed53bed5e79882de9b4ac0ae28335",
+      "names": [
+        "memory_read",
+        "memory_write",
+        "memory_list",
+        "memory_delete",
+        "memory_extract",
+        "memory_supersede",
+        "memory_apply_reviewed",
+        "memory_invalidate_reviewed",
+        "memory_history",
+        "domain_knowledge_query",
+        "domain_knowledge_sync",
+        "context_explore",
+        "route_check"
+      ]
+    }
+  },
+  "responses": {
+    "memory_read-0": {
+      "content": [
+        {
+          "type": "text",
+          "text": "[]"
+        }
+      ],
+      "structuredContent": {
+        "results": []
+      }
+    },
+    "memory_list-1": {
+      "content": [
+        {
+          "type": "text",
+          "text": "[]"
+        }
+      ],
+      "structuredContent": {
+        "keys": []
+      }
+    },
+    "memory_search-2": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"mode\": \"substring\",\n  \"count\": 0,\n  \"results\": []\n}"
+        }
+      ],
+      "structuredContent": {
+        "mode": "substring",
+        "count": 0,
+        "results": []
+      }
+    },
+    "memory_write-3": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"ok\": true,\n  \"scope\": \"project\",\n  \"key\": \"decisions/fixture\",\n  \"collisions\": []\n}"
+        }
+      ],
+      "structuredContent": {
+        "ok": true,
+        "scope": "project",
+        "key": "decisions/fixture",
+        "collisions": []
+      }
+    },
+    "memory_read-4": {
+      "content": [
+        {
+          "type": "text",
+          "text": "[\n  {\n    \"scope\": \"project\",\n    \"key\": \"decisions/fixture\",\n    \"value\": \"A synthetic stable fixture.\"\n  }\n]"
+        }
+      ],
+      "structuredContent": {
+        "results": [
+          {
+            "scope": "project",
+            "key": "decisions/fixture",
+            "value": "A synthetic stable fixture."
+          }
+        ]
+      }
+    },
+    "memory_list-5": {
+      "content": [
+        {
+          "type": "text",
+          "text": "[\n  \"decisions/fixture\"\n]"
+        }
+      ],
+      "structuredContent": {
+        "keys": [
+          "decisions/fixture"
+        ]
+      }
+    },
+    "memory_search-6": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"mode\": \"substring\",\n  \"count\": 1,\n  \"results\": [\n    {\n      \"scope\": \"project\",\n      \"key\": \"decisions/fixture\",\n      \"value\": \"A synthetic stable fixture.\",\n      \"score\": 1\n    }\n  ]\n}"
+        }
+      ],
+      "structuredContent": {
+        "mode": "substring",
+        "count": 1,
+        "results": [
+          {
+            "scope": "project",
+            "key": "decisions/fixture",
+            "value": "A synthetic stable fixture.",
+            "score": 1
+          }
+        ]
+      }
+    }
+  }
+}
