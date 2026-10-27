@@ -8,7 +8,6 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 export const serverEntry = fileURLToPath(new URL('../dist/index.js', import.meta.url));
-export const digestInput = value => JSON.stringify(value);
 
 export function createContinuityLab() {
   const root = mkdtempSync(join(tmpdir(), 'cairn-memory-continuity-'));
