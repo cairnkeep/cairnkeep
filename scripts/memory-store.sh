@@ -30,14 +30,15 @@ case "$sub" in
     ;;
   export)
     out="${1:?usage: cairn memory export <file.tgz>}"
-    command -v sqlite3 >/dev/null 2>&1 || { echo "sqlite3 is required for a WAL-safe export" >&2; exit 1; }
     [[ -d "$base" ]] || { echo "no memory store directory at $base" >&2; exit 1; }
     tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
     n=0
     for db in "$base"/*.db; do
       [[ -e "$db" ]] || continue
       # .backup yields a consistent copy even while the store is in WAL mode.
-      sqlite3 "$db" ".backup '$tmp/$(basename "$db")'"
+      script_root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+      scope_name=$(basename "$db" .db)
+      node "$script_root/memory-snapshot.mjs" "$db" "$tmp/$(basename "$db")" "$scope_name"
       n=$((n + 1))
     done
     [[ $n -gt 0 ]] || { echo "no scope .db files under $base — nothing to export" >&2; exit 1; }
@@ -46,20 +47,8 @@ case "$sub" in
     ;;
   import)
     in="${1:?usage: cairn memory import <file.tgz>}"
-    [[ -f "$in" ]] || { echo "no such archive: $in" >&2; exit 1; }
-    mkdir -p "$base"
-    tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-    tar -C "$tmp" -xzf "$in"
-    n=0
-    for db in "$tmp"/*.db; do
-      [[ -e "$db" ]] || continue
-      dest="$base/$(basename "$db")"
-      [[ -f "$dest" ]] && cp -f "$dest" "$dest.bak-pre-import"
-      cp -f "$db" "$dest"
-      n=$((n + 1))
-    done
-    [[ $n -gt 0 ]] || { echo "archive contained no scope .db files: $in" >&2; exit 1; }
-    echo "imported $n scope db file(s) -> $base"
+    script_root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    exec node "$script_root/memory-import.mjs" "$base" "$in"
     ;;
   help | -h | --help)
     usage

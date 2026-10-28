@@ -8,6 +8,9 @@ import { fileURLToPath } from "node:url";
 import { stdin as input, stdout as output } from "node:process";
 
 import { AgentFS } from "agentfs-sdk";
+import { openOrdinaryMemoryStore, openOrdinaryMemoryView } from './ordinary-memory-store.js';
+import type { OrdinaryMemoryReader, OrdinaryMemoryStore } from './memory-database.js';
+import { probeOrdinaryMemoryFormat } from './memory-store-format.js';
 import { McpServer, type ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
@@ -345,22 +348,18 @@ function normalizeValue(value: unknown): string {
     return JSON.stringify(value);
 }
 
+async function openScope(scope: string, create: true, options?: { cwd?: string; projectId?: string }): Promise<OrdinaryMemoryStore | null>;
+async function openScope(scope: string, create: false, options?: { cwd?: string; projectId?: string }, write?: false): Promise<OrdinaryMemoryReader | null>;
+async function openScope(scope: string, create: boolean, options: { cwd?: string; projectId?: string }, write: true): Promise<OrdinaryMemoryStore | null>;
 async function openScope(
     scope: string,
     create: boolean,
     options: { cwd?: string; projectId?: string } = {},
-): Promise<AgentFS | null> {
+    write = create,
+): Promise<OrdinaryMemoryReader | null> {
     const dbPath = resolveScopePath(scope, options);
 
-    if (!create && !existsSync(dbPath)) {
-        return null;
-    }
-
-    if (create) {
-        ensureParentDir(dbPath);
-    }
-
-    return AgentFS.open({ id: scope, path: dbPath });
+    return write ? openOrdinaryMemoryStore(dbPath, scope, { create }) : openOrdinaryMemoryView(dbPath, scope);
 }
 
 function isHistoryKey(key: string): boolean {
@@ -1454,7 +1453,7 @@ registerTool(
         else if (isReviewedKey(key)) {
             throw new Error(`Keys under ${REVIEWED_NAMESPACE}/ are reserved for reviewed-memory provenance.`);
         }
-        const agent = await openScope(scope, false, scopeOptions);
+        const agent = await openScope(scope, false, scopeOptions, true);
 
         let typedResult: Awaited<ReturnType<typeof deleteTypedNode>> | undefined;
         if (agent) {
@@ -1814,12 +1813,15 @@ if (typedNodesEnabled) {
             // Resolve containment before any database is opened or directory is created.
             const scopePath = resolveScopePath(envelope.scope, scopeOptions);
             const payload = await serializeScopeMutation(scopePath, async () => {
-                const agent = await openScope(envelope.scope, !envelope.dry_run, scopeOptions);
+                const agent = envelope.dry_run
+                    ? await openScope(envelope.scope, false, scopeOptions)
+                    : await openScope(envelope.scope, true, scopeOptions);
                 try {
                     const plan = await planMemoryImport(agent, envelope);
                     if (envelope.dry_run) return commitMemoryImport(null, plan);
                     if (!agent) throw new Error(`Unable to open scope ${envelope.scope}.`);
-                    return await commitMemoryImport(agent, plan);
+                    if (!('set' in agent.kv)) throw new Error('MEMORY_READ_ONLY');
+                    return await commitMemoryImport(agent as OrdinaryMemoryStore, plan);
                 } finally {
                     await agent?.close();
                 }
@@ -2175,17 +2177,19 @@ if (cliCommand === "wakeup") {
     try {
         const src = resolveScopePath("project");
         if (existsSync(src)) {
-            const snapshotDir = mkdtempSync(join(tmpdir(), "wakeup-"));
-            const copy = join(snapshotDir, "project.db");
+            const modern = probeOrdinaryMemoryFormat(src).kind === 'context-v1';
+            const snapshotDir = modern ? null : mkdtempSync(join(tmpdir(), "wakeup-"));
+            const copy = snapshotDir ? join(snapshotDir, "project.db") : src;
             for (const suffix of ["", "-wal", "-shm"]) {
-                if (existsSync(src + suffix)) {
+                if (!modern && existsSync(src + suffix)) {
                     copyFileSync(src + suffix, copy + suffix);
                 }
             }
-            const agent = await AgentFS.open({ id: "project", path: copy });
+            const agent = modern ? await openOrdinaryMemoryView(src, 'project') : await AgentFS.open({ id: "project", path: copy });
+            if (!agent) throw new Error('MEMORY_STORE_MISSING');
             try {
                 const entries = await agent.kv.list("");
-                const visible = entries.filter(({ key }) => !isHistoryKey(key));
+                const visible = entries.filter(({ key }) => !isHistoryKey(key) && (!modern || !isReviewedKey(key)));
                 if (visible.length) {
                     // Compact index: key + one-line preview. The agent pulls full
                     // detail on demand with memory_read / memory_search, so this
@@ -2199,7 +2203,7 @@ if (cliCommand === "wakeup") {
                 }
             } finally {
                 await agent.close();
-                rmSync(snapshotDir, { recursive: true, force: true });
+                if (snapshotDir) rmSync(snapshotDir, { recursive: true, force: true });
             }
         }
     } catch {

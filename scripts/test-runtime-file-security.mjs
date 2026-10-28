@@ -12,6 +12,7 @@ import { diagnoseSetup } from "./setup.mjs";
 import { reconcilePlaybookInstructions } from "./playbook-instructions.mjs";
 import { createTar, runWindowsCommand } from "./windows-platform.mjs";
 import { readStableFile, readStableText } from "./lib/stable-file.mjs";
+import { hardenPrivatePath } from "../mcp-memory-server/dist/platform-security.js";
 
 const root = fs.mkdtempSync(join(tmpdir(), "cairn-cli-file-security-"));
 const failures = [];
@@ -231,11 +232,22 @@ try {
   }
 
   const archive = join(root, "memory.tgz");
-  const archiveBytes = gzipSync(createTar([["project.db", Buffer.from("New database fixture.")]]));
+  // These publication controls do not query SQLite, but must pass the real
+  // legacy-format preflight rather than testing an invalid archive payload.
+  const databaseFixture = text => { const bytes = Buffer.alloc(128); bytes.write('SQLite format 3\0'); bytes.write(text, 100); return bytes; };
+  const previousDatabase = databaseFixture('Prior database fixture.');
+  const nextDatabase = databaseFixture('New database fixture.');
+  const archiveBytes = gzipSync(createTar([["project.db", nextDatabase]]));
   write(archive, archiveBytes);
-  const memory = join(root, "memory");
+  const memoryInput = join(root, "memory");
+  fs.mkdirSync(memoryInput, { mode: 0o700 });
+  hardenPrivatePath(memoryInput);
+  // The real importer canonicalizes its destination, including native Windows
+  // short-name/case aliases. Fault injections must target that same pathname.
+  const memory = fs.realpathSync.native(memoryInput);
   const database = join(memory, "project.db");
-  write(database, "Prior database fixture.");
+  write(database, previousDatabase);
+  hardenPrivatePath(database);
   const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const previousBase = process.env.CAIRN_AGENTFS_BASE_DIR;
   process.env.CAIRN_AGENTFS_BASE_DIR = memory;
@@ -244,42 +256,17 @@ try {
       await assert.rejects(() => runWindowsCommand({ command: "memory", args: ["import", archive], root: repository }), /unsafe|changed/i);
     }));
     write(archive, archiveBytes);
-    fs.renameSync = (source, destination) => {
-      if (destination === database) throw Object.assign(new Error("Synthetic denied replacement."), { code: "EPERM" });
-      return original.rename(source, destination);
-    };
-    syncBuiltinESMExports();
-    await control("Windows denied replacement retention", async () => {
-      try {
-        await assert.rejects(() => runWindowsCommand({ command: "memory", args: ["import", archive], root: repository }), /denied/i);
-        assert.equal(fs.readFileSync(database, "utf8"), "Prior database fixture.", "replacement failure must retain the live database");
-        assert.deepEqual(fs.readdirSync(memory).filter((name) => name.includes(".tmp-")), [], "failed replacement must clean its own temporary files");
-      } finally { restore(); }
-    });
-    write(database, "Prior database fixture.");
-    let denied = 0;
-    fs.renameSync = (source, destination) => {
-      if (destination === database && denied++ < 2) {
-        assert.equal(fs.readFileSync(database, "utf8"), "Prior database fixture.");
-        throw Object.assign(new Error("Synthetic transient sharing violation."), { code: "EBUSY" });
-      }
-      return original.rename(source, destination);
-    };
-    syncBuiltinESMExports();
-    try {
-      await runWindowsCommand({ command: "memory", args: ["import", archive], root: repository });
-      assert.equal(denied, 3);
-      assert.equal(fs.readFileSync(database, "utf8"), "New database fixture.");
-    } finally { restore(); }
-    write(database, "Prior database fixture.");
+    await runWindowsCommand({ command: "memory", args: ["import", archive], root: repository });
+    assert.deepEqual(fs.readFileSync(database), nextDatabase);
+    write(database, previousDatabase);
     if (process.platform !== "win32") {
       const outside = join(root, "outside-target");
       write(outside, "Outside sentinel.");
       let injected = false;
       let collidingTemporary;
       function substituteTemporary(path) {
-        if (!injected && typeof path === "string" && dirname(path) === memory
-            && basename(path).startsWith("project.db.tmp-")) {
+        if (!injected && typeof path === "string" && dirname(dirname(path)) === memory
+            && basename(dirname(path)).startsWith(".cairn-memory-import-stage-") && basename(path) === "0.next") {
           injected = true;
           collidingTemporary = path;
           fs.symlinkSync(outside, path);
@@ -288,13 +275,13 @@ try {
       fs.openSync = (path, ...args) => { substituteTemporary(path); return original.open(path, ...args); };
       fs.writeFileSync = (path, ...args) => { substituteTemporary(path); return original.write(path, ...args); };
       syncBuiltinESMExports();
-      await control("Windows exclusive temporary publication", async () => {
+      await control("Windows exclusive staged publication", async () => {
         try {
           await assert.rejects(() => runWindowsCommand({ command: "memory", args: ["import", archive], root: repository }), /exist|unsafe/i);
           assert.equal(injected, true);
           assert.equal(fs.readFileSync(outside, "utf8"), "Outside sentinel.", "temporary symlink must not receive private content");
-          assert.equal(fs.readFileSync(database, "utf8"), "Prior database fixture.");
-          assert.equal(fs.lstatSync(collidingTemporary).isSymbolicLink(), true, "a collision must not delete an unowned temporary name");
+          assert.deepEqual(fs.readFileSync(database), previousDatabase);
+          assert.equal(fs.existsSync(collidingTemporary), false, "failed import must remove its owned stage");
         } finally { restore(); }
       });
     }
@@ -308,4 +295,4 @@ try {
   restore();
   fs.rmSync(root, { recursive: true, force: true });
 }
-console.log("PASS: bounded setup/instruction/archive reads and denied/exclusive Windows publication");
+console.log("PASS: bounded setup/instruction/archive reads and exclusive staged publication");

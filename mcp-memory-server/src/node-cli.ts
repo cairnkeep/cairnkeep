@@ -4,6 +4,7 @@ import { basename, dirname, join, resolve } from "node:path";
 
 import { doctorNoteStore } from "./note-store.js";
 import { doctorTypedNodeStore, type TypedNodeDoctorResult } from "./node-store.js";
+import { memoryAdministrationIssues } from './ordinary-memory-store.js';
 
 type ScopeDiagnosis = TypedNodeDoctorResult & { scope: string; path: string };
 
@@ -43,6 +44,9 @@ export async function doctorNodes(options: { repair?: boolean; projectRoot?: str
     const scopes: ScopeDiagnosis[] = [];
     const issues: string[] = [];
     try {
+        for (const directory of [baseDirectory(), join(baseDirectory(), 'projects'), join(resolve(options.projectRoot ?? process.cwd()), '.agentfs')]) {
+            issues.push(...memoryAdministrationIssues(directory));
+        }
         for (const path of databasePaths(options.projectRoot ?? process.cwd())) {
             const scope = basename(path, ".db");
             const result = await doctorTypedNodeStore({ scope, baseDir: dirname(path), repair: options.repair });
@@ -50,7 +54,8 @@ export async function doctorNodes(options: { repair?: boolean; projectRoot?: str
             issues.push(...result.issues.map((issue) => `${scope}: ${issue}`));
         }
     } catch (error) {
-        issues.push(error instanceof Error ? error.message : String(error));
+        const code = (error as { code?: string }).code;
+        issues.push(typeof code === 'string' && /^MEMORY_[A-Z_]+$/.test(code) ? code : 'MEMORY_NODE_INSPECTION_FAILED');
     }
     const notes = doctorNoteStore(options.repair ?? false);
     issues.push(...notes.issues.map((issue) => `notes: ${issue}`));

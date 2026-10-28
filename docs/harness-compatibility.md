@@ -12,6 +12,17 @@ Cairnkeep commands, hooks or native trajectory capture.
 
 ## Support levels
 
+The unreleased tracked-store foundation changes storage, not MCP tool schemas
+or harness configuration. Explicit fresh initialization requires a server with
+Node 22.16+ and the built-in SQLite API. Older database executables refuse its
+format; turning off context tools does not enable an older backend. Existing
+stores are not converted. Native-platform validation of this foundation remains
+a separate gate, not a claim derived from the existing harness matrix below.
+See [storage lifecycle and recovery](storage.md#unreleased-tracked-store-foundation-source-checkout-only).
+The Node 22.16 API floor alone is insufficient: tracked stores also require the
+bundled SQLite WAL-reset fix (3.51.3+ or documented maintenance backports).
+Unpatched native admission is refused; legacy stores keep their existing runtime.
+
 | Harness | Supported surface | Runtime status |
 |---|---|---|
 | Claude Code | Memory MCP, commands (including `/cairn-work`), agents, hooks, launcher | Exercised by Cairnkeep tests |

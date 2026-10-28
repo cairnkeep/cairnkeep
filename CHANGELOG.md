@@ -5,6 +5,32 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Isolated tracked-store foundation
+
+- Add explicit fresh-only `memory-context init`, read-only format diagnosis,
+  worker-owned SQLite access, atomic per-key generations and ordinary/typed/
+  reviewed-memory routing independent of context-tool enablement.
+- Add private online backup and digest-confirmed fresh, same-owner restore
+  with epoch renewal before no-replace publication. Protect generic legacy
+  imports with archive-wide preflight and recoverable, admission-blocking state.
+- Existing stores remain unchanged. No automatic conversion, older-client
+  transparency, new context tools, production admission or release is implied;
+  native-platform and independent-review gates remain open. Update storage,
+  compatibility, completions and the unreleased L07 teaching brief.
+- Preserve live SQLite locks across worker connections and file validation;
+  retain probe descriptors until workers exit and avoid opening live sidecars.
+  Bound transaction-control scanning without backtracking, and test comment
+  sequences, quoted statement boundaries and canonical-path fault injection.
+- Sync completed stages before no-replace publication, report uncertain outcomes
+  after publication without deleting a winner, and refuse abandoned auxiliary
+  files at fresh targets. Add native file/header and installed-worker controls.
+- Preserve strict database ACLs while validating effectively private SQLite
+  sidecars; batch fresh file/parent/ancestor permission checks on Windows without
+  caching authorization. Rebalance Windows shards from measured native timings.
+- Require a bundled SQLite with the WAL-reset fix for the opt-in tracked format;
+  reject unpatched native admission before creating a tracked store. Preserve the legacy
+  Node engine floor and distinguish the API minimum from safe SQLite admission.
+
 ## [2.27.0] - 2026-10-26
 
 ### Team operations

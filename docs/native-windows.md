@@ -106,6 +106,16 @@ Place the same expression in `$PROFILE` to load it in future sessions.
 
 ## Storage and permissions
 
+The unreleased tracked-store foundation additionally checks the existing ancestor
+chain. Its create-directory versus replacement distinction follows
+[FileSystemRights](https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.filesystemrights).
+Inherit-only rules do not apply to the containing directory; descendant checks
+still enforce effective grants. A narrowly recognized OS-installer-owned volume
+root does not relax private-file ACLs or other storage policies. Native tracked
+format qualification is separate from the existing CLI/install smoke tests.
+Tracked-file checks batch the file, immediate parent and ancestor ACLs into one
+fresh inspection; permission decisions are not cached across operations.
+
 Cairnkeep retains the same storage paths and formats. `~` resolves to the
 Windows user profile. Sensitive managed JSON files do not rely on meaningless
 Unix mode bits: Cairnkeep removes inherited ACLs and grants access only to the

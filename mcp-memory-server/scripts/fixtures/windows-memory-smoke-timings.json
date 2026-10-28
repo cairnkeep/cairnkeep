@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source_run": 40683923192,
+  "source_commit": "84408805a02d72048535bc298479bda4477763c4",
+  "source_job": 122801335076,
+  "runtime": "24.22.1",
+  "units": "seconds-ceiling",
+  "scope": "Successful focused controls before ACL batching; conservative shard weights, not post-optimization timings.",
+  "measurements": {
+    "memory-database": 120,
+    "memory-store-admission": 453,
+    "memory-store-restore": 280
+  }
+}

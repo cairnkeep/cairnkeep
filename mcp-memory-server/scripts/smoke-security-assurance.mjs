@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync, chmodSync, lstatSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import childProcess from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { generatedFilePathLabelSchema } from "../dist/artifact-schema.js";
@@ -10,6 +12,7 @@ import { evalRelativePathSchema, evalTaskSourceSchema } from "../dist/eval-schem
 import { formatHostAuthority, normalizeHostAuthority, normalizeHttpHost, parseHttpPort } from "../dist/http-security.js";
 import { portablePathCollisionKey, portableRelativePathIssue } from "../dist/path-security.js";
 import { hardenPrivatePath, posixOwnerIsTrusted, posixPrivateMetadataIsSafe, windowsPrivateAclHardeningPlan, windowsPrivateAclIsSafe, windowsReplacementAclIsSafe } from "../dist/platform-security.js";
+import * as platformSecurity from "../dist/platform-security.js";
 import { projectEnvironment } from "../dist/project-environment.js";
 import { securityDoctor } from "../dist/security-doctor.js";
 
@@ -327,6 +330,57 @@ try {
         < hardeningPlan.findIndex((operation) => operation.includes("/remove:d")), true, "denies are removed only after untrusted grants");
     assert.equal(windowsReplacementAclIsSafe({ ...baseAcl, protected: false, access: [...baseAcl.access, { sid: "S-1-5-21-9999", type: "Allow", rights: 131241 }] }, currentSid), true);
     assert.equal(windowsReplacementAclIsSafe({ ...baseAcl, access: [...baseAcl.access, { sid: "S-1-5-21-9999", type: "Allow", rights: 2 }] }, currentSid), false);
+    const ancestorAcl = platformSecurity.windowsMemoryAncestorAclIsSafe ?? windowsReplacementAclIsSafe;
+    const other = { sid: "S-1-5-21-9999", type: "Allow", rights: 4, inherit_only: false };
+    assert.equal(ancestorAcl({ ...baseAcl, access: [...baseAcl.access, other] }, currentSid), true, 'creating an absent directory does not authorize replacing an existing ancestor');
+    for (const rights of [2, 16, 64, 256, 65536, 262144, 524288, 0x10000000, 0x40000000]) {
+        assert.equal(ancestorAcl({ ...baseAcl, access: [...baseAcl.access, { ...other, rights }] }, currentSid), false, `effective mutation right ${rights} must remain denied`);
+        assert.equal(ancestorAcl({ ...baseAcl, access: [...baseAcl.access, { ...other, rights, inherit_only: true }] }, currentSid), true, 'inherit-only ACE does not apply to this directory');
+    }
+    const systemRoot = { ...baseAcl, owner_sid: 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464' };
+    assert.equal(ancestorAcl(systemRoot, currentSid, true), true, 'recognize only the OS installer ownership of a volume root');
+    assert.equal(ancestorAcl(systemRoot, currentSid, false), false, 'root owner exception must not spread to private directories');
+    assert.equal(ancestorAcl({ ...systemRoot, owner_sid: 'S-1-5-20' }, currentSid, true), false, 'arbitrary service ownership remains refused');
+    assert.equal(ancestorAcl({ ...baseAcl, access: [] }, currentSid), false, 'an empty access-rule projection is not proof of a safe DACL');
+    assert.equal(windowsPrivateAclIsSafe(systemRoot, currentSid), false, 'private-file policy is unchanged');
+    assert.equal(windowsReplacementAclIsSafe({ ...baseAcl, access: [...baseAcl.access, other] }, currentSid), false, 'other storage replacement policies are unchanged');
+    const sidecarAcl = platformSecurity.windowsMemorySidecarAclIsSafe ?? windowsPrivateAclIsSafe;
+    assert.equal(sidecarAcl({ ...baseAcl, protected: false }, currentSid), true, 'SQLite sidecars may inherit an effectively private ACL from their checked parent');
+    assert.equal(sidecarAcl({ ...baseAcl, protected: false, access: [...baseAcl.access, { ...other, rights: 131241 }] }, currentSid), false, 'inherited sidecar grants cannot expose bytes to another user');
+    assert.equal(sidecarAcl({ ...baseAcl, owner_sid: other.sid }, currentSid), false);
+    assert.equal(windowsPrivateAclIsSafe({ ...baseAcl, protected: false }, currentSid), false, 'database-file inheritance policy remains strict');
+    const nativeSpawn = childProcess.spawnSync, platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+    const probeSid = process.platform === 'win32'
+        ? spawnSync('whoami.exe', ['/user', '/fo', 'csv', '/nh'], { encoding: 'utf8' }).stdout.match(/S-1-[0-9-]+/)[0]
+        : currentSid;
+    let aclQueries = 0, poisonedAcl;
+    try {
+        Object.defineProperty(process, 'platform', { ...platformDescriptor, value: 'win32' });
+        childProcess.spawnSync = function(command, _args, options) {
+            if (command === 'whoami.exe') return { status: 0, stdout: `"HOST\\fixture","${probeSid}"\n`, stderr: '' };
+            assert.equal(command, 'powershell.exe'); aclQueries++;
+            const snapshot = { ...baseAcl, owner_sid: probeSid, access: [{ sid: probeSid, type: 'Allow', rights: 2032127 }] };
+            const paths = options.env.CK_INTERNAL_ACL_PATHS;
+            const snapshots = paths ? JSON.parse(paths).map(() => structuredClone(snapshot)) : snapshot;
+            if (paths && poisonedAcl) {
+                const index = poisonedAcl === 'file' ? 0 : poisonedAcl === 'parent' ? 1 : snapshots.length - 1;
+                const rights = poisonedAcl === 'file' ? 131241 : poisonedAcl === 'parent' ? 4 : 0x40000000;
+                snapshots[index].access.push({ sid: other.sid, type: 'Allow', rights, inherit_only: false });
+            }
+            return { status: 0, stdout: JSON.stringify(snapshots), stderr: '' };
+        }; syncBuiltinESMExports();
+        const metadataCheck = platformSecurity.privateMemoryPathMetadataIsSafe ?? ((path) =>
+            platformSecurity.replacementBoundaryIsSafe(dirname(path)) && platformSecurity.memoryPathAncestorsAreSafe(path) && platformSecurity.privatePathIsSafe(path));
+        assert.equal(metadataCheck(privateEnv, lstatSync(privateEnv)), true);
+        assert.equal(aclQueries, 1, 'file, immediate parent and all ancestors must be checked in one fresh ACL snapshot');
+        for (poisonedAcl of ['file', 'parent', 'ancestor']) {
+            const before = aclQueries;
+            assert.equal(metadataCheck(privateEnv, lstatSync(privateEnv)), false, `${poisonedAcl} ACL must remain enforced`);
+            assert.equal(aclQueries, before + 1, 'each validation must observe a fresh ACL, not a cached permission decision');
+        }
+    } finally {
+        childProcess.spawnSync = nativeSpawn; Object.defineProperty(process, 'platform', platformDescriptor); syncBuiltinESMExports();
+    }
     assert.equal(posixOwnerIsTrusted(1000, 1000), true);
     assert.equal(posixOwnerIsTrusted(0, 1000), true);
     assert.equal(posixOwnerIsTrusted(1001, 1000), false);

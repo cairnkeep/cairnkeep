@@ -19,6 +19,27 @@ will go before starting a session.
 - Credential boundaries and environment-variable precedence.
 - Embedding/extraction endpoints and what content they receive.
 - `cairn memory path` and a preflight data-flow checklist.
+- Unreleased source-only storage foundation: `cairn memory-context init` prints
+  a no-write plan; `--apply --confirm DIGEST` creates only an absent destination.
+  `status` and `doctor` inspect the format without initializing SDK schemas.
+  Existing stores are not converted, older clients refuse the new format, and
+  turning off context tools does not roll back storage. Use disposable stores
+  only until the platform and recovery gates are complete. This is not a
+  rehearsed lesson or a change to the released installation instructions.
+- Advanced recovery brief: `cairn memory-context backup --output FILE` creates
+  a standalone no-overwrite snapshot. `restore --input FILE` plans an absent,
+  same-owner destination; exact-digest apply renews the restore epoch before
+  publication. Raw copies cannot invalidate old evidence, generic legacy import
+  refuses tracked stores, and recovery is offline administration. Never
+  demonstrate removal or replacement of a learner's real database.
+- Source-only failure drill: distinguish a rejected pre-publication operation
+  from `MEMORY_PUBLICATION_UNCERTAIN`, where a complete object may already be
+  visible. Inspect status/doctor and retain recovery files; never demonstrate a
+  blind retry or weaken Windows ACLs to make a test pass. This remains a Brief,
+  not a claim that a new video has been rehearsed or recorded.
+- Runtime check: the Node 22.16 API floor is not a safe SQLite-version promise.
+  Tracked stores require a bundled SQLite with the WAL-reset fix; an unsupported
+  native runtime refuses before writes while ordinary legacy memory still works.
 
 ## Hands-on lab
 

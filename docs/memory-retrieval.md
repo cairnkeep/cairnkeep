@@ -164,6 +164,14 @@ The offline suite never requires a model, API key, paid service or network beyon
 its own loopback fixture. A separate optional reranker comparison below does
 not replace this older study or retroactively make that failed run successful.
 
+## Longitudinal continuity baseline
+
+For the separate source-checkout longitudinal baseline, see
+[synthetic memory continuity](benchmarks/memory-continuity-v2.md). It replays
+actual mutations and fresh MCP clients, keeps an equal-information Markdown
+control, and records the unresolved revision-storage compatibility gate. It
+does not introduce freshness, graph or feedback tools or change this strategy.
+
 ## Optional learned reranking
 
 Available since Cairnkeep 2.24.0. This feature improves ordering, not guaranteed

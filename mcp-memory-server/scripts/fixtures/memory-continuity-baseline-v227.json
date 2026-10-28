@@ -1,0 +1,413 @@
+{
+  "schema_version": 1,
+  "baseline_version": "2.27.0",
+  "fixture_digest": "30951af421d3854f6df46b4b7eca1fa9f51a25c347e151acb3fe0336ee23a5e4",
+  "results": [
+    {
+      "adapter": "cairn-v227",
+      "case_id": "current-gateway",
+      "split": "development",
+      "returned_records": [
+        "gateway-current"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 125,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "case_id": "current-gateway",
+      "split": "development",
+      "returned_records": [
+        "gateway-current"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 125,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "cairn-v227",
+      "case_id": "cross-harness-cwd",
+      "split": "held-out",
+      "returned_records": [
+        "gateway-current"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 125,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "case_id": "cross-harness-cwd",
+      "split": "held-out",
+      "returned_records": [
+        "gateway-current"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 125,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "cairn-v227",
+      "case_id": "alias-current",
+      "split": "development",
+      "returned_records": [
+        "gateway-current"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 125,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "case_id": "alias-current",
+      "split": "development",
+      "returned_records": [
+        "gateway-current"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 125,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "cairn-v227",
+      "case_id": "stale-cross-key",
+      "split": "held-out",
+      "returned_records": [
+        "route-current",
+        "route-old"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 1,
+      "returned_bytes": 195,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "case_id": "stale-cross-key",
+      "split": "held-out",
+      "returned_records": [
+        "route-current",
+        "route-old"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 1,
+      "returned_bytes": 195,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "cairn-v227",
+      "case_id": "linked-route",
+      "split": "held-out",
+      "returned_records": [
+        "device",
+        "renamed"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 0.3333333333333333,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 209,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "case_id": "linked-route",
+      "split": "held-out",
+      "returned_records": [
+        "device",
+        "renamed"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 0.3333333333333333,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 209,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "cairn-v227",
+      "case_id": "ambiguous-alias",
+      "split": "held-out",
+      "returned_records": [
+        "alias-one",
+        "alias-two"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 197,
+      "ambiguous_without_signal": true,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "case_id": "ambiguous-alias",
+      "split": "held-out",
+      "returned_records": [
+        "alias-one",
+        "alias-two"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 197,
+      "ambiguous_without_signal": true,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "cairn-v227",
+      "case_id": "explicit-rename",
+      "split": "development",
+      "returned_records": [
+        "renamed"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 117,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "case_id": "explicit-rename",
+      "split": "development",
+      "returned_records": [
+        "renamed"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 117,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "cairn-v227",
+      "case_id": "exact-key",
+      "split": "development",
+      "returned_records": [
+        "ledger"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 144,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "case_id": "exact-key",
+      "split": "development",
+      "returned_records": [
+        "ledger"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 144,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "cairn-v227",
+      "case_id": "aba-current",
+      "split": "development",
+      "returned_records": [
+        "aba-a"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 81,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "case_id": "aba-current",
+      "split": "development",
+      "returned_records": [
+        "aba-a"
+      ],
+      "hit_at_1": true,
+      "recall_at_5": 1,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 81,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "cairn-v227",
+      "case_id": "history-negative",
+      "split": "held-out",
+      "returned_records": [],
+      "hit_at_1": null,
+      "recall_at_5": null,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 2,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "case_id": "history-negative",
+      "split": "held-out",
+      "returned_records": [],
+      "hit_at_1": null,
+      "recall_at_5": null,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 2,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "cairn-v227",
+      "case_id": "foreign-project-negative",
+      "split": "held-out",
+      "returned_records": [],
+      "hit_at_1": null,
+      "recall_at_5": null,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 2,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "case_id": "foreign-project-negative",
+      "split": "held-out",
+      "returned_records": [],
+      "hit_at_1": null,
+      "recall_at_5": null,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 2,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "cairn-v227",
+      "case_id": "nearby-identifier-negative",
+      "split": "held-out",
+      "returned_records": [],
+      "hit_at_1": null,
+      "recall_at_5": null,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 2,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "case_id": "nearby-identifier-negative",
+      "split": "held-out",
+      "returned_records": [],
+      "hit_at_1": null,
+      "recall_at_5": null,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 2,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "cairn-v227",
+      "case_id": "unrelated-negative",
+      "split": "held-out",
+      "returned_records": [],
+      "hit_at_1": null,
+      "recall_at_5": null,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 2,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    },
+    {
+      "adapter": "markdown-hybrid",
+      "case_id": "unrelated-negative",
+      "split": "held-out",
+      "returned_records": [],
+      "hit_at_1": null,
+      "recall_at_5": null,
+      "false_positive": false,
+      "stale_returns": 0,
+      "returned_bytes": 2,
+      "ambiguous_without_signal": false,
+      "unsupported_edges": 0,
+      "links_available": false
+    }
+  ]
+}

@@ -59,6 +59,26 @@ image_user=$("$ENGINE" image inspect --format '{{.Config.User}}' "$server_image"
 '
 
 "$ENGINE" volume create "$volume" >/dev/null
+"$ENGINE" run --rm --volume "$volume:/data" --entrypoint node "$server_image" --input-type=module -e '
+  import assert from "node:assert/strict";
+  import { rmSync } from "node:fs";
+  const store = await import("/opt/cairnkeep/mcp-memory-server/dist/ordinary-memory-store.js");
+  const path = "/data/tracked-fixture.db", output = "/data/tracked-snapshot.db";
+  const plan = await store.planContextStoreInit({path, scope:"fixture"});
+  await store.applyContextStoreInit({path, scope:"fixture", confirm:plan.digest});
+  const agent = await store.openOrdinaryMemoryStore(path,"fixture");
+  await agent.kv.set("facts/container","fixture"); await agent.close();
+  await store.backupMemoryContextStore({path,scope:"fixture",output});
+  // Only these disposable fixture names, after all owned connections have closed.
+  // Read-only backup views may leave WAL auxiliaries; real recovery refuses them.
+  for (const suffix of ["", "-wal", "-shm", "-journal"]) rmSync(path + suffix, {force:true});
+  const restore = await store.planContextStoreRestore({path,scope:"fixture",input:output});
+  await store.applyContextStoreRestore({path,scope:"fixture",input:output,confirm:restore.digest});
+  const view = await store.openOrdinaryMemoryView(path,"fixture");
+  try { assert.equal(await view.kv.get("facts/container"),"fixture"); } finally { await view.close(); }
+  for (const file of [path, output]) for (const suffix of ["", "-wal", "-shm", "-journal"]) rmSync(file + suffix, {force:true});
+  console.log("PASS: unprivileged container loads SQLite worker and completes fresh recovery");
+'
 node scripts/probe-memory-server.mjs --command \
   "$ENGINE" run --rm -i --volume "$volume:/data" "$server_image" stdio
 

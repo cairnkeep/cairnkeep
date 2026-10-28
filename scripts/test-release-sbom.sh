@@ -41,7 +41,7 @@ if (!candidateWorkflow.includes("release-candidate:")
 function validateCandidateRetry(workflow) {
   const job = workflow.jobs["release-candidate"];
   assert.deepEqual(new Set(job.needs), new Set([
-    "memory-server", "native-windows", "repository", "shell-portability",
+    "memory-server", "native-windows", "tracked-platform", "repository", "shell-portability",
     "server-boot", "container", "fresh-install-macos",
   ]), "candidate retry must retain every platform/runtime gate");
   assert.equal(job.if, undefined, "candidate retry must not bypass failed or pending gates");
@@ -60,14 +60,16 @@ for (const overwrite of [undefined, false]) {
   invalid.jobs["release-candidate"].steps.find(step => step.uses?.startsWith("actions/upload-artifact@")).with.overwrite = overwrite;
   assert.throws(() => validateCandidateRetry(invalid), /same-run retries/);
 }
-const missingGate = structuredClone(positive);
-missingGate.jobs["release-candidate"].needs = missingGate.jobs["release-candidate"].needs.filter(name => name !== "native-windows");
-assert.throws(() => validateCandidateRetry(missingGate), /every platform\/runtime gate/);
+for (const name of ["native-windows", "tracked-platform"]) {
+  const missingGate = structuredClone(positive);
+  missingGate.jobs["release-candidate"].needs = missingGate.jobs["release-candidate"].needs.filter(gate => gate !== name);
+  assert.throws(() => validateCandidateRetry(missingGate), /every platform\/runtime gate/);
+}
 const bypass = structuredClone(positive);
 bypass.jobs["release-candidate"].if = "always()";
 assert.throws(() => validateCandidateRetry(bypass), /must not bypass/);
 validateCandidateRetry(candidate);
-console.log("PASS: retry-safe candidate upload and four gate/replacement mutation controls");
+console.log("PASS: retry-safe candidate upload and five gate/replacement mutation controls");
 if (!publishWorkflow.includes("- name: Download the CI-verified release candidate")
   || !publishWorkflow.includes("jq -r '.conclusion'")
   || !publishWorkflow.includes("== success")

@@ -364,6 +364,98 @@ HTTP mode is one trusted storage domain:
 
 ## Inspecting and moving memory
 
+### Unreleased tracked-store foundation (source checkout only)
+
+Released installations and existing stores keep their original backend. The
+new `cairn memory-context` administration CLI is currently an isolated storage
+foundation, not production admission or a migration command. Use disposable
+stores until its native-platform and recovery gates have passed.
+
+`init --scope SCOPE --project PATH --json` prints a no-write digest-bound plan.
+Only `init ... --apply --confirm DIGEST` creates the inspected absent target.
+Every existing file, including an empty or zero-byte file, refuses conversion.
+Creation uses a private sibling stage and no-replace publication. There is no
+`--force` option and no automatic enrollment. `status` and `doctor` diagnose
+format and tracking infrastructure without SDK initialization or source text.
+
+This format requires the Node **22.16 or newer API** and a bundled SQLite with
+the [WAL-reset fix](https://www.sqlite.org/wal.html#walresetbug): **3.51.3+**, or
+the documented **3.50.7/3.44.6** maintenance backports. The guard checks the actual
+bundled SQLite, not just the Node version; Node 22.16's original SQLite is refused
+before new-format writes. Use a current patched Node release. The ordinary legacy
+runtime requirement is unchanged. SQLite runs only in a bounded
+worker. A dead/timed-out worker makes its connection unusable; an uncertain
+commit is reported as `MEMORY_COMMIT_UNCERTAIN`, never silently retried. Read
+back the current state before deciding whether a mutation should be attempted
+again. Older database clients refuse this format. The persistent format, not
+`CAIRN_MEMORY_CONTEXT`, selects its backend: disabling tools is not rollback.
+
+Database validation retains one shared probe descriptor until the last owning
+SQLite worker exits. While connections are live, sidecar checks inspect metadata
+only: opening and closing another descriptor for a database or SHM inode can
+cancel SQLite's process-wide POSIX locks. Do not inspect live files with raw
+file-reading helpers; use the format-aware access and online backup paths.
+
+On Windows, the tracked-format ancestor check distinguishes permission to create
+a new directory from permission to replace an existing one. Inherit-only rules
+are evaluated on the descendant where they apply; effective write/delete or
+permission-changing grants remain refused. Only volume-root ownership recognizes
+the OS installer service. Private-file ACLs and other stores' policies are unchanged.
+SQLite-created WAL/SHM files may inherit an effectively private ACL from their
+checked parent; any grant exposing sidecar bytes to another user is refused.
+Snapshot planning refuses a file held by another SQLite connection in the same
+process (`MEMORY_SNAPSHOT_IN_USE`); close that connection before retrying.
+Completed stages are explicitly synced before no-replace publication; directory
+metadata is synced where supported. A later sync or cleanup error reports
+`MEMORY_PUBLICATION_UNCERTAIN`: a complete object may already exist. Inspect it
+with `memory-context status`/`doctor` and preserve recovery files; do not blindly
+retry or delete the destination. This is not a power-loss durability guarantee.
+An absent destination with existing WAL/SHM/journal files is not fresh:
+`MEMORY_AUXILIARY_PRESENT` refuses initialization, backup or restore. Doctor
+reports orphaned auxiliary files but never deletes or adopts them automatically.
+If lease cleanup fails, `MEMORY_ADMISSION_RELEASE_PENDING` preserves the operation
+result and the admission remnant for diagnosis; it does not guess a stale lease
+or discard a returned database connection. Resolve the remnant before new opens.
+
+For a disposable tracked store:
+
+```bash
+cairn memory-context backup --scope project --project /path/to/disposable-project --output /safe/path/snapshot.db
+# Stop clients, preserve the current store separately, and use an absent target.
+cairn memory-context restore --scope project --project /path/to/disposable-project --input /safe/path/snapshot.db --json
+# Inspect the plan, then repeat with --apply --confirm DIGEST.
+```
+
+Backup is an online, integrity-checked, standalone snapshot, at most 512 MiB
+with a 120-second operation deadline. Its output must not exist. Restore also
+requires an absent destination and the original canonical owner/scope; it does
+not rebind another project or move an existing store. It commits a new restore
+epoch before publication, retaining store identity, text and key generations.
+The snapshot remains unchanged. Integrity digests are not publisher authenticity.
+Raw file copies can replay old evidence; they are not detected or supported as
+managed recovery. In-place restore and existing-store conversion are deferred.
+
+Read-only database access makes no application/schema writes, but SQLite may
+need auxiliary WAL/SHM access. A filesystem that denies required auxiliary-file
+access fails closed; do not make private files world-readable to bypass it.
+Private stages and `.cairn-admission` leases left by a crash are retained for
+diagnosis; no stale-lock guessing, trigger repair or epoch repair is automatic.
+
+Generic `cairn memory import` is for offline legacy stores only. It preflights
+every archive member and destination before mutation, refuses tracked/unknown
+formats even with context tools disabled, and directs tracked recovery to
+`memory-context restore`. It rejects links, traversal, duplicate names, unsafe
+archive types and live WAL sidecars. Stop all clients before legacy import.
+Pre-images and previous backup versions are retained. A failed replacement is
+rolled back where verifiable; an interrupted import leaves a private journal
+and stage, blocks ordinary admission, and requires manual recovery with clients
+stopped. Preserve these files; doctor never guesses the intended state.
+Generic export uses the managed online snapshot path for tracked global stores
+and keeps the SQLite CLI path for legacy stores. A mixed export is not a generic
+import authorization: tracked members still require explicit managed recovery.
+
+### Released legacy memory commands
+
 For a local server, these commands report and move named/global scopes only:
 
 ```bash
