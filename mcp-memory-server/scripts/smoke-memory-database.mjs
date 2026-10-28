@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -19,7 +19,7 @@ import { createTypedNode, getTypedNode, supersedeTypedNode, planMemoryImport, co
 let implementation;
 try { implementation = await import('../dist/memory-database.js'); }
 catch (error) { if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error; }
-const root = mkdtempSync(join(tmpdir(), 'cairn-memory-database-'));
+const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'cairn-memory-database-')));
 hardenPrivatePath(root);
 const opened = [], children = new Set();
 const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) =>

@@ -11,13 +11,15 @@ const WINDOWS_COMMAND_MAX_BUFFER = 1024 * 1024;
 export type WindowsAclSnapshot = {
     owner_sid: string;
     protected: boolean;
-    access: Array<{ sid: string; type: string; rights: number }>;
+    access: Array<{ sid: string; type: string; rights: number; inherit_only?: boolean }>;
 };
 
 export type WindowsAclOperation = readonly string[];
 
 const WINDOWS_SYSTEM_SIDS = new Set(["S-1-5-18", "S-1-5-32-544"]);
 const WINDOWS_REPLACEMENT_RIGHTS = 2 | 4 | 16 | 64 | 256 | 65_536 | 262_144 | 524_288;
+const WINDOWS_INSTALLER_SID = 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464';
+const WINDOWS_ANCESTOR_MUTATION_RIGHTS = (WINDOWS_REPLACEMENT_RIGHTS & ~4) | 0x10000000 | 0x40000000;
 
 function trustedWindowsSid(sid: string, currentSid: string): boolean {
     return sid.toUpperCase() === currentSid.toUpperCase() || WINDOWS_SYSTEM_SIDS.has(sid.toUpperCase());
@@ -43,6 +45,18 @@ export function windowsReplacementAclIsSafe(snapshot: WindowsAclSnapshot, curren
     return snapshot.access.every(({ sid, type, rights }) => type.toLowerCase() !== "allow"
         || trustedWindowsSid(sid, currentSid)
         || (rights & WINDOWS_REPLACEMENT_RIGHTS) === 0);
+}
+
+/** Existing directories: AddSubdirectory alone cannot replace an existing name.
+ * Inherit-only ACEs are checked on the descendant where they actually apply.
+ * Private leaves and other stores retain their stricter, unchanged policies. */
+export function windowsMemoryAncestorAclIsSafe(snapshot: WindowsAclSnapshot, currentSid: string, volumeRoot = false): boolean {
+    const trusted = (sid: string) => trustedWindowsSid(sid, currentSid)
+        || (volumeRoot && sid.toUpperCase() === WINDOWS_INSTALLER_SID);
+    if (!trusted(snapshot.owner_sid)) return false;
+    const allows = snapshot.access.filter(ace => ace.type.toLowerCase() === 'allow' && !ace.inherit_only);
+    return allows.some(ace => trusted(ace.sid)) && allows.every(ace => trusted(ace.sid)
+        || (ace.rights & WINDOWS_ANCESTOR_MUTATION_RIGHTS) === 0);
 }
 
 export function windowsPrivateAclHardeningPlan(
@@ -75,7 +89,7 @@ function windowsAclSnapshots(paths: string[]): WindowsAclSnapshot[] {
         "$acl=if([System.IO.Directory]::Exists($path)){[System.Security.AccessControl.DirectorySecurity]::new($path,$sections)}else{[System.Security.AccessControl.FileSecurity]::new($path,$sections)}",
         "$owner=$acl.Owner",
         "try{$owner=([System.Security.Principal.NTAccount]$owner).Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{}",
-        "$access=@($acl.Access|ForEach-Object{$sid=$_.IdentityReference.Value;try{$sid=$_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{};[pscustomobject]@{sid=$sid;type=$_.AccessControlType.ToString();rights=[int64]$_.FileSystemRights}})",
+        "$access=@($acl.Access|ForEach-Object{$sid=$_.IdentityReference.Value;try{$sid=$_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{};[pscustomobject]@{sid=$sid;type=$_.AccessControlType.ToString();rights=[int64]$_.FileSystemRights;inherit_only=(($_.PropagationFlags -band 2) -ne 0)}})",
         "[pscustomobject]@{owner_sid=$owner;protected=$acl.AreAccessRulesProtected;access=$access}",
         "})",
         "ConvertTo-Json -InputObject @($snapshots) -Compress -Depth 4",
@@ -104,7 +118,8 @@ function windowsAclSnapshots(paths: string[]): WindowsAclSnapshot[] {
         throw new Error("Windows ACL inspection returned an invalid structure.");
     }
     const access = parsed.access.filter((ace): ace is { sid: string; type: string; rights: number } => Boolean(ace)
-        && typeof ace.sid === "string" && typeof ace.type === "string" && Number.isSafeInteger(ace.rights));
+        && typeof ace.sid === "string" && typeof ace.type === "string" && Number.isSafeInteger(ace.rights)
+        && (ace.inherit_only === undefined || typeof ace.inherit_only === 'boolean'));
     if (access.length !== parsed.access.length) throw new Error("Windows ACL inspection returned an invalid access rule.");
     return { owner_sid: parsed.owner_sid, protected: parsed.protected, access };
     });
@@ -116,7 +131,7 @@ function windowsAclSnapshot(path: string): WindowsAclSnapshot {
         "$acl=if([System.IO.Directory]::Exists($env:CK_INTERNAL_ACL_PATH)){[System.Security.AccessControl.DirectorySecurity]::new($env:CK_INTERNAL_ACL_PATH,$sections)}else{[System.Security.AccessControl.FileSecurity]::new($env:CK_INTERNAL_ACL_PATH,$sections)}",
         "$owner=$acl.Owner",
         "try{$owner=([System.Security.Principal.NTAccount]$owner).Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{}",
-        "$access=@($acl.Access|ForEach-Object{$sid=$_.IdentityReference.Value;try{$sid=$_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{};[pscustomobject]@{sid=$sid;type=$_.AccessControlType.ToString();rights=[int64]$_.FileSystemRights}})",
+        "$access=@($acl.Access|ForEach-Object{$sid=$_.IdentityReference.Value;try{$sid=$_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{};[pscustomobject]@{sid=$sid;type=$_.AccessControlType.ToString();rights=[int64]$_.FileSystemRights;inherit_only=(($_.PropagationFlags -band 2) -ne 0)}})",
         "[pscustomobject]@{owner_sid=$owner;protected=$acl.AreAccessRulesProtected;access=$access}|ConvertTo-Json -Compress -Depth 4",
     ].join(";");
     const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
@@ -140,7 +155,8 @@ function windowsAclSnapshot(path: string): WindowsAclSnapshot {
         throw new Error("Windows ACL inspection returned an invalid structure.");
     }
     const access = parsed.access.filter((ace): ace is { sid: string; type: string; rights: number } => Boolean(ace)
-        && typeof ace.sid === "string" && typeof ace.type === "string" && Number.isSafeInteger(ace.rights));
+        && typeof ace.sid === "string" && typeof ace.type === "string" && Number.isSafeInteger(ace.rights)
+        && (ace.inherit_only === undefined || typeof ace.inherit_only === 'boolean'));
     if (access.length !== parsed.access.length) throw new Error("Windows ACL inspection returned an invalid access rule.");
     return { owner_sid: parsed.owner_sid, protected: parsed.protected, access };
 }
@@ -247,7 +263,8 @@ export function memoryPathAncestorsAreSafe(path: string): boolean {
                 current = parent;
             }
             const sid = currentWindowsIdentity().sid;
-            return windowsAclSnapshots(parents).every(snapshot => windowsReplacementAclIsSafe(snapshot, sid));
+            return windowsAclSnapshots(parents).every((snapshot, index) =>
+                windowsMemoryAncestorAclIsSafe(snapshot, sid, dirname(parents[index]) === parents[index]));
         } catch { return false; }
     }
     let current = resolve(path);

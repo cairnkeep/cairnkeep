@@ -10,6 +10,7 @@ import { evalRelativePathSchema, evalTaskSourceSchema } from "../dist/eval-schem
 import { formatHostAuthority, normalizeHostAuthority, normalizeHttpHost, parseHttpPort } from "../dist/http-security.js";
 import { portablePathCollisionKey, portableRelativePathIssue } from "../dist/path-security.js";
 import { hardenPrivatePath, posixOwnerIsTrusted, posixPrivateMetadataIsSafe, windowsPrivateAclHardeningPlan, windowsPrivateAclIsSafe, windowsReplacementAclIsSafe } from "../dist/platform-security.js";
+import * as platformSecurity from "../dist/platform-security.js";
 import { projectEnvironment } from "../dist/project-environment.js";
 import { securityDoctor } from "../dist/security-doctor.js";
 
@@ -327,6 +328,20 @@ try {
         < hardeningPlan.findIndex((operation) => operation.includes("/remove:d")), true, "denies are removed only after untrusted grants");
     assert.equal(windowsReplacementAclIsSafe({ ...baseAcl, protected: false, access: [...baseAcl.access, { sid: "S-1-5-21-9999", type: "Allow", rights: 131241 }] }, currentSid), true);
     assert.equal(windowsReplacementAclIsSafe({ ...baseAcl, access: [...baseAcl.access, { sid: "S-1-5-21-9999", type: "Allow", rights: 2 }] }, currentSid), false);
+    const ancestorAcl = platformSecurity.windowsMemoryAncestorAclIsSafe ?? windowsReplacementAclIsSafe;
+    const other = { sid: "S-1-5-21-9999", type: "Allow", rights: 4, inherit_only: false };
+    assert.equal(ancestorAcl({ ...baseAcl, access: [...baseAcl.access, other] }, currentSid), true, 'creating an absent directory does not authorize replacing an existing ancestor');
+    for (const rights of [2, 16, 64, 256, 65536, 262144, 524288, 0x10000000, 0x40000000]) {
+        assert.equal(ancestorAcl({ ...baseAcl, access: [...baseAcl.access, { ...other, rights }] }, currentSid), false, `effective mutation right ${rights} must remain denied`);
+        assert.equal(ancestorAcl({ ...baseAcl, access: [...baseAcl.access, { ...other, rights, inherit_only: true }] }, currentSid), true, 'inherit-only ACE does not apply to this directory');
+    }
+    const systemRoot = { ...baseAcl, owner_sid: 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464' };
+    assert.equal(ancestorAcl(systemRoot, currentSid, true), true, 'recognize only the OS installer ownership of a volume root');
+    assert.equal(ancestorAcl(systemRoot, currentSid, false), false, 'root owner exception must not spread to private directories');
+    assert.equal(ancestorAcl({ ...systemRoot, owner_sid: 'S-1-5-20' }, currentSid, true), false, 'arbitrary service ownership remains refused');
+    assert.equal(ancestorAcl({ ...baseAcl, access: [] }, currentSid), false, 'an empty access-rule projection is not proof of a safe DACL');
+    assert.equal(windowsPrivateAclIsSafe(systemRoot, currentSid), false, 'private-file policy is unchanged');
+    assert.equal(windowsReplacementAclIsSafe({ ...baseAcl, access: [...baseAcl.access, other] }, currentSid), false, 'other storage replacement policies are unchanged');
     assert.equal(posixOwnerIsTrusted(1000, 1000), true);
     assert.equal(posixOwnerIsTrusted(0, 1000), true);
     assert.equal(posixOwnerIsTrusted(1001, 1000), false);

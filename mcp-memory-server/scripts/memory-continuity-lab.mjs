@@ -1,16 +1,18 @@
 // Disposable, provider-free stdio lab shared by continuity contracts and studies.
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { hardenPrivatePath } from '../dist/platform-security.js';
 
 export const serverEntry = fileURLToPath(new URL('../dist/index.js', import.meta.url));
 
 export function createContinuityLab() {
-  const root = mkdtempSync(join(tmpdir(), 'cairn-memory-continuity-'));
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'cairn-memory-continuity-')));
+  hardenPrivatePath(root);
   const projects = Object.fromEntries(['alpha', 'beta', 'neutral'].map(name => {
     const path = join(root, name); mkdirSync(path, { mode: 0o700 });
     mkdirSync(join(path, '.agent'), { mode: 0o700 });

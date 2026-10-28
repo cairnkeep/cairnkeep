@@ -392,6 +392,12 @@ only: opening and closing another descriptor for a database or SHM inode can
 cancel SQLite's process-wide POSIX locks. Do not inspect live files with raw
 file-reading helpers; use the format-aware access and online backup paths.
 
+On Windows, the tracked-format ancestor check distinguishes permission to create
+a new directory from permission to replace an existing one. Inherit-only rules
+are evaluated on the descendant where they apply; effective write/delete or
+permission-changing grants remain refused. Only volume-root ownership recognizes
+the OS installer service. Private-file ACLs and other stores' policies are unchanged.
+
 For a disposable tracked store:
 
 ```bash
