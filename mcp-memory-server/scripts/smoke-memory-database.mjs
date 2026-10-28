@@ -6,8 +6,10 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { AgentFS } from 'agentfs-sdk';
 import { Worker } from 'node:worker_threads';
-import { fork } from 'node:child_process';
+import { fork, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { hardenPrivatePath } from '../dist/platform-security.js';
 import { createTypedNode, getTypedNode, supersedeTypedNode, planMemoryImport, commitMemoryImport } from '../dist/node-store.js';
@@ -85,6 +87,22 @@ try {
   })();
   assert.equal(await late, true);
   await assert.rejects(db.exec('BEGIN'), { code: 'MEMORY_UNOWNED_TRANSACTION' });
+  const boundedGuard = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    import { openMemoryDatabase } from './dist/memory-database.js';
+    const db = await openMemoryDatabase(process.argv[1], { create: true });
+    try {
+      const sql = '/*' + '*//*'.repeat(30) + '*/ SELECT 1 AS n';
+      await db.exec(sql);
+      if ((await db.prepare(sql).get()).n !== 1) throw Error('GUARD_RESULT');
+    } finally { await db.close(); }
+  `, join(root, 'bounded-guard.db')], { cwd: fileURLToPath(new URL('..', import.meta.url)), env: cleanEnv, timeout: 5000, encoding: 'utf8' });
+  assert.equal(boundedGuard.error, undefined, 'comment scanning must finish within its bound, without catastrophic backtracking');
+  assert.equal(boundedGuard.status, 0, boundedGuard.stderr);
+  for (const sql of ['/* first */ -- second\n BEGIN', 'SELECT 1; /* comment */ SAVEPOINT fixture', '\n; /* comment */ ROLLBACK']) {
+    await assert.rejects(db.exec(sql), { code: 'MEMORY_UNOWNED_TRANSACTION' });
+    await assert.rejects(db.prepare(sql).run(), { code: 'MEMORY_UNOWNED_TRANSACTION' });
+  }
+  assert.equal((await db.prepare("SELECT ';BEGIN' AS 'semi;COMMIT', 1 AS [semi;END], 2 AS `semi;ROLLBACK`").get())['semi;COMMIT'], ';BEGIN');
   await assert.rejects(db.transaction(() => db.transaction(async () => {})())(), { code: 'MEMORY_NESTED_TRANSACTION' });
   await assert.rejects(db.prepare('SELECT ?').get('x'.repeat(8 * 1024 * 1024 + 1)), { code: 'MEMORY_REQUEST_LIMIT' });
   await assert.rejects(db.prepare('SELECT 1').get({ invalid: true }), { code: 'MEMORY_INVALID_BINDING' });
@@ -220,6 +238,36 @@ try {
   await assert.rejects(format.validateMemoryContextFormat(damaged.db, identity), { code: 'MEMORY_CONTEXT_DAMAGED' });
   await damaged.db.exec('DROP TRIGGER unrelated_trigger; DROP TRIGGER cairn_memory_context_revision_update');
   await assert.rejects(format.validateMemoryContextFormat(damaged.db, identity), { code: 'MEMORY_CONTEXT_DAMAGED' });
+
+  const originalOpen = fs.openSync, originalClose = fs.closeSync;
+  const observed = new Set(); let closedWhileConnected = 0;
+  const descriptorPath = join(root, 'descriptor-lifetime.db');
+  try {
+    fs.openSync = function(path, ...args) {
+      const fd = originalOpen(path, ...args);
+      if (path === descriptorPath) observed.add(fd);
+      return fd;
+    };
+    fs.closeSync = function(fd) {
+      if (observed.delete(fd)) closedWhileConnected++;
+      return originalClose(fd);
+    };
+    syncBuiltinESMExports();
+    const descriptorStore = await make('descriptor-lifetime');
+    assert.equal(observed.size, 1, 'one probe descriptor remains held after startup');
+    closedWhileConnected = 0;
+    const peer = await implementation.openMemoryDatabase(descriptorStore.db.name); opened.push(peer);
+    format.probeOrdinaryMemoryFormat(descriptorStore.db.name);
+    format.inspectMemoryDatabaseFile(descriptorStore.db.name, true);
+    assert.equal(closedWhileConnected, 0, 'validation must not close descriptors while SQLite connections own process locks');
+    await peer.close();
+    assert.equal(closedWhileConnected, 0, 'closing a peer must preserve the remaining connection locks');
+    await assert.rejects(implementation.openMemoryDatabase(descriptorPath, { workerFactory: () => { throw Error('FIXTURE_STARTUP'); } }), /FIXTURE_STARTUP/);
+    assert.equal(closedWhileConnected, 0, 'failed startup must release only its own reference');
+    await descriptorStore.db.close();
+    assert.equal(closedWhileConnected, 1, 'the descriptor closes only after the last SQLite worker exits');
+    assert.equal(observed.size, 0);
+  } finally { fs.openSync = originalOpen; fs.closeSync = originalClose; syncBuiltinESMExports(); }
 
   const closeOrder = await make('close-order', { workerFactory: (url, options) => {
     const worker = new Worker(url, options), emit = worker.emit;

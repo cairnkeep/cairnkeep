@@ -15,10 +15,30 @@ function sameIdentity(left: Stats, right: Stats): boolean {
         && right.isFile() && !right.isSymbolicLink();
 }
 
-function inspectFile<T>(path: string, privateRequired: boolean, read: (descriptor: number, info: Stats) => T): { value: T; stat: Stats } {
+type HeldMemoryFile = { descriptor: number; references: number };
+const heldMemoryFiles = new Map<string, HeldMemoryFile>();
+const inodeKey = (info: Stats) => `${info.dev}:${info.ino}`;
+
+/** Metadata checks do not open/close SQLite-owned database or sidecar inodes. */
+export function inspectMemoryDatabaseMetadata(path: string, privateRequired = false): Stats {
+    try {
+        const info = lstatSync(path), parent = lstatSync(dirname(path));
+        if (!info.isFile() || info.isSymbolicLink() || !parent.isDirectory() || parent.isSymbolicLink()) throw memoryError('MEMORY_FILE_UNSAFE');
+        if (privateRequired && (!replacementBoundaryIsSafe(dirname(path)) || !memoryPathAncestorsAreSafe(path)
+            || (process.platform === 'win32' ? !privatePathIsSafe(path) : !posixPrivateMetadataIsSafe(info)))) throw memoryError('MEMORY_FILE_UNSAFE');
+        const after = lstatSync(path), parentAfter = lstatSync(dirname(path));
+        if (!sameIdentity(info, after) || parent.dev !== parentAfter.dev || parent.ino !== parentAfter.ino) throw memoryError('MEMORY_FILE_CHANGED');
+        return after;
+    } catch (error) {
+        if (String((error as { code?: string }).code).startsWith('MEMORY_')) throw error;
+        throw memoryError('MEMORY_FILE_UNSAFE');
+    }
+}
+
+function inspectFile<T>(path: string, privateRequired: boolean, read: (descriptor: number, info: Stats) => T, borrowed?: number): { value: T; stat: Stats } {
     let descriptor: number | undefined;
     try {
-        descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)
+        descriptor = borrowed ?? openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)
             | (constants.O_NOCTTY ?? 0) | (process.platform === 'win32' ? 0 : constants.O_NONBLOCK ?? 0));
         const info = fstatSync(descriptor), parent = lstatSync(dirname(path));
         if (!info.isFile() || !parent.isDirectory() || parent.isSymbolicLink() || !sameIdentity(info, lstatSync(path))) throw memoryError('MEMORY_FILE_UNSAFE');
@@ -29,18 +49,43 @@ function inspectFile<T>(path: string, privateRequired: boolean, read: (descripto
         if (!sameIdentity(info, after) || !sameIdentity(info, lstatSync(path)) || !parentAfter.isDirectory()
             || parentAfter.isSymbolicLink() || parentAfter.dev !== parent.dev || parentAfter.ino !== parent.ino) throw memoryError('MEMORY_FILE_CHANGED');
         return { value, stat: after };
-    } finally { if (descriptor !== undefined) closeSync(descriptor); }
+    } finally { if (descriptor !== undefined && borrowed === undefined) closeSync(descriptor); }
 }
 export function inspectMemoryDatabaseFile(path: string, privateRequired = false): Stats {
-    try { return inspectFile(path, privateRequired, () => undefined).stat; }
+    try { return inspectFile(path, privateRequired, () => undefined, heldMemoryFiles.get(inodeKey(lstatSync(path)))?.descriptor).stat; }
     catch (error) {
         if (String((error as { code?: string }).code).startsWith('MEMORY_')) throw error;
         throw memoryError('MEMORY_FILE_UNSAFE');
     }
 }
+
+/** Hold the probe descriptor until every owned SQLite worker has actually exited.
+ * POSIX close() otherwise drops all SQLite locks for that inode in this process. */
+export function retainMemoryDatabaseFile(path: string): { stat: Stats; release(): void } {
+    const named = inspectMemoryDatabaseMetadata(path, true), key = inodeKey(named);
+    let entry = heldMemoryFiles.get(key);
+    let stat: Stats;
+    if (!entry) {
+        const descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)
+            | (constants.O_NOCTTY ?? 0) | (process.platform === 'win32' ? 0 : constants.O_NONBLOCK ?? 0));
+        try {
+            stat = inspectFile(path, true, () => undefined, descriptor).stat;
+            if (!sameIdentity(named, stat)) throw memoryError('MEMORY_FILE_CHANGED');
+            entry = { descriptor, references: 0 }; heldMemoryFiles.set(key, entry);
+        } catch (error) { closeSync(descriptor); throw error; }
+    } else stat = inspectFile(path, true, () => undefined, entry.descriptor).stat;
+    entry.references++;
+    let released = false;
+    return { stat, release() {
+        if (released) return;
+        released = true;
+        if (--entry.references === 0) { heldMemoryFiles.delete(key); closeSync(entry.descriptor); }
+    } };
+}
 export type OrdinaryMemoryFormat = { kind: 'missing' | 'legacy' | 'context-v1' | 'unsupported'; identity?: { dev: number; ino: number } };
 export function probeOrdinaryMemoryFormat(path: string): OrdinaryMemoryFormat {
     try {
+        const borrowed = heldMemoryFiles.get(inodeKey(lstatSync(path)))?.descriptor;
         const { value: kind, stat } = inspectFile(path, false, (descriptor, info) => {
             if (info.size === 0) return 'legacy' as const;
             const header = Buffer.alloc(100); let offset = 0;
@@ -52,7 +97,7 @@ export function probeOrdinaryMemoryFormat(path: string): OrdinaryMemoryFormat {
             if (offset !== 100 || header.toString('ascii', 0, 16) !== 'SQLite format 3\0') return 'unsupported' as const;
             const id = header.readUInt32BE(68);
             return id === 0 ? 'legacy' as const : id === CONTEXT_APPLICATION_ID ? 'context-v1' as const : 'unsupported' as const;
-        });
+        }, borrowed);
         return { kind, identity: { dev: stat.dev, ino: stat.ino } };
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { kind: 'missing' };

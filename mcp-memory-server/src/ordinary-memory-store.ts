@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { dirname, join, resolve, basename } from 'node:path';
 import { lstatSync, realpathSync, mkdirSync, mkdtempSync, linkSync, unlinkSync, rmdirSync, rmSync, writeFileSync, opendirSync } from 'node:fs';
 import { hardenPrivatePath, privatePathIsSafe, replacementBoundaryIsSafe, memoryPathAncestorsAreSafe } from './platform-security.js';
-import { probeOrdinaryMemoryFormat, inspectMemoryDatabaseFile, createMemoryDatabaseFile, initializeMemoryContextFormat, validateMemoryContextFormat } from './memory-store-format.js';
+import { probeOrdinaryMemoryFormat, inspectMemoryDatabaseFile, inspectMemoryDatabaseMetadata, createMemoryDatabaseFile, initializeMemoryContextFormat, validateMemoryContextFormat } from './memory-store-format.js';
 import { contextStoreIdentitySchema, contextStoreMarkerSchema, CONTEXT_STORE_TABLE } from './memory-context-schema.js';
 import { memoryError } from './memory-database-protocol.js';
 import { readStableFile } from './stable-file.js';
@@ -159,14 +159,14 @@ async function openContextDatabase(path: string, scope: string | undefined, read
     }
     const { MemoryDatabase } = await import('./memory-database.js');
     const before = inspectMemoryDatabaseFile(path, true);
-    for (const suffix of ['-wal', '-shm', '-journal']) if (info(path + suffix)) inspectMemoryDatabaseFile(path + suffix, true);
+    for (const suffix of ['-wal', '-shm', '-journal']) if (info(path + suffix)) inspectMemoryDatabaseMetadata(path + suffix, true);
     const db = await MemoryDatabase.open(path, { readOnly });
     try {
         // Only the local administrative doctor may discover a stored logical scope.
         const logicalScope = scope ?? contextStoreMarkerSchema.parse(await db.prepare(`SELECT * FROM ${CONTEXT_STORE_TABLE} WHERE id=1`).get()).scope;
         await validateMemoryContextFormat(db, memoryStoreIdentity(path, logicalScope));
         const after = inspectMemoryDatabaseFile(path, true);
-        for (const suffix of ['-wal', '-shm', '-journal']) if (info(path + suffix)) inspectMemoryDatabaseFile(path + suffix, true);
+        for (const suffix of ['-wal', '-shm', '-journal']) if (info(path + suffix)) inspectMemoryDatabaseMetadata(path + suffix, true);
         if (before.dev !== after.dev || before.ino !== after.ino) throw memoryError('MEMORY_FILE_CHANGED');
         return db;
     } catch (error) { await db.close(); throw error; }

@@ -50,14 +50,25 @@ try {
   const receipt = value => createHmac('sha256', receiptKey).update(JSON.stringify(value)).digest('hex');
   const oldReceipt = receipt(oldRef);
   const child = fork(fileURLToPath(new URL('./fixtures/memory-store-writer.mjs', import.meta.url)), [path], { env: lab.env, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
-  child.stderr.resume();
+  let childDiagnostic = '';
+  child.stderr.on('data', bytes => { childDiagnostic = (childDiagnostic + String(bytes)).slice(-65_536); });
+  const finished = new Promise(done => child.once('close', (code, signal) => done({ code, signal })));
+  child.on('error', error => { childDiagnostic += `\nwriter IPC: ${error.code ?? 'failed'}`; });
   let backed;
   const timer = setTimeout(() => child.kill(), 15_000);
   try {
     await Promise.race([once(child, 'message'), once(child, 'exit').then(() => { throw new Error('writer exited early'); })]);
     backed = run(['backup', ...args, '--output', backup]);
-    const exited = once(child, 'exit'); child.send({ stop: true }); await exited;
-  } finally { clearTimeout(timer); if (child.exitCode === null) child.kill(); }
+    let sendError;
+    await new Promise(done => child.send({ stop: true }, error => { sendError = error; done(); }));
+    const outcome = await finished;
+    assert.equal(outcome.code, 0, `writer exited during online backup (${outcome.signal ?? 'no signal'}): ${childDiagnostic}; backup: ${backed.stderr}`);
+    assert.equal(sendError, null, `writer shutdown failed: ${childDiagnostic}`);
+  } finally {
+    clearTimeout(timer);
+    if (child.exitCode === null && child.signalCode === null) child.kill();
+    await finished;
+  }
   assert.equal(backed.status, 0, 'managed online backup must be a supported operation');
   assert.equal(existsSync(backup), true);
   const snapshotBytes = readFileSync(backup);

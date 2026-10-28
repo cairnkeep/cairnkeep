@@ -386,6 +386,12 @@ back the current state before deciding whether a mutation should be attempted
 again. Older database clients refuse this format. The persistent format, not
 `CAIRN_MEMORY_CONTEXT`, selects its backend: disabling tools is not rollback.
 
+Database validation retains one shared probe descriptor until the last owning
+SQLite worker exits. While connections are live, sidecar checks inspect metadata
+only: opening and closing another descriptor for a database or SHM inode can
+cancel SQLite's process-wide POSIX locks. Do not inspect live files with raw
+file-reading helpers; use the format-aware access and online backup paths.
+
 For a disposable tracked store:
 
 ```bash

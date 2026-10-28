@@ -6,7 +6,7 @@ import {
     memoryDatabaseLimits, memoryError, memoryWireBytes, normalizeMemoryValue, validateMemoryRequest,
     type MemoryBinding, type MemoryDatabaseLimits, type MemoryOperation, type MemoryRow,
 } from './memory-database-protocol.js';
-import { createMemoryDatabaseFile, inspectMemoryDatabaseFile } from './memory-store-format.js';
+import { createMemoryDatabaseFile, inspectMemoryDatabaseFile, retainMemoryDatabaseFile } from './memory-store-format.js';
 
 export type MemoryDatabaseOptions = {
     create?: boolean; readOnly?: boolean; busyTimeoutMs?: number;
@@ -51,7 +51,41 @@ export function assertContextRuntime(version = process.versions.node): void {
 }
 
 function controlsTransaction(sql: string): boolean {
-    return /(?:^|;)\s*(?:(?:--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)\s*)*(?:BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i.test(sql);
+    // Scan once: repeated adjacent comments must not cause regex backtracking.
+    // Quoted semicolons are data, not new statement boundaries.
+    let prefix = true, offset = 0;
+    while (offset < sql.length) {
+        const char = sql[offset];
+        if (/\s/.test(char)) { offset++; continue; }
+        if (sql.startsWith('--', offset)) {
+            const end = sql.indexOf('\n', offset + 2);
+            if (end < 0) return false;
+            offset = end + 1; continue;
+        }
+        if (sql.startsWith('/*', offset)) {
+            const end = sql.indexOf('*/', offset + 2);
+            if (end < 0) return false;
+            offset = end + 2; continue;
+        }
+        if (char === ';') { prefix = true; offset++; continue; }
+        if (char === "'" || char === '"' || char === '`' || char === '[') {
+            const quote = char === '[' ? ']' : char;
+            prefix = false; offset++;
+            while (offset < sql.length) {
+                if (sql[offset++] !== quote) continue;
+                if (char !== '[' && sql[offset] === quote) { offset++; continue; }
+                break;
+            }
+            continue;
+        }
+        if (prefix && /[A-Za-z_]/.test(char)) {
+            const start = offset++;
+            while (offset < sql.length && /[A-Za-z0-9_$]/.test(sql[offset])) offset++;
+            if (offset - start <= 9 && ['BEGIN', 'COMMIT', 'END', 'ROLLBACK', 'SAVEPOINT', 'RELEASE'].includes(sql.slice(start, offset).toUpperCase())) return true;
+        } else offset++;
+        prefix = false;
+    }
+    return false;
 }
 
 export class MemoryDatabase {
@@ -83,14 +117,15 @@ export class MemoryDatabase {
         if (!Number.isSafeInteger(busyTimeoutMs) || busyTimeoutMs < 0 || busyTimeoutMs > 5000) throw memoryError('MEMORY_INVALID_TIMEOUT');
         const db = new MemoryDatabase(path, options);
         if (options.create) createMemoryDatabaseFile(path);
-        const identity = inspectMemoryDatabaseFile(path, true);
+        const file = retainMemoryDatabaseFile(path), identity = file.stat;
         const factory = options.workerFactory ?? ((url, configuration) => new Worker(url, configuration));
-        db.#thread = factory(new URL('./memory-sqlite-worker.js', import.meta.url), {
-            workerData: { path, readOnly: db.readonly, busyTimeoutMs, limits: db.limits, identity: { dev: identity.dev, ino: identity.ino } },
-            execArgv: process.execArgv.filter(arg => !arg.startsWith('--input-type')),
-            resourceLimits: { maxOldGenerationSizeMb: 128 },
-        });
         try {
+            db.#thread = factory(new URL('./memory-sqlite-worker.js', import.meta.url), {
+                workerData: { path, readOnly: db.readonly, busyTimeoutMs, limits: db.limits, identity: { dev: identity.dev, ino: identity.ino } },
+                execArgv: process.execArgv.filter(arg => !arg.startsWith('--input-type')),
+                resourceLimits: { maxOldGenerationSizeMb: 128 },
+            });
+            db.#thread.once('exit', file.release);
             await new Promise<void>((resolve, reject) => {
                 const timeout = setTimeout(() => { reject(memoryError('MEMORY_STARTUP_TIMEOUT')); db.poison(); }, db.limits.startupMs);
                 const finish = (error?: Error) => { clearTimeout(timeout); error ? reject(error) : resolve(); };
@@ -110,7 +145,11 @@ export class MemoryDatabase {
             const after = inspectMemoryDatabaseFile(path, true);
             if (after.dev !== identity.dev || after.ino !== identity.ino) throw memoryError('MEMORY_FILE_CHANGED');
             return db;
-        } catch (error) { db.poison(); await db.#termination; throw error; }
+        } catch (error) {
+            if (db.#thread) { db.poison(); await db.#termination; }
+            else file.release();
+            throw error;
+        }
     }
     get open(): boolean { return !this.#closed && !this.#unusable; }
     get inTransaction(): boolean { return this.#transaction; }
@@ -220,10 +259,13 @@ export class MemoryDatabase {
         });
     }
     exec(sql: string): Promise<void> {
-        if (controlsTransaction(sql) && !this.#owner.getStore()) return Promise.reject(memoryError('MEMORY_UNOWNED_TRANSACTION'));
         let bytes: number;
-        try { bytes = memoryWireBytes(sql, this.limits.requestBytes, 'MEMORY_REQUEST_LIMIT'); }
+        try {
+            validateMemoryRequest({ id: 1, operation: 'exec', sql }, this.limits);
+            bytes = memoryWireBytes(sql, this.limits.requestBytes, 'MEMORY_REQUEST_LIMIT');
+        }
         catch (error) { return Promise.reject(error); }
+        if (controlsTransaction(sql) && !this.#owner.getStore()) return Promise.reject(memoryError('MEMORY_UNOWNED_TRANSACTION'));
         return this.exclusive(async () => {
             const committing = /^\s*COMMIT\b/i.test(sql);
             if (committing) this.#committing = true;
@@ -237,10 +279,10 @@ export class MemoryDatabase {
     prepare(sql: string) {
         if (typeof sql !== 'string' || !sql.trim()) throw memoryError('MEMORY_INVALID_SQL');
         const call = (operation: 'get' | 'all' | 'run', params: MemoryBinding[]): Promise<unknown> => {
-            if (controlsTransaction(sql) && !this.#owner.getStore()) return Promise.reject(memoryError('MEMORY_UNOWNED_TRANSACTION'));
             try {
                 const request = { id: 1, operation, sql, params }; validateMemoryRequest(request, this.limits);
                 const bytes = memoryWireBytes(request, this.limits.requestBytes, 'MEMORY_REQUEST_LIMIT');
+                if (controlsTransaction(sql) && !this.#owner.getStore()) return Promise.reject(memoryError('MEMORY_UNOWNED_TRANSACTION'));
                 return this.exclusive(() => this.request(operation, { sql, params }), bytes);
             } catch (error) { return Promise.reject(error); }
         };

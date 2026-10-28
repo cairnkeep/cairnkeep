@@ -4,19 +4,19 @@ import {
     memoryDatabaseLimits, memoryError, memoryWireBytes, validateMemoryRequest,
     MemoryDatabaseError, type MemoryRequest, type MemoryBinding,
 } from './memory-database-protocol.js';
-import { inspectMemoryDatabaseFile } from './memory-store-format.js';
+import { inspectMemoryDatabaseMetadata } from './memory-store-format.js';
 
 if (!parentPort) throw memoryError('MEMORY_WORKER_REQUIRED');
 const port = parentPort, limits = memoryDatabaseLimits(workerData.limits);
 // Only this worker imports the synchronous driver, after parent runtime admission.
 const { DatabaseSync, backup } = await import('node:sqlite');
 if (typeof backup !== 'function') throw memoryError('MEMORY_RUNTIME_UNSUPPORTED');
-const before = inspectMemoryDatabaseFile(workerData.path, true);
+const before = inspectMemoryDatabaseMetadata(workerData.path, true);
 if (before.dev !== workerData.identity.dev || before.ino !== workerData.identity.ino) throw memoryError('MEMORY_FILE_CHANGED');
 const db = new DatabaseSync(workerData.path, { readOnly: workerData.readOnly, timeout: workerData.busyTimeoutMs });
 try {
     if (typeof db.isTransaction !== 'boolean') throw memoryError('MEMORY_RUNTIME_UNSUPPORTED');
-    const after = inspectMemoryDatabaseFile(workerData.path, true);
+    const after = inspectMemoryDatabaseMetadata(workerData.path, true);
     if (after.dev !== before.dev || after.ino !== before.ino) throw memoryError('MEMORY_FILE_CHANGED');
     if (workerData.readOnly) db.exec('PRAGMA query_only=ON');
     else db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL');

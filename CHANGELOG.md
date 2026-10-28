@@ -17,6 +17,10 @@ All notable user-facing changes are documented here. This project follows
   transparency, new context tools, production admission or release is implied;
   native-platform and independent-review gates remain open. Update storage,
   compatibility, completions and the unreleased L07 teaching brief.
+- Preserve live SQLite locks across worker connections and file validation;
+  retain probe descriptors until workers exit and avoid opening live sidecars.
+  Bound transaction-control scanning without backtracking, and test comment
+  sequences, quoted statement boundaries and canonical-path fault injection.
 
 ## [2.27.0] - 2026-10-26
 

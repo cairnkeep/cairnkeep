@@ -238,8 +238,11 @@ try {
   const nextDatabase = databaseFixture('New database fixture.');
   const archiveBytes = gzipSync(createTar([["project.db", nextDatabase]]));
   write(archive, archiveBytes);
-  const memory = join(root, "memory");
-  fs.mkdirSync(memory, { mode: 0o700 });
+  const memoryInput = join(root, "memory");
+  fs.mkdirSync(memoryInput, { mode: 0o700 });
+  // The real importer canonicalizes its destination, including native Windows
+  // short-name/case aliases. Fault injections must target that same pathname.
+  const memory = fs.realpathSync.native(memoryInput);
   const database = join(memory, "project.db");
   write(database, previousDatabase);
   const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
