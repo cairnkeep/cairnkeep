@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, copyFileSync, rmSync, existsSync, mkdirSync, truncateSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, existsSync, mkdirSync, truncateSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { spawnSync, fork } from 'node:child_process';
 import { once } from 'node:events';
@@ -13,12 +13,26 @@ import { createContinuityLab } from './memory-continuity-lab.mjs';
 import { createTar } from '../../scripts/windows-platform.mjs';
 import { hardenPrivatePath } from '../dist/platform-security.js';
 
-function copyPrivateSnapshot(source, target) { copyFileSync(source, target); hardenPrivatePath(target); }
+function copyPrivateSnapshot(bytes, target) { writeFileSync(target, bytes, { flag: 'wx', mode: 0o600 }); hardenPrivatePath(target); }
 
 const lab = createContinuityLab();
 const cli = fileURLToPath(new URL('../../bin/cairn', import.meta.url));
 const path = join(lab.projects.alpha, '.agentfs', 'project.db');
 const backup = join(lab.root, 'snapshot.db');
+let snapshotDescriptor;
+function readSnapshotBytes() {
+  const opened = fs.fstatSync(snapshotDescriptor), named = fs.lstatSync(backup);
+  assert.ok(opened.isFile() && named.isFile() && !named.isSymbolicLink());
+  assert.equal(opened.dev, named.dev); assert.equal(opened.ino, named.ino);
+  assert.ok(opened.size >= 100 && opened.size <= 512 * 1024 * 1024);
+  const bytes = Buffer.alloc(opened.size);
+  let offset = 0;
+  while (offset < bytes.length) {
+    const count = fs.readSync(snapshotDescriptor, bytes, offset, bytes.length - offset, offset);
+    assert.ok(count > 0); offset += count;
+  }
+  return bytes;
+}
 // Native ACL subprocesses are part of the fixture's elapsed time, not SQL work.
 // Production request/startup limits are unchanged; backup itself has a 120s cap.
 const run = args => spawnSync(process.execPath, [cli, 'memory-context', ...args], { cwd: lab.projects.alpha, env: lab.env, encoding: 'utf8', timeout: process.platform === 'win32' ? (args[0] === 'backup' ? 150_000 : 90_000) : 30_000 });
@@ -77,9 +91,9 @@ try {
     await finished;
   }
   assert.equal(backed.status, 0, 'managed online backup must be a supported operation');
-  assert.equal(existsSync(backup), true);
-  const snapshotBytes = readFileSync(backup);
-  const foreignCopy = join(lab.root, 'foreign-snapshot.db'); copyPrivateSnapshot(backup, foreignCopy);
+  snapshotDescriptor = fs.openSync(backup, fs.constants.O_RDWR | (fs.constants.O_NOFOLLOW ?? 0));
+  const snapshotBytes = readSnapshotBytes();
+  const foreignCopy = join(lab.root, 'foreign-snapshot.db'); copyPrivateSnapshot(snapshotBytes, foreignCopy);
   await assert.rejects(store.openOrdinaryMemoryStore(foreignCopy, 'project'), /MEMORY_OWNER_MISMATCH/);
   assert.deepEqual(readFileSync(foreignCopy), snapshotBytes, 'rejected writer cannot change a foreign snapshot journal mode');
   const snapshotDb = await MemoryDatabase.open(backup, { readOnly: true });
@@ -89,7 +103,7 @@ try {
     assert.equal(left.value, right.value, 'online snapshot must include a complete concurrent transaction');
   } finally { await snapshotDb.close(); }
   assert.notEqual(run(['backup', ...args, '--output', backup]).status, 0);
-  assert.deepEqual(readFileSync(backup), snapshotBytes, 'backup must not overwrite existing output');
+  assert.deepEqual(readSnapshotBytes(), snapshotBytes, 'backup must not overwrite existing output');
   const failedBackup = join(lab.root, 'failed-snapshot.db');
   const nativeBackup = MemoryDatabase.prototype.backup;
   try {
@@ -97,7 +111,7 @@ try {
     await assert.rejects(store.backupMemoryContextStore({ path, scope: 'project', output: failedBackup }), /FIXTURE_AFTER_BACKUP_WRITE/);
   } finally { MemoryDatabase.prototype.backup = nativeBackup; }
   assert.equal(existsSync(failedBackup), false, 'failed backup must not publish its written stage');
-  assert.deepEqual(readFileSync(backup), snapshotBytes);
+  assert.deepEqual(readSnapshotBytes(), snapshotBytes);
   const orphanOutput = join(lab.root, 'orphan-output.db');
   writeFileSync(orphanOutput + '-wal', 'ABANDONED_WAL', { mode: 0o600 }); hardenPrivatePath(orphanOutput + '-wal');
   await assert.rejects(store.backupMemoryContextStore({ path, scope: 'project', output: orphanOutput }), { code: 'MEMORY_AUXILIARY_PRESENT' });
@@ -116,7 +130,7 @@ try {
   assert.equal(readFileSync(backupWinner, 'utf8'), 'COMPETING_BACKUP', 'backup must retain a racing publisher');
   assert.ok(!store.memoryAdministrationIssues(lab.root).includes('MEMORY_STAGING_PRESENT'));
   assert.equal(receipt(await sourceRef()), oldReceipt);
-  drop(); copyPrivateSnapshot(backup, path);
+  drop(); copyPrivateSnapshot(snapshotBytes, path);
   assert.equal(receipt(await sourceRef()), oldReceipt, 'raw copy cannot invalidate an authentic old receipt');
   drop();
   const restore = run(['restore', ...args, '--input', backup]);
@@ -128,7 +142,7 @@ try {
     await assert.rejects(store.planContextStoreRestore({ path, scope: 'project', input: backup }),
       /MEMORY_SNAPSHOT_IN_USE/, 'a raw snapshot read must not cancel a live SQLite connection lock in this process');
   } finally { await heldSnapshot.close(); }
-  const injected = join(lab.root, 'injected-trigger.db'); copyPrivateSnapshot(backup, injected);
+  const injected = join(lab.root, 'injected-trigger.db'); copyPrivateSnapshot(snapshotBytes, injected);
   const injectedDb = await MemoryDatabase.open(injected);
   try {
     await injectedDb.transaction(async () => { await injectedDb.exec('CREATE TRIGGER unexpected_fs_trigger AFTER INSERT ON fs_config BEGIN DELETE FROM kv_store; END'); })();
@@ -144,7 +158,6 @@ try {
   await assert.rejects(store.planContextStoreRestore({ path, scope: 'project', input: corrupt }));
   assert.equal(existsSync(path), false);
   const swapped = Buffer.from(snapshotBytes); swapped[swapped.length - 1] ^= 0xff;
-  const snapshotDescriptor = fs.openSync(backup, fs.constants.O_RDWR | (fs.constants.O_NOFOLLOW ?? 0));
   const writeSnapshot = bytes => {
     assert.equal(fs.fstatSync(snapshotDescriptor).isFile(), true);
     let offset = 0;
@@ -157,7 +170,7 @@ try {
     writeSnapshot(swapped);
     await assert.rejects(store.applyContextStoreRestore({ path, scope: 'project', input: backup, confirm: restorePlan.digest }));
     assert.equal(existsSync(path), false, 'a changed snapshot must not satisfy an old plan');
-  } finally { try { writeSnapshot(snapshotBytes); } finally { fs.closeSync(snapshotDescriptor); } }
+  } finally { writeSnapshot(snapshotBytes); }
   for (const failure of ['before-renewal', 'after-renewal']) {
     const prepare = MemoryDatabase.prototype.prepare;
     try {
@@ -171,14 +184,14 @@ try {
       };
       await assert.rejects(store.applyContextStoreRestore({ path, scope: 'project', input: backup, confirm: restorePlan.digest }), /FIXTURE_RENEWAL_FAILURE/);
     } finally { MemoryDatabase.prototype.prepare = prepare; }
-    assert.equal(existsSync(path), false); assert.deepEqual(readFileSync(backup), snapshotBytes);
+    assert.equal(existsSync(path), false); assert.deepEqual(readSnapshotBytes(), snapshotBytes);
   }
   const publish = fs.linkSync;
   try {
     fs.linkSync = () => { throw new Error('FIXTURE_PUBLICATION_FAILURE'); }; syncBuiltinESMExports();
     await assert.rejects(store.applyContextStoreRestore({ path, scope: 'project', input: backup, confirm: restorePlan.digest }), /FIXTURE_PUBLICATION_FAILURE/);
   } finally { fs.linkSync = publish; syncBuiltinESMExports(); }
-  assert.equal(existsSync(path), false); assert.deepEqual(readFileSync(backup), snapshotBytes);
+  assert.equal(existsSync(path), false); assert.deepEqual(readSnapshotBytes(), snapshotBytes);
   const nativeFsync = fs.fsyncSync;
   try {
     fs.fsyncSync = () => { throw Error('FIXTURE_STAGE_SYNC_FAILURE'); }; syncBuiltinESMExports();
@@ -230,7 +243,7 @@ try {
     }
     assert.equal(existsSync(path), true, 'post-publication errors must not remove a complete object');
     assert.notEqual((await sourceRef()).restore_epoch, oldRef.restore_epoch, 'even uncertain publication exposes only the renewed epoch');
-    assert.deepEqual(readFileSync(backup), snapshotBytes);
+    assert.deepEqual(readSnapshotBytes(), snapshotBytes);
     if (failure === 'stage-cleanup') {
       assert.ok(store.memoryAdministrationIssues(dirname(path)).includes('MEMORY_STAGING_PRESENT'));
       assert.equal(dirname(dirname(stagedSource)), dirname(path));
@@ -247,7 +260,7 @@ try {
     await assert.rejects(store.applyContextStoreRestore({ path, scope: 'project', input: backup, confirm: restorePlan.digest }), { code: 'EEXIST' });
   } finally { fs.linkSync = originalLink; syncBuiltinESMExports(); }
   assert.equal(readFileSync(path, 'utf8'), 'COMPETING_RESTORE', 'restore cannot replace a racing winner');
-  assert.deepEqual(readFileSync(backup), snapshotBytes);
+  assert.deepEqual(readSnapshotBytes(), snapshotBytes);
   drop();
   assert.equal(run(['restore', ...args, '--input', backup, '--apply', '--confirm', restorePlan.digest]).status, 0);
   const restored = await sourceRef();
@@ -257,7 +270,7 @@ try {
   const restoredBytes = readFileSync(path);
   assert.notEqual(run(['restore', ...args, '--input', backup, '--apply', '--confirm', restorePlan.digest]).status, 0);
   assert.deepEqual(readFileSync(path), restoredBytes);
-  assert.deepEqual(readFileSync(backup), snapshotBytes, 'restore must never modify the input snapshot');
+  assert.deepEqual(readSnapshotBytes(), snapshotBytes, 'restore must never modify the input snapshot');
   drop();
   const contenders = await Promise.allSettled([
     store.applyContextStoreRestore({ path, scope: 'project', input: backup, confirm: restorePlan.digest }),
@@ -280,7 +293,7 @@ try {
   assert.notEqual(importArchive(mixed).status, 0, 'generic import must reject context-format archive members');
   assert.deepEqual(readFileSync(join(base, 'identity.db')), legacyBytes);
   assert.equal(existsSync(join(base, 'identity.db.bak-pre-import')), false);
-  const target = join(base, 'project.db'); copyPrivateSnapshot(backup, target);
+  const target = join(base, 'project.db'); copyPrivateSnapshot(snapshotBytes, target);
   const legacyOnly = join(lab.root, 'legacy-only.tgz'); writeFileSync(legacyOnly, gzipSync(createTar([
     ['identity.db', Buffer.alloc(0)], ['project.db', Buffer.alloc(0)],
   ])));
@@ -292,4 +305,4 @@ try {
   assert.ok(store.memoryAdministrationIssues(base).includes('MEMORY_IMPORT_RECOVERY_REQUIRED'));
   lab.assertOffline();
   console.log('PASS: online backup, fresh managed restore, epoch receipt boundary and all-member generic import refusal');
-} finally { await lab.close(); }
+} finally { if (snapshotDescriptor !== undefined) fs.closeSync(snapshotDescriptor); await lab.close(); }
