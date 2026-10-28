@@ -12,6 +12,7 @@ import { diagnoseSetup } from "./setup.mjs";
 import { reconcilePlaybookInstructions } from "./playbook-instructions.mjs";
 import { createTar, runWindowsCommand } from "./windows-platform.mjs";
 import { readStableFile, readStableText } from "./lib/stable-file.mjs";
+import { hardenPrivatePath } from "../mcp-memory-server/dist/platform-security.js";
 
 const root = fs.mkdtempSync(join(tmpdir(), "cairn-cli-file-security-"));
 const failures = [];
@@ -240,11 +241,13 @@ try {
   write(archive, archiveBytes);
   const memoryInput = join(root, "memory");
   fs.mkdirSync(memoryInput, { mode: 0o700 });
+  hardenPrivatePath(memoryInput);
   // The real importer canonicalizes its destination, including native Windows
   // short-name/case aliases. Fault injections must target that same pathname.
   const memory = fs.realpathSync.native(memoryInput);
   const database = join(memory, "project.db");
   write(database, previousDatabase);
+  hardenPrivatePath(database);
   const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const previousBase = process.env.CAIRN_AGENTFS_BASE_DIR;
   process.env.CAIRN_AGENTFS_BASE_DIR = memory;
