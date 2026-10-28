@@ -7,7 +7,7 @@ import { extractTar } from './windows-platform.mjs';
 import { readStableFile } from './lib/stable-file.mjs';
 import { canonicalMemoryPath, withMemoryAdmission } from '../mcp-memory-server/dist/ordinary-memory-store.js';
 import { probeOrdinaryMemoryFormat, inspectMemoryDatabaseFile } from '../mcp-memory-server/dist/memory-store-format.js';
-import { hardenPrivatePath, replacementBoundaryIsSafe, memoryPathAncestorsAreSafe, atomicReplace } from '../mcp-memory-server/dist/platform-security.js';
+import { hardenPrivatePath, privatePathIsSafe, replacementBoundaryIsSafe, memoryPathAncestorsAreSafe, atomicReplace } from '../mcp-memory-server/dist/platform-security.js';
 
 const LIMIT = 512 * 1024 * 1024;
 const GUIDANCE = 'MEMORY_IMPORT_REFUSED: use cairn memory-context restore for tracked stores; stop clients and preserve recovery files.';
@@ -23,11 +23,15 @@ export async function importLegacyMemoryArchive({ base, archive, publish = (dest
   const files = extractTar(gunzipSync(packed, { maxOutputLength: LIMIT }));
   if (!files.length || files.length > 1024 || files.some(([, bytes]) => !legacyBytes(bytes))) throw new Error(GUIDANCE);
   const root = dirname(canonicalMemoryPath(join(resolve(base), `.import-${randomUUID()}.db`)));
+  const rootExisted = existsSync(root);
   mkdirSync(root, { recursive: true, mode: 0o700 });
-  // Keep the existing native Windows legacy publication/ACL contract. Its
-  // ancestor ACL semantics are not interchangeable with POSIX rename rights.
+  // Windows ignores POSIX creation modes. A fresh store is hardened before
+  // bytes enter it; an existing store must already satisfy the private ACL
+  // contract so import never silently changes an operator's access policy.
+  if (process.platform === 'win32' && !rootExisted) hardenPrivatePath(root);
   if (!replacementBoundaryIsSafe(root) || (process.platform !== 'win32'
-      && !memoryPathAncestorsAreSafe(join(root, '.pending-import')))) throw new Error(GUIDANCE);
+      && !memoryPathAncestorsAreSafe(join(root, '.pending-import')))
+      || (process.platform === 'win32' && !privatePathIsSafe(root))) throw new Error(GUIDANCE);
   const pending = join(root, '.cairn-memory-import-pending');
   const targets = files.map(([name, bytes]) => ({ path: canonicalMemoryPath(join(root, name)), name, bytes })).sort((a, b) => a.path.localeCompare(b.path));
   const locked = async index => index === targets.length ? apply() : withMemoryAdmission(targets[index].path, () => locked(index + 1));
@@ -39,6 +43,8 @@ export async function importLegacyMemoryArchive({ base, archive, publish = (dest
       if (!['missing', 'legacy'].includes(kind) || ['-wal', '-shm', '-journal'].some(suffix => present(target.path + suffix))) throw new Error(GUIDANCE);
       const backup = `${target.path}.bak-pre-import`;
       if (present(backup) && probeOrdinaryMemoryFormat(backup).kind !== 'legacy') throw new Error(GUIDANCE);
+      if (process.platform === 'win32' && ((kind !== 'missing' && !privatePathIsSafe(target.path))
+          || (present(backup) && !privatePathIsSafe(backup)))) throw new Error(GUIDANCE);
       retainedBytes += (kind === 'missing' ? 0 : inspectMemoryDatabaseFile(target.path).size)
         + (present(backup) ? inspectMemoryDatabaseFile(backup).size : 0);
       if (retainedBytes > LIMIT) throw new Error(GUIDANCE);
@@ -54,6 +60,7 @@ export async function importLegacyMemoryArchive({ base, archive, publish = (dest
       for (const [index, item] of records.entries()) {
         writeFileSync(join(stage, `${index}.next`), item.bytes, { flag: 'wx', mode: 0o600 }); hardenPrivatePath(join(stage, `${index}.next`));
         if (item.previous !== null) { writeFileSync(join(stage, `${index}.previous`), item.previous, { flag: 'wx', mode: 0o600 }); hardenPrivatePath(join(stage, `${index}.previous`)); }
+        if (item.oldBackup !== null) { writeFileSync(join(stage, `${index}.retained`), item.oldBackup, { flag: 'wx', mode: 0o600 }); hardenPrivatePath(join(stage, `${index}.retained`)); }
       }
       writeFileSync(pending, JSON.stringify({ schema_version: 1, stage: stage.slice(root.length + 1), names: records.map(item => item.name) }), { flag: 'wx', mode: 0o600 });
       journal = true; hardenPrivatePath(pending);
@@ -62,7 +69,7 @@ export async function importLegacyMemoryArchive({ base, archive, publish = (dest
           const backup = `${item.path}.bak-pre-import`;
           if (item.oldBackup !== null) {
             const retained = `${backup}.${randomUUID()}`;
-            writeFileSync(retained, item.oldBackup, { flag: 'wx', mode: 0o600 }); hardenPrivatePath(retained);
+            await publish(retained, item.oldBackup, join(stage, `${index}.retained`));
           }
           const stagedBackup = join(stage, `${index}.backup`);
           writeFileSync(stagedBackup, item.previous, { flag: 'wx', mode: 0o600 }); hardenPrivatePath(stagedBackup);

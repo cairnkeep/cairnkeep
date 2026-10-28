@@ -11,7 +11,7 @@ import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { createContinuityLab } from './memory-continuity-lab.mjs';
 import { createTar } from '../../scripts/windows-platform.mjs';
-import { hardenPrivatePath } from '../dist/platform-security.js';
+import { atomicReplace, hardenPrivatePath } from '../dist/platform-security.js';
 
 function copyPrivateSnapshot(bytes, target) { writeFileSync(target, bytes, { flag: 'wx', mode: 0o600 }); hardenPrivatePath(target); }
 
@@ -300,6 +300,32 @@ try {
   assert.notEqual(importArchive(legacyOnly).status, 0, 'generic import must reject context-format destinations');
   assert.deepEqual(readFileSync(join(base, 'identity.db')), legacyBytes);
   assert.deepEqual(readFileSync(target), snapshotBytes);
+  const stagedBase = join(lab.root, 'legacy-import-staging'); mkdirSync(stagedBase, { mode: 0o700 }); hardenPrivatePath(stagedBase);
+  const stagedTarget = join(stagedBase, 'project.db'); copyPrivateSnapshot(legacyBytes, stagedTarget);
+  copyPrivateSnapshot(legacyBytes, `${stagedTarget}.bak-pre-import`);
+  const stagedArchive = join(lab.root, 'legacy-staging.tgz'); writeFileSync(stagedArchive, gzipSync(createTar([
+    ['project.db', Buffer.alloc(0)],
+  ])));
+  const publications = [];
+  const { importLegacyMemoryArchive } = await import('../../scripts/memory-import.mjs');
+  await importLegacyMemoryArchive({ base: stagedBase, archive: stagedArchive, publish: async (destination, bytes, staged) => {
+    assert.deepEqual(readFileSync(staged), bytes, 'publisher must receive the complete protected stage');
+    publications.push({ destination, staged });
+    await atomicReplace(staged, destination);
+  } });
+  const retainedPublication = publications.find(({ destination }) => destination.startsWith(`${stagedTarget}.bak-pre-import.`));
+  assert.ok(retainedPublication, 'an existing backup must be retained through the protected publisher');
+  assert.match(basename(retainedPublication.staged), /^0\.retained$/);
+  assert.match(basename(dirname(retainedPublication.staged)), /^\.cairn-memory-import-stage-/);
+  const failedBase = join(lab.root, 'failed-legacy-import'); mkdirSync(failedBase, { mode: 0o700 }); hardenPrivatePath(failedBase);
+  const failedTarget = join(failedBase, 'project.db'); copyPrivateSnapshot(legacyBytes, failedTarget);
+  await assert.rejects(importLegacyMemoryArchive({ base: failedBase, archive: stagedArchive, publish: async (destination, _bytes, staged) => {
+    if (destination === failedTarget) throw new Error('FIXTURE_PUBLICATION_DENIED');
+    await atomicReplace(staged, destination);
+  } }), /FIXTURE_PUBLICATION_DENIED/);
+  assert.deepEqual(readFileSync(failedTarget), legacyBytes, 'publication failure must retain the live legacy database');
+  assert.equal(existsSync(join(failedBase, '.cairn-memory-import-pending')), false);
+  assert.equal(fs.readdirSync(failedBase).some(name => name.startsWith('.cairn-memory-import-stage-')), false);
   const pending = join(base, '.cairn-memory-import-pending'); writeFileSync(pending, '{}', { mode: 0o600 });
   await assert.rejects(store.openOrdinaryMemoryView(join(base, 'identity.db'), 'identity'), /MEMORY_IMPORT_RECOVERY_REQUIRED/);
   assert.ok(store.memoryAdministrationIssues(base).includes('MEMORY_IMPORT_RECOVERY_REQUIRED'));

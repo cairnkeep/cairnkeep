@@ -88,6 +88,38 @@ try {
     }, 20));
   })();
   assert.equal(await late, true);
+  let escaped, submitted;
+  const descendantReady = new Promise(resolve => { submitted = resolve; });
+  await assert.rejects(db.transaction(async () => {
+    await agent.kv.set('facts/rollback-inside', 'discard');
+    queueMicrotask(() => queueMicrotask(() => {
+      escaped = agent.kv.set('facts/rollback-escaped', 'must-not-persist')
+        .then(() => 'accepted', error => error.code);
+      submitted();
+    }));
+    throw new Error('FIXTURE_DESCENDANT_ABORT');
+  })(), /FIXTURE_DESCENDANT_ABORT/);
+  await descendantReady;
+  assert.equal(await escaped, 'MEMORY_STALE_OWNER');
+  assert.equal(await agent.kv.get('facts/rollback-inside'), undefined);
+  assert.equal(await agent.kv.get('facts/rollback-escaped'), undefined,
+    'a descendant cannot autocommit while its rejected transaction rolls back');
+  let committedEscape, commitSubmitted;
+  const commitDescendantReady = new Promise(resolve => { commitSubmitted = resolve; });
+  await db.transaction(async () => {
+    await agent.kv.set('facts/commit-inside', 'keep');
+    queueMicrotask(() => queueMicrotask(() => {
+      committedEscape = agent.kv.set('facts/commit-escaped', 'must-not-persist')
+        .then(() => 'accepted', error => error.code);
+      commitSubmitted();
+    }));
+  })();
+  await commitDescendantReady;
+  assert.equal(await committedEscape, 'MEMORY_STALE_OWNER');
+  assert.equal(await agent.kv.get('facts/commit-inside'), 'keep');
+  assert.equal(await agent.kv.get('facts/commit-escaped'), undefined,
+    'a descendant cannot write while its completed transaction commits');
+  assert.equal(agent.fs.getChunkSize(), 4096, 'synchronous SDK metadata must keep its return type');
   await assert.rejects(db.exec('BEGIN'), { code: 'MEMORY_UNOWNED_TRANSACTION' });
   const boundedGuard = spawnSync(process.execPath, ['--input-type=module', '-e', `
     import { openMemoryDatabase } from './dist/memory-database.js';

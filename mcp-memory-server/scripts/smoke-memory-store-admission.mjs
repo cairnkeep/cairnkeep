@@ -101,6 +101,21 @@ try {
   await assert.rejects(store.openOrdinaryMemoryStore(copied, 'project'), /MEMORY_OWNER_MISMATCH/);
   assert.deepEqual(readFileSync(copied), copiedBefore);
   await assert.rejects(store.openOrdinaryMemoryView(path, 'identity'), /MEMORY_OWNER_MISMATCH/);
+  const parity = await store.openOrdinaryMemoryStore(path, 'project');
+  await parity.kv.set('Facts/MixedCase', 'visible');
+  await parity.kv.set('facts/wild%card', 'percent');
+  await parity.kv.set('facts/wild_card', 'underscore');
+  const writableMixed = await parity.kv.list('facts/');
+  const writablePercent = await parity.kv.list('facts/wild%');
+  const writableUnderscore = await parity.kv.list('facts/wild_');
+  await parity.close();
+  const parityView = await store.openOrdinaryMemoryView(path, 'project');
+  const ordered = entries => [...entries].sort((left, right) => left.key < right.key ? -1 : left.key > right.key ? 1 : 0);
+  try {
+    assert.deepEqual(await parityView.kv.list('facts/'), ordered(writableMixed));
+    assert.deepEqual(await parityView.kv.list('facts/wild%'), ordered(writablePercent));
+    assert.deepEqual(await parityView.kv.list('facts/wild_'), ordered(writableUnderscore));
+  } finally { await parityView.close(); }
   const beforeOldClient = digest();
   await assert.rejects(AgentFS.open({ id: 'project', path }));
   assert.equal(digest(), beforeOldClient, 'older SDK must refuse without modifying the context store');

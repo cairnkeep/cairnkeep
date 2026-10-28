@@ -253,33 +253,8 @@ try {
       await assert.rejects(() => runWindowsCommand({ command: "memory", args: ["import", archive], root: repository }), /unsafe|changed/i);
     }));
     write(archive, archiveBytes);
-    fs.renameSync = (source, destination) => {
-      if (destination === database) throw Object.assign(new Error("Synthetic denied replacement."), { code: "EPERM" });
-      return original.rename(source, destination);
-    };
-    syncBuiltinESMExports();
-    await control("Windows denied replacement retention", async () => {
-      try {
-        await assert.rejects(() => runWindowsCommand({ command: "memory", args: ["import", archive], root: repository }), /denied/i);
-        assert.deepEqual(fs.readFileSync(database), previousDatabase, "replacement failure must retain the live database");
-        assert.deepEqual(fs.readdirSync(memory).filter((name) => name.includes(".tmp-")), [], "failed replacement must clean its own temporary files");
-      } finally { restore(); }
-    });
-    write(database, previousDatabase);
-    let denied = 0;
-    fs.renameSync = (source, destination) => {
-      if (destination === database && denied++ < 2) {
-        assert.deepEqual(fs.readFileSync(database), previousDatabase);
-        throw Object.assign(new Error("Synthetic transient sharing violation."), { code: "EBUSY" });
-      }
-      return original.rename(source, destination);
-    };
-    syncBuiltinESMExports();
-    try {
-      await runWindowsCommand({ command: "memory", args: ["import", archive], root: repository });
-      assert.equal(denied, 3);
-      assert.deepEqual(fs.readFileSync(database), nextDatabase);
-    } finally { restore(); }
+    await runWindowsCommand({ command: "memory", args: ["import", archive], root: repository });
+    assert.deepEqual(fs.readFileSync(database), nextDatabase);
     write(database, previousDatabase);
     if (process.platform !== "win32") {
       const outside = join(root, "outside-target");
@@ -287,8 +262,8 @@ try {
       let injected = false;
       let collidingTemporary;
       function substituteTemporary(path) {
-        if (!injected && typeof path === "string" && dirname(path) === memory
-            && basename(path).startsWith("project.db.tmp-")) {
+        if (!injected && typeof path === "string" && dirname(dirname(path)) === memory
+            && basename(dirname(path)).startsWith(".cairn-memory-import-stage-") && basename(path) === "0.next") {
           injected = true;
           collidingTemporary = path;
           fs.symlinkSync(outside, path);
@@ -297,13 +272,13 @@ try {
       fs.openSync = (path, ...args) => { substituteTemporary(path); return original.open(path, ...args); };
       fs.writeFileSync = (path, ...args) => { substituteTemporary(path); return original.write(path, ...args); };
       syncBuiltinESMExports();
-      await control("Windows exclusive temporary publication", async () => {
+      await control("Windows exclusive staged publication", async () => {
         try {
           await assert.rejects(() => runWindowsCommand({ command: "memory", args: ["import", archive], root: repository }), /exist|unsafe/i);
           assert.equal(injected, true);
           assert.equal(fs.readFileSync(outside, "utf8"), "Outside sentinel.", "temporary symlink must not receive private content");
           assert.deepEqual(fs.readFileSync(database), previousDatabase);
-          assert.equal(fs.lstatSync(collidingTemporary).isSymbolicLink(), true, "a collision must not delete an unowned temporary name");
+          assert.equal(fs.existsSync(collidingTemporary), false, "failed import must remove its owned stage");
         } finally { restore(); }
       });
     }
@@ -317,4 +292,4 @@ try {
   restore();
   fs.rmSync(root, { recursive: true, force: true });
 }
-console.log("PASS: bounded setup/instruction/archive reads and denied/exclusive Windows publication");
+console.log("PASS: bounded setup/instruction/archive reads and exclusive staged publication");

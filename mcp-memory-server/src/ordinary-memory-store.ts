@@ -225,7 +225,11 @@ export async function openOrdinaryMemoryView(input: string, scope?: string): Pro
                     return row ? decode(row.value) : undefined;
                 },
                 async list(prefix: string) {
-                    const rows = await db.prepare('SELECT key,value FROM kv_store WHERE substr(key,1,length(?))=? ORDER BY key').all(prefix, prefix);
+                    // Match AgentFS KvStore.list exactly: LIKE is ASCII
+                    // case-insensitive by default and its metacharacters are
+                    // escaped before the trailing prefix wildcard is added.
+                    const escaped = prefix.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_');
+                    const rows = await db.prepare("SELECT key,value FROM kv_store WHERE key LIKE ? ESCAPE '\\' ORDER BY key").all(`${escaped}%`);
                     return rows.map(row => ({ key: String(row.key), value: decode(row.value) }));
                 },
             },

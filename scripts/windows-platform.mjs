@@ -637,7 +637,7 @@ async function memoryWindows(args) {
   }
   if (sub === "import") {
     const { importLegacyMemoryArchive } = await import('./memory-import.mjs');
-    const result = await importLegacyMemoryArchive({ base, archive, publish: (destination, bytes) => atomicWrite(destination, bytes, 0o600) });
+    const result = await importLegacyMemoryArchive({ base, archive });
     console.log(`imported ${result.count} scope db file(s) -> ${result.base}`);
     return;
   }

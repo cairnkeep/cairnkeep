@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { join, resolve } from "node:path";
@@ -71,6 +72,17 @@ try {
   process.env.CAIRN_AGENTFS_BASE_DIR = memory;
   await runWindowsCommand({ command: "memory", args: ["import", archive], root });
   assert.deepEqual(readFileSync(join(memory, "project.db")), Buffer.alloc(0));
+  if (process.platform === "win32") {
+    const inheritedRead = join(sandbox, "Memory Store with inherited read");
+    mkdirSync(inheritedRead, { recursive: true });
+    const acl = spawnSync("icacls.exe", [inheritedRead, "/grant", "*S-1-1-0:(OI)(CI)(RX)"], { encoding: "utf8" });
+    assert.equal(acl.status, 0, acl.stderr || acl.stdout);
+    process.env.CAIRN_AGENTFS_BASE_DIR = inheritedRead;
+    await assert.rejects(runWindowsCommand({ command: "memory", args: ["import", archive], root }), /MEMORY_IMPORT_REFUSED/);
+    assert.equal(existsSync(join(inheritedRead, "project.db")), false, "unsafe Windows parent must receive no imported bytes");
+    assert.equal(existsSync(join(inheritedRead, ".cairn-memory-import-pending")), false, "refused import must leave no journal");
+    process.env.CAIRN_AGENTFS_BASE_DIR = memory;
+  }
   assert.match(powershellCompletion(), /Register-ArgumentCompleter/);
   assert.match(powershellCompletion(), /evidence/);
   assert.match(powershellCompletion(), /playbook/);

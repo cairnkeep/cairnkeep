@@ -303,7 +303,19 @@ export class MemoryDatabase {
             if (this.#transaction) throw memoryError('MEMORY_NESTED_TRANSACTION');
             await this.request('exec', { sql: `BEGIN ${mode}` }); this.#transaction = true;
             try {
-                const result = await operation(...args);
+                // The outer owner must remain active for COMMIT/ROLLBACK, while
+                // the callback gets a shorter-lived token. Seal that token as
+                // soon as the callback settles so inherited async descendants
+                // cannot submit statements during transaction finalization.
+                const callbackOwner: Owner = { active: true };
+                let result!: T, callbackFailed = false, callbackError: unknown;
+                try { result = await this.#owner.run(callbackOwner, () => operation(...args)); }
+                catch (error) { callbackFailed = true; callbackError = error; }
+                finally {
+                    callbackOwner.active = false;
+                    while (this.#pending.size) await Promise.all([...this.#pending.values()].map(item => item.settled));
+                }
+                if (callbackFailed) throw callbackError;
                 this.#committing = true;
                 try { await this.request('exec', { sql: 'COMMIT' }); }
                 catch { this.poison(); throw memoryError('MEMORY_COMMIT_UNCERTAIN'); }
@@ -337,6 +349,12 @@ function ownedApi<T extends object>(target: T, db: MemoryDatabase): T {
     return new Proxy(target, { get(object, key) {
         const method = Reflect.get(object, key);
         if (typeof method !== 'function') return method;
+        // AgentFS exposes this metadata accessor synchronously. It does not
+        // touch SQLite, so preserve the SDK contract instead of promisifying it.
+        if (key === 'getChunkSize') return (...args: unknown[]) => {
+            memoryWireBytes(args, db.limits.requestBytes, 'MEMORY_REQUEST_LIMIT');
+            return method.apply(object, args);
+        };
         return async (...args: unknown[]) => {
             const bytes = memoryWireBytes(args, db.limits.requestBytes, 'MEMORY_REQUEST_LIMIT');
             return db.exclusive(async () => {
