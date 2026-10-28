@@ -304,7 +304,7 @@ try {
       if [[ $REPAIR_STORES -eq 1 ]]; then
         fail "typed/note state could not be repaired safely; preserve the memory store and recovery journals before manual inspection"
       else
-        fail "typed metadata or note transaction check failed — run: cairn doctor --repair"
+        fail "typed metadata or note transaction check failed — inspect with cairn memory-context doctor --scope SCOPE; format/owner damage is never automatically repaired"
       fi
       ;;
   esac

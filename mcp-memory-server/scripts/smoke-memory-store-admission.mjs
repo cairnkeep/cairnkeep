@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, symlinkSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, symlinkSync, readdirSync, copyFileSync, chmodSync, unlinkSync, renameSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { once } from 'node:events';
+import { createServer } from 'node:net';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { AgentFS } from 'agentfs-sdk';
 import { createContinuityLab, serverEntry } from './memory-continuity-lab.mjs';
 
 const lab = createContinuityLab();
@@ -39,6 +44,11 @@ try {
     await session.call('memory_supersede', { scope: 'project', key: 'facts/fixture', value: 'B' });
     assert.equal((await session.call('memory_read', { scope: 'project', key: 'facts/fixture' })).results[0].value, 'B');
     await session.call('memory_history', { scope: 'project', key: 'facts/fixture' });
+    const envelope = { schema_version: 1, scope: 'project', nodes: [{ key: 'facts/imported', value: 'import fixture', node_type: 'knowledge', tags: [] }] };
+    const importBefore = digest();
+    await session.call('memory_import', { ...envelope, dry_run: true });
+    assert.equal(digest(), importBefore, 'dry-run import must not initialize or mutate a context store');
+    await session.call('memory_import', { ...envelope, conflict_policy: 'supersede' });
     await session.call('memory_list', { scope: 'project' });
     await session.call('memory_search', { scope: 'project', query: 'fixture' });
     await session.call('memory_delete', { scope: 'project', key: 'facts/fixture' });
@@ -72,6 +82,102 @@ try {
   if (process.platform !== 'win32') {
     const link = join(lab.root, 'link.db'); symlinkSync(path, link);
     await assert.rejects(store.planContextStoreInit({ path: link, scope: 'identity' }));
+    const dangling = join(lab.root, 'dangling.db'); symlinkSync(join(lab.root, 'absent'), dangling);
+    await assert.rejects(store.planContextStoreInit({ path: dangling, scope: 'identity' }));
+    chmodSync(path, 0o644);
+    await assert.rejects(store.openOrdinaryMemoryView(path, 'project'), /MEMORY_FILE_UNSAFE/);
+    chmodSync(path, 0o600);
+    const wal = `${beta}-wal`; symlinkSync(path, wal);
+    await assert.rejects(store.openOrdinaryMemoryView(beta, 'project'), /MEMORY_FILE_UNSAFE/);
+    unlinkSync(wal);
+  }
+  const copied = join(lab.root, 'copied.db'); copyFileSync(path, copied); chmodSync(copied, 0o600);
+  const copiedBefore = readFileSync(copied);
+  await assert.rejects(store.openOrdinaryMemoryStore(copied, 'project'), /MEMORY_OWNER_MISMATCH/);
+  assert.deepEqual(readFileSync(copied), copiedBefore);
+  await assert.rejects(store.openOrdinaryMemoryView(path, 'identity'), /MEMORY_OWNER_MISMATCH/);
+  const beforeOldClient = digest();
+  await assert.rejects(AgentFS.open({ id: 'project', path }));
+  assert.equal(digest(), beforeOldClient, 'older SDK must refuse without modifying the context store');
+  const unknown = join(lab.root, 'unknown.db');
+  const unsupported = Buffer.from(readFileSync(path)); unsupported.writeUInt32BE(0x12345678, 68); writeFileSync(unknown, unsupported, { mode: 0o600 });
+  await assert.rejects(store.openOrdinaryMemoryStore(unknown, 'project'), /MEMORY_FORMAT_UNSUPPORTED/);
+  assert.deepEqual(readFileSync(unknown), unsupported);
+  const missing = join(lab.root, 'missing-parent', 'identity.db');
+  assert.equal(await store.openOrdinaryMemoryView(missing, 'identity'), null);
+  assert.equal(existsSync(join(lab.root, 'missing-parent')), false);
+  const staleParent = join(lab.root, 'stale-plan'); mkdirSync(staleParent, { mode: 0o700 });
+  const stalePath = join(staleParent, 'identity.db');
+  const stalePlan = await store.planContextStoreInit({ path: stalePath, scope: 'identity' });
+  renameSync(staleParent, `${staleParent}-old`); mkdirSync(staleParent, { mode: 0o700 });
+  await assert.rejects(store.applyContextStoreInit({ path: stalePath, scope: 'identity', confirm: stalePlan.digest }), /CONFIRMATION_MISMATCH/);
+  assert.equal(existsSync(stalePath), false);
+  const disabledNative = spawnSync(process.execPath, ['--no-experimental-sqlite', '--input-type=module', '-e', `
+    const store = await import(process.argv[1]);
+    const path = process.argv[2];
+    const agent = await store.openOrdinaryMemoryStore(path, 'identity', {create:true});
+    await agent.kv.set('facts/legacy','works'); await agent.close();
+    const view = await store.openOrdinaryMemoryView(path,'identity');
+    if(await view.kv.get('facts/legacy') !== 'works') throw new Error('legacy failure');
+    await view.close();
+  `, new URL('../dist/ordinary-memory-store.js', import.meta.url).href, join(lab.root, 'legacy-no-native.db')], { env: lab.env, encoding: 'utf8', timeout: 30_000 });
+  assert.equal(disabledNative.status, 0, disabledNative.stderr);
+  const legacy = join(lab.root, 'legacy-no-native.db'); const legacyBefore = readFileSync(legacy);
+  await assert.rejects(store.planContextStoreInit({ path: legacy, scope: 'identity' }), /EXISTING_STORE_UNSUPPORTED/);
+  assert.deepEqual(readFileSync(legacy), legacyBefore);
+  const unavailableNative = spawnSync(process.execPath, ['--no-experimental-sqlite', new URL('../dist/memory-context-cli.js', import.meta.url).pathname,
+    'status', '--scope', 'project', '--project', lab.projects.alpha, '--json'], { env: lab.env, encoding: 'utf8', timeout: 30_000 });
+  assert.notEqual(unavailableNative.status, 0); assert.match(unavailableNative.stderr, /MEMORY_RUNTIME_UNSUPPORTED/);
+
+  const { MemoryDatabase } = await import('../dist/memory-database.js');
+  const broken = await MemoryDatabase.open(beta);
+  try { await broken.exec('DROP TRIGGER cairn_memory_context_revision_update'); } finally { await broken.close(); }
+  const damagedBefore = readFileSync(beta);
+  await assert.rejects(store.openOrdinaryMemoryStore(beta, 'project'), /MEMORY_CONTEXT_DAMAGED/);
+  await assert.rejects(nodes.doctorTypedNodeStore({ scope: 'project', baseDir: join(lab.projects.beta, '.agentfs'), repair: true }), /MEMORY_CONTEXT_DAMAGED/);
+  assert.deepEqual(readFileSync(beta), damagedBefore, 'doctor cannot repair format infrastructure');
+  const race = join(lab.root, 'race', 'identity.db');
+  const racePlan = await store.planContextStoreInit({ path: race, scope: 'identity' });
+  const raced = await Promise.allSettled([
+    store.applyContextStoreInit({ path: race, scope: 'identity', confirm: racePlan.digest }),
+    store.openOrdinaryMemoryStore(race, 'identity', { create: true }).then(async agent => { await agent.kv.set('facts/race', 'winner'); await agent.close(); }),
+  ]);
+  assert.equal(raced[1].status, 'fulfilled');
+  assert.ok(['legacy', 'context-v1'].includes(format.probeOrdinaryMemoryFormat(race).kind));
+  const raceView = await store.openOrdinaryMemoryView(race, 'identity');
+  try { assert.equal(await raceView.kv.get('facts/race'), 'winner'); } finally { await raceView.close(); }
+
+  // Actual authenticated HTTP routing uses server-side project paths, not cwd.
+  const routed = join(lab.root, 'http-store', 'projects', 'alpha.db');
+  const routedPlan = await store.planContextStoreInit({ path: routed, scope: 'project' });
+  await store.applyContextStoreInit({ path: routed, scope: 'project', confirm: routedPlan.digest });
+  const reservation = createServer(); reservation.listen(0, '127.0.0.1'); await once(reservation, 'listening');
+  const port = reservation.address().port; await new Promise(done => reservation.close(done));
+  const server = spawn(process.execPath, [serverEntry], { cwd: lab.projects.neutral,
+    env: { ...lab.env, CAIRN_AGENTFS_BASE_DIR: join(lab.root, 'http-store'), MCP_HTTP_PORT: String(port), MCP_HTTP_HOST: '127.0.0.1', CAIRN_MEMORY_HTTP_TOKEN: 'admission-fixture-token' }, stdio: ['ignore', 'ignore', 'pipe'] });
+  const clients = [];
+  try {
+    await new Promise((done, reject) => {
+      const timer = setTimeout(() => reject(new Error('HTTP fixture startup timeout')), 10_000);
+      server.stderr.on('data', bytes => { if (String(bytes).includes('listening on')) { clearTimeout(timer); done(); } });
+      server.once('exit', () => { clearTimeout(timer); reject(new Error('HTTP fixture early exit')); });
+    });
+    for (const project of ['alpha', 'beta']) {
+      const client = new Client({ name: 'admission-fixture', version: '1' }); clients.push(client);
+      await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), { requestInit: { headers: {
+        Authorization: 'Bearer admission-fixture-token', 'X-Cairn-Project': project, 'X-Cairn-Scopes': 'project',
+      } } }));
+      const written = await client.callTool({ name: 'memory_write', arguments: { scope: 'project', key: 'facts/http', value: project } });
+      assert.notEqual(written.isError, true);
+      const read = await client.callTool({ name: 'memory_read', arguments: { scope: 'project', key: 'facts/http' } });
+      assert.equal(read.structuredContent.results[0].value, project);
+    }
+    assert.equal(format.probeOrdinaryMemoryFormat(routed).kind, 'context-v1');
+    assert.equal(format.probeOrdinaryMemoryFormat(join(lab.root, 'http-store', 'projects', 'beta.db')).kind, 'legacy');
+    assert.equal(existsSync(join(lab.projects.neutral, '.agentfs')), false);
+  } finally {
+    for (const client of clients) await client.close();
+    const exited = once(server, 'exit'); server.kill('SIGTERM'); await exited;
   }
   assert.equal(readdirSync(join(lab.projects.alpha, '.agentfs')).some(name => name.endsWith('.cairn-admission')), false);
   lab.assertOffline();

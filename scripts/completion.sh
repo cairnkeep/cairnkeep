@@ -13,7 +13,7 @@ _cairn_complete() {
   COMPREPLY=()
   current=${COMP_WORDS[COMP_CWORD]}
   previous=${COMP_WORDS[COMP_CWORD-1]:-}
-  commands="bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help"
+  commands="bootstrap setup memory-server memory-context sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help"
   if (( COMP_CWORD == 1 )); then
     COMPREPLY=( $(compgen -W "$commands" -- "$current") )
     return
@@ -78,6 +78,7 @@ _cairn_complete() {
     skill) COMPREPLY=( $(compgen -W "harvest list show review propose evaluate apply rollback --project --minimum-occurrences --kind --id --candidate --approve --target --adapter --edit-budget --proposal --exploration-task-set --confirmation-task-set --output --repetitions --seed --minimum-improvement --evaluation --application --confirm --yes --json" -- "$current") ) ;;
     graph) COMPREPLY=( $(compgen -W "build query status diff explain path --force" -- "$current") ) ;;
     memory) COMPREPLY=( $(compgen -W "path export import" -- "$current") ) ;;
+    memory-context) COMPREPLY=( $(compgen -W "init status doctor --scope --project --apply --confirm --json" -- "$current") ) ;;
     audit-timer) COMPREPLY=( $(compgen -W "--on-calendar --para-root --render-only" -- "$current") ) ;;
     uninstall) COMPREPLY=( $(compgen -W "--dry-run --yes --purge-memory --purge-packs --live-root --pi-live-root --kimi-live-root" -- "$current") ) ;;
     completion) COMPREPLY=( $(compgen -W "bash zsh fish" -- "$current") ) ;;
@@ -95,6 +96,7 @@ _cairn() {
     'bootstrap:scaffold a project'
     'setup:configure selected project harnesses'
     'memory-server:run the memory MCP server'
+    'memory-context:inspect or explicitly create a fresh tracked memory store'
     'sync:install the Claude operating layer'
     'sync-pi:install the Pi trajectory extension and graph prompt'
     'sync-kimi:install the Kimi graph Skill'
@@ -134,6 +136,7 @@ _cairn() {
     sync-omp) _arguments '--apply[apply changes]' '--live-root[omp agent root]:directory:_files -/' ;;
     doctor) _arguments '--repair[repair trajectory metadata and indexes]' ;;
     security) _values 'security command' doctor '--project[project root]:directory:_files -/' '--json[emit JSON]' ;;
+    memory-context) _values 'memory context command' init status doctor '--scope[concrete memory scope]:scope:' '--project[project root]:directory:_files -/' '--apply[apply fresh-store plan]' '--confirm[exact plan digest]:digest:' '--json[emit JSON]' ;;
     team) _values 'team command' connect disconnect init project member credential create set remove issue revoke serve mcp list read search history propose proposals proposal-show review audit audit-export audit-verify audit-archive doctor backup restore memory-delete '--previous[previous archive segment]:file:_files' '--backup[verified backup file]:file:_files' '--page-size[page bound]:value:' '--cursor[continuation]:value:' '--read-only[observe-only backup]' '--organization[team option]:value:' '--data[team option]:value:' '--project[team option]:value:' '--roles[team option]:value:' '--class[team option]:value:' '--expires-at[team option]:value:' '--output[team option]:value:' '--input[team option]:value:' '--confirm[team option]:value:' '--port[team option]:value:' '--key[team option]:value:' '--query[team option]:value:' '--proposal[team option]:value:' '--decision[team option]:value:' '--revision[team option]:value:' '--apply[apply plan]' '--yes[confirm plan]' '--client[client diagnostics]' '--url[team URL]:value:' '--token-file[private credential file]:file:_files' '--harness[team adapters]:value:' '--access[tool profile]:value:(read-only full)' '--connection[private connection file]:file:_files' '--project-root[team option]:value:' ;;
     trajectory) _values 'trajectory command' list show prune ;;
     artifact)
@@ -199,8 +202,8 @@ EOF
   fish)
     sed "s/__CAIRN_HARNESSES__/$harnesses/g" <<'EOF'
 complete -c cairn -f
-for command in bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help
-complete -c cairn -n "not __fish_seen_subcommand_from bootstrap setup memory-server sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help" -a $command
+for command in bootstrap setup memory-server memory-context sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help
+complete -c cairn -n "not __fish_seen_subcommand_from bootstrap setup memory-server memory-context sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help" -a $command
 end
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l apply
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l live-root -r
@@ -348,6 +351,12 @@ complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcomm
 complete -c cairn -n "__fish_seen_subcommand_from graph" -a "build query status diff explain path"
 complete -c cairn -n "__fish_seen_subcommand_from graph; and __fish_seen_subcommand_from build" -l force
 complete -c cairn -n "__fish_seen_subcommand_from completion" -a "bash zsh fish"
+complete -c cairn -n "__fish_seen_subcommand_from memory-context" -a "init status doctor"
+complete -c cairn -n "__fish_seen_subcommand_from memory-context" -l scope -r
+complete -c cairn -n "__fish_seen_subcommand_from memory-context" -l project -r
+complete -c cairn -n "__fish_seen_subcommand_from memory-context" -l apply
+complete -c cairn -n "__fish_seen_subcommand_from memory-context" -l confirm -r
+complete -c cairn -n "__fish_seen_subcommand_from memory-context" -l json
 complete -c cairn -n "__fish_seen_subcommand_from uninstall" -l pi-live-root -r
 complete -c cairn -n "__fish_seen_subcommand_from uninstall" -l kimi-live-root -r
 complete -c cairn -n "__fish_seen_subcommand_from uninstall" -l purge-memory

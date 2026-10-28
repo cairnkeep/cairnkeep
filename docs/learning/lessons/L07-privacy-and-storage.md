@@ -19,6 +19,13 @@ will go before starting a session.
 - Credential boundaries and environment-variable precedence.
 - Embedding/extraction endpoints and what content they receive.
 - `cairn memory path` and a preflight data-flow checklist.
+- Unreleased source-only storage foundation: `cairn memory-context init` prints
+  a no-write plan; `--apply --confirm DIGEST` creates only an absent destination.
+  `status` and `doctor` inspect the format without initializing SDK schemas.
+  Existing stores are not converted, older clients refuse the new format, and
+  turning off context tools does not roll back storage. Use disposable stores
+  only until the platform and recovery gates are complete. This is not a
+  rehearsed lesson or a change to the released installation instructions.
 
 ## Hands-on lab
 

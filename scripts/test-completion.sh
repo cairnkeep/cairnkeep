@@ -9,6 +9,7 @@ for shell in bash zsh fish; do
   "$ROOT/bin/cairn" completion "$shell" > "$tmp/$shell"
   [[ -s $tmp/$shell ]]
   grep -q 'completion' "$tmp/$shell"
+  grep -q 'memory-context' "$tmp/$shell"
 done
 
 capability_ids='memory.write memory.search notes.distill wiki graph security.audit route.check context.explore'
@@ -188,6 +189,10 @@ fi
 setup_flags='--git --harness --memory --policy --yes --json'
 setup_values='init existing none claude opencode pi omp kimi qwen codex local'
 for shell in bash zsh fish powershell; do
+  grep -q 'memory-context' "$tmp/$shell"
+  for context_token in init status doctor scope project apply confirm json; do
+    grep -qF "$context_token" "$tmp/$shell"
+  done
   for flag in $setup_flags; do
     grep -q -- "$flag\|${flag#--}" "$tmp/$shell" || {
       echo "setup completion omitted $flag for $shell" >&2

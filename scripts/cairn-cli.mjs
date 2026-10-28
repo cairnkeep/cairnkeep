@@ -8,6 +8,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const NODE_COMMANDS = new Map([
   ["memory-server", "index.js"],
+  ["memory-context", "memory-context-cli.js"],
   ["trajectory", "trajectory-cli.js"],
   ["proposals", "memory-proposal-cli.js"],
   ["artifact", "artifact-cli.js"],
@@ -44,6 +45,7 @@ Usage:
   cairn setup [PATH]  # interactive Git, harness, memory, and confirmation selectors
   cairn setup PATH --git init|existing|none --harness LIST --memory local|none [--policy PATH] --yes [--json]
   cairn memory-server
+  cairn memory-context <init|status|doctor> --scope SCOPE [--project PATH] [--apply --confirm DIGEST]
   cairn sync [--check|--apply] [--live-root DIR]
   cairn sync-pi [--check|--apply] [--live-root DIR]
   cairn sync-kimi [--check|--apply] [--live-root DIR]

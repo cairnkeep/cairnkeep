@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { AgentFS } from "agentfs-sdk";
+import { openOrdinaryMemoryStore, openOrdinaryMemoryView } from './ordinary-memory-store.js';
+import type { OrdinaryMemoryReader, OrdinaryMemoryStore } from './memory-database.js';
 import { z } from "zod";
 
 import { hashText } from "./embeddings.js";
@@ -63,11 +63,11 @@ export function resolveMemoryScopePath(scope: string, options: ReviewedMemoryOpt
     return dbPath;
 }
 
-async function openMemoryScope(scope: string, create: boolean, options: ReviewedMemoryOptions = {}): Promise<AgentFS | null> {
+async function openMemoryScope(scope: string, create: true, options?: ReviewedMemoryOptions): Promise<OrdinaryMemoryStore | null>;
+async function openMemoryScope(scope: string, create: false, options?: ReviewedMemoryOptions): Promise<OrdinaryMemoryReader | null>;
+async function openMemoryScope(scope: string, create: boolean, options: ReviewedMemoryOptions = {}): Promise<OrdinaryMemoryReader | null> {
     const path = resolveMemoryScopePath(scope, options);
-    if (!create && !existsSync(path)) return null;
-    if (create) mkdirSync(dirname(path), { recursive: true });
-    return AgentFS.open({ id: scope, path });
+    return create ? openOrdinaryMemoryStore(path, scope, { create }) : openOrdinaryMemoryView(path, scope);
 }
 
 function normalizeValue(value: unknown): string {
@@ -97,13 +97,13 @@ function parseRecord(value: unknown): ReviewedRecord {
     return parsed.data;
 }
 
-async function immediate<T>(agent: AgentFS, operation: () => Promise<T>): Promise<T> {
+async function immediate<T>(agent: OrdinaryMemoryStore, operation: () => Promise<T>): Promise<T> {
     const transaction = agent.getDatabase().transaction(operation);
     const run = (transaction as typeof transaction & { immediate: typeof transaction }).immediate;
     return run();
 }
 
-async function supersedeActiveRecord(agent: AgentFS, key: string, reviewId: string, at: string): Promise<void> {
+async function supersedeActiveRecord(agent: OrdinaryMemoryStore, key: string, reviewId: string, at: string): Promise<void> {
     for (const entry of await agent.kv.list(`${REVIEWED_NAMESPACE}/`)) {
         const prior = parseRecord(entry.value);
         if (prior.state === "active" && prior.key === key && prior.review_id !== reviewId) {
@@ -113,7 +113,7 @@ async function supersedeActiveRecord(agent: AgentFS, key: string, reviewId: stri
 }
 
 async function writeReviewed(
-    agent: AgentFS,
+    agent: OrdinaryMemoryStore,
     scope: string,
     reviewId: string,
     key: string,

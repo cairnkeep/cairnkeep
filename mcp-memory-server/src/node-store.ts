@@ -4,6 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { AgentFS } from "agentfs-sdk";
+import type { OrdinaryMemoryReader, OrdinaryMemoryStore } from './memory-database.js';
+import { openOrdinaryMemoryStore, openOrdinaryMemoryView, withOrdinaryMemorySnapshot } from './ordinary-memory-store.js';
+import { probeOrdinaryMemoryFormat } from './memory-store-format.js';
 
 import {
     NODE_SCHEMA_VERSION,
@@ -90,12 +93,12 @@ function injectMutationFailure(stage: string): void {
     if (process.env.CAIRN_TEST_FAIL_NODE_MUTATION === stage) throw new Error(`Injected node mutation failure at ${stage}.`);
 }
 
-async function tableExists(agent: AgentFS, table: string): Promise<boolean> {
+async function tableExists(agent: OrdinaryMemoryReader, table: string): Promise<boolean> {
     const row = await agent.getDatabase().prepare("SELECT name FROM sqlite_master WHERE type = ? AND name = ?").get("table", table) as DatabaseRow | undefined;
     return row?.name === table;
 }
 
-async function ensureTables(agent: AgentFS): Promise<void> {
+async function ensureTables(agent: OrdinaryMemoryStore): Promise<void> {
     await agent.getDatabase().exec(`
         CREATE TABLE IF NOT EXISTS ${METADATA_TABLE} (
             key TEXT PRIMARY KEY,
@@ -112,7 +115,7 @@ async function ensureTables(agent: AgentFS): Promise<void> {
     `);
 }
 
-async function storedMetadata(agent: AgentFS, key: string): Promise<NodeMetadata | undefined> {
+async function storedMetadata(agent: OrdinaryMemoryReader, key: string): Promise<NodeMetadata | undefined> {
     if (!await tableExists(agent, METADATA_TABLE)) return undefined;
     const row = await agent.getDatabase().prepare(
         `SELECT schema_version, node_type, tags_json FROM ${METADATA_TABLE} WHERE key = ?`,
@@ -125,7 +128,7 @@ async function storedMetadata(agent: AgentFS, key: string): Promise<NodeMetadata
     });
 }
 
-async function setMetadata(agent: AgentFS, key: string, metadata: NodeMetadata, at: string): Promise<void> {
+async function setMetadata(agent: OrdinaryMemoryStore, key: string, metadata: NodeMetadata, at: string): Promise<void> {
     await agent.getDatabase().prepare(`
         INSERT INTO ${METADATA_TABLE}(key, schema_version, node_type, tags_json, updated_at)
         VALUES (?, ?, ?, ?, ?)
@@ -137,18 +140,18 @@ async function setMetadata(agent: AgentFS, key: string, metadata: NodeMetadata, 
     `).run(key, metadata.schema_version, metadata.node_type, JSON.stringify(metadata.tags), at);
 }
 
-export async function inImmediateNodeTransaction<T>(agent: AgentFS, operation: () => Promise<T>): Promise<T> {
+export async function inImmediateNodeTransaction<T>(agent: OrdinaryMemoryStore, operation: () => Promise<T>): Promise<T> {
     const transaction = agent.getDatabase().transaction(operation);
     const immediate = (transaction as typeof transaction & { immediate: typeof transaction }).immediate;
     return immediate();
 }
 
-export async function getNodeMetadata(agent: AgentFS, key: string): Promise<NodeMetadata> {
+export async function getNodeMetadata(agent: OrdinaryMemoryReader, key: string): Promise<NodeMetadata> {
     return await storedMetadata(agent, key) ?? { ...DEFAULT_METADATA, tags: [] };
 }
 
 export async function attachNodeMetadata(
-    agent: AgentFS,
+    agent: OrdinaryMemoryReader,
     scope: string,
     entry: { key: string; value: unknown },
 ): Promise<TypedMemoryNode> {
@@ -164,13 +167,13 @@ export async function attachNodeMetadata(
     };
 }
 
-export async function getTypedNode(agent: AgentFS, scope: string, key: string): Promise<TypedMemoryNode | null> {
+export async function getTypedNode(agent: OrdinaryMemoryReader, scope: string, key: string): Promise<TypedMemoryNode | null> {
     const value = await agent.kv.get(key);
     return value === undefined ? null : attachNodeMetadata(agent, scope, { key, value });
 }
 
 export async function createTypedNode(options: {
-    agent: AgentFS;
+    agent: OrdinaryMemoryStore;
     scope: string;
     key: string;
     value: string;
@@ -197,7 +200,7 @@ export async function createTypedNode(options: {
 }
 
 type SupersedeTypedNodeOptions = {
-    agent: AgentFS;
+    agent: OrdinaryMemoryStore;
     scope: string;
     key: string;
     value?: string;
@@ -244,7 +247,7 @@ export async function supersedeTypedNode(options: SupersedeTypedNodeOptions): Pr
 }
 
 type DeleteTypedNodeOptions = {
-    agent: AgentFS;
+    agent: OrdinaryMemoryStore;
     scope: string;
     key: string;
     reason?: string;
@@ -277,7 +280,7 @@ export async function deleteTypedNode(options: DeleteTypedNodeOptions): Promise<
     return inImmediateNodeTransaction(options.agent, () => deleteTypedNodeMutation(options));
 }
 
-export async function listTypedHistory(agent: AgentFS, key: string): Promise<Array<TypedHistorySnapshot & { key: string }>> {
+export async function listTypedHistory(agent: OrdinaryMemoryReader, key: string): Promise<Array<TypedHistorySnapshot & { key: string }>> {
     const entries = await agent.kv.list(historyPrefix(key));
     return entries.map((entry) => {
         const value = entry.value as Partial<TypedHistorySnapshot>;
@@ -298,7 +301,7 @@ export async function listTypedHistory(agent: AgentFS, key: string): Promise<Arr
 }
 
 export async function applyReviewedTypedNode(options: {
-    agent: AgentFS;
+    agent: OrdinaryMemoryStore;
     scope: string;
     review_id: string;
     key: string;
@@ -312,7 +315,7 @@ export async function applyReviewedTypedNode(options: {
 }
 
 export async function invalidateReviewedTypedNode(options: {
-    agent: AgentFS;
+    agent: OrdinaryMemoryStore;
     scope: string;
     review_id: string;
     key: string;
@@ -349,7 +352,7 @@ function batchDigest(envelope: MemoryImportEnvelope): string {
     return createHash("sha256").update("cairnkeep:memory-import:v1\0").update(canonicalBatch(envelope)).digest("hex");
 }
 
-async function classifyImportNode(agent: AgentFS | null, scope: string, node: MemoryImportNode, policy: MemoryImportEnvelope["conflict_policy"]): Promise<MemoryImportAction> {
+async function classifyImportNode(agent: OrdinaryMemoryReader | null, scope: string, node: MemoryImportNode, policy: MemoryImportEnvelope["conflict_policy"]): Promise<MemoryImportAction> {
     if (!agent) return { key: node.key, action: "would_create" };
     const current = await getTypedNode(agent, scope, node.key);
     if (!current) return { key: node.key, action: "would_create" };
@@ -360,7 +363,7 @@ async function classifyImportNode(agent: AgentFS | null, scope: string, node: Me
         : { key: node.key, action: "rejected", code: "CONFLICT" };
 }
 
-export async function planMemoryImport(agent: AgentFS | null, input: unknown): Promise<MemoryImportPlan> {
+export async function planMemoryImport(agent: OrdinaryMemoryReader | null, input: unknown): Promise<MemoryImportPlan> {
     const envelope = memoryImportEnvelopeSchema.parse(input);
     if (envelope.address_space !== "memory") throw new Error("ADDRESS_SPACE_UNSUPPORTED: node-store accepts memory imports only.");
     const actions = [] as MemoryImportAction[];
@@ -390,7 +393,7 @@ function counts(actions: MemoryImportAction[], dryRun: boolean): MemoryImportRes
     return result;
 }
 
-export async function commitMemoryImport(agent: AgentFS | null, inputPlan: MemoryImportPlan): Promise<MemoryImportResult> {
+export async function commitMemoryImport(agent: OrdinaryMemoryStore | null, inputPlan: MemoryImportPlan): Promise<MemoryImportResult> {
     if (inputPlan.envelope.dry_run) {
         return {
             schema_version: NODE_SCHEMA_VERSION,
@@ -483,15 +486,20 @@ export async function doctorTypedNodeStore(options: { scope: string; baseDir: st
     // AgentFS opens databases in read-write WAL mode, which can checkpoint the
     // WAL even when the caller only reads. Inspect an exact disposable copy so
     // a non-repair doctor run is byte-pure for the authoritative store.
-    const scratch = mkdtempSync(join(tmpdir(), "cairn-node-doctor-"));
-    const scratchPath = join(scratch, `${options.scope}.db`);
+    const format = probeOrdinaryMemoryFormat(dbPath);
+    if (format.kind === 'unsupported') throw new Error('MEMORY_FORMAT_UNSUPPORTED');
+    const modern = format.kind === 'context-v1';
+    const scratch = modern ? null : mkdtempSync(join(tmpdir(), "cairn-node-doctor-"));
+    const scratchPath = scratch ? join(scratch, `${options.scope}.db`) : dbPath;
     for (const suffix of ["", "-wal", "-shm"]) {
-        if (existsSync(`${dbPath}${suffix}`)) copyFileSync(`${dbPath}${suffix}`, `${scratchPath}${suffix}`);
+        if (!modern && existsSync(`${dbPath}${suffix}`)) copyFileSync(`${dbPath}${suffix}`, `${scratchPath}${suffix}`);
     }
-    const inspectionAgent = await AgentFS.open({ id: options.scope, path: scratchPath });
+    const inspectionAgent = await openOrdinaryMemoryView(scratchPath, modern ? undefined : options.scope);
+    if (!inspectionAgent) throw new Error('MEMORY_STORE_MISSING');
     const issues: string[] = [];
     const orphanKeys: string[] = [];
     try {
+      await withOrdinaryMemorySnapshot(inspectionAgent, async () => {
         if (await tableExists(inspectionAgent, METADATA_TABLE)) {
             const rows = await inspectionAgent.getDatabase().prepare(`SELECT key, schema_version, node_type, tags_json FROM ${METADATA_TABLE} ORDER BY key`).all() as DatabaseRow[];
             for (const row of rows) {
@@ -513,16 +521,25 @@ export async function doctorTypedNodeStore(options: { scope: string; baseDir: st
                 if (!/^[a-f0-9]{64}$/.test(String(row.batch_digest))) issues.push(`Invalid authoritative replay digest for ${String(row.import_id)}.`);
             }
         }
+      });
     } finally {
         await inspectionAgent.close();
-        rmSync(scratch, { recursive: true, force: true });
+        if (scratch) rmSync(scratch, { recursive: true, force: true });
     }
     const onlyOrphans = issues.length > 0 && issues.every((issue) => issue.startsWith("Orphan metadata"));
     if (options.repair && onlyOrphans) {
-        const agent = await AgentFS.open({ id: options.scope, path: dbPath });
+        const marker = modern ? await openOrdinaryMemoryView(dbPath) : null;
+        let logicalScope = options.scope;
+        try {
+            if (marker) logicalScope = String((await marker.getDatabase().prepare('SELECT scope FROM cairn_memory_context_store_v1 WHERE id=1').get() as DatabaseRow).scope);
+        } finally { await marker?.close(); }
+        const agent = await openOrdinaryMemoryStore(dbPath, logicalScope);
+        if (!agent) throw new Error('MEMORY_STORE_MISSING');
         try {
             await inImmediateNodeTransaction(agent, async () => {
-                for (const key of orphanKeys) await agent.getDatabase().prepare(`DELETE FROM ${METADATA_TABLE} WHERE key = ?`).run(key);
+                for (const key of orphanKeys) {
+                    if (await agent.kv.get(key) === undefined) await agent.getDatabase().prepare(`DELETE FROM ${METADATA_TABLE} WHERE key = ?`).run(key);
+                }
             });
         } finally {
             await agent.close();

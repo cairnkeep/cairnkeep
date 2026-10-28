@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { isBuiltin } from 'node:module';
 import { Worker, type WorkerOptions } from 'node:worker_threads';
 import { AgentFS } from 'agentfs-sdk';
 import {
@@ -33,7 +34,10 @@ export interface OrdinaryMemoryStore extends OrdinaryMemoryReader {
     readonly kv: OrdinaryMemoryReader['kv'] & {
         set(key: string, value: unknown): Promise<void>; delete(key: string): Promise<void>;
     };
-    getDatabase(): ReturnType<OrdinaryMemoryReader['getDatabase']> & {
+    getDatabase(): {
+        prepare(sql: string): ReturnType<ReturnType<OrdinaryMemoryReader['getDatabase']>['prepare']> & {
+            run(...params: MemoryBinding[]): Promise<unknown>;
+        };
         exec(sql: string): Promise<void>;
         transaction<T>(operation: () => Promise<T>): () => Promise<T>;
     };
@@ -41,7 +45,7 @@ export interface OrdinaryMemoryStore extends OrdinaryMemoryReader {
 
 export function assertContextRuntime(version = process.versions.node): void {
     const [major, minor] = version.split('.').map(Number);
-    if (!Number.isInteger(major) || !Number.isInteger(minor) || major < 22 || (major === 22 && minor < 16)) {
+    if (!isBuiltin('node:sqlite') || !Number.isInteger(major) || !Number.isInteger(minor) || major < 22 || (major === 22 && minor < 16)) {
         throw memoryError('MEMORY_RUNTIME_UNSUPPORTED');
     }
 }

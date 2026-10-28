@@ -32,7 +32,11 @@ function inspectFile<T>(path: string, privateRequired: boolean, read: (descripto
     } finally { if (descriptor !== undefined) closeSync(descriptor); }
 }
 export function inspectMemoryDatabaseFile(path: string, privateRequired = false): Stats {
-    return inspectFile(path, privateRequired, () => undefined).stat;
+    try { return inspectFile(path, privateRequired, () => undefined).stat; }
+    catch (error) {
+        if (String((error as { code?: string }).code).startsWith('MEMORY_')) throw error;
+        throw memoryError('MEMORY_FILE_UNSAFE');
+    }
 }
 export type OrdinaryMemoryFormat = { kind: 'missing' | 'legacy' | 'context-v1' | 'unsupported'; identity?: { dev: number; ino: number } };
 export function probeOrdinaryMemoryFormat(path: string): OrdinaryMemoryFormat {
