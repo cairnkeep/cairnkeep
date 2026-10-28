@@ -10,6 +10,8 @@ for shell in bash zsh fish; do
   [[ -s $tmp/$shell ]]
   grep -q 'completion' "$tmp/$shell"
   grep -q 'memory-context' "$tmp/$shell"
+  grep -q 'set-freshness' "$tmp/$shell"
+  grep -q -- '--key\|-l key' "$tmp/$shell"
 done
 
 capability_ids='memory.write memory.search notes.distill wiki graph security.audit route.check context.explore'

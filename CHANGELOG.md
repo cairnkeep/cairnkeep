@@ -31,14 +31,17 @@ All notable user-facing changes are documented here. This project follows
   reject unpatched native admission before creating a tracked store. Preserve the legacy
   Node engine floor and distinguish the API minimum from safe SQLite admission.
 
-### Freshness storage API (development only)
+### Revision-bound freshness (unreleased)
 
 - Add strict, explicit revision-bound freshness assertions for fresh tracked
   stores, with no-write plans/inspection and atomic digest-confirmed curation.
 - Invalidate assertions after source changes, metadata changes and managed
   restore without treating dates, usage or source references as factual truth.
-- Keep legacy stores unchanged. This internal API does not yet add CLI/MCP
-  exposure, automatic conversion, production activation or a released feature.
+- Add local `memory-context inspect|set-freshness`, metadata-only status/doctor,
+  and separately gated read-only `memory_inspect` with profile/capability/HTTP
+  consent intersections, snapshot-bound provenance and bounded conflict signals.
+- Keep legacy stores and existing MCP schemas unchanged. No automatic conversion,
+  source fetching, verification from usage, production activation or release.
 
 ## [2.27.0] - 2026-10-26
 

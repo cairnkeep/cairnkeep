@@ -44,9 +44,11 @@ will go before starting a session.
 - Development-only freshness brief: explicit assertions bind source generations,
   metadata revisions and restore epochs. Changed facts cannot become verified
   again merely because their old text returns. Source references are opaque,
-  never fetched; reads do not verify facts. The current storage API alone does
-  not expose an agent tool or operator command. Prepare a disposable lab only
-  after the later CLI/MCP surfaces are verified; do not present this as recorded.
+  never fetched; reads do not verify facts. On the unreleased source branch,
+  demonstrate local `memory-context set-freshness` plan/exact-digest apply,
+  `inspect` and metadata-only `doctor` on a disposable store. Show gated read-only
+  `memory_inspect`, its separate HTTP consent and stale-plan refusal. Do not
+  imply released availability, independent native qualification or a recording.
 
 ## Hands-on lab
 

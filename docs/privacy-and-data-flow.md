@@ -11,6 +11,8 @@ below (some operator-owned endpoints do not require a credential).
 | Feature | Data that can leave the server machine | Destination |
 |---|---|---|
 | Local substring search | None | Local SQLite only |
+| Unreleased local freshness curation and inspection | None | Explicit assertions remain in the selected ordinary database; source references are opaque and never fetched |
+| Separately enabled freshness inspection over HTTP | Ordinary text, source provenance and asserted freshness/source references | Explicit authenticated project-resolved server; requires both `CAIRN_MEMORY_CONTEXT=1` and `CAIRN_MEMORY_CONTEXT_HTTP=1`, plus existing transport protections |
 | Embedding-ranked search | Stored memory values that are not cached, plus the search query | `CAIRN_MEMORY_EMBEDDING_URL` or `CAIRN_LLM_API_URL` |
 | Separately opted-in memory reranking | Query and at most 50 scope/current/filter-admitted key/value excerpts, each at most 4 KiB | Only the explicit `CAIRN_MEMORY_RERANK_URL`; separate optional credential, no retries/redirects/alternate hosts |
 | `memory_extract` | The transcript supplied to the tool | `CAIRN_LLM_API_URL` |

@@ -1544,6 +1544,29 @@ registerCapabilityTool(
     },
 );
 
+if (process.env.CAIRN_MEMORY_CONTEXT === '1'
+    && (!context.remote || (process.env.CAIRN_MEMORY_CONTEXT_HTTP === '1' && Boolean(context.projectId)))) {
+    registerCapabilityTool('memory.search', 'memory_inspect', {
+        description: 'Inspect visible ordinary memory and revision-bound freshness assertions. Status and possible conflicts are recorded evidence, not factual verification. No sources are fetched or changed.',
+        inputSchema: z.object({
+            scope: z.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9-]*$/),
+            key: z.string().min(1).max(4096),
+        }).strict(),
+    }, async ({ scope, key }) => {
+        try {
+            const { inspectMemoryCandidates, memoryInspectionResponse } = await import('./memory-context-store.js');
+            const scopes = [...new Set(getSearchScopes(scope, memoryConfig()))];
+            if (scopes.length > 32) throw Object.assign(new Error(), { code: 'MEMORY_SCOPE_LIMIT' });
+            const targets = scopes.map(selected => ({ scope: selected, path: resolveScopePath(selected, scopeOptions) }));
+            return memoryInspectionResponse(await inspectMemoryCandidates(key, targets));
+        } catch (error) {
+            const code = (error as { code?: string }).code;
+            // Older storage drivers can quote server paths in their errors.
+            throw new Error(typeof code === 'string' && /^MEMORY_[A-Z_]{1,64}$/.test(code) ? code : 'MEMORY_INSPECTION_FAILED');
+        }
+    });
+}
+
 registerTool(
     "memory_extract",
     {

@@ -457,9 +457,10 @@ import authorization: tracked members still require explicit managed recovery.
 
 ### Development-only freshness assertions
 
-The development-only freshness storage API adds explicit assertions to a fresh
-tracked store. It does not convert legacy stores or expose a new agent tool by
-itself. Planning and inspection do not create assertion tables. Only a confirmed
+The unreleased freshness API and local `set-freshness` CLI add explicit assertions
+to a fresh tracked store. They do not convert legacy stores. The separately gated
+read-only `memory_inspect` MCP tool observes these assertions; no curation tool is
+available through MCP. Planning and inspection do not create assertion tables. Only a confirmed
 curation apply writes them, atomically with that key's metadata revision.
 Source generations, content digests, store identity and restore epoch are checked
 separately; identical text after A→B→A or delete/recreate cannot revive an old
@@ -473,8 +474,11 @@ assertion's status, not factual truth. Stale metadata retains its asserted-sourc
 provenance but is not current evidence. Reads never advance verification dates.
 Managed restore retains assertions in the snapshot but the renewed epoch makes
 old assertions stale. Missing or malformed initialized assertion infrastructure
-fails closed rather than silently rebuilding it. CLI/MCP exposure and production
-admission are separate follow-up work, not implied by this internal API.
+fails closed rather than silently rebuilding it. `memory-context status|doctor`
+report whether assertion metadata is initialized and its bounded row count, not
+source text or reference values. Source-only CLI/MCP verification is distinct
+from a release or production admission; use disposable stores. See
+[freshness operations](operating.md#revision-bound-freshness-unreleased-source-checkout-only).
 
 ### Released legacy memory commands
 

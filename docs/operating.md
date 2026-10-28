@@ -500,6 +500,8 @@ vendor or host.
 | `CAIRN_MEMORY_RERANK_MODEL` | Required model identifier when reranking is enabled |
 | `CAIRN_MEMORY_RERANK_API_KEY` | Optional separate reranker credential; no extraction/embedding key fallback |
 | `CAIRN_MEMORY_RERANK_TIMEOUT_MS` | Reranking deadline, default `2000`, allowed `100`–`10000`; failure preserves existing search order |
+| `CAIRN_MEMORY_CONTEXT` | Unreleased opt-in `1` exposes read-only `memory_inspect` and adds freshness metadata validation to doctor; off by default |
+| `CAIRN_MEMORY_CONTEXT_HTTP` | Separate unreleased `1` consent for inspection over authenticated project-resolved HTTP; also requires `CAIRN_MEMORY_CONTEXT=1` |
 | `CAIRN_AGENTFS_BASE_DIR` | Server-side base dir for named/global memory scopes (default `~/.cairnkeep`); it does not affect `project` scope |
 | `CAIRN_TRAJECTORY_CAPTURE` | Opt in to local structured session capture (`1`, `true`, `yes`, or `on`; unset/default → no capture work) |
 | `CAIRN_TRAJECTORY_SESSION_MAX_BYTES` | Maximum serialized bytes per session (default `5242880`, 5 MiB; minimum 1024) |
@@ -753,6 +755,44 @@ An interrupted note mutation blocks later note writes with `RECOVERY_REQUIRED`.
 pre-images, but verifies and finalizes committed-before-cleanup journals without
 undoing the completed operation. Unverifiable committed state remains failed
 and untouched for backup-guided manual recovery.
+
+### Revision-bound freshness (unreleased, source checkout only)
+
+`CAIRN_MEMORY_CONTEXT=1` exposes the closed-world, read-only `memory_inspect`
+tool under the `memory.search` capability and MCP tool profile. A read-only
+profile may inspect; no MCP administration or freshness-write tool is added.
+HTTP additionally requires `CAIRN_MEMORY_CONTEXT_HTTP=1`, existing bearer/Host/
+CORS controls and a validated `X-Cairn-Project`. Without that project binding,
+the tool is absent. Flags never initialize or convert a store.
+
+`memory_inspect {"scope":"project","key":"facts/demo"}` returns current ordinary
+text, source identity and asserted freshness. `all` uses configured visible scopes
+and reports possible same-key value conflicts without choosing truth. At most
+16 candidates and 32 KiB of the complete serialized MCP result are returned.
+Oversized/omitted candidates set `truncated`; conflict labels describe returned
+candidates only, without hidden counts. Tracked text and provenance come from
+one SQLite snapshot; this does not promise cross-store linearizability.
+Legacy memory is labeled untracked/unknown; its existing driver constraints stay.
+
+Operator curation is local only. On an explicitly initialized disposable tracked
+store, prepare a JSON file containing `schema_version:1`, `source_refs:[]`, and
+optional UTC `effective_at`, `verified_at`, `review_after` dates, then run:
+
+```sh
+cairn memory-context set-freshness --scope project --project /path/to/disposable-project --key facts/demo --input freshness.json --json
+# Inspect the no-write plan, then repeat with --apply --confirm PLAN_DIGEST.
+cairn memory-context inspect --scope project --project /path/to/disposable-project --key facts/demo --json
+cairn memory-context doctor --scope project --project /path/to/disposable-project --json
+```
+
+Input is strict, bounded to 64 KiB and read without following links/devices.
+At most eight opaque source references (512 UTF-8 bytes each) are accepted.
+They are never fetched. Future verification refuses; future effectiveness is
+labeled. Apply rechecks source generation, identity, epoch and metadata revision
+atomically; stale confirmations refuse. Reads never advance verification dates.
+Doctor reports metadata state only and never repairs/asserts freshness, even with
+top-level repair requested. Existing-store conversion, release and production
+admission remain separate decisions. See [storage](storage.md#development-only-freshness-assertions).
 
 ### Domain knowledge (RAG via AnythingLLM, opt-in)
 

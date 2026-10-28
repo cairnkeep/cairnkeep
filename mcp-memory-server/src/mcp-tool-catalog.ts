@@ -31,6 +31,7 @@ export const MCP_TOOL_CATALOG = {
     memory_list: observation("List memory"),
     memory_delete: mutation("Delete memory"),
     memory_search: observation("Search memory"),
+    memory_inspect: observation("Inspect memory freshness"),
     memory_extract: observation("Extract memory candidates", true),
     memory_supersede: mutation("Supersede memory"),
     memory_apply_reviewed: mutation("Apply reviewed memory"),

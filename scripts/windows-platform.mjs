@@ -777,7 +777,7 @@ export function powershellCompletion() {
   return `Register-ArgumentCompleter -Native -CommandName cairn -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
   $commands = 'bootstrap','setup','memory-server','memory-context','sync','sync-pi','sync-kimi','doctor','security','team','trajectory','artifact','evidence','playbook','capabilities','mcp-tools','pack','proposals','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
-  $memoryContext = 'init','status','doctor','backup','restore','--scope','--project','--input','--output','--apply','--confirm','--json'
+  $memoryContext = 'init','status','doctor','backup','restore','inspect','set-freshness','--scope','--project','--key','--input','--output','--apply','--confirm','--json'
   $setup = '--git','--harness','--memory','--policy','--yes','--json','init','existing','none',${harnesses},'local'
   $playbook = 'list','status','init','set','enable','disable','reset','check','record','receipts','instructions','doctor','minimal','balanced','strict','must','should','may','off','start','finish','install','remove','context.recall','context.explore','work.plan','verify.tests','review.repository','review.security','docs.update','learning.capture','--project','--json','--enforce','--complexity','--familiarity','--risk','--public-change','--changed','--change-type','--completed','--skipped','--failed','--actor','--actor-kind','--session','--policy','--decision','--event','--action','--outcome','--reason'
   $pack = 'init','lock','validate','install','import-okf','validate-okf','export-okf','list','show','remove','enable','disable','update','skills','approve-skill','revoke-skill','doctor','--repair','--project','--project-id','--json'
