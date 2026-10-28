@@ -20,7 +20,9 @@ const run = args => spawnSync(process.execPath, [cli, 'memory-context', ...args]
 const args = ['--scope', 'project', '--project', lab.projects.alpha, '--json'];
 const drop = () => { for (const suffix of ['', '-wal', '-shm']) rmSync(path + suffix, { force: true }); };
 try {
-  const plan = JSON.parse(run(['init', ...args]).stdout);
+  const planned = run(['init', ...args]);
+  assert.equal(planned.status, 0, `fresh-store planning failed (${planned.error?.code ?? planned.signal ?? 'exit'}): ${planned.stderr}`);
+  const plan = JSON.parse(planned.stdout);
   assert.equal(run(['init', ...args, '--apply', '--confirm', plan.digest]).status, 0);
   const store = await import('../dist/ordinary-memory-store.js');
   const { MemoryDatabase } = await import('../dist/memory-database.js');

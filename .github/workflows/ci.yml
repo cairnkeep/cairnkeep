@@ -34,6 +34,7 @@ jobs:
     # Native private-ACL subprocesses are part of the team security contracts.
     timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
         include:
           - node: "22"
@@ -81,6 +82,46 @@ jobs:
           $claude = Join-Path $env:RUNNER_TEMP 'Claude Config'
           cairn sync --apply --live-root $claude
           cairn sync --check --live-root $claude
+
+  tracked-platform:
+    name: tracked-platform (${{ matrix.os }}, ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: mcp-memory-server/package-lock.json
+      - run: npm --prefix mcp-memory-server ci
+      - run: npm --prefix mcp-memory-server run build
+      - name: Fresh planning and epoch-safe recovery
+        run: node mcp-memory-server/scripts/smoke-memory-store-restore.mjs
+      - name: Worker ownership
+        run: node mcp-memory-server/scripts/smoke-memory-database.mjs
+      - name: Fresh admission
+        run: node mcp-memory-server/scripts/smoke-memory-store-admission.mjs
+      - name: Diagnose runner ancestor permissions on failure
+        if: failure() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($start in @($env:RUNNER_TEMP, [IO.Path]::GetTempPath())) {
+            $path = [IO.Path]::GetFullPath($start)
+            while ($path) {
+              $acl = Get-Acl -LiteralPath $path
+              $access = @($acl.Access | Select-Object IdentityReference, AccessControlType, FileSystemRights, IsInherited, InheritanceFlags, PropagationFlags)
+              [pscustomobject]@{path=$path;owner=$acl.Owner;access=$access} | ConvertTo-Json -Compress -Depth 4
+              $parent = [IO.Directory]::GetParent($path)
+              if (!$parent) { break }
+              $path = $parent.FullName
+            }
+          }
 
   repository:
     runs-on: ubuntu-latest
@@ -178,6 +219,7 @@ jobs:
     needs:
       - memory-server
       - native-windows
+      - tracked-platform
       - repository
       - shell-portability
       - server-boot

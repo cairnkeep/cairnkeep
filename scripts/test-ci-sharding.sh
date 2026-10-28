@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { parse } from "yaml";
 
 const root = process.argv[2];
 const { buildShardPlan, smokeChecks } = await import(
@@ -43,5 +44,15 @@ const focused = native.indexOf("run: node mcp-memory-server/scripts/smoke-bounde
 assert.ok(focused > native.indexOf("npm --prefix mcp-memory-server run build"));
 assert.ok(focused < native.indexOf("- name: Native Windows CLI contracts"));
 assert.ok(focused < native.indexOf("- name: Sharded memory-server contracts"));
+const jobs = parse(workflow).jobs;
+assert.equal(jobs['native-windows'].strategy['fail-fast'], false, 'one native failure must not cancel independent evidence');
+const tracked = jobs['tracked-platform'];
+assert.deepEqual(tracked.strategy.matrix.os, ['windows-latest', 'macos-latest']);
+assert.deepEqual(tracked.strategy.matrix.node, ['22', '24', '26']);
+assert.equal(tracked.strategy['fail-fast'], false);
+for (const script of ['smoke-memory-database.mjs', 'smoke-memory-store-admission.mjs', 'smoke-memory-store-restore.mjs']) {
+  assert.ok(tracked.steps.some(step => step.run === `node mcp-memory-server/scripts/${script}`), 'each native control must fail independently');
+}
+assert.ok(jobs['release-candidate'].needs.includes('tracked-platform'));
 console.log(`PASS: ${smokeChecks.length} memory-server contracts split once across balanced Windows shards (${weights.join(", ")})`);
 NODE
