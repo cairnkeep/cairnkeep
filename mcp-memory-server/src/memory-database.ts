@@ -6,6 +6,7 @@ import {
     memoryDatabaseLimits, memoryError, memoryWireBytes, normalizeMemoryValue, validateMemoryRequest,
     type MemoryBinding, type MemoryDatabaseLimits, type MemoryOperation, type MemoryRow,
 } from './memory-database-protocol.js';
+import { literalPrefixKv, MEMORY_KEY_PREFIX_SQL } from './memory-key-prefix.js';
 import { createMemoryDatabaseFile, inspectMemoryDatabaseFile, retainMemoryDatabaseFile } from './memory-store-format.js';
 
 export type MemoryDatabaseOptions = {
@@ -372,6 +373,8 @@ export async function attachMemoryAgent(db: MemoryDatabase): Promise<AgentFS> {
     // The SDK types name a concrete driver with private members. This single
     // boundary assertion is backed by real SDK/core method-contract tests.
     const agent = await db.exclusive(() => AgentFS.openWith(db as unknown as Parameters<typeof AgentFS.openWith>[0]));
+    Object.defineProperty(agent, 'kv', { value: literalPrefixKv(agent.kv, async pattern =>
+        await db.prepare(MEMORY_KEY_PREFIX_SQL).all(pattern) as unknown as Array<{ key: unknown; value: unknown }>) });
     Object.defineProperty(agent, 'fs', { value: ownedApi(agent.fs, db) });
     Object.defineProperty(agent, 'tools', { value: ownedApi(agent.tools, db) });
     return agent;

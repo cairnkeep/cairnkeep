@@ -105,9 +105,23 @@ try {
   await parity.kv.set('Facts/MixedCase', 'visible');
   await parity.kv.set('facts/wild%card', 'percent');
   await parity.kv.set('facts/wild_card', 'underscore');
+  await parity.kv.set('facts/repeat%%target', 'literal-percent');
+  await parity.kv.set('facts/repeat%Xtarget', 'percent-decoy');
+  await parity.kv.set('facts/under__target', 'literal-underscore');
+  await parity.kv.set('facts/under_Xtarget', 'underscore-decoy');
+  await parity.kv.set('facts/slash\\\\target', 'literal-backslash');
+  await parity.kv.set('facts/slash\\Xtarget', 'backslash-decoy');
   const writableMixed = await parity.kv.list('facts/');
   const writablePercent = await parity.kv.list('facts/wild%');
   const writableUnderscore = await parity.kv.list('facts/wild_');
+  const writableRepeated = [
+    await parity.kv.list('facts/repeat%%'),
+    await parity.kv.list('facts/under__'),
+    await parity.kv.list('facts/slash\\\\'),
+  ];
+  assert.deepEqual(writableRepeated.map(rows => rows.map(({ key }) => key)), [
+    ['facts/repeat%%target'], ['facts/under__target'], ['facts/slash\\\\target'],
+  ], 'every prefix metacharacter must be escaped, not only its first occurrence');
   await parity.close();
   const parityView = await store.openOrdinaryMemoryView(path, 'project');
   const ordered = entries => [...entries].sort((left, right) => left.key < right.key ? -1 : left.key > right.key ? 1 : 0);
@@ -115,7 +129,20 @@ try {
     assert.deepEqual(await parityView.kv.list('facts/'), ordered(writableMixed));
     assert.deepEqual(await parityView.kv.list('facts/wild%'), ordered(writablePercent));
     assert.deepEqual(await parityView.kv.list('facts/wild_'), ordered(writableUnderscore));
+    assert.deepEqual(await parityView.kv.list('facts/repeat%%'), writableRepeated[0]);
+    assert.deepEqual(await parityView.kv.list('facts/under__'), writableRepeated[1]);
+    assert.deepEqual(await parityView.kv.list('facts/slash\\\\'), writableRepeated[2]);
   } finally { await parityView.close(); }
+  const legacyPrefixPath = join(lab.root, 'legacy-prefix.db');
+  const legacySeed = await AgentFS.open({ id: 'legacy-prefix', path: legacyPrefixPath });
+  await legacySeed.kv.set('facts/repeat%%target', 'legacy-literal');
+  await legacySeed.kv.set('facts/repeat%Xtarget', 'legacy-decoy');
+  await legacySeed.close(); hardenPrivatePath(legacyPrefixPath);
+  const legacyPrefix = await store.openOrdinaryMemoryStore(legacyPrefixPath, 'legacy-prefix');
+  try {
+    assert.deepEqual((await legacyPrefix.kv.list('facts/repeat%%')).map(({ key }) => key), ['facts/repeat%%target'],
+      'legacy ordinary stores must use the same literal-prefix safety contract');
+  } finally { await legacyPrefix.close(); }
   const beforeOldClient = digest();
   await assert.rejects(AgentFS.open({ id: 'project', path }));
   assert.equal(digest(), beforeOldClient, 'older SDK must refuse without modifying the context store');

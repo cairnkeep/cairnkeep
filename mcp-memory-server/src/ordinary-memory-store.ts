@@ -6,6 +6,7 @@ import { hardenPrivatePath, privatePathIsSafe, replacementBoundaryIsSafe, memory
 import { probeOrdinaryMemoryFormat, inspectMemoryDatabaseFile, inspectMemoryDatabaseMetadata, assertMemorySnapshotIsIdle, assertNoMemoryTargetSidecars, createMemoryDatabaseFile, publishMemoryDatabaseFile, initializeMemoryContextFormat, validateMemoryContextFormat } from './memory-store-format.js';
 import { contextStoreIdentitySchema, contextStoreMarkerSchema, CONTEXT_STORE_TABLE } from './memory-context-schema.js';
 import { memoryError } from './memory-database-protocol.js';
+import { literalPrefixKv, memoryKeyPrefixPattern, MEMORY_KEY_PREFIX_SQL } from './memory-key-prefix.js';
 import { readStableFile } from './stable-file.js';
 import type { MemoryDatabase, OrdinaryMemoryReader, OrdinaryMemoryStore } from './memory-database.js';
 
@@ -24,6 +25,12 @@ function cleanupMemoryStage(stage: string, published: boolean): void {
 }
 function assertNoPendingImport(path: string): void {
     if (info(join(dirname(path), '.cairn-memory-import-pending'))) throw memoryError('MEMORY_IMPORT_RECOVERY_REQUIRED');
+}
+function protectAgentKeyPrefixes(agent: AgentFS): AgentFS {
+    const database = agent.getDatabase();
+    Object.defineProperty(agent, 'kv', { value: literalPrefixKv(agent.kv, async pattern =>
+        await database.prepare(MEMORY_KEY_PREFIX_SQL).all(pattern) as unknown as Array<{ key: unknown; value: unknown }>) });
+    return agent;
 }
 export function memoryAdministrationIssues(directory: string): string[] {
     const stat = info(directory);
@@ -200,7 +207,7 @@ export async function openOrdinaryMemoryStore(input: string, scope: string, opti
             try { const { attachMemoryAgent } = await import('./memory-database.js'); return await attachMemoryAgent(db); }
             catch (error) { await db.close(); throw error; }
         }
-        return AgentFS.open({ id: scope, path });
+        return protectAgentKeyPrefixes(await AgentFS.open({ id: scope, path }));
     });
 }
 
@@ -212,7 +219,7 @@ export async function openOrdinaryMemoryView(input: string, scope?: string): Pro
         assertNoPendingImport(path);
         const format = probeOrdinaryMemoryFormat(path);
         if (format.kind === 'unsupported' || format.kind === 'missing') throw memoryError('MEMORY_FORMAT_UNSUPPORTED');
-        if (format.kind === 'legacy') return AgentFS.open({ id: scope ?? 'inspection', path });
+        if (format.kind === 'legacy') return protectAgentKeyPrefixes(await AgentFS.open({ id: scope ?? 'inspection', path }));
         const db = await openContextDatabase(path, scope, true);
         const decode = (value: unknown): unknown => {
             try { return JSON.parse(String(value)) as unknown; }
@@ -225,11 +232,10 @@ export async function openOrdinaryMemoryView(input: string, scope?: string): Pro
                     return row ? decode(row.value) : undefined;
                 },
                 async list(prefix: string) {
-                    // Match AgentFS KvStore.list exactly: LIKE is ASCII
-                    // case-insensitive by default and its metacharacters are
-                    // escaped before the trailing prefix wildcard is added.
-                    const escaped = prefix.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_');
-                    const rows = await db.prepare("SELECT key,value FROM kv_store WHERE key LIKE ? ESCAPE '\\' ORDER BY key").all(`${escaped}%`);
+                    // Preserve SQLite's established ASCII case behavior while
+                    // treating every caller-supplied metacharacter literally.
+                    const rows = await db.prepare("SELECT key,value FROM kv_store WHERE key LIKE ? ESCAPE '\\' ORDER BY key")
+                        .all(memoryKeyPrefixPattern(prefix));
                     return rows.map(row => ({ key: String(row.key), value: decode(row.value) }));
                 },
             },
