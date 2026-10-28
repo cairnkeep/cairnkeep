@@ -2,7 +2,9 @@ import { basename, dirname, resolve } from 'node:path';
 import { openMemoryDatabase, attachMemoryAgent } from '../../dist/memory-database.js';
 const [mode, input] = process.argv.slice(2), path = resolve(input);
 if (!/^cairn-memory-database-[A-Za-z0-9]+$/.test(basename(dirname(path)))) throw new Error('disposable root required');
-const db = await openMemoryDatabase(path), agent = await attachMemoryAgent(db);
+// Positive concurrent writers may wait within the supported bound; the separate
+// held-lock negative control still uses an explicit short timeout in its caller.
+const db = await openMemoryDatabase(path, mode === 'increment' ? { busyTimeoutMs: 5000 } : {}), agent = await attachMemoryAgent(db);
 try {
   if (mode === 'increment') {
     process.send({ ready: true }); await new Promise(resolve => process.once('message', resolve));

@@ -21,7 +21,7 @@ try { implementation = await import('../dist/memory-database.js'); }
 catch (error) { if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error; }
 const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'cairn-memory-database-')));
 hardenPrivatePath(root);
-const opened = [], children = new Set();
+const opened = [], children = new Set(), childErrors = new WeakMap();
 const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
   !/^(CAIRN_|MCP_|NODE_OPTIONS|NODE_PATH|AGENT_MEMORY_CONFIG)/.test(key) && !/(?:API_KEY|TOKEN|SECRET)/.test(key)));
 async function message(child, key) {
@@ -35,7 +35,9 @@ async function message(child, key) {
 }
 function child(mode, path) {
   const process = fork(fileURLToPath(new URL('./fixtures/memory-database-process.mjs', import.meta.url)), [mode, path], { env: cleanEnv, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
-  process.stderr.resume(); children.add(process); process.once('exit', () => children.delete(process)); return process;
+  childErrors.set(process, ''); process.stderr.setEncoding('utf8');
+  process.stderr.on('data', text => childErrors.set(process, (childErrors.get(process) + text).slice(-8192)));
+  children.add(process); process.once('exit', () => children.delete(process)); return process;
 }
 async function make(name, options = {}) {
   if (!implementation) {
@@ -149,8 +151,14 @@ try {
   assert.equal(format.probeOrdinaryMemoryFormat(tracked.db.name).kind, 'context-v1');
   const left = child('increment', tracked.db.name), right = child('increment', tracked.db.name);
   await Promise.all([message(left, 'ready'), message(right, 'ready')]);
-  const stopped = Promise.all([once(left, 'exit'), once(right, 'exit')]); left.send('start'); right.send('start');
-  assert.deepEqual((await stopped).map(([code]) => code), [0, 0]);
+  const stopped = Promise.all([once(left, 'exit'), once(right, 'exit')]);
+  const blocker = await implementation.openMemoryDatabase(tracked.db.name); opened.push(blocker);
+  // The positive concurrent-write fixture explicitly allows a bounded busy wait;
+  // prove it survives contention longer than the ordinary 500ms default.
+  await blocker.transaction(async () => { left.send('start'); right.send('start'); await delay(650); }).immediate();
+  await blocker.close();
+  assert.deepEqual((await stopped).map(([code]) => code), [0, 0],
+    [childErrors.get(left), childErrors.get(right)].join('\n'));
   const concurrent = await implementation.openMemoryDatabase(tracked.db.name); opened.push(concurrent);
   const concurrentAgent = await implementation.attachMemoryAgent(concurrent);
   assert.equal(await concurrentAgent.kv.get('facts/counter'), 80);
