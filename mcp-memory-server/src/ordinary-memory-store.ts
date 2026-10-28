@@ -1,9 +1,9 @@
 import { AgentFS } from 'agentfs-sdk';
 import { createHash, randomUUID } from 'node:crypto';
 import { dirname, join, resolve, basename } from 'node:path';
-import { lstatSync, realpathSync, mkdirSync, mkdtempSync, linkSync, unlinkSync, rmdirSync, rmSync, writeFileSync, opendirSync } from 'node:fs';
+import { lstatSync, realpathSync, mkdirSync, mkdtempSync, unlinkSync, rmdirSync, rmSync, writeFileSync, opendirSync } from 'node:fs';
 import { hardenPrivatePath, privatePathIsSafe, replacementBoundaryIsSafe, memoryPathAncestorsAreSafe } from './platform-security.js';
-import { probeOrdinaryMemoryFormat, inspectMemoryDatabaseFile, inspectMemoryDatabaseMetadata, assertMemorySnapshotIsIdle, createMemoryDatabaseFile, initializeMemoryContextFormat, validateMemoryContextFormat } from './memory-store-format.js';
+import { probeOrdinaryMemoryFormat, inspectMemoryDatabaseFile, inspectMemoryDatabaseMetadata, assertMemorySnapshotIsIdle, assertNoMemoryTargetSidecars, createMemoryDatabaseFile, publishMemoryDatabaseFile, initializeMemoryContextFormat, validateMemoryContextFormat } from './memory-store-format.js';
 import { contextStoreIdentitySchema, contextStoreMarkerSchema, CONTEXT_STORE_TABLE } from './memory-context-schema.js';
 import { memoryError } from './memory-database-protocol.js';
 import { readStableFile } from './stable-file.js';
@@ -17,6 +17,10 @@ export async function withOrdinaryMemorySnapshot<T>(view: OrdinaryMemoryReader, 
 
 function info(path: string) {
     try { return lstatSync(path); } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined; throw error; }
+}
+function cleanupMemoryStage(stage: string, published: boolean): void {
+    try { rmSync(stage, { recursive: true, force: true }); }
+    catch (error) { if (published) throw memoryError('MEMORY_PUBLICATION_UNCERTAIN'); throw error; }
 }
 function assertNoPendingImport(path: string): void {
     if (info(join(dirname(path), '.cairn-memory-import-pending'))) throw memoryError('MEMORY_IMPORT_RECOVERY_REQUIRED');
@@ -32,6 +36,8 @@ export function memoryAdministrationIssues(directory: string): string[] {
             if (++count > 4096) throw memoryError('MEMORY_DIRECTORY_LIMIT');
             if (entry.name.endsWith('.cairn-admission')) issues.add('MEMORY_ADMISSION_PRESENT');
             if (entry.name === '.cairn-memory-import-pending') issues.add('MEMORY_IMPORT_RECOVERY_REQUIRED');
+            const auxiliary = /^(.+\.db)-(?:wal|shm|journal)$/.exec(entry.name);
+            if (auxiliary && !info(join(directory, auxiliary[1]))) issues.add('MEMORY_AUXILIARY_PRESENT');
             if (/^\.cairn-memory-(?:init|backup|restore|import-stage)-/.test(entry.name)) issues.add('MEMORY_STAGING_PRESENT');
         }
     } finally { stream.closeSync(); }
@@ -79,11 +85,17 @@ export async function withMemoryAdmission<T>(path: string, operation: () => Prom
         hardenPrivatePath(token);
         return await operation();
     } finally {
-        const now = info(lock);
-        if (now?.dev === owned.dev && now.ino === owned.ino && !now.isSymbolicLink()) {
-            if (info(token)?.isFile()) unlinkSync(token);
-            // Unexpected contents are retained for explicit diagnosis, never recursively removed.
-            try { rmdirSync(lock); } catch { /* retain an altered admission lease */ }
+        try {
+            const now = info(lock);
+            if (now?.dev === owned.dev && now.ino === owned.ino && !now.isSymbolicLink()) {
+                if (info(token)?.isFile()) unlinkSync(token);
+                // Unexpected contents are retained, never recursively removed.
+                rmdirSync(lock);
+            }
+        } catch {
+            // Do not mask the operation result/error or lose a live returned
+            // connection. Retain the lease for explicit doctor/recovery instead.
+            process.stderr.write('MEMORY_ADMISSION_RELEASE_PENDING: inspect with cairn memory-context doctor.\n');
         }
     }
 }
@@ -104,6 +116,7 @@ export async function planContextStoreInit(options: { path: string; scope: strin
     const path = canonicalMemoryPath(options.path);
     assertNoPendingImport(path);
     if (info(path)) throw memoryError('EXISTING_STORE_UNSUPPORTED');
+    assertNoMemoryTargetSidecars(path);
     const identity = memoryStoreIdentity(path, options.scope);
     let ancestor = dirname(path);
     while (!info(ancestor)) ancestor = dirname(ancestor);
@@ -122,12 +135,13 @@ export async function applyContextStoreInit(options: { path: string; scope: stri
     return withMemoryAdmission(plan.path, async () => {
         assertNoPendingImport(plan.path);
         if (info(plan.path)) throw memoryError('EXISTING_STORE_UNSUPPORTED');
+        assertNoMemoryTargetSidecars(plan.path);
         const ancestor = lstatSync(plan.ancestor.path);
         if (ancestor.dev !== plan.ancestor.dev || ancestor.ino !== plan.ancestor.ino
             || canonicalMemoryPath(options.path) !== plan.path) throw memoryError('MEMORY_FILE_CHANGED');
         const stage = mkdtempSync(join(dirname(plan.path), '.cairn-memory-init-'));
         hardenPrivatePath(stage);
-        let db: MemoryDatabase | undefined;
+        let db: MemoryDatabase | undefined, published = false;
         try {
             const { MemoryDatabase, attachMemoryAgent } = await import('./memory-database.js');
             const staged = join(stage, 'store.db');
@@ -140,12 +154,11 @@ export async function applyContextStoreInit(options: { path: string; scope: stri
             await db.close(); db = undefined;
             inspectMemoryDatabaseFile(staged, true);
             // Hard-link publication is atomic and refuses every existing destination.
-            linkSync(staged, plan.path);
-            unlinkSync(staged);
+            publishMemoryDatabaseFile(staged, plan.path, () => { published = true; });
             return { schema_version: 1, format: 'context-v1', path: plan.path, digest: plan.digest, created: true };
         } finally {
             await db?.close();
-            rmSync(stage, { recursive: true, force: true });
+            cleanupMemoryStage(stage, published);
         }
     });
 }
@@ -264,11 +277,12 @@ async function finishStandalone(db: MemoryDatabase) {
 export async function backupMemoryContextStore(options: { path: string; scope: string; output: string }) {
     const source = canonicalMemoryPath(options.path), output = canonicalMemoryPath(options.output);
     if (info(output)) throw memoryError('MEMORY_OUTPUT_EXISTS');
+    assertNoMemoryTargetSidecars(output);
     if (probeOrdinaryMemoryFormat(source).kind !== 'context-v1') throw memoryError('MEMORY_CONTEXT_REQUIRED');
     return withMemoryAdmission(source, async () => {
         assertNoPendingImport(source);
         let sourceDb: MemoryDatabase | undefined, stageDb: MemoryDatabase | undefined;
-        let stage: string | undefined;
+        let stage: string | undefined, published = false;
         try {
             sourceDb = await openContextDatabase(source, options.scope, true);
             ensureParent(output);
@@ -287,11 +301,11 @@ export async function backupMemoryContextStore(options: { path: string; scope: s
             await finishStandalone(stageDb); stageDb = undefined;
             const snapshot = snapshotInput(file);
             // The output itself is never passed to the overwriting backup API.
-            linkSync(file, output); unlinkSync(file);
+            publishMemoryDatabaseFile(file, output, () => { published = true; });
             return { schema_version: 1, output, digest: snapshot.digest, bytes: snapshot.stat.size, marker };
         } finally {
             await sourceDb?.close(); await stageDb?.close();
-            if (stage) rmSync(stage, { recursive: true, force: true });
+            if (stage) cleanupMemoryStage(stage, published);
         }
     });
 }
@@ -320,13 +334,14 @@ export async function applyContextStoreRestore(options: { path: string; scope: s
     return withMemoryAdmission(plan.path, async () => {
         assertNoPendingImport(plan.path);
         if (info(plan.path)) throw memoryError('EXISTING_STORE_UNSUPPORTED');
+        assertNoMemoryTargetSidecars(plan.path);
         const ancestor = lstatSync(plan.ancestor.path);
         if (ancestor.dev !== plan.ancestor.dev || ancestor.ino !== plan.ancestor.ino
             || canonicalMemoryPath(options.path) !== plan.path) throw memoryError('MEMORY_FILE_CHANGED');
         const snapshot = snapshotInput(options.input);
         if (snapshot.digest !== plan.input.digest || snapshot.stat.dev !== plan.input.dev || snapshot.stat.ino !== plan.input.ino) throw memoryError('MEMORY_SNAPSHOT_CHANGED');
         const stage = mkdtempSync(join(dirname(plan.path), '.cairn-memory-restore-')); hardenPrivatePath(stage);
-        let db: MemoryDatabase | undefined;
+        let db: MemoryDatabase | undefined, published = false;
         try {
             const file = join(stage, 'store.db');
             writeFileSync(file, snapshot.bytes, { flag: 'wx', mode: 0o600 }); hardenPrivatePath(file);
@@ -342,10 +357,10 @@ export async function applyContextStoreRestore(options: { path: string; scope: s
             if (marker.restore_epoch !== epoch) throw memoryError('MEMORY_SNAPSHOT_DAMAGED');
             await finishStandalone(db); db = undefined;
             inspectMemoryDatabaseFile(file, true);
-            linkSync(file, plan.path); unlinkSync(file);
+            publishMemoryDatabaseFile(file, plan.path, () => { published = true; });
             return { schema_version: 1, format: 'context-v1', path: plan.path, digest: plan.digest, restored: true, marker };
         } finally {
-            await db?.close(); rmSync(stage, { recursive: true, force: true });
+            await db?.close(); cleanupMemoryStage(stage, published);
         }
     });
 }

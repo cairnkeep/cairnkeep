@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync, chmodSync, lstatSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import childProcess from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { generatedFilePathLabelSchema } from "../dist/artifact-schema.js";
@@ -347,6 +349,38 @@ try {
     assert.equal(sidecarAcl({ ...baseAcl, protected: false, access: [...baseAcl.access, { ...other, rights: 131241 }] }, currentSid), false, 'inherited sidecar grants cannot expose bytes to another user');
     assert.equal(sidecarAcl({ ...baseAcl, owner_sid: other.sid }, currentSid), false);
     assert.equal(windowsPrivateAclIsSafe({ ...baseAcl, protected: false }, currentSid), false, 'database-file inheritance policy remains strict');
+    const nativeSpawn = childProcess.spawnSync, platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+    const probeSid = process.platform === 'win32'
+        ? spawnSync('whoami.exe', ['/user', '/fo', 'csv', '/nh'], { encoding: 'utf8' }).stdout.match(/S-1-[0-9-]+/)[0]
+        : currentSid;
+    let aclQueries = 0, poisonedAcl;
+    try {
+        Object.defineProperty(process, 'platform', { ...platformDescriptor, value: 'win32' });
+        childProcess.spawnSync = function(command, _args, options) {
+            if (command === 'whoami.exe') return { status: 0, stdout: `"HOST\\fixture","${probeSid}"\n`, stderr: '' };
+            assert.equal(command, 'powershell.exe'); aclQueries++;
+            const snapshot = { ...baseAcl, owner_sid: probeSid, access: [{ sid: probeSid, type: 'Allow', rights: 2032127 }] };
+            const paths = options.env.CK_INTERNAL_ACL_PATHS;
+            const snapshots = paths ? JSON.parse(paths).map(() => structuredClone(snapshot)) : snapshot;
+            if (paths && poisonedAcl) {
+                const index = poisonedAcl === 'file' ? 0 : poisonedAcl === 'parent' ? 1 : snapshots.length - 1;
+                const rights = poisonedAcl === 'file' ? 131241 : poisonedAcl === 'parent' ? 4 : 0x40000000;
+                snapshots[index].access.push({ sid: other.sid, type: 'Allow', rights, inherit_only: false });
+            }
+            return { status: 0, stdout: JSON.stringify(snapshots), stderr: '' };
+        }; syncBuiltinESMExports();
+        const metadataCheck = platformSecurity.privateMemoryPathMetadataIsSafe ?? ((path) =>
+            platformSecurity.replacementBoundaryIsSafe(dirname(path)) && platformSecurity.memoryPathAncestorsAreSafe(path) && platformSecurity.privatePathIsSafe(path));
+        assert.equal(metadataCheck(privateEnv, lstatSync(privateEnv)), true);
+        assert.equal(aclQueries, 1, 'file, immediate parent and all ancestors must be checked in one fresh ACL snapshot');
+        for (poisonedAcl of ['file', 'parent', 'ancestor']) {
+            const before = aclQueries;
+            assert.equal(metadataCheck(privateEnv, lstatSync(privateEnv)), false, `${poisonedAcl} ACL must remain enforced`);
+            assert.equal(aclQueries, before + 1, 'each validation must observe a fresh ACL, not a cached permission decision');
+        }
+    } finally {
+        childProcess.spawnSync = nativeSpawn; Object.defineProperty(process, 'platform', platformDescriptor); syncBuiltinESMExports();
+    }
     assert.equal(posixOwnerIsTrusted(1000, 1000), true);
     assert.equal(posixOwnerIsTrusted(0, 1000), true);
     assert.equal(posixOwnerIsTrusted(1001, 1000), false);

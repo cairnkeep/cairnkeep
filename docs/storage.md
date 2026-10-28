@@ -401,6 +401,17 @@ SQLite-created WAL/SHM files may inherit an effectively private ACL from their
 checked parent; any grant exposing sidecar bytes to another user is refused.
 Snapshot planning refuses a file held by another SQLite connection in the same
 process (`MEMORY_SNAPSHOT_IN_USE`); close that connection before retrying.
+Completed stages are explicitly synced before no-replace publication; directory
+metadata is synced where supported. A later sync or cleanup error reports
+`MEMORY_PUBLICATION_UNCERTAIN`: a complete object may already exist. Inspect it
+with `memory-context status`/`doctor` and preserve recovery files; do not blindly
+retry or delete the destination. This is not a power-loss durability guarantee.
+An absent destination with existing WAL/SHM/journal files is not fresh:
+`MEMORY_AUXILIARY_PRESENT` refuses initialization, backup or restore. Doctor
+reports orphaned auxiliary files but never deletes or adopts them automatically.
+If lease cleanup fails, `MEMORY_ADMISSION_RELEASE_PENDING` preserves the operation
+result and the admission remnant for diagnosis; it does not guess a stale lease
+or discard a returned database connection. Resolve the remnant before new opens.
 
 For a disposable tracked store:
 

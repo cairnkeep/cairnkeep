@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, copyFileSync, rmSync, existsSync, mkdirSync, truncateSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname, basename } from 'node:path';
 import { spawnSync, fork } from 'node:child_process';
 import { once } from 'node:events';
 import fs from 'node:fs';
@@ -98,6 +98,12 @@ try {
   } finally { MemoryDatabase.prototype.backup = nativeBackup; }
   assert.equal(existsSync(failedBackup), false, 'failed backup must not publish its written stage');
   assert.deepEqual(readFileSync(backup), snapshotBytes);
+  const orphanOutput = join(lab.root, 'orphan-output.db');
+  writeFileSync(orphanOutput + '-wal', 'ABANDONED_WAL', { mode: 0o600 }); hardenPrivatePath(orphanOutput + '-wal');
+  await assert.rejects(store.backupMemoryContextStore({ path, scope: 'project', output: orphanOutput }), { code: 'MEMORY_AUXILIARY_PRESENT' });
+  assert.equal(existsSync(orphanOutput), false);
+  assert.equal(readFileSync(orphanOutput + '-wal', 'utf8'), 'ABANDONED_WAL');
+  rmSync(orphanOutput + '-wal');
   const backupWinner = join(lab.root, 'racing-snapshot.db');
   const originalLink = fs.linkSync;
   try {
@@ -164,6 +170,66 @@ try {
     await assert.rejects(store.applyContextStoreRestore({ path, scope: 'project', input: backup, confirm: restorePlan.digest }), /FIXTURE_PUBLICATION_FAILURE/);
   } finally { fs.linkSync = publish; syncBuiltinESMExports(); }
   assert.equal(existsSync(path), false); assert.deepEqual(readFileSync(backup), snapshotBytes);
+  const nativeFsync = fs.fsyncSync;
+  try {
+    fs.fsyncSync = () => { throw Error('FIXTURE_STAGE_SYNC_FAILURE'); }; syncBuiltinESMExports();
+    await assert.rejects(store.applyContextStoreRestore({ path, scope: 'project', input: backup, confirm: restorePlan.digest }), /FIXTURE_STAGE_SYNC_FAILURE/);
+  } finally { fs.fsyncSync = nativeFsync; syncBuiltinESMExports(); }
+  assert.equal(existsSync(path), false, 'a failed explicit stage sync must precede publication');
+  let auxiliaryRaced = false;
+  try {
+    fs.fsyncSync = function(descriptor) {
+      if (!auxiliaryRaced && fs.fstatSync(descriptor).isFile()) {
+        auxiliaryRaced = true;
+        writeFileSync(path + '-shm', 'RACING_AUXILIARY', { flag: 'wx', mode: 0o600 }); hardenPrivatePath(path + '-shm');
+      }
+      return nativeFsync(descriptor);
+    }; syncBuiltinESMExports();
+    await assert.rejects(store.applyContextStoreRestore({ path, scope: 'project', input: backup, confirm: restorePlan.digest }), { code: 'MEMORY_AUXILIARY_PRESENT' });
+  } finally { fs.fsyncSync = nativeFsync; syncBuiltinESMExports(); }
+  assert.equal(auxiliaryRaced, true);
+  assert.equal(existsSync(path), false, 'publication must recheck auxiliary names after staging');
+  assert.equal(readFileSync(path + '-shm', 'utf8'), 'RACING_AUXILIARY');
+  rmSync(path + '-shm');
+  const nativeUnlink = fs.unlinkSync, nativeRemove = fs.rmSync;
+  for (const failure of process.platform === 'win32' ? ['unlink', 'stage-cleanup'] : ['directory-sync', 'unlink', 'stage-cleanup']) {
+    let linked = false, stagedSource;
+    try {
+      fs.linkSync = function(source, target) {
+        const result = originalLink(source, target);
+        if (target === path) { linked = true; stagedSource = source; }
+        return result;
+      };
+      fs.fsyncSync = function(descriptor) {
+        if (failure === 'directory-sync' && fs.fstatSync(descriptor).isDirectory()) {
+          if (linked) throw Object.assign(Error('FIXTURE_AFTER_LINK_SYNC'), { code: 'EIO' });
+          return; // Exercise the supported-directory branch even on filesystems without it.
+        }
+        return nativeFsync(descriptor);
+      };
+      fs.unlinkSync = function(file) {
+        if (failure === 'unlink' && file === stagedSource) throw Error('FIXTURE_AFTER_LINK_UNLINK');
+        return nativeUnlink(file);
+      };
+      fs.rmSync = function(file, options) {
+        if (failure === 'stage-cleanup' && stagedSource && file === dirname(stagedSource)) throw Error('FIXTURE_AFTER_LINK_CLEANUP');
+        return nativeRemove(file, options);
+      }; syncBuiltinESMExports();
+      await assert.rejects(store.applyContextStoreRestore({ path, scope: 'project', input: backup, confirm: restorePlan.digest }), { code: 'MEMORY_PUBLICATION_UNCERTAIN' });
+    } finally {
+      fs.linkSync = originalLink; fs.fsyncSync = nativeFsync; fs.unlinkSync = nativeUnlink; fs.rmSync = nativeRemove; syncBuiltinESMExports();
+    }
+    assert.equal(existsSync(path), true, 'post-publication errors must not remove a complete object');
+    assert.notEqual((await sourceRef()).restore_epoch, oldRef.restore_epoch, 'even uncertain publication exposes only the renewed epoch');
+    assert.deepEqual(readFileSync(backup), snapshotBytes);
+    if (failure === 'stage-cleanup') {
+      assert.ok(store.memoryAdministrationIssues(dirname(path)).includes('MEMORY_STAGING_PRESENT'));
+      assert.equal(dirname(dirname(stagedSource)), dirname(path));
+      assert.match(basename(dirname(stagedSource)), /^\.cairn-memory-restore-[A-Za-z0-9]+$/);
+      rmSync(dirname(stagedSource), { recursive: true, force: true });
+    }
+    drop();
+  }
   try {
     fs.linkSync = function(source, target) {
       if (target === path) { writeFileSync(target, 'COMPETING_RESTORE', { flag: 'wx', mode: 0o600 }); hardenPrivatePath(target); }

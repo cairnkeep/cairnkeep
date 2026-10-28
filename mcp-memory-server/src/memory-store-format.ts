@@ -1,7 +1,7 @@
-import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, type Stats } from 'node:fs';
+import { closeSync, constants, fstatSync, fsyncSync, linkSync, lstatSync, openSync, readSync, unlinkSync, type Stats } from 'node:fs';
 import { dirname } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { hardenPrivatePath, posixPrivateMetadataIsSafe, privatePathIsSafe, privateMemorySidecarPathIsSafe, replacementBoundaryIsSafe, memoryPathAncestorsAreSafe } from './platform-security.js';
+import { hardenPrivatePath, privateMemoryPathMetadataIsSafe, replacementBoundaryIsSafe } from './platform-security.js';
 import { memoryError } from './memory-database-protocol.js';
 import {
     CONTEXT_APPLICATION_ID, CONTEXT_STORE_TABLE, CONTEXT_REVISION_TABLE, CONTEXT_TABLE_SQL, CONTEXT_TRIGGER_SQL,
@@ -24,13 +24,20 @@ export function assertMemorySnapshotIsIdle(path: string): void {
     if (heldMemoryFiles.has(inodeKey(lstatSync(path)))) throw memoryError('MEMORY_SNAPSHOT_IN_USE');
 }
 
+export function assertNoMemoryTargetSidecars(path: string): void {
+    for (const suffix of ['-wal', '-shm', '-journal']) {
+        try { lstatSync(path + suffix); }
+        catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; throw memoryError('MEMORY_FILE_UNSAFE'); }
+        throw memoryError('MEMORY_AUXILIARY_PRESENT');
+    }
+}
+
 /** Metadata checks do not open/close SQLite-owned database or sidecar inodes. */
 export function inspectMemoryDatabaseMetadata(path: string, privateRequired = false, sidecar = false): Stats {
     try {
         const info = lstatSync(path), parent = lstatSync(dirname(path));
         if (!info.isFile() || info.isSymbolicLink() || !parent.isDirectory() || parent.isSymbolicLink()) throw memoryError('MEMORY_FILE_UNSAFE');
-        if (privateRequired && (!replacementBoundaryIsSafe(dirname(path)) || !memoryPathAncestorsAreSafe(path)
-            || (process.platform === 'win32' ? !(sidecar ? privateMemorySidecarPathIsSafe(path) : privatePathIsSafe(path)) : !posixPrivateMetadataIsSafe(info)))) throw memoryError('MEMORY_FILE_UNSAFE');
+        if (privateRequired && !privateMemoryPathMetadataIsSafe(path, info, sidecar)) throw memoryError('MEMORY_FILE_UNSAFE');
         const after = lstatSync(path), parentAfter = lstatSync(dirname(path));
         if (!sameIdentity(info, after) || parent.dev !== parentAfter.dev || parent.ino !== parentAfter.ino) throw memoryError('MEMORY_FILE_CHANGED');
         return after;
@@ -47,8 +54,7 @@ function inspectFile<T>(path: string, privateRequired: boolean, read: (descripto
             | (constants.O_NOCTTY ?? 0) | (process.platform === 'win32' ? 0 : constants.O_NONBLOCK ?? 0));
         const info = fstatSync(descriptor), parent = lstatSync(dirname(path));
         if (!info.isFile() || !parent.isDirectory() || parent.isSymbolicLink() || !sameIdentity(info, lstatSync(path))) throw memoryError('MEMORY_FILE_UNSAFE');
-        if (privateRequired && (!replacementBoundaryIsSafe(dirname(path)) || !memoryPathAncestorsAreSafe(path)
-            || (process.platform === 'win32' ? !privatePathIsSafe(path) : !posixPrivateMetadataIsSafe(info)))) throw memoryError('MEMORY_FILE_UNSAFE');
+        if (privateRequired && !privateMemoryPathMetadataIsSafe(path, info)) throw memoryError('MEMORY_FILE_UNSAFE');
         const value = read(descriptor, info);
         const after = fstatSync(descriptor), parentAfter = lstatSync(dirname(path));
         if (!sameIdentity(info, after) || !sameIdentity(info, lstatSync(path)) || !parentAfter.isDirectory()
@@ -115,6 +121,48 @@ export function createMemoryDatabaseFile(path: string): void {
     if (!replacementBoundaryIsSafe(dirname(path))) throw memoryError('MEMORY_FILE_UNSAFE');
     const descriptor = openSync(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0), 0o600);
     closeSync(descriptor); hardenPrivatePath(path); inspectMemoryDatabaseFile(path, true);
+}
+
+/** Publish only a completed, closed private stage. Never replace a destination. */
+export function publishMemoryDatabaseFile(source: string, destination: string, onPublished: () => void): void {
+    assertMemorySnapshotIsIdle(source);
+    const expected = inspectMemoryDatabaseFile(source, true);
+    const descriptor = openSync(source, constants.O_RDWR | (constants.O_NOFOLLOW ?? 0)
+        | (constants.O_NOCTTY ?? 0) | (process.platform === 'win32' ? 0 : constants.O_NONBLOCK ?? 0));
+    try {
+        if (!sameIdentity(expected, fstatSync(descriptor)) || !sameIdentity(expected, lstatSync(source))) throw memoryError('MEMORY_FILE_CHANGED');
+        fsyncSync(descriptor);
+        if (!sameIdentity(expected, lstatSync(source))) throw memoryError('MEMORY_FILE_CHANGED');
+    } finally { closeSync(descriptor); }
+    let directory: number | undefined, published = false;
+    try {
+        if (process.platform !== 'win32') {
+            const parent = dirname(destination);
+            directory = openSync(parent, constants.O_RDONLY | (constants.O_DIRECTORY ?? 0) | (constants.O_NOFOLLOW ?? 0));
+            const info = fstatSync(directory), named = lstatSync(parent);
+            if (!info.isDirectory() || named.isSymbolicLink() || info.dev !== named.dev || info.ino !== named.ino) throw memoryError('MEMORY_FILE_CHANGED');
+            try { fsyncSync(directory); }
+            catch (error) {
+                // Some platforms/filesystems do not implement directory fsync.
+                if (!['EINVAL', 'ENOTSUP', 'EOPNOTSUPP'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+                closeSync(directory); directory = undefined;
+            }
+        }
+        assertNoMemoryTargetSidecars(destination);
+        linkSync(source, destination);
+        published = true; onPublished();
+        if (directory !== undefined) fsyncSync(directory);
+        unlinkSync(source);
+    } catch (error) {
+        // A complete object may already be visible. Never remove/retry a winner.
+        if (published) throw memoryError('MEMORY_PUBLICATION_UNCERTAIN');
+        throw error;
+    } finally {
+        if (directory !== undefined) {
+            try { closeSync(directory); }
+            catch (error) { if (published) throw memoryError('MEMORY_PUBLICATION_UNCERTAIN'); throw error; }
+        }
+    }
 }
 
 export async function initializeMemoryContextFormat(db: MemoryDatabase, identity: ContextStoreIdentity): Promise<void> {

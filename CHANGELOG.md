@@ -21,6 +21,12 @@ All notable user-facing changes are documented here. This project follows
   retain probe descriptors until workers exit and avoid opening live sidecars.
   Bound transaction-control scanning without backtracking, and test comment
   sequences, quoted statement boundaries and canonical-path fault injection.
+- Sync completed stages before no-replace publication, report uncertain outcomes
+  after publication without deleting a winner, and refuse abandoned auxiliary
+  files at fresh targets. Add native file/header and installed-worker controls.
+- Preserve strict database ACLs while validating effectively private SQLite
+  sidecars; batch fresh file/parent/ancestor permission checks on Windows without
+  caching authorization. Rebalance Windows shards from measured native timings.
 
 ## [2.27.0] - 2026-10-26
 

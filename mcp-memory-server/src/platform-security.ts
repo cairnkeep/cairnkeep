@@ -232,13 +232,18 @@ export function privatePathIsSafe(path: string): boolean {
     }
 }
 
-export function privateMemorySidecarPathIsSafe(path: string): boolean {
-    if (!/-(?:wal|shm|journal)$/.test(path)) return false;
+/** Fresh, uncached ACL batch: preserve every file/parent/ancestor check without
+ * spawning three PowerShell processes per inspection on the caller's thread. */
+export function privateMemoryPathMetadataIsSafe(path: string, info: { uid: number; mode: number }, sidecar = false): boolean {
+    if (process.platform !== 'win32') return posixPrivateMetadataIsSafe(info)
+        && replacementBoundaryIsSafe(dirname(path)) && memoryPathAncestorsAreSafe(path);
     try {
-        const info = lstatSync(path);
-        if (!info.isFile() || info.isSymbolicLink()) return false;
-        if (process.platform !== 'win32') return posixPrivateMetadataIsSafe(info);
-        return windowsMemorySidecarAclIsSafe(windowsAclSnapshot(path), currentWindowsIdentity().sid);
+        if (sidecar && !/-(?:wal|shm|journal)$/.test(path)) return false;
+        const parents = windowsMemoryParents(path), sid = currentWindowsIdentity().sid;
+        const snapshots = windowsAclSnapshots([path, ...parents]);
+        const fileSafe = sidecar ? windowsMemorySidecarAclIsSafe(snapshots[0], sid) : windowsPrivateAclIsSafe(snapshots[0], sid);
+        return fileSafe && windowsReplacementAclIsSafe(snapshots[1], sid)
+            && snapshots.slice(1).every((snapshot, index) => windowsMemoryAncestorAclIsSafe(snapshot, sid, dirname(parents[index]) === parents[index]));
     } catch { return false; }
 }
 
@@ -269,18 +274,21 @@ export function parentReplacementBoundaryIsSafe(path: string): boolean {
 
 /** A private leaf is insufficient when another user can replace an ancestor.
  * Sticky POSIX temporary roots retain their existing owner-only rename rule. */
+function windowsMemoryParents(path: string): string[] {
+    const parents: string[] = [];
+    let current = resolve(path);
+    for (;;) {
+        const parent = dirname(current), info = lstatSync(parent);
+        if (!info.isDirectory() || info.isSymbolicLink() || parents.length >= 128) throw new Error('Unsafe memory ancestor.');
+        if (parents.at(-1) !== parent) parents.push(parent);
+        if (parent === current) return parents;
+        current = parent;
+    }
+}
 export function memoryPathAncestorsAreSafe(path: string): boolean {
     if (process.platform === 'win32') {
         try {
-            const parents: string[] = [];
-            let current = resolve(path);
-            for (;;) {
-                const parent = dirname(current), info = lstatSync(parent);
-                if (!info.isDirectory() || info.isSymbolicLink() || parents.length >= 128) return false;
-                if (parents.at(-1) !== parent) parents.push(parent);
-                if (parent === current) break;
-                current = parent;
-            }
+            const parents = windowsMemoryParents(path);
             const sid = currentWindowsIdentity().sid;
             return windowsAclSnapshots(parents).every((snapshot, index) =>
                 windowsMemoryAncestorAclIsSafe(snapshot, sid, dirname(parents[index]) === parents[index]));

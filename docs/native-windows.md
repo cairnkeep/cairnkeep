@@ -113,6 +113,8 @@ Inherit-only rules do not apply to the containing directory; descendant checks
 still enforce effective grants. A narrowly recognized OS-installer-owned volume
 root does not relax private-file ACLs or other storage policies. Native tracked
 format qualification is separate from the existing CLI/install smoke tests.
+Tracked-file checks batch the file, immediate parent and ancestor ACLs into one
+fresh inspection; permission decisions are not cached across operations.
 
 Cairnkeep retains the same storage paths and formats. `~` resolves to the
 Windows user profile. Sensitive managed JSON files do not rely on meaningless

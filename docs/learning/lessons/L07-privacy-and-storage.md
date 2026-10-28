@@ -32,6 +32,11 @@ will go before starting a session.
   publication. Raw copies cannot invalidate old evidence, generic legacy import
   refuses tracked stores, and recovery is offline administration. Never
   demonstrate removal or replacement of a learner's real database.
+- Source-only failure drill: distinguish a rejected pre-publication operation
+  from `MEMORY_PUBLICATION_UNCERTAIN`, where a complete object may already be
+  visible. Inspect status/doctor and retain recovery files; never demonstrate a
+  blind retry or weaken Windows ACLs to make a test pass. This remains a Brief,
+  not a claim that a new video has been rehearsed or recorded.
 
 ## Hands-on lab
 
