@@ -11,6 +11,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { AgentFS } from 'agentfs-sdk';
 import { createContinuityLab, serverEntry } from './memory-continuity-lab.mjs';
+import { hardenPrivatePath } from '../dist/platform-security.js';
 
 const lab = createContinuityLab();
 const cli = fileURLToPath(new URL('../../bin/cairn', import.meta.url));
@@ -95,7 +96,7 @@ try {
     await assert.rejects(store.openOrdinaryMemoryView(beta, 'project'), /MEMORY_FILE_UNSAFE/);
     unlinkSync(wal);
   }
-  const copied = join(lab.root, 'copied.db'); copyFileSync(path, copied); chmodSync(copied, 0o600);
+  const copied = join(lab.root, 'copied.db'); copyFileSync(path, copied); hardenPrivatePath(copied);
   const copiedBefore = readFileSync(copied);
   await assert.rejects(store.openOrdinaryMemoryStore(copied, 'project'), /MEMORY_OWNER_MISMATCH/);
   assert.deepEqual(readFileSync(copied), copiedBefore);

@@ -11,6 +11,9 @@ import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { createContinuityLab } from './memory-continuity-lab.mjs';
 import { createTar } from '../../scripts/windows-platform.mjs';
+import { hardenPrivatePath } from '../dist/platform-security.js';
+
+function copyPrivateSnapshot(source, target) { copyFileSync(source, target); hardenPrivatePath(target); }
 
 const lab = createContinuityLab();
 const cli = fileURLToPath(new URL('../../bin/cairn', import.meta.url));
@@ -76,7 +79,7 @@ try {
   assert.equal(backed.status, 0, 'managed online backup must be a supported operation');
   assert.equal(existsSync(backup), true);
   const snapshotBytes = readFileSync(backup);
-  const foreignCopy = join(lab.root, 'foreign-snapshot.db'); copyFileSync(backup, foreignCopy);
+  const foreignCopy = join(lab.root, 'foreign-snapshot.db'); copyPrivateSnapshot(backup, foreignCopy);
   await assert.rejects(store.openOrdinaryMemoryStore(foreignCopy, 'project'), /MEMORY_OWNER_MISMATCH/);
   assert.deepEqual(readFileSync(foreignCopy), snapshotBytes, 'rejected writer cannot change a foreign snapshot journal mode');
   const snapshotDb = await MemoryDatabase.open(backup, { readOnly: true });
@@ -87,8 +90,27 @@ try {
   } finally { await snapshotDb.close(); }
   assert.notEqual(run(['backup', ...args, '--output', backup]).status, 0);
   assert.deepEqual(readFileSync(backup), snapshotBytes, 'backup must not overwrite existing output');
+  const failedBackup = join(lab.root, 'failed-snapshot.db');
+  const nativeBackup = MemoryDatabase.prototype.backup;
+  try {
+    MemoryDatabase.prototype.backup = async function(...params) { await nativeBackup.apply(this, params); throw Error('FIXTURE_AFTER_BACKUP_WRITE'); };
+    await assert.rejects(store.backupMemoryContextStore({ path, scope: 'project', output: failedBackup }), /FIXTURE_AFTER_BACKUP_WRITE/);
+  } finally { MemoryDatabase.prototype.backup = nativeBackup; }
+  assert.equal(existsSync(failedBackup), false, 'failed backup must not publish its written stage');
+  assert.deepEqual(readFileSync(backup), snapshotBytes);
+  const backupWinner = join(lab.root, 'racing-snapshot.db');
+  const originalLink = fs.linkSync;
+  try {
+    fs.linkSync = function(source, target) {
+      if (target === backupWinner) { writeFileSync(target, 'COMPETING_BACKUP', { flag: 'wx', mode: 0o600 }); hardenPrivatePath(target); }
+      return originalLink(source, target);
+    }; syncBuiltinESMExports();
+    await assert.rejects(store.backupMemoryContextStore({ path, scope: 'project', output: backupWinner }), { code: 'EEXIST' });
+  } finally { fs.linkSync = originalLink; syncBuiltinESMExports(); }
+  assert.equal(readFileSync(backupWinner, 'utf8'), 'COMPETING_BACKUP', 'backup must retain a racing publisher');
+  assert.ok(!store.memoryAdministrationIssues(lab.root).includes('MEMORY_STAGING_PRESENT'));
   assert.equal(receipt(await sourceRef()), oldReceipt);
-  drop(); copyFileSync(backup, path);
+  drop(); copyPrivateSnapshot(backup, path);
   assert.equal(receipt(await sourceRef()), oldReceipt, 'raw copy cannot invalidate an authentic old receipt');
   drop();
   const restore = run(['restore', ...args, '--input', backup]);
@@ -100,7 +122,7 @@ try {
     await assert.rejects(store.planContextStoreRestore({ path, scope: 'project', input: backup }),
       /MEMORY_SNAPSHOT_IN_USE/, 'a raw snapshot read must not cancel a live SQLite connection lock in this process');
   } finally { await heldSnapshot.close(); }
-  const injected = join(lab.root, 'injected-trigger.db'); copyFileSync(backup, injected);
+  const injected = join(lab.root, 'injected-trigger.db'); copyPrivateSnapshot(backup, injected);
   const injectedDb = await MemoryDatabase.open(injected);
   try {
     await injectedDb.transaction(async () => { await injectedDb.exec('CREATE TRIGGER unexpected_fs_trigger AFTER INSERT ON fs_config BEGIN DELETE FROM kv_store; END'); })();
@@ -110,11 +132,17 @@ try {
   await assert.rejects(store.planContextStoreRestore({ path, scope: 'project', input: injected }), /MEMORY_CONTEXT_DAMAGED/, 'restore must reject unexpected triggers outside the KV table too');
   assert.notEqual(run(['restore', ...args, '--input', backup, '--apply', '--confirm', '0'.repeat(64)]).status, 0);
   assert.equal(existsSync(path), false);
-  const oversized = join(lab.root, 'oversized.db'); writeFileSync(oversized, '', { mode: 0o600 }); truncateSync(oversized, 512 * 1024 * 1024 + 1);
+  const oversized = join(lab.root, 'oversized.db'); writeFileSync(oversized, '', { mode: 0o600 }); hardenPrivatePath(oversized); truncateSync(oversized, 512 * 1024 * 1024 + 1);
   await assert.rejects(store.planContextStoreRestore({ path, scope: 'project', input: oversized }));
-  const corrupt = join(lab.root, 'corrupt.db'); const bad = Buffer.from(snapshotBytes); bad[100] ^= 0xff; writeFileSync(corrupt, bad, { mode: 0o600 });
+  const corrupt = join(lab.root, 'corrupt.db'); const bad = Buffer.from(snapshotBytes); bad[100] ^= 0xff; writeFileSync(corrupt, bad, { mode: 0o600 }); hardenPrivatePath(corrupt);
   await assert.rejects(store.planContextStoreRestore({ path, scope: 'project', input: corrupt }));
   assert.equal(existsSync(path), false);
+  const swapped = Buffer.from(snapshotBytes); swapped[swapped.length - 1] ^= 0xff;
+  try {
+    writeFileSync(backup, swapped);
+    await assert.rejects(store.applyContextStoreRestore({ path, scope: 'project', input: backup, confirm: restorePlan.digest }));
+    assert.equal(existsSync(path), false, 'a changed snapshot must not satisfy an old plan');
+  } finally { writeFileSync(backup, snapshotBytes); }
   for (const failure of ['before-renewal', 'after-renewal']) {
     const prepare = MemoryDatabase.prototype.prepare;
     try {
@@ -136,6 +164,16 @@ try {
     await assert.rejects(store.applyContextStoreRestore({ path, scope: 'project', input: backup, confirm: restorePlan.digest }), /FIXTURE_PUBLICATION_FAILURE/);
   } finally { fs.linkSync = publish; syncBuiltinESMExports(); }
   assert.equal(existsSync(path), false); assert.deepEqual(readFileSync(backup), snapshotBytes);
+  try {
+    fs.linkSync = function(source, target) {
+      if (target === path) { writeFileSync(target, 'COMPETING_RESTORE', { flag: 'wx', mode: 0o600 }); hardenPrivatePath(target); }
+      return originalLink(source, target);
+    }; syncBuiltinESMExports();
+    await assert.rejects(store.applyContextStoreRestore({ path, scope: 'project', input: backup, confirm: restorePlan.digest }), { code: 'EEXIST' });
+  } finally { fs.linkSync = originalLink; syncBuiltinESMExports(); }
+  assert.equal(readFileSync(path, 'utf8'), 'COMPETING_RESTORE', 'restore cannot replace a racing winner');
+  assert.deepEqual(readFileSync(backup), snapshotBytes);
+  drop();
   assert.equal(run(['restore', ...args, '--input', backup, '--apply', '--confirm', restorePlan.digest]).status, 0);
   const restored = await sourceRef();
   assert.equal(restored.store_uuid, oldRef.store_uuid); assert.equal(restored.generation, oldRef.generation);
@@ -167,7 +205,7 @@ try {
   assert.notEqual(importArchive(mixed).status, 0, 'generic import must reject context-format archive members');
   assert.deepEqual(readFileSync(join(base, 'identity.db')), legacyBytes);
   assert.equal(existsSync(join(base, 'identity.db.bak-pre-import')), false);
-  const target = join(base, 'project.db'); copyFileSync(backup, target);
+  const target = join(base, 'project.db'); copyPrivateSnapshot(backup, target);
   const legacyOnly = join(lab.root, 'legacy-only.tgz'); writeFileSync(legacyOnly, gzipSync(createTar([
     ['identity.db', Buffer.alloc(0)], ['project.db', Buffer.alloc(0)],
   ])));
