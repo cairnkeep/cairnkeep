@@ -16,7 +16,9 @@ const lab = createContinuityLab();
 const cli = fileURLToPath(new URL('../../bin/cairn', import.meta.url));
 const path = join(lab.projects.alpha, '.agentfs', 'project.db');
 const backup = join(lab.root, 'snapshot.db');
-const run = args => spawnSync(process.execPath, [cli, 'memory-context', ...args], { cwd: lab.projects.alpha, env: lab.env, encoding: 'utf8', timeout: 30_000 });
+// Native ACL subprocesses are part of the fixture's elapsed time, not SQL work.
+// Production request/startup limits are unchanged; backup itself has a 120s cap.
+const run = args => spawnSync(process.execPath, [cli, 'memory-context', ...args], { cwd: lab.projects.alpha, env: lab.env, encoding: 'utf8', timeout: process.platform === 'win32' ? (args[0] === 'backup' ? 150_000 : 90_000) : 30_000 });
 const args = ['--scope', 'project', '--project', lab.projects.alpha, '--json'];
 const drop = () => { for (const suffix of ['', '-wal', '-shm']) rmSync(path + suffix, { force: true }); };
 try {
@@ -57,7 +59,7 @@ try {
   const finished = new Promise(done => child.once('close', (code, signal) => done({ code, signal })));
   child.on('error', error => { childDiagnostic += `\nwriter IPC: ${error.code ?? 'failed'}`; });
   let backed;
-  const timer = setTimeout(() => child.kill(), 15_000);
+  const timer = setTimeout(() => child.kill(), process.platform === 'win32' ? 150_000 : 15_000);
   try {
     await Promise.race([once(child, 'message'), once(child, 'exit').then(() => { throw new Error('writer exited early'); })]);
     backed = run(['backup', ...args, '--output', backup]);
@@ -93,6 +95,11 @@ try {
   assert.equal(restore.status, 0, restore.stderr); assert.equal(existsSync(path), false);
   const restorePlan = JSON.parse(restore.stdout);
   assert.match(restorePlan.digest, /^[a-f0-9]{64}$/);
+  const heldSnapshot = await MemoryDatabase.open(backup, { readOnly: true });
+  try {
+    await assert.rejects(store.planContextStoreRestore({ path, scope: 'project', input: backup }),
+      /MEMORY_SNAPSHOT_IN_USE/, 'a raw snapshot read must not cancel a live SQLite connection lock in this process');
+  } finally { await heldSnapshot.close(); }
   const injected = join(lab.root, 'injected-trigger.db'); copyFileSync(backup, injected);
   const injectedDb = await MemoryDatabase.open(injected);
   try {

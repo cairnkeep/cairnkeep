@@ -40,6 +40,15 @@ export function windowsPrivateAclIsSafe(snapshot: WindowsAclSnapshot, currentSid
         && allows.every(({ sid }) => trustedWindowsSid(sid, currentSid));
 }
 
+/** SQLite creates auxiliary files by inheriting their checked parent's ACL.
+ * Effective grants must still be exclusively private; no ACL is modified. */
+export function windowsMemorySidecarAclIsSafe(snapshot: WindowsAclSnapshot, currentSid: string): boolean {
+    if (!trustedWindowsSid(snapshot.owner_sid, currentSid)) return false;
+    const allows = snapshot.access.filter(({ type }) => type.toLowerCase() === 'allow');
+    return allows.some(({ sid }) => sid.toUpperCase() === currentSid.toUpperCase())
+        && allows.every(({ sid }) => trustedWindowsSid(sid, currentSid));
+}
+
 export function windowsReplacementAclIsSafe(snapshot: WindowsAclSnapshot, currentSid: string): boolean {
     if (!trustedWindowsSid(snapshot.owner_sid, currentSid)) return false;
     return snapshot.access.every(({ sid, type, rights }) => type.toLowerCase() !== "allow"
@@ -221,6 +230,16 @@ export function privatePathIsSafe(path: string): boolean {
     } catch {
         return false;
     }
+}
+
+export function privateMemorySidecarPathIsSafe(path: string): boolean {
+    if (!/-(?:wal|shm|journal)$/.test(path)) return false;
+    try {
+        const info = lstatSync(path);
+        if (!info.isFile() || info.isSymbolicLink()) return false;
+        if (process.platform !== 'win32') return posixPrivateMetadataIsSafe(info);
+        return windowsMemorySidecarAclIsSafe(windowsAclSnapshot(path), currentWindowsIdentity().sid);
+    } catch { return false; }
 }
 
 export function replacementBoundaryIsSafe(path: string): boolean {

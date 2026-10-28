@@ -342,6 +342,11 @@ try {
     assert.equal(ancestorAcl({ ...baseAcl, access: [] }, currentSid), false, 'an empty access-rule projection is not proof of a safe DACL');
     assert.equal(windowsPrivateAclIsSafe(systemRoot, currentSid), false, 'private-file policy is unchanged');
     assert.equal(windowsReplacementAclIsSafe({ ...baseAcl, access: [...baseAcl.access, other] }, currentSid), false, 'other storage replacement policies are unchanged');
+    const sidecarAcl = platformSecurity.windowsMemorySidecarAclIsSafe ?? windowsPrivateAclIsSafe;
+    assert.equal(sidecarAcl({ ...baseAcl, protected: false }, currentSid), true, 'SQLite sidecars may inherit an effectively private ACL from their checked parent');
+    assert.equal(sidecarAcl({ ...baseAcl, protected: false, access: [...baseAcl.access, { ...other, rights: 131241 }] }, currentSid), false, 'inherited sidecar grants cannot expose bytes to another user');
+    assert.equal(sidecarAcl({ ...baseAcl, owner_sid: other.sid }, currentSid), false);
+    assert.equal(windowsPrivateAclIsSafe({ ...baseAcl, protected: false }, currentSid), false, 'database-file inheritance policy remains strict');
     assert.equal(posixOwnerIsTrusted(1000, 1000), true);
     assert.equal(posixOwnerIsTrusted(0, 1000), true);
     assert.equal(posixOwnerIsTrusted(1001, 1000), false);

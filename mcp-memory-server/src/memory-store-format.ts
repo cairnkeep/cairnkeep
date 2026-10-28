@@ -1,7 +1,7 @@
 import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, type Stats } from 'node:fs';
 import { dirname } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { hardenPrivatePath, posixPrivateMetadataIsSafe, privatePathIsSafe, replacementBoundaryIsSafe, memoryPathAncestorsAreSafe } from './platform-security.js';
+import { hardenPrivatePath, posixPrivateMetadataIsSafe, privatePathIsSafe, privateMemorySidecarPathIsSafe, replacementBoundaryIsSafe, memoryPathAncestorsAreSafe } from './platform-security.js';
 import { memoryError } from './memory-database-protocol.js';
 import {
     CONTEXT_APPLICATION_ID, CONTEXT_STORE_TABLE, CONTEXT_REVISION_TABLE, CONTEXT_TABLE_SQL, CONTEXT_TRIGGER_SQL,
@@ -19,13 +19,18 @@ type HeldMemoryFile = { descriptor: number; references: number };
 const heldMemoryFiles = new Map<string, HeldMemoryFile>();
 const inodeKey = (info: Stats) => `${info.dev}:${info.ino}`;
 
+/** A whole-file snapshot read would close a second descriptor and cancel locks. */
+export function assertMemorySnapshotIsIdle(path: string): void {
+    if (heldMemoryFiles.has(inodeKey(lstatSync(path)))) throw memoryError('MEMORY_SNAPSHOT_IN_USE');
+}
+
 /** Metadata checks do not open/close SQLite-owned database or sidecar inodes. */
-export function inspectMemoryDatabaseMetadata(path: string, privateRequired = false): Stats {
+export function inspectMemoryDatabaseMetadata(path: string, privateRequired = false, sidecar = false): Stats {
     try {
         const info = lstatSync(path), parent = lstatSync(dirname(path));
         if (!info.isFile() || info.isSymbolicLink() || !parent.isDirectory() || parent.isSymbolicLink()) throw memoryError('MEMORY_FILE_UNSAFE');
         if (privateRequired && (!replacementBoundaryIsSafe(dirname(path)) || !memoryPathAncestorsAreSafe(path)
-            || (process.platform === 'win32' ? !privatePathIsSafe(path) : !posixPrivateMetadataIsSafe(info)))) throw memoryError('MEMORY_FILE_UNSAFE');
+            || (process.platform === 'win32' ? !(sidecar ? privateMemorySidecarPathIsSafe(path) : privatePathIsSafe(path)) : !posixPrivateMetadataIsSafe(info)))) throw memoryError('MEMORY_FILE_UNSAFE');
         const after = lstatSync(path), parentAfter = lstatSync(dirname(path));
         if (!sameIdentity(info, after) || parent.dev !== parentAfter.dev || parent.ino !== parentAfter.ino) throw memoryError('MEMORY_FILE_CHANGED');
         return after;

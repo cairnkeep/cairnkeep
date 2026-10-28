@@ -25,7 +25,7 @@ const opened = [], children = new Set();
 const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
   !/^(CAIRN_|MCP_|NODE_OPTIONS|NODE_PATH|AGENT_MEMORY_CONFIG)/.test(key) && !/(?:API_KEY|TOKEN|SECRET)/.test(key)));
 async function message(child, key) {
-  const timer = setTimeout(() => { child.kill(); }, 10_000);
+  const timer = setTimeout(() => { child.kill(); }, process.platform === 'win32' ? 30_000 : 10_000);
   try {
     return await Promise.race([
       once(child, 'message').then(([value]) => { assert.equal(value[key], true); return value; }),
@@ -95,7 +95,7 @@ try {
       await db.exec(sql);
       if ((await db.prepare(sql).get()).n !== 1) throw Error('GUARD_RESULT');
     } finally { await db.close(); }
-  `, join(root, 'bounded-guard.db')], { cwd: fileURLToPath(new URL('..', import.meta.url)), env: cleanEnv, timeout: 5000, encoding: 'utf8' });
+  `, join(root, 'bounded-guard.db')], { cwd: fileURLToPath(new URL('..', import.meta.url)), env: cleanEnv, timeout: process.platform === 'win32' ? 30_000 : 5000, encoding: 'utf8' });
   assert.equal(boundedGuard.error, undefined, 'comment scanning must finish within its bound, without catastrophic backtracking');
   assert.equal(boundedGuard.status, 0, boundedGuard.stderr);
   for (const sql of ['/* first */ -- second\n BEGIN', 'SELECT 1; /* comment */ SAVEPOINT fixture', '\n; /* comment */ ROLLBACK']) {

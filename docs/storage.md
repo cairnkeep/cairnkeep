@@ -397,6 +397,10 @@ a new directory from permission to replace an existing one. Inherit-only rules
 are evaluated on the descendant where they apply; effective write/delete or
 permission-changing grants remain refused. Only volume-root ownership recognizes
 the OS installer service. Private-file ACLs and other stores' policies are unchanged.
+SQLite-created WAL/SHM files may inherit an effectively private ACL from their
+checked parent; any grant exposing sidecar bytes to another user is refused.
+Snapshot planning refuses a file held by another SQLite connection in the same
+process (`MEMORY_SNAPSHOT_IN_USE`); close that connection before retrying.
 
 For a disposable tracked store:
 
