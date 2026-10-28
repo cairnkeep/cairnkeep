@@ -34,6 +34,8 @@ export const smokeChecks = Object.freeze([
   check("memory-database", 120, node("smoke-memory-runtime-admission.mjs"), node("smoke-memory-database.mjs")),
   check("memory-store-admission", 453, node("smoke-memory-file-admission.mjs"), node("smoke-memory-store-admission.mjs")),
   check("memory-store-restore", 280, node("smoke-memory-store-restore.mjs")),
+  // Provisional native budget for the new contract; refresh after hosted timing.
+  check("memory-context-store", 220, node("smoke-memory-context-store.mjs")),
   check("memory-reranker", 5, node("smoke-memory-reranker.mjs"), node("smoke-memory-reranker-mcp.mjs"), node("run-memory-reranker-study.mjs", "--check", "--summary")),
   check("scope-guard", 1, node("smoke-scope-guard.mjs")),
   check("http-guard", 9, node("smoke-http-guard.mjs")),

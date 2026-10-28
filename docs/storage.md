@@ -368,8 +368,9 @@ HTTP mode is one trusted storage domain:
 
 Released installations and existing stores keep their original backend. The
 new `cairn memory-context` administration CLI is currently an isolated storage
-foundation, not production admission or a migration command. Use disposable
-stores until its native-platform and recovery gates have passed.
+foundation, not production admission or a migration command. The foundation has
+passed native-platform, recovery and independent-review gates; use disposable
+stores until a separate release and production-admission decision.
 
 `init --scope SCOPE --project PATH --json` prints a no-write digest-bound plan.
 Only `init ... --apply --confirm DIGEST` creates the inspected absent target.
@@ -453,6 +454,27 @@ stopped. Preserve these files; doctor never guesses the intended state.
 Generic export uses the managed online snapshot path for tracked global stores
 and keeps the SQLite CLI path for legacy stores. A mixed export is not a generic
 import authorization: tracked members still require explicit managed recovery.
+
+### Development-only freshness assertions
+
+The development-only freshness storage API adds explicit assertions to a fresh
+tracked store. It does not convert legacy stores or expose a new agent tool by
+itself. Planning and inspection do not create assertion tables. Only a confirmed
+curation apply writes them, atomically with that key's metadata revision.
+Source generations, content digests, store identity and restore epoch are checked
+separately; identical text after A→B→A or delete/recreate cannot revive an old
+assertion. Editing another key's metadata does not invalidate this one.
+
+Assertions retain up to eight opaque source references (512 UTF-8 bytes each),
+optional UTC effective/verified/review dates and a separate capture timestamp.
+References are never fetched. Future verification is rejected; future effectiveness
+is labeled. `unknown`, `unverified`, `current` and `needs_review` describe the
+assertion's status, not factual truth. Stale metadata retains its asserted-source
+provenance but is not current evidence. Reads never advance verification dates.
+Managed restore retains assertions in the snapshot but the renewed epoch makes
+old assertions stale. Missing or malformed initialized assertion infrastructure
+fails closed rather than silently rebuilding it. CLI/MCP exposure and production
+admission are separate follow-up work, not implied by this internal API.
 
 ### Released legacy memory commands
 

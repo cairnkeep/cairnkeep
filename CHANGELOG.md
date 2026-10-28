@@ -15,7 +15,7 @@ All notable user-facing changes are documented here. This project follows
   imports with archive-wide preflight and recoverable, admission-blocking state.
 - Existing stores remain unchanged. No automatic conversion, older-client
   transparency, new context tools, production admission or release is implied;
-  native-platform and independent-review gates remain open. Update storage,
+  storage-foundation native-platform and independent-review gates pass. Update storage,
   compatibility, completions and the unreleased L07 teaching brief.
 - Preserve live SQLite locks across worker connections and file validation;
   retain probe descriptors until workers exit and avoid opening live sidecars.
@@ -30,6 +30,15 @@ All notable user-facing changes are documented here. This project follows
 - Require a bundled SQLite with the WAL-reset fix for the opt-in tracked format;
   reject unpatched native admission before creating a tracked store. Preserve the legacy
   Node engine floor and distinguish the API minimum from safe SQLite admission.
+
+### Freshness storage API (development only)
+
+- Add strict, explicit revision-bound freshness assertions for fresh tracked
+  stores, with no-write plans/inspection and atomic digest-confirmed curation.
+- Invalidate assertions after source changes, metadata changes and managed
+  restore without treating dates, usage or source references as factual truth.
+- Keep legacy stores unchanged. This internal API does not yet add CLI/MCP
+  exposure, automatic conversion, production activation or a released feature.
 
 ## [2.27.0] - 2026-10-26
 

@@ -24,7 +24,8 @@ will go before starting a session.
   `status` and `doctor` inspect the format without initializing SDK schemas.
   Existing stores are not converted, older clients refuse the new format, and
   turning off context tools does not roll back storage. Use disposable stores
-  only until the platform and recovery gates are complete. This is not a
+  only: foundation platform/recovery gates pass, but production admission and
+  release remain separate decisions. This is not a
   rehearsed lesson or a change to the released installation instructions.
 - Advanced recovery brief: `cairn memory-context backup --output FILE` creates
   a standalone no-overwrite snapshot. `restore --input FILE` plans an absent,
@@ -40,6 +41,12 @@ will go before starting a session.
 - Runtime check: the Node 22.16 API floor is not a safe SQLite-version promise.
   Tracked stores require a bundled SQLite with the WAL-reset fix; an unsupported
   native runtime refuses before writes while ordinary legacy memory still works.
+- Development-only freshness brief: explicit assertions bind source generations,
+  metadata revisions and restore epochs. Changed facts cannot become verified
+  again merely because their old text returns. Source references are opaque,
+  never fetched; reads do not verify facts. The current storage API alone does
+  not expose an agent tool or operator command. Prepare a disposable lab only
+  after the later CLI/MCP surfaces are verified; do not present this as recorded.
 
 ## Hands-on lab
 

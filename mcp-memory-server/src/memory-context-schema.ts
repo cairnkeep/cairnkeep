@@ -18,6 +18,22 @@ export const memorySourceRefSchema = contextStoreIdentitySchema.extend({
 }).strict();
 export type MemorySourceRef = z.infer<typeof memorySourceRefSchema>;
 
+export const CONTEXT_FACT_TABLE = 'cairn_memory_context_facts_v1';
+export const CONTEXT_FACT_SQL = `CREATE TABLE ${CONTEXT_FACT_TABLE}(key TEXT PRIMARY KEY, assertion_json TEXT NOT NULL CHECK(length(CAST(assertion_json AS BLOB))<=65536))`;
+const utcDate = z.iso.datetime({ precision: 3 });
+export const memoryFreshnessMetadataSchema = z.object({
+    schema_version: z.literal(1),
+    source_refs: z.array(z.string().min(1).max(512).refine(value => Buffer.byteLength(value) <= 512)).max(8),
+    effective_at: z.iso.datetime().max(32).optional(),
+    verified_at: z.iso.datetime().max(32).optional(),
+    review_after: z.iso.datetime().max(32).optional(),
+}).strict();
+export type MemoryFreshnessMetadata = z.infer<typeof memoryFreshnessMetadataSchema>;
+export const memoryFreshnessAssertionSchema = z.object({
+    schema_version: z.literal(1), source: memorySourceRefSchema,
+    metadata: memoryFreshnessMetadataSchema, captured_at: utcDate,
+}).strict();
+
 const live = (name: string) => `${name}.key != '__history__' AND substr(${name}.key,1,12) != '__history__/' AND ${name}.key != '__reviewed__' AND substr(${name}.key,1,13) != '__reviewed__/'`;
 export const CONTEXT_TABLE_SQL = [
     `CREATE TABLE ${CONTEXT_STORE_TABLE}(id INTEGER PRIMARY KEY CHECK(id=1), format_version INTEGER NOT NULL CHECK(format_version=1), store_uuid TEXT NOT NULL, restore_epoch TEXT NOT NULL, owner_domain TEXT NOT NULL, scope TEXT NOT NULL)`,
