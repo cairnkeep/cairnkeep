@@ -63,30 +63,7 @@ installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
 for module in memory-sqlite-worker memory-database memory-database-protocol memory-context-schema memory-store-format ordinary-memory-store memory-context-cli; do
   [[ -f "$installed_root/mcp-memory-server/dist/$module.js" ]] || fail "npm tarball omitted tracked-store module $module"
 done
-node --input-type=module - "$installed_root" "$tmp" <<'NODE'
-import assert from 'node:assert/strict';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { mkdirSync, unlinkSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
-const [installed, root] = process.argv.slice(2);
-const project = join(root, 'tracked-project'); mkdirSync(project, { mode: 0o700 });
-const cli = (...args) => {
-  const result = spawnSync(process.execPath, [join(installed, 'bin/cairn'), 'memory-context', ...args, '--scope', 'project', '--project', project, '--json'], {encoding:'utf8'});
-  assert.equal(result.status, 0, result.stderr); return JSON.parse(result.stdout);
-};
-const plan = cli('init'); cli('init', '--apply', '--confirm', plan.digest);
-const store = await import(pathToFileURL(join(installed, 'mcp-memory-server/dist/ordinary-memory-store.js')).href);
-const path = join(project, '.agentfs/project.db'), snapshot = join(root, 'installed-snapshot.db');
-const agent = await store.openOrdinaryMemoryStore(path, 'project');
-await agent.kv.set('facts/installed', 'fixture'); await agent.close();
-cli('backup', '--output', snapshot); unlinkSync(path);
-const recovery = cli('restore', '--input', snapshot);
-cli('restore', '--input', snapshot, '--apply', '--confirm', recovery.digest);
-const view = await store.openOrdinaryMemoryView(path, 'project');
-try { assert.equal(await view.kv.get('facts/installed'), 'fixture'); } finally { await view.close(); }
-console.log('PASS: installed package loads its own SQLite worker and completes fresh recovery');
-NODE
+node "$ROOT/scripts/test-memory-context-installed.mjs" "$installed_root" || fail "installed tracked-store recovery failed"
 cairn team --help >"$tmp/installed-team-help"
 grep -qF 'experimental token-first team continuity' "$tmp/installed-team-help" || fail "installed package omitted team preview"
 node "$ROOT/scripts/test-team-installed.mjs" "$installed_root" || fail "installed team onboarding failed"

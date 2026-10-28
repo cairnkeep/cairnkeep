@@ -32,7 +32,7 @@ jobs:
     name: native-windows (${{ matrix.node }})
     runs-on: windows-latest
     # Native private-ACL subprocesses are part of the team security contracts.
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -86,7 +86,7 @@ jobs:
   tracked-platform:
     name: tracked-platform (${{ matrix.os }}, ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -101,12 +101,31 @@ jobs:
           cache-dependency-path: mcp-memory-server/package-lock.json
       - run: npm --prefix mcp-memory-server ci
       - run: npm --prefix mcp-memory-server run build
+      - name: Native file and header admission
+        run: node mcp-memory-server/scripts/smoke-memory-file-admission.mjs
       - name: Fresh planning and epoch-safe recovery
         run: node mcp-memory-server/scripts/smoke-memory-store-restore.mjs
       - name: Worker ownership
         run: node mcp-memory-server/scripts/smoke-memory-database.mjs
       - name: Fresh admission
         run: node mcp-memory-server/scripts/smoke-memory-store-admission.mjs
+      - name: Installed tracked worker (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $package = (npm pack --ignore-scripts --json | ConvertFrom-Json)[0].filename
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $prefix = Join-Path $env:RUNNER_TEMP 'Tracked package install'
+          npm install --global --prefix $prefix (Join-Path (Get-Location) $package)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/test-memory-context-installed.mjs (Join-Path $prefix 'node_modules/@cairnkeep/cli')
+      - name: Installed tracked worker (POSIX)
+        if: runner.os != 'Windows'
+        run: |
+          package=$(npm pack --ignore-scripts --json | node -e 'let s="";process.stdin.on("data",b=>s+=b).on("end",()=>console.log(JSON.parse(s)[0].filename))')
+          prefix="$RUNNER_TEMP/Tracked package install"
+          npm install --global --prefix "$prefix" "./$package"
+          node scripts/test-memory-context-installed.mjs "$prefix/lib/node_modules/@cairnkeep/cli"
       - name: Diagnose runner ancestor permissions on failure
         if: failure() && runner.os == 'Windows'
         shell: pwsh

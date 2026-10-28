@@ -15,7 +15,9 @@ const { buildShardPlan, smokeChecks } = await import(
 const plan = buildShardPlan(3);
 const measured = JSON.parse(readFileSync(join(root, 'mcp-memory-server/scripts/fixtures/windows-smoke-timings.json'), 'utf8'));
 assert.equal(measured.schema_version,1);
-for (const [name,seconds] of Object.entries(measured.measurements)) {
+const memoryMeasured = JSON.parse(readFileSync(join(root, 'mcp-memory-server/scripts/fixtures/windows-memory-smoke-timings.json'), 'utf8'));
+assert.equal(memoryMeasured.schema_version,1);
+for (const [name,seconds] of Object.entries({ ...measured.measurements, ...memoryMeasured.measurements })) {
   assert.equal(smokeChecks.find(row=>row.name===name)?.weight,seconds,`measured weight drift: ${name}`);
 }
 const flattened = plan.flatMap(({ checks }) => checks.map(({ name }) => name));
@@ -50,9 +52,10 @@ const tracked = jobs['tracked-platform'];
 assert.deepEqual(tracked.strategy.matrix.os, ['windows-latest', 'macos-latest']);
 assert.deepEqual(tracked.strategy.matrix.node, ['22', '24', '26']);
 assert.equal(tracked.strategy['fail-fast'], false);
-for (const script of ['smoke-memory-database.mjs', 'smoke-memory-store-admission.mjs', 'smoke-memory-store-restore.mjs']) {
+for (const script of ['smoke-memory-file-admission.mjs', 'smoke-memory-database.mjs', 'smoke-memory-store-admission.mjs', 'smoke-memory-store-restore.mjs']) {
   assert.ok(tracked.steps.some(step => step.run === `node mcp-memory-server/scripts/${script}`), 'each native control must fail independently');
 }
 assert.ok(jobs['release-candidate'].needs.includes('tracked-platform'));
+assert.equal(tracked.steps.filter(step => /^Installed tracked worker/.test(step.name ?? '')).length, 2);
 console.log(`PASS: ${smokeChecks.length} memory-server contracts split once across balanced Windows shards (${weights.join(", ")})`);
 NODE
