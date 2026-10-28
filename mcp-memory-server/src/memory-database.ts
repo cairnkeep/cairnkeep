@@ -43,11 +43,16 @@ export interface OrdinaryMemoryStore extends OrdinaryMemoryReader {
     };
 }
 
-export function assertContextRuntime(version = process.versions.node): void {
+export function assertContextRuntime(version = process.versions.node, sqliteVersion = process.versions.sqlite): void {
     const [major, minor] = version.split('.').map(Number);
     if (!isBuiltin('node:sqlite') || !Number.isInteger(major) || !Number.isInteger(minor) || major < 22 || (major === 22 && minor < 16)) {
         throw memoryError('MEMORY_RUNTIME_UNSUPPORTED');
     }
+    const sqlite = typeof sqliteVersion === 'string' ? /^(\d{1,3})\.(\d{1,3})\.(\d{1,6})$/.exec(sqliteVersion) : null;
+    const [sqlMajor, sqlMinor, sqlPatch] = sqlite ? sqlite.slice(1).map(Number) : [];
+    // WAL-reset fix: 3.51.3+, with the two documented maintenance backports.
+    if (!sqlite || !(sqlMajor > 3 || (sqlMajor === 3 && (sqlMinor > 51 || (sqlMinor === 51 && sqlPatch >= 3)
+        || (sqlMinor === 50 && sqlPatch >= 7) || (sqlMinor === 44 && sqlPatch >= 6))))) throw memoryError('MEMORY_SQLITE_UNPATCHED');
 }
 
 function controlsTransaction(sql: string): boolean {

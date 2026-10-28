@@ -37,6 +37,9 @@ will go before starting a session.
   visible. Inspect status/doctor and retain recovery files; never demonstrate a
   blind retry or weaken Windows ACLs to make a test pass. This remains a Brief,
   not a claim that a new video has been rehearsed or recorded.
+- Runtime check: the Node 22.16 API floor is not a safe SQLite-version promise.
+  Tracked stores require a bundled SQLite with the WAL-reset fix; an unsupported
+  native runtime refuses before writes while ordinary legacy memory still works.
 
 ## Hands-on lab
 

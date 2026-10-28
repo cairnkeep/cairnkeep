@@ -378,8 +378,12 @@ Creation uses a private sibling stage and no-replace publication. There is no
 `--force` option and no automatic enrollment. `status` and `doctor` diagnose
 format and tracking infrastructure without SDK initialization or source text.
 
-This format requires Node **22.16 or newer** and the built-in SQLite API; the
-ordinary legacy runtime requirement is unchanged. SQLite runs only in a bounded
+This format requires the Node **22.16 or newer API** and a bundled SQLite with
+the [WAL-reset fix](https://www.sqlite.org/wal.html#walresetbug): **3.51.3+**, or
+the documented **3.50.7/3.44.6** maintenance backports. The guard checks the actual
+bundled SQLite, not just the Node version; Node 22.16's original SQLite is refused
+before new-format writes. Use a current patched Node release. The ordinary legacy
+runtime requirement is unchanged. SQLite runs only in a bounded
 worker. A dead/timed-out worker makes its connection unusable; an uncertain
 commit is reported as `MEMORY_COMMIT_UNCERTAIN`, never silently retried. Read
 back the current state before deciding whether a mutation should be attempted

@@ -101,6 +101,8 @@ jobs:
           cache-dependency-path: mcp-memory-server/package-lock.json
       - run: npm --prefix mcp-memory-server ci
       - run: npm --prefix mcp-memory-server run build
+      - name: Patched SQLite runtime admission
+        run: node mcp-memory-server/scripts/smoke-memory-runtime-admission.mjs
       - name: Native file and header admission
         run: node mcp-memory-server/scripts/smoke-memory-file-admission.mjs
       - name: Fresh planning and epoch-safe recovery

@@ -52,7 +52,7 @@ const tracked = jobs['tracked-platform'];
 assert.deepEqual(tracked.strategy.matrix.os, ['windows-latest', 'macos-latest']);
 assert.deepEqual(tracked.strategy.matrix.node, ['22', '24', '26']);
 assert.equal(tracked.strategy['fail-fast'], false);
-for (const script of ['smoke-memory-file-admission.mjs', 'smoke-memory-database.mjs', 'smoke-memory-store-admission.mjs', 'smoke-memory-store-restore.mjs']) {
+for (const script of ['smoke-memory-runtime-admission.mjs', 'smoke-memory-file-admission.mjs', 'smoke-memory-database.mjs', 'smoke-memory-store-admission.mjs', 'smoke-memory-store-restore.mjs']) {
   assert.ok(tracked.steps.some(step => step.run === `node mcp-memory-server/scripts/${script}`), 'each native control must fail independently');
 }
 assert.ok(jobs['release-candidate'].needs.includes('tracked-platform'));

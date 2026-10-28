@@ -31,7 +31,7 @@ export const smokeChecks = Object.freeze([
     node("run-memory-continuity-study.mjs", "--baseline", "--check", "--summary")),
   // Conservative measured pre-batch native timings, not Linux timings or
   // claimed post-optimization costs. Refresh after complete qualification.
-  check("memory-database", 120, node("smoke-memory-database.mjs")),
+  check("memory-database", 120, node("smoke-memory-runtime-admission.mjs"), node("smoke-memory-database.mjs")),
   check("memory-store-admission", 453, node("smoke-memory-file-admission.mjs"), node("smoke-memory-store-admission.mjs")),
   check("memory-store-restore", 280, node("smoke-memory-store-restore.mjs")),
   check("memory-reranker", 5, node("smoke-memory-reranker.mjs"), node("smoke-memory-reranker-mcp.mjs"), node("run-memory-reranker-study.mjs", "--check", "--summary")),

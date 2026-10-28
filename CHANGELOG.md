@@ -27,6 +27,9 @@ All notable user-facing changes are documented here. This project follows
 - Preserve strict database ACLs while validating effectively private SQLite
   sidecars; batch fresh file/parent/ancestor permission checks on Windows without
   caching authorization. Rebalance Windows shards from measured native timings.
+- Require a bundled SQLite with the WAL-reset fix for the opt-in tracked format;
+  reject unpatched native admission before creating a tracked store. Preserve the legacy
+  Node engine floor and distinguish the API minimum from safe SQLite admission.
 
 ## [2.27.0] - 2026-10-26
 

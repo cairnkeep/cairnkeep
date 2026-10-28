@@ -19,6 +19,9 @@ format; turning off context tools does not enable an older backend. Existing
 stores are not converted. Native-platform validation of this foundation remains
 a separate gate, not a claim derived from the existing harness matrix below.
 See [storage lifecycle and recovery](storage.md#unreleased-tracked-store-foundation-source-checkout-only).
+The Node 22.16 API floor alone is insufficient: tracked stores also require the
+bundled SQLite WAL-reset fix (3.51.3+ or documented maintenance backports).
+Unpatched native admission is refused; legacy stores keep their existing runtime.
 
 | Harness | Supported surface | Runtime status |
 |---|---|---|

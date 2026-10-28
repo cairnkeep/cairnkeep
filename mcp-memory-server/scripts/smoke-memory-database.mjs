@@ -224,6 +224,10 @@ try {
   assert.equal(await afterDeath.prepare('SELECT value FROM kv_store WHERE key=?').get('facts/death'), undefined);
   for (const version of ['22.0.0', '22.15.9', '20.19.0', 'invalid']) assert.throws(() => implementation.assertContextRuntime(version), { code: 'MEMORY_RUNTIME_UNSUPPORTED' });
   for (const version of ['22.16.0', '22.23.1', '24.0.0', '26.0.0']) implementation.assertContextRuntime(version);
+  for (const sqlite of ['3.44.5', '3.49.1', '3.50.6', '3.51.2', '', 'invalid']) {
+    assert.throws(() => implementation.assertContextRuntime(process.versions.node, sqlite), { code: 'MEMORY_SQLITE_UNPATCHED' });
+  }
+  for (const sqlite of ['3.44.6', '3.50.7', '3.51.3', '3.53.4', '4.0.0']) implementation.assertContextRuntime(process.versions.node, sqlite);
   await assert.rejects(implementation.openMemoryDatabase(join(root, 'absent.db'), { readOnly: true }));
   assert.equal(existsSync(join(root, 'absent.db')), false);
 

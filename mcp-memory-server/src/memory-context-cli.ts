@@ -11,7 +11,8 @@ const HELP = `Usage: cairn memory-context <init|status|doctor|backup|restore> --
   restore --input FILE Print a no-write plan for an absent, same-owner target.
                        Apply with --apply --confirm DIGEST; renews restore epoch.
 Existing stores (including empty files) are never converted or replaced.
-Context stores require Node 22.16+ with the built-in SQLite API.
+Context stores require the Node 22.16+ API and a patched bundled SQLite
+(3.51.3+ or documented backports 3.50.7/3.44.6); use a current Node release.
 Stop clients before recovery. Raw copies and in-place restores are unsupported.
 `;
 
