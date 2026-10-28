@@ -190,7 +190,7 @@ setup_flags='--git --harness --memory --policy --yes --json'
 setup_values='init existing none claude opencode pi omp kimi qwen codex local'
 for shell in bash zsh fish powershell; do
   grep -q 'memory-context' "$tmp/$shell"
-  for context_token in init status doctor scope project apply confirm json; do
+  for context_token in init status doctor backup restore scope project input output apply confirm json; do
     grep -qF "$context_token" "$tmp/$shell"
   done
   for flag in $setup_flags; do

@@ -52,7 +52,7 @@ net.Socket.prototype.connect = deny; tls.connect = deny; globalThis.fetch = deny
         client,
         async call(name, input) {
           const result = await client.callTool({ name, arguments: input });
-          assert.notEqual(result.isError, true, `fixture ${name} failed`);
+          assert.notEqual(result.isError, true, `fixture ${name} failed: ${JSON.stringify(result)}`);
           return result.structuredContent ?? JSON.parse(result.content[0].text);
         },
         async close() { await client.close(); await transport.close(); active.delete(entry); },

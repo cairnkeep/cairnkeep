@@ -43,7 +43,8 @@ try {
     assert.equal((await session.call('memory_read', { scope: 'project', key: 'facts/fixture' })).results[0].value, 'A');
     await session.call('memory_supersede', { scope: 'project', key: 'facts/fixture', value: 'B' });
     assert.equal((await session.call('memory_read', { scope: 'project', key: 'facts/fixture' })).results[0].value, 'B');
-    await session.call('memory_history', { scope: 'project', key: 'facts/fixture' });
+    const history = await session.client.callTool({ name: 'memory_history', arguments: { scope: 'project', key: 'facts/fixture' } });
+    assert.notEqual(history.isError, true, JSON.stringify(history));
     const envelope = { schema_version: 1, scope: 'project', nodes: [{ key: 'facts/imported', value: 'import fixture', node_type: 'knowledge', tags: [] }] };
     const importBefore = digest();
     await session.call('memory_import', { ...envelope, dry_run: true });
@@ -87,6 +88,9 @@ try {
     chmodSync(path, 0o644);
     await assert.rejects(store.openOrdinaryMemoryView(path, 'project'), /MEMORY_FILE_UNSAFE/);
     chmodSync(path, 0o600);
+    chmodSync(lab.projects.alpha, 0o775);
+    await assert.rejects(store.openOrdinaryMemoryView(path, 'project'), /MEMORY_FILE_UNSAFE/);
+    chmodSync(lab.projects.alpha, 0o700);
     const wal = `${beta}-wal`; symlinkSync(path, wal);
     await assert.rejects(store.openOrdinaryMemoryView(beta, 'project'), /MEMORY_FILE_UNSAFE/);
     unlinkSync(wal);
@@ -125,7 +129,7 @@ try {
   const legacy = join(lab.root, 'legacy-no-native.db'); const legacyBefore = readFileSync(legacy);
   await assert.rejects(store.planContextStoreInit({ path: legacy, scope: 'identity' }), /EXISTING_STORE_UNSUPPORTED/);
   assert.deepEqual(readFileSync(legacy), legacyBefore);
-  const unavailableNative = spawnSync(process.execPath, ['--no-experimental-sqlite', new URL('../dist/memory-context-cli.js', import.meta.url).pathname,
+  const unavailableNative = spawnSync(process.execPath, ['--no-experimental-sqlite', fileURLToPath(new URL('../dist/memory-context-cli.js', import.meta.url)),
     'status', '--scope', 'project', '--project', lab.projects.alpha, '--json'], { env: lab.env, encoding: 'utf8', timeout: 30_000 });
   assert.notEqual(unavailableNative.status, 0); assert.match(unavailableNative.stderr, /MEMORY_RUNTIME_UNSUPPORTED/);
 

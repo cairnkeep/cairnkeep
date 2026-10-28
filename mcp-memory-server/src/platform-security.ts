@@ -2,7 +2,7 @@ import { chmodSync, existsSync, lstatSync, rmSync } from "node:fs";
 import { rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 
 let cachedWindowsIdentity: { account: string; sid: string } | undefined;
 const WINDOWS_COMMAND_TIMEOUT_MS = 10_000;
@@ -66,6 +66,49 @@ export function windowsPrivateAclHardeningPlan(
     ];
 }
 
+function windowsAclSnapshots(paths: string[]): WindowsAclSnapshot[] {
+    if (!paths.length || paths.length > 128 || JSON.stringify(paths).length > 16_384) throw new Error('Windows ACL inspection path bound exceeded.');
+    const script = [
+        "$ErrorActionPreference='Stop'",
+        "$snapshots=@(foreach($path in (ConvertFrom-Json $env:CK_INTERNAL_ACL_PATHS)){",
+        "$sections=[System.Security.AccessControl.AccessControlSections]::Owner -bor [System.Security.AccessControl.AccessControlSections]::Access",
+        "$acl=if([System.IO.Directory]::Exists($path)){[System.Security.AccessControl.DirectorySecurity]::new($path,$sections)}else{[System.Security.AccessControl.FileSecurity]::new($path,$sections)}",
+        "$owner=$acl.Owner",
+        "try{$owner=([System.Security.Principal.NTAccount]$owner).Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{}",
+        "$access=@($acl.Access|ForEach-Object{$sid=$_.IdentityReference.Value;try{$sid=$_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{};[pscustomobject]@{sid=$sid;type=$_.AccessControlType.ToString();rights=[int64]$_.FileSystemRights}})",
+        "[pscustomobject]@{owner_sid=$owner;protected=$acl.AreAccessRulesProtected;access=$access}",
+        "})",
+        "ConvertTo-Json -InputObject @($snapshots) -Compress -Depth 4",
+    ].join(";");
+    const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: WINDOWS_COMMAND_TIMEOUT_MS,
+        maxBuffer: WINDOWS_COMMAND_MAX_BUFFER,
+        env: { ...process.env, CK_INTERNAL_ACL_PATHS: JSON.stringify(paths) },
+    });
+    if (result.status !== 0 || !result.stdout.trim()) {
+        const detail = result.error?.message || result.stderr.trim();
+        throw new Error(`Unable to inspect Windows ACL${detail ? `: ${detail}` : "."}`);
+    }
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(result.stdout);
+    } catch {
+        throw new Error("Unable to parse the Windows ACL inspection result.");
+    }
+    const snapshots = (Array.isArray(parsed) ? parsed : [parsed]) as Partial<WindowsAclSnapshot>[];
+    if (snapshots.length !== paths.length) throw new Error('Windows ACL inspection returned an invalid count.');
+    return snapshots.map(parsed => {
+    if (!parsed || typeof parsed.owner_sid !== "string" || typeof parsed.protected !== "boolean" || !Array.isArray(parsed.access)) {
+        throw new Error("Windows ACL inspection returned an invalid structure.");
+    }
+    const access = parsed.access.filter((ace): ace is { sid: string; type: string; rights: number } => Boolean(ace)
+        && typeof ace.sid === "string" && typeof ace.type === "string" && Number.isSafeInteger(ace.rights));
+    if (access.length !== parsed.access.length) throw new Error("Windows ACL inspection returned an invalid access rule.");
+    return { owner_sid: parsed.owner_sid, protected: parsed.protected, access };
+    });
+}
 function windowsAclSnapshot(path: string): WindowsAclSnapshot {
     const script = [
         "$ErrorActionPreference='Stop'",
@@ -187,6 +230,33 @@ export function parentReplacementBoundaryIsSafe(path: string): boolean {
     const writableByOthers = (info.mode & 0o022) !== 0;
     const sticky = (info.mode & 0o1000) !== 0;
     return posixOwnerIsTrusted(info.uid) && (!writableByOthers || sticky);
+}
+
+/** A private leaf is insufficient when another user can replace an ancestor.
+ * Sticky POSIX temporary roots retain their existing owner-only rename rule. */
+export function memoryPathAncestorsAreSafe(path: string): boolean {
+    if (process.platform === 'win32') {
+        try {
+            const parents: string[] = [];
+            let current = resolve(path);
+            for (;;) {
+                const parent = dirname(current), info = lstatSync(parent);
+                if (!info.isDirectory() || info.isSymbolicLink() || parents.length >= 128) return false;
+                if (parents.at(-1) !== parent) parents.push(parent);
+                if (parent === current) break;
+                current = parent;
+            }
+            const sid = currentWindowsIdentity().sid;
+            return windowsAclSnapshots(parents).every(snapshot => windowsReplacementAclIsSafe(snapshot, sid));
+        } catch { return false; }
+    }
+    let current = resolve(path);
+    for (;;) {
+        if (!parentReplacementBoundaryIsSafe(current)) return false;
+        const parent = dirname(current);
+        if (parent === current) return true;
+        current = parent;
+    }
 }
 
 function delay(milliseconds: number): Promise<void> {

@@ -78,7 +78,7 @@ _cairn_complete() {
     skill) COMPREPLY=( $(compgen -W "harvest list show review propose evaluate apply rollback --project --minimum-occurrences --kind --id --candidate --approve --target --adapter --edit-budget --proposal --exploration-task-set --confirmation-task-set --output --repetitions --seed --minimum-improvement --evaluation --application --confirm --yes --json" -- "$current") ) ;;
     graph) COMPREPLY=( $(compgen -W "build query status diff explain path --force" -- "$current") ) ;;
     memory) COMPREPLY=( $(compgen -W "path export import" -- "$current") ) ;;
-    memory-context) COMPREPLY=( $(compgen -W "init status doctor --scope --project --apply --confirm --json" -- "$current") ) ;;
+    memory-context) COMPREPLY=( $(compgen -W "init status doctor backup restore --scope --project --input --output --apply --confirm --json" -- "$current") ) ;;
     audit-timer) COMPREPLY=( $(compgen -W "--on-calendar --para-root --render-only" -- "$current") ) ;;
     uninstall) COMPREPLY=( $(compgen -W "--dry-run --yes --purge-memory --purge-packs --live-root --pi-live-root --kimi-live-root" -- "$current") ) ;;
     completion) COMPREPLY=( $(compgen -W "bash zsh fish" -- "$current") ) ;;
@@ -136,7 +136,7 @@ _cairn() {
     sync-omp) _arguments '--apply[apply changes]' '--live-root[omp agent root]:directory:_files -/' ;;
     doctor) _arguments '--repair[repair trajectory metadata and indexes]' ;;
     security) _values 'security command' doctor '--project[project root]:directory:_files -/' '--json[emit JSON]' ;;
-    memory-context) _values 'memory context command' init status doctor '--scope[concrete memory scope]:scope:' '--project[project root]:directory:_files -/' '--apply[apply fresh-store plan]' '--confirm[exact plan digest]:digest:' '--json[emit JSON]' ;;
+    memory-context) _values 'memory context command' init status doctor backup restore '--scope[concrete memory scope]:scope:' '--project[project root]:directory:_files -/' '--input[standalone snapshot]:file:_files' '--output[new snapshot file]:file:_files' '--apply[apply fresh-store plan]' '--confirm[exact plan digest]:digest:' '--json[emit JSON]' ;;
     team) _values 'team command' connect disconnect init project member credential create set remove issue revoke serve mcp list read search history propose proposals proposal-show review audit audit-export audit-verify audit-archive doctor backup restore memory-delete '--previous[previous archive segment]:file:_files' '--backup[verified backup file]:file:_files' '--page-size[page bound]:value:' '--cursor[continuation]:value:' '--read-only[observe-only backup]' '--organization[team option]:value:' '--data[team option]:value:' '--project[team option]:value:' '--roles[team option]:value:' '--class[team option]:value:' '--expires-at[team option]:value:' '--output[team option]:value:' '--input[team option]:value:' '--confirm[team option]:value:' '--port[team option]:value:' '--key[team option]:value:' '--query[team option]:value:' '--proposal[team option]:value:' '--decision[team option]:value:' '--revision[team option]:value:' '--apply[apply plan]' '--yes[confirm plan]' '--client[client diagnostics]' '--url[team URL]:value:' '--token-file[private credential file]:file:_files' '--harness[team adapters]:value:' '--access[tool profile]:value:(read-only full)' '--connection[private connection file]:file:_files' '--project-root[team option]:value:' ;;
     trajectory) _values 'trajectory command' list show prune ;;
     artifact)
@@ -351,7 +351,9 @@ complete -c cairn -n "__fish_seen_subcommand_from skill; and __fish_seen_subcomm
 complete -c cairn -n "__fish_seen_subcommand_from graph" -a "build query status diff explain path"
 complete -c cairn -n "__fish_seen_subcommand_from graph; and __fish_seen_subcommand_from build" -l force
 complete -c cairn -n "__fish_seen_subcommand_from completion" -a "bash zsh fish"
-complete -c cairn -n "__fish_seen_subcommand_from memory-context" -a "init status doctor"
+complete -c cairn -n "__fish_seen_subcommand_from memory-context" -a "init status doctor backup restore"
+complete -c cairn -n "__fish_seen_subcommand_from memory-context" -l input -r
+complete -c cairn -n "__fish_seen_subcommand_from memory-context" -l output -r
 complete -c cairn -n "__fish_seen_subcommand_from memory-context" -l scope -r
 complete -c cairn -n "__fish_seen_subcommand_from memory-context" -l project -r
 complete -c cairn -n "__fish_seen_subcommand_from memory-context" -l apply

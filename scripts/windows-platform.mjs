@@ -570,22 +570,33 @@ export function createTar(files) {
 }
 
 export function extractTar(buffer) {
+  if (buffer.length % 512 !== 0) throw new Error('archive is truncated');
   const files = [];
   const names = new Set();
   for (let offset = 0; offset + 512 <= buffer.length;) {
     const header = buffer.subarray(offset, offset + 512);
-    if (header.every((byte) => byte === 0)) break;
+    if (header.every((byte) => byte === 0)) {
+      if (buffer.length - offset < 1024 || buffer.subarray(offset).some(byte => byte !== 0)) throw new Error('archive has invalid trailing data');
+      return files;
+    }
     const storedChecksum = Number.parseInt(header.subarray(148, 156).toString("ascii").replace(/\0.*$/, "").trim() || "0", 8);
     const checksumHeader = Buffer.from(header);
     checksumHeader.fill(0x20, 148, 156);
     const calculatedChecksum = checksumHeader.reduce((sum, byte) => sum + byte, 0);
     if (storedChecksum !== calculatedChecksum) throw new Error("archive header checksum is invalid");
-    const name = header.subarray(0, 100).toString("utf8").replace(/\0.*$/, "");
+    const rawName = header.subarray(0, 100).toString("utf8").replace(/\0.*$/, "");
+    const name = rawName.startsWith('./') ? rawName.slice(2) : rawName;
     const size = Number.parseInt(header.subarray(124, 136).toString("ascii").replace(/\0.*$/, "").trim() || "0", 8);
     const type = String.fromCharCode(header[156] || 48);
-    if (!/^[A-Za-z0-9._-]+\.db$/.test(name) || basename(name) !== name || type !== "0" || !Number.isSafeInteger(size)) {
+    // POSIX exports include the root directory entry. No other directories,
+    // links, prefixes, extensions or ambiguous numeric fields are admitted.
+    const rootDirectory = ['.', './'].includes(rawName) && type === '5' && size === 0;
+    if (header.subarray(345, 500).some(byte => byte !== 0)
+        || !/^[0-7]+$/.test(header.subarray(124, 136).toString('ascii').replace(/\0.*$/, '').trim())
+        || size < 0 || (!rootDirectory && (!/^[A-Za-z0-9._-]+\.db$/.test(name) || basename(name) !== name || type !== "0" || !Number.isSafeInteger(size)))) {
       throw new Error("archive contains an unsafe or unsupported entry");
     }
+    if (rootDirectory) { offset += 512; continue; }
     if (names.has(name)) throw new Error("archive contains duplicate database entries");
     names.add(name);
     offset += 512;
@@ -593,10 +604,10 @@ export function extractTar(buffer) {
     files.push([name, Buffer.from(buffer.subarray(offset, offset + size))]);
     offset += Math.ceil(size / 512) * 512;
   }
-  return files;
+  throw new Error('archive is missing its terminator');
 }
 
-function memoryWindows(args) {
+async function memoryWindows(args) {
   const [sub = "help", archive] = args;
   if (args.length > (sub === "path" || ["help", "-h", "--help"].includes(sub) ? 1 : 2)) throw new Error("Usage: cairn memory path | export <file.tgz> | import <file.tgz>");
   const base = resolve(expandHome(process.env.CAIRN_AGENTFS_BASE_DIR || join(homedir(), ".cairnkeep")));
@@ -613,10 +624,10 @@ function memoryWindows(args) {
     const scratch = mkdtempSync(join(tmpdir(), "cairn-export-"));
     try {
       const files = [];
+      const { snapshotOrdinaryMemory } = await import('./memory-snapshot.mjs');
       for (const name of databases) {
         const output = join(scratch, name);
-        const result = run("sqlite3.exe", [join(base, name), `.backup '${output.replaceAll("'", "''")}'`]);
-        if (result.status !== 0) throw new Error("sqlite3 is required for a WAL-safe export");
+        await snapshotOrdinaryMemory({ path: join(base, name), output, scope: basename(name, '.db') });
         files.push([name, readFileSync(output)]);
       }
       writeFileSync(resolve(archive), gzipSync(createTar(files), { level: 9 }));
@@ -625,17 +636,9 @@ function memoryWindows(args) {
     return;
   }
   if (sub === "import") {
-    const source = resolve(archive);
-    if (!existsSync(source)) throw new Error(`no such archive: ${source}`);
-    const files = extractTar(gunzipSync(readStableFile(source, { label: "Memory archive", maxBytes: 512 * 1024 * 1024 }).bytes, { maxOutputLength: 512 * 1024 * 1024 }));
-    if (!files.length) throw new Error("archive contained no scope .db files");
-    mkdirSync(base, { recursive: true });
-    for (const [name, content] of files) {
-      const destination = join(base, name);
-      if (existsSync(destination)) atomicWrite(`${destination}.bak-pre-import`, readStableFile(destination, { label: "Memory backup source", maxBytes: 512 * 1024 * 1024 }).bytes, 0o600);
-      atomicWrite(destination, content, 0o600);
-    }
-    console.log(`imported ${files.length} scope db file(s) -> ${base}`);
+    const { importLegacyMemoryArchive } = await import('./memory-import.mjs');
+    const result = await importLegacyMemoryArchive({ base, archive, publish: (destination, bytes) => atomicWrite(destination, bytes, 0o600) });
+    console.log(`imported ${result.count} scope db file(s) -> ${result.base}`);
     return;
   }
   throw new Error(`Unknown: cairn memory ${sub}`);
@@ -774,7 +777,7 @@ export function powershellCompletion() {
   return `Register-ArgumentCompleter -Native -CommandName cairn -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
   $commands = 'bootstrap','setup','memory-server','memory-context','sync','sync-pi','sync-kimi','doctor','security','team','trajectory','artifact','evidence','playbook','capabilities','mcp-tools','pack','proposals','notes','eval','skill','graph','memory','audit-timer','uninstall','completion','version','help'
-  $memoryContext = 'init','status','doctor','--scope','--project','--apply','--confirm','--json'
+  $memoryContext = 'init','status','doctor','backup','restore','--scope','--project','--input','--output','--apply','--confirm','--json'
   $setup = '--git','--harness','--memory','--policy','--yes','--json','init','existing','none',${harnesses},'local'
   $playbook = 'list','status','init','set','enable','disable','reset','check','record','receipts','instructions','doctor','minimal','balanced','strict','must','should','may','off','start','finish','install','remove','context.recall','context.explore','work.plan','verify.tests','review.repository','review.security','docs.update','learning.capture','--project','--json','--enforce','--complexity','--familiarity','--risk','--public-change','--changed','--change-type','--completed','--skipped','--failed','--actor','--actor-kind','--session','--policy','--decision','--event','--action','--outcome','--reason'
   $pack = 'init','lock','validate','install','import-okf','validate-okf','export-okf','list','show','remove','enable','disable','update','skills','approve-skill','revoke-skill','doctor','--repair','--project','--project-id','--json'
@@ -807,7 +810,7 @@ export async function runWindowsCommand({ command, args, root }) {
     case "sync-pi": syncSimple(root, args, "pi"); return true;
     case "sync-kimi": syncSimple(root, args, "kimi"); return true;
     case "doctor": await doctorWindows(root, args); return true;
-    case "memory": memoryWindows(args); return true;
+    case "memory": await memoryWindows(args); return true;
     case "audit-timer": auditTimerWindows(root, args); return true;
     case "uninstall": uninstallWindows(root, args); return true;
     case "completion":

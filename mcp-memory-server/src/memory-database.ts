@@ -15,7 +15,7 @@ export type MemoryDatabaseOptions = {
     workerFactory?: (url: URL, options: WorkerOptions) => Worker;
 };
 type Owner = { active: boolean };
-type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => void; bytes: number; settled: Promise<void> };
+type Pending = { operation: MemoryOperation; resolve: (value: unknown) => void; reject: (error: Error) => void; bytes: number; settled: Promise<void> };
 
 export interface OrdinaryMemoryReader {
     readonly kv: {
@@ -128,6 +128,12 @@ export class MemoryDatabase {
                 || (result.error !== undefined && !/^MEMORY_[A-Z_]{1,64}$/.test(result.error))) throw memoryError('MEMORY_WORKER_PROTOCOL');
             const item = this.#pending.get(result.id);
             if (!item) throw memoryError('MEMORY_WORKER_PROTOCOL');
+            if (item.operation === 'close' && !result.error) {
+                if (result.value !== null || result.transaction) throw memoryError('MEMORY_WORKER_PROTOCOL');
+                // Exit may be delivered before the awaiting close continuation.
+                // Record the validated ACK synchronously, not in a later microtask.
+                this.#closed = true;
+            }
             this.#pending.delete(result.id); this.#pendingBytes -= item.bytes;
             this.#rawTransaction = result.transaction;
             if (result.error) item.reject(memoryError(result.error));
@@ -206,6 +212,7 @@ export class MemoryDatabase {
             let finish!: () => void;
             const settled = new Promise<void>(done => { finish = done; });
             this.#pendingBytes += bytes; this.#pending.set(request.id, {
+                operation,
                 resolve: value => { finish(); resolve(value); }, reject: error => { finish(); reject(error); }, bytes, settled,
             });
             try { this.#thread.postMessage(request); }

@@ -5,6 +5,19 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Isolated tracked-store foundation
+
+- Add explicit fresh-only `memory-context init`, read-only format diagnosis,
+  worker-owned SQLite access, atomic per-key generations and ordinary/typed/
+  reviewed-memory routing independent of context-tool enablement.
+- Add private online backup and digest-confirmed fresh, same-owner restore
+  with epoch renewal before no-replace publication. Protect generic legacy
+  imports with archive-wide preflight and recoverable, admission-blocking state.
+- Existing stores remain unchanged. No automatic conversion, older-client
+  transparency, new context tools, production admission or release is implied;
+  native-platform and independent-review gates remain open. Update storage,
+  compatibility, completions and the unreleased L07 teaching brief.
+
 ## [2.27.0] - 2026-10-26
 
 ### Team operations

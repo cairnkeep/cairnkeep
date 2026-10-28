@@ -26,6 +26,12 @@ will go before starting a session.
   turning off context tools does not roll back storage. Use disposable stores
   only until the platform and recovery gates are complete. This is not a
   rehearsed lesson or a change to the released installation instructions.
+- Advanced recovery brief: `cairn memory-context backup --output FILE` creates
+  a standalone no-overwrite snapshot. `restore --input FILE` plans an absent,
+  same-owner destination; exact-digest apply renews the restore epoch before
+  publication. Raw copies cannot invalidate old evidence, generic legacy import
+  refuses tracked stores, and recovery is offline administration. Never
+  demonstrate removal or replacement of a learner's real database.
 
 ## Hands-on lab
 

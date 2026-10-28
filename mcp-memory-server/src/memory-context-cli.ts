@@ -1,14 +1,18 @@
 import { parseArgs } from 'node:util';
 import { resolveMemoryScopePath } from './reviewed-memory-store.js';
-import { planContextStoreInit, applyContextStoreInit, contextStoreStatus } from './ordinary-memory-store.js';
+import { planContextStoreInit, applyContextStoreInit, contextStoreStatus, backupMemoryContextStore, planContextStoreRestore, applyContextStoreRestore } from './ordinary-memory-store.js';
 
-const HELP = `Usage: cairn memory-context <init|status|doctor> --scope SCOPE [--project PATH] [--json]
+const HELP = `Usage: cairn memory-context <init|status|doctor|backup|restore> --scope SCOPE [--project PATH] [--json]
   init                 Print a no-write plan for a fresh, absent store.
   init --apply --confirm DIGEST
                        Create exactly the inspected fresh store.
   status | doctor      Read-only format and integrity diagnosis.
+  backup --output FILE Create a private, no-overwrite online snapshot.
+  restore --input FILE Print a no-write plan for an absent, same-owner target.
+                       Apply with --apply --confirm DIGEST; renews restore epoch.
 Existing stores (including empty files) are never converted or replaced.
 Context stores require Node 22.16+ with the built-in SQLite API.
+Stop clients before recovery. Raw copies and in-place restores are unsupported.
 `;
 
 export async function runMemoryContextCli(args = process.argv.slice(2)): Promise<number> {
@@ -16,17 +20,23 @@ export async function runMemoryContextCli(args = process.argv.slice(2)): Promise
         const { values, positionals } = parseArgs({ args, allowPositionals: true, strict: true, options: {
             scope: { type: 'string' }, project: { type: 'string' }, json: { type: 'boolean' },
             apply: { type: 'boolean' }, confirm: { type: 'string' }, help: { type: 'boolean', short: 'h' },
+            input: { type: 'string' }, output: { type: 'string' },
         } });
         if (values.help || positionals.length === 0) { process.stdout.write(HELP); return 0; }
         const [command] = positionals;
-        if (positionals.length !== 1 || !['init', 'status', 'doctor'].includes(command) || !values.scope
-            || (command !== 'init' && (values.apply || values.confirm)) || Boolean(values.apply) !== Boolean(values.confirm)) throw new Error('MEMORY_ARGUMENTS_INVALID');
+        if (positionals.length !== 1 || !['init', 'status', 'doctor', 'backup', 'restore'].includes(command) || !values.scope
+            || (!['init', 'restore'].includes(command) && (values.apply || values.confirm)) || Boolean(values.apply) !== Boolean(values.confirm)
+            || (command === 'backup') !== Boolean(values.output) || (command === 'restore') !== Boolean(values.input)) throw new Error('MEMORY_ARGUMENTS_INVALID');
         const path = resolveMemoryScopePath(values.scope, { cwd: values.project });
-        const result = command === 'init'
+        const result = command === 'backup' ? await backupMemoryContextStore({ path, scope: values.scope, output: values.output! })
+            : command === 'restore' ? values.apply
+                ? await applyContextStoreRestore({ path, scope: values.scope, input: values.input!, confirm: values.confirm! })
+                : await planContextStoreRestore({ path, scope: values.scope, input: values.input! })
+            : command === 'init'
             ? values.apply ? await applyContextStoreInit({ path, scope: values.scope, confirm: values.confirm! }) : await planContextStoreInit({ path, scope: values.scope })
             : await contextStoreStatus(path, values.scope);
         process.stdout.write(`${JSON.stringify(result, null, values.json ? 0 : 2)}\n`);
-        return 'format' in result && result.format === 'unsupported' ? 1 : 0;
+        return ('format' in result && result.format === 'unsupported') || ('ok' in result && !result.ok) ? 1 : 0;
     } catch (error) {
         // Diagnostics contain categories, never source values or database paths.
         const code = (error as { code?: string }).code;

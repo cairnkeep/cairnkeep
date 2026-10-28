@@ -161,7 +161,7 @@ try {
 
   const fixtureUrl = new URL('./fixtures/memory-database-worker.mjs', import.meta.url);
   for (const [mode, code] of [['stall', 'MEMORY_STARTUP_TIMEOUT'], ['bad-ready', 'MEMORY_WORKER_PROTOCOL']]) {
-    await assert.rejects(implementation.openMemoryDatabase(tracked.db.name, { limits: { startupMs: 150 },
+    await assert.rejects(implementation.openMemoryDatabase(tracked.db.name, { limits: { startupMs: mode === 'stall' ? 150 : 5000 },
       workerFactory: (_url, options) => new Worker(fixtureUrl, { ...options, workerData: { mode } }),
     }), { code });
   }
@@ -214,11 +214,25 @@ try {
   await damaged.db.prepare(`DELETE FROM ${schema.CONTEXT_REVISION_TABLE} WHERE key=?`).run('facts/damaged');
   await assert.rejects(format.readMemorySourceRef(damaged.db, identity, 'facts/damaged'), { code: 'MEMORY_CONTEXT_DAMAGED' });
   await assert.rejects(damaged.agent.kv.set('facts/damaged', 'B'), { code: 'MEMORY_CONTEXT_DAMAGED' });
+  await assert.rejects(damaged.agent.kv.delete('facts/damaged'), { code: 'MEMORY_CONTEXT_DAMAGED' });
+  await assert.rejects(damaged.db.prepare('INSERT OR REPLACE INTO kv_store(key,value) VALUES(?,?)').run('facts/damaged', JSON.stringify('C')), { code: 'MEMORY_CONTEXT_DAMAGED' });
   await damaged.db.transaction(async () => { await damaged.db.exec('CREATE TRIGGER unrelated_trigger AFTER UPDATE ON kv_store BEGIN SELECT 1; END'); }).immediate();
   await assert.rejects(format.validateMemoryContextFormat(damaged.db, identity), { code: 'MEMORY_CONTEXT_DAMAGED' });
   await damaged.db.exec('DROP TRIGGER unrelated_trigger; DROP TRIGGER cairn_memory_context_revision_update');
   await assert.rejects(format.validateMemoryContextFormat(damaged.db, identity), { code: 'MEMORY_CONTEXT_DAMAGED' });
 
+  const closeOrder = await make('close-order', { workerFactory: (url, options) => {
+    const worker = new Worker(url, options), emit = worker.emit;
+    worker.emit = function(event, ...args) {
+      const result = emit.call(this, event, ...args);
+      // Deliver a genuine close ACK, then exit before promise continuations.
+      // No fabricated database success: the owning worker has already closed it.
+      if (event === 'message' && args[0]?.value === null && args[0]?.transaction === false) emit.call(this, 'exit', 0);
+      return result;
+    };
+    return worker;
+  } });
+  await assert.doesNotReject(closeOrder.db.close(), 'acknowledged close must survive immediate worker exit');
   console.log('PASS: actual SDK/core adapter, async ownership, revisions/ABA, real process concurrency/crash, read-only, worker failures and bounded queues/results');
 } finally {
   for (const process of children) { const exited = once(process, 'exit'); process.kill('SIGKILL'); await exited; }

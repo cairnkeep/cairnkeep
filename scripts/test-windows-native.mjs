@@ -61,7 +61,7 @@ try {
   assert.ok(settings.hooks.SessionStart.some((entry) => entry.hooks.some((hook) => /memory-wakeup/.test(hook.command))));
   await runWindowsCommand({ command: "sync", args: ["--check", "--live-root", claudeRoot], root });
 
-  const payloads = [["project.db", Buffer.from("sqlite-a")], ["team.db", Buffer.from("sqlite-b")]];
+  const payloads = [["project.db", Buffer.alloc(0)], ["team.db", Buffer.alloc(0)]];
   const tar = createTar(payloads);
   assert.deepEqual(extractTar(tar), payloads);
   assert.throws(() => extractTar(Buffer.from(tar).fill(0x2e, 0, 12)), /checksum|unsafe|unsupported/);
@@ -70,7 +70,7 @@ try {
   const memory = join(sandbox, "Memory Store");
   process.env.CAIRN_AGENTFS_BASE_DIR = memory;
   await runWindowsCommand({ command: "memory", args: ["import", archive], root });
-  assert.equal(readFileSync(join(memory, "project.db"), "utf8"), "sqlite-a");
+  assert.deepEqual(readFileSync(join(memory, "project.db")), Buffer.alloc(0));
   assert.match(powershellCompletion(), /Register-ArgumentCompleter/);
   assert.match(powershellCompletion(), /evidence/);
   assert.match(powershellCompletion(), /playbook/);

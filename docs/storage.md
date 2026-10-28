@@ -364,6 +364,67 @@ HTTP mode is one trusted storage domain:
 
 ## Inspecting and moving memory
 
+### Unreleased tracked-store foundation (source checkout only)
+
+Released installations and existing stores keep their original backend. The
+new `cairn memory-context` administration CLI is currently an isolated storage
+foundation, not production admission or a migration command. Use disposable
+stores until its native-platform and recovery gates have passed.
+
+`init --scope SCOPE --project PATH --json` prints a no-write digest-bound plan.
+Only `init ... --apply --confirm DIGEST` creates the inspected absent target.
+Every existing file, including an empty or zero-byte file, refuses conversion.
+Creation uses a private sibling stage and no-replace publication. There is no
+`--force` option and no automatic enrollment. `status` and `doctor` diagnose
+format and tracking infrastructure without SDK initialization or source text.
+
+This format requires Node **22.16 or newer** and the built-in SQLite API; the
+ordinary legacy runtime requirement is unchanged. SQLite runs only in a bounded
+worker. A dead/timed-out worker makes its connection unusable; an uncertain
+commit is reported as `MEMORY_COMMIT_UNCERTAIN`, never silently retried. Read
+back the current state before deciding whether a mutation should be attempted
+again. Older database clients refuse this format. The persistent format, not
+`CAIRN_MEMORY_CONTEXT`, selects its backend: disabling tools is not rollback.
+
+For a disposable tracked store:
+
+```bash
+cairn memory-context backup --scope project --project /path/to/disposable-project --output /safe/path/snapshot.db
+# Stop clients, preserve the current store separately, and use an absent target.
+cairn memory-context restore --scope project --project /path/to/disposable-project --input /safe/path/snapshot.db --json
+# Inspect the plan, then repeat with --apply --confirm DIGEST.
+```
+
+Backup is an online, integrity-checked, standalone snapshot, at most 512 MiB
+with a 120-second operation deadline. Its output must not exist. Restore also
+requires an absent destination and the original canonical owner/scope; it does
+not rebind another project or move an existing store. It commits a new restore
+epoch before publication, retaining store identity, text and key generations.
+The snapshot remains unchanged. Integrity digests are not publisher authenticity.
+Raw file copies can replay old evidence; they are not detected or supported as
+managed recovery. In-place restore and existing-store conversion are deferred.
+
+Read-only database access makes no application/schema writes, but SQLite may
+need auxiliary WAL/SHM access. A filesystem that denies required auxiliary-file
+access fails closed; do not make private files world-readable to bypass it.
+Private stages and `.cairn-admission` leases left by a crash are retained for
+diagnosis; no stale-lock guessing, trigger repair or epoch repair is automatic.
+
+Generic `cairn memory import` is for offline legacy stores only. It preflights
+every archive member and destination before mutation, refuses tracked/unknown
+formats even with context tools disabled, and directs tracked recovery to
+`memory-context restore`. It rejects links, traversal, duplicate names, unsafe
+archive types and live WAL sidecars. Stop all clients before legacy import.
+Pre-images and previous backup versions are retained. A failed replacement is
+rolled back where verifiable; an interrupted import leaves a private journal
+and stage, blocks ordinary admission, and requires manual recovery with clients
+stopped. Preserve these files; doctor never guesses the intended state.
+Generic export uses the managed online snapshot path for tracked global stores
+and keeps the SQLite CLI path for legacy stores. A mixed export is not a generic
+import authorization: tracked members still require explicit managed recovery.
+
+### Released legacy memory commands
+
 For a local server, these commands report and move named/global scopes only:
 
 ```bash

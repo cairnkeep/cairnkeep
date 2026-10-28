@@ -26,6 +26,11 @@ export const CONTEXT_TABLE_SQL = [
 export const CONTEXT_TRIGGER_SQL = [
     `CREATE TRIGGER cairn_memory_context_no_key_rename BEFORE UPDATE ON kv_store WHEN NEW.key != OLD.key BEGIN SELECT RAISE(ABORT,'MEMORY_KEY_RENAME'); END`,
     `CREATE TRIGGER cairn_memory_context_missing_revision BEFORE UPDATE ON kv_store WHEN ${live('OLD')} AND NOT EXISTS(SELECT 1 FROM ${CONTEXT_REVISION_TABLE} WHERE key=OLD.key) BEGIN SELECT RAISE(ABORT,'MEMORY_CONTEXT_DAMAGED'); END`,
+    ...['INSERT', 'DELETE'].map(event => {
+        const ref = event === 'DELETE' ? 'OLD' : 'NEW';
+        const existing = event === 'INSERT' ? ` AND EXISTS(SELECT 1 FROM kv_store WHERE key=NEW.key)` : '';
+        return `CREATE TRIGGER cairn_memory_context_missing_revision_${event.toLowerCase()} BEFORE ${event} ON kv_store WHEN ${live(ref)}${existing} AND NOT EXISTS(SELECT 1 FROM ${CONTEXT_REVISION_TABLE} WHERE key=${ref}.key) BEGIN SELECT RAISE(ABORT,'MEMORY_CONTEXT_DAMAGED'); END`;
+    }),
     ...['INSERT', 'UPDATE', 'DELETE'].map(event => {
         const ref = event === 'DELETE' ? 'OLD' : 'NEW';
         return `CREATE TRIGGER cairn_memory_context_limit_${event.toLowerCase()} BEFORE ${event} ON kv_store WHEN ${live(ref)} AND (SELECT generation FROM ${CONTEXT_REVISION_TABLE} WHERE key=${ref}.key)>=${Number.MAX_SAFE_INTEGER} BEGIN SELECT RAISE(ABORT,'MEMORY_GENERATION_EXHAUSTED'); END`;

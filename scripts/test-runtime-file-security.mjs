@@ -231,11 +231,17 @@ try {
   }
 
   const archive = join(root, "memory.tgz");
-  const archiveBytes = gzipSync(createTar([["project.db", Buffer.from("New database fixture.")]]));
+  // These publication controls do not query SQLite, but must pass the real
+  // legacy-format preflight rather than testing an invalid archive payload.
+  const databaseFixture = text => { const bytes = Buffer.alloc(128); bytes.write('SQLite format 3\0'); bytes.write(text, 100); return bytes; };
+  const previousDatabase = databaseFixture('Prior database fixture.');
+  const nextDatabase = databaseFixture('New database fixture.');
+  const archiveBytes = gzipSync(createTar([["project.db", nextDatabase]]));
   write(archive, archiveBytes);
   const memory = join(root, "memory");
+  fs.mkdirSync(memory, { mode: 0o700 });
   const database = join(memory, "project.db");
-  write(database, "Prior database fixture.");
+  write(database, previousDatabase);
   const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const previousBase = process.env.CAIRN_AGENTFS_BASE_DIR;
   process.env.CAIRN_AGENTFS_BASE_DIR = memory;
@@ -252,15 +258,15 @@ try {
     await control("Windows denied replacement retention", async () => {
       try {
         await assert.rejects(() => runWindowsCommand({ command: "memory", args: ["import", archive], root: repository }), /denied/i);
-        assert.equal(fs.readFileSync(database, "utf8"), "Prior database fixture.", "replacement failure must retain the live database");
+        assert.deepEqual(fs.readFileSync(database), previousDatabase, "replacement failure must retain the live database");
         assert.deepEqual(fs.readdirSync(memory).filter((name) => name.includes(".tmp-")), [], "failed replacement must clean its own temporary files");
       } finally { restore(); }
     });
-    write(database, "Prior database fixture.");
+    write(database, previousDatabase);
     let denied = 0;
     fs.renameSync = (source, destination) => {
       if (destination === database && denied++ < 2) {
-        assert.equal(fs.readFileSync(database, "utf8"), "Prior database fixture.");
+        assert.deepEqual(fs.readFileSync(database), previousDatabase);
         throw Object.assign(new Error("Synthetic transient sharing violation."), { code: "EBUSY" });
       }
       return original.rename(source, destination);
@@ -269,9 +275,9 @@ try {
     try {
       await runWindowsCommand({ command: "memory", args: ["import", archive], root: repository });
       assert.equal(denied, 3);
-      assert.equal(fs.readFileSync(database, "utf8"), "New database fixture.");
+      assert.deepEqual(fs.readFileSync(database), nextDatabase);
     } finally { restore(); }
-    write(database, "Prior database fixture.");
+    write(database, previousDatabase);
     if (process.platform !== "win32") {
       const outside = join(root, "outside-target");
       write(outside, "Outside sentinel.");
@@ -293,7 +299,7 @@ try {
           await assert.rejects(() => runWindowsCommand({ command: "memory", args: ["import", archive], root: repository }), /exist|unsafe/i);
           assert.equal(injected, true);
           assert.equal(fs.readFileSync(outside, "utf8"), "Outside sentinel.", "temporary symlink must not receive private content");
-          assert.equal(fs.readFileSync(database, "utf8"), "Prior database fixture.");
+          assert.deepEqual(fs.readFileSync(database), previousDatabase);
           assert.equal(fs.lstatSync(collidingTemporary).isSymbolicLink(), true, "a collision must not delete an unowned temporary name");
         } finally { restore(); }
       });
