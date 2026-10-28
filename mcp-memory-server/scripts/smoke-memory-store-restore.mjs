@@ -144,11 +144,20 @@ try {
   await assert.rejects(store.planContextStoreRestore({ path, scope: 'project', input: corrupt }));
   assert.equal(existsSync(path), false);
   const swapped = Buffer.from(snapshotBytes); swapped[swapped.length - 1] ^= 0xff;
+  const snapshotDescriptor = fs.openSync(backup, fs.constants.O_RDWR | (fs.constants.O_NOFOLLOW ?? 0));
+  const writeSnapshot = bytes => {
+    assert.equal(fs.fstatSync(snapshotDescriptor).isFile(), true);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.writeSync(snapshotDescriptor, bytes, offset, bytes.length - offset, offset);
+      assert.ok(count > 0); offset += count;
+    }
+  };
   try {
-    writeFileSync(backup, swapped);
+    writeSnapshot(swapped);
     await assert.rejects(store.applyContextStoreRestore({ path, scope: 'project', input: backup, confirm: restorePlan.digest }));
     assert.equal(existsSync(path), false, 'a changed snapshot must not satisfy an old plan');
-  } finally { writeFileSync(backup, snapshotBytes); }
+  } finally { try { writeSnapshot(snapshotBytes); } finally { fs.closeSync(snapshotDescriptor); } }
   for (const failure of ['before-renewal', 'after-renewal']) {
     const prepare = MemoryDatabase.prototype.prepare;
     try {
