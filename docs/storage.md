@@ -470,6 +470,12 @@ The child exchange preserves exact filesystem identities, including unsigned
 64-bit Windows file IDs that cannot be represented safely as JavaScript numbers.
 Node's signed native stat view is normalized by its exact 64-bit pattern; the
 wire format remains canonical unsigned decimal, with malformed/overflow IDs refused.
+This does not upgrade the legacy driver's concurrency guarantees: its pinned
+Windows backend provides no cross-process file locking. Do not run simultaneous
+writer processes against one legacy store on Windows. Inspection remains
+read-only and untracked; fresh tracked stores use the separate SQLite backend.
+Tests preserve active-writer isolation with distinct connections on every
+platform and additionally require external-process exclusion on POSIX.
 Planning and inspection do not create assertion tables. Only a confirmed
 curation apply writes them, atomically with that key's metadata revision.
 Source generations, content digests, store identity and restore epoch are checked

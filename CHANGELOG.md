@@ -45,6 +45,9 @@ All notable user-facing changes are documented here. This project follows
   schema or contaminating the main server's connection cache.
 - Preserve exact 64-bit filesystem identities across legacy inspection, including
   Windows file IDs beyond JavaScript's safe-integer range.
+- Test active legacy writer isolation before and after inspection with distinct
+  writable connections, retaining POSIX external-writer controls and documenting
+  the existing Windows legacy driver's lack of cross-process file locking.
 - Keep legacy stores and existing MCP schemas unchanged. No automatic conversion,
   source fetching, verification from usage, production activation or release.
 

@@ -144,6 +144,9 @@ can inspect but cannot curate, and that HTTP requires separate
 In a separate disposable legacy fixture, inspect before an ordinary read/write:
 the bounded read-only child must neither initialize SDK schema nor poison later
 writes through the SDK's connection cache. Never relax file permissions on failure.
+Do not imply new cross-process locking guarantees for legacy Windows stores:
+their existing driver lacks that exclusion; keep simultaneous writer processes
+out of the demo. Fresh tracked stores use the separate SQLite backend.
 Do not demonstrate production migration or describe a native/human rehearsal
 that has not occurred. Existing published videos are not updated by this brief.
 

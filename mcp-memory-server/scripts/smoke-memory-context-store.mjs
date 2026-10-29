@@ -244,7 +244,7 @@ try {
   `, driver, livePath, value, options.key], { encoding: 'utf8', timeout: 30000 });
   const readLegacy = () => feature.inspectMemoryCandidate({ ...options, path: livePath });
   const privateMask = process.umask(0o077);
-  let live;
+  let live, peer;
   try {
     // Seed in another process: this SDK can retain its process-level file lease
     // while closed native objects remain reachable. Positive/negative controls
@@ -259,16 +259,44 @@ try {
     live = await ordinary.openOrdinaryMemoryStore(livePath, 'project');
     assert.equal(await live.kv.get(options.key), 'committed');
     await live.kv.set(options.key, 'committed'); // Readonly-first inspection must not poison later ordinary writes.
+    const { Database } = await import(driver);
+    peer = new Database(livePath, { fileMustExist: true, timeout: 100 });
+    await peer.connect();
+    const peerWrite = peer.transaction(async value => {
+      await peer.prepare('UPDATE kv_store SET value=? WHERE key=?').run(JSON.stringify(value), options.key);
+    }).immediate;
+    const assertPeerBlocked = async label => {
+      await assert.rejects(peerWrite('must-not-write'), /busy|locked/i, label);
+      assert.equal(peer.inTransaction, false, 'a refused contender must leave no peer transaction');
+    };
+    const assertExternalBlocked = label => {
+      const blocked = writeLegacy('must-not-write');
+      assert.equal(blocked.status, 0, blocked.stderr);
+      assert.equal(blocked.stdout.trim(), 'blocked', label);
+    };
+    // A distinct writable connection must work outside the owner's transaction,
+    // and fail both before and after observation. The pinned legacy driver's
+    // Windows GenericIO has no OS file locking; cross-process exclusion is not
+    // a supported baseline there. Keep that additional control on POSIX only.
+    await peerWrite('peer-positive');
+    assert.equal(await live.kv.get(options.key), 'peer-positive');
+    await live.kv.set(options.key, 'committed');
     await live.getDatabase().exec('BEGIN IMMEDIATE');
     try {
       await live.kv.set(options.key, 'uncommitted');
+      await assertPeerBlocked('the independent peer must be blocked before inspection');
+      if (process.platform !== 'win32') assertExternalBlocked('the external writer must be blocked before inspection');
       assert.equal((await readLegacy()).value, 'committed', 'inspection must not see an active SDK writer\'s uncommitted WAL');
-      const blocked = writeLegacy('must-not-write'); assert.equal(blocked.status, 0, blocked.stderr); assert.equal(blocked.stdout.trim(), 'blocked', 'inspection close must not release an active writer\'s lock');
+      await assertPeerBlocked('inspection close must not release the active writer\'s lock');
+      if (process.platform !== 'win32') assertExternalBlocked('inspection close must not release the external writer lock');
+      assert.equal(await live.kv.get(options.key), 'uncommitted', 'inspection must not commit or roll back the owner transaction');
     } finally { await live.getDatabase().exec('ROLLBACK'); }
     assert.equal(await live.kv.get(options.key), 'committed');
+    await peerWrite('peer-after-rollback');
+    assert.equal(await live.kv.get(options.key), 'peer-after-rollback', 'the independent peer must become writable after rollback');
     await live.kv.set(options.key, 'after');
     assert.equal((await readLegacy()).value, 'after');
-  } finally { await live?.close(); process.umask(privateMask); }
+  } finally { try { await peer?.close(); } finally { await live?.close(); process.umask(privateMask); } }
   await assert.rejects(inspect({ ...options, scope: 'identity' }), /MEMORY_OWNER_MISMATCH/);
   await mutate(agent => agent.getDatabase().exec('DROP TABLE cairn_memory_context_facts_v1'));
   await assert.rejects(inspect(), /MEMORY_CONTEXT_DAMAGED/);

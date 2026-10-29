@@ -52,6 +52,8 @@ will go before starting a session.
   Explain that oversized escaped keys refuse rather than changing identity, and
   legacy inspection never initializes SDK tables. Its bounded read-only child
   cannot change the main server's SDK connection cache or later write behavior.
+  This does not add cross-process file locking to the legacy Windows backend;
+  never demonstrate simultaneous writer processes against one such store.
 
 ## Hands-on lab
 
