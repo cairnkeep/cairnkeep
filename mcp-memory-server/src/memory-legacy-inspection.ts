@@ -124,18 +124,23 @@ async function runObserver() {
                     if (scanned === (request.map_limit ?? 5000) || remaining <= 0) { truncated = true; break; }
                     // The legacy driver needs no window-function support: one
                     // key at a time, rejected in SQL before materialization.
-                    const row = await db!.prepare(`SELECT CASE WHEN length(CAST(key AS BLOB))<=4096 AND length(CAST(key AS BLOB))<=? THEN key END AS safe_key,
+                    const row = await db!.prepare(`SELECT CASE WHEN length(CAST(key AS BLOB))<=4096 AND length(CAST(key AS BLOB))<=? THEN CAST(key AS BLOB) END AS safe_key,
                         length(CAST(key AS BLOB))>? AS limited FROM kv_store
                         WHERE key!='__history__' AND substr(key,1,12)!='__history__/'
                         AND key!='__reviewed__' AND substr(key,1,13)!='__reviewed__/' ORDER BY key LIMIT 1 OFFSET ?`).get(remaining, remaining, scanned);
                     if (!row) break;
                     scanned++;
                     if (row.limited === 1) { truncated = true; break; }
-                    if (typeof row.safe_key !== 'string' || !row.safe_key.length) { truncated = true; continue; }
-                    bytes += Buffer.byteLength(row.safe_key);
-                    const size = Buffer.byteLength(JSON.stringify(row.safe_key)) + 1;
+                    if (row.safe_key === null) { truncated = true; continue; }
+                    if (!ArrayBuffer.isView(row.safe_key)) throw memoryError('MEMORY_CONTEXT_DAMAGED');
+                    bytes += row.safe_key.byteLength;
+                    let key: string;
+                    try { key = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(new Uint8Array(row.safe_key.buffer, row.safe_key.byteOffset, row.safe_key.byteLength)); }
+                    catch { throw memoryError('MEMORY_CONTEXT_DAMAGED'); }
+                    if (!key.length) { truncated = true; continue; }
+                    const size = Buffer.byteLength(JSON.stringify(key)) + 1;
                     if (encodedBytes + size > 48000) { truncated = true; break; }
-                    keys.push(row.safe_key); encodedBytes += size;
+                    keys.push(key); encodedBytes += size;
                 }
                 return { ok: true as const, keys, scanned, bytes, truncated };
             }

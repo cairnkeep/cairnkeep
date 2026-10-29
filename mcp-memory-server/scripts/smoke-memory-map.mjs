@@ -162,6 +162,11 @@ try {
   assert.equal(entries(untracked)[0].navigation[0].status, 'untracked');
   assert.equal(entries(untracked)[0].navigation[0].source, null);
   assert.deepEqual(readFileSync(legacyPath), legacyBefore);
+  const { readLegacyMemoryMapKeys } = await import('../dist/memory-legacy-inspection.js');
+  const limitedLegacy = await readLegacyMemoryMapKeys(legacyPath, { rows: 1, bytes: 1 });
+  assert.deepEqual(limitedLegacy.keys, []);
+  assert.equal(limitedLegacy.bytes, 0, 'legacy SQL must suppress a key that cannot fit before driver decoding');
+  assert.ok(limitedLegacy.scanned <= 1); assert.equal(limitedLegacy.truncated, true);
   assert.equal(existsSync(lab.env.CAIRN_PACK_BASE_DIR), false, 'ordinary maps must not open or initialize pack storage');
   lab.assertOffline();
   assert.equal(networkAttempts, 0, 'in-process map/curation paths must remain offline even when errors are caught');

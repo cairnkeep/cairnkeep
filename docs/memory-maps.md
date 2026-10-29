@@ -68,6 +68,9 @@ records or earlier stores consume capacity. These are materialized-data limits,
 not SQLite execution-step or total process-memory limits. Per-value ordinary
 JSON is capped at 32 KiB. SQLite suppresses payloads before worker replies if
 they cannot fit the remaining allowance; no counter is clipped after overread.
+Fields cross the worker boundary as bounded raw bytes and are charged before
+strict UTF-8 decoding, preserving valid BOM characters. Malformed stored text
+refuses rather than expanding replacement characters beyond the allowance.
 Legacy reads use one bounded key per query without requiring window functions;
 their child exchange also has a stricter 48 KiB encoded-key window. Oversized
 sources and exhausted budgets signal truncation.

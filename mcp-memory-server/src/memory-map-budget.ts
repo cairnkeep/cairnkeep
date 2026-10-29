@@ -16,7 +16,9 @@ export function memoryMapPage(kind: Kind, query: string, parameters: Array<strin
     const { fields, extra } = columns[kind], limit = Math.min(32, budget.rows);
     const projected = fields.map(([name, maximum], index) => `CASE WHEN length(CAST(${name} AS BLOB))<=${maximum} THEN ${name} END AS __map_data${index}`);
     const size = fields.map((_, index) => `COALESCE(length(CAST(__map_data${index} AS BLOB)),0)`).join('+');
-    const output = fields.map(([name], index) => `CASE WHEN __map_bytes<=? THEN __map_data${index} END AS ${name}`);
+    // Keep TEXT raw across the worker boundary. SQLite's string conversion can
+    // expand malformed bytes to replacement characters before JS can reject it.
+    const output = fields.map(([name], index) => `CASE WHEN __map_bytes<=? THEN CAST(__map_data${index} AS BLOB) END AS ${name}`);
     return { limit, sql: `/* memory-map:${kind} */ WITH candidates AS (${query} ORDER BY ${fields[0][0]} LIMIT ? OFFSET ?),
         projected AS (SELECT ${projected.join(',')}${extra.length ? ',' + extra.join(',') : ''},row_number() OVER (ORDER BY ${fields[0][0]}) AS __map_order FROM candidates),
         sized AS (SELECT *,sum(${size}) OVER (ORDER BY __map_order ROWS UNBOUNDED PRECEDING) AS __map_bytes FROM projected)
@@ -30,10 +32,19 @@ export function chargeMemoryMapPage(kind: Kind, rows: Array<Record<string, unkno
     let bytes = 0;
     for (const row of rows) for (const [name] of columns[kind].fields) {
         const value = row[name];
-        if (typeof value === 'string') bytes += Buffer.byteLength(value);
-        else if (ArrayBuffer.isView(value)) bytes += value.byteLength;
+        if (value === null) continue;
+        if (!ArrayBuffer.isView(value)) throw memoryError('MEMORY_CONTEXT_DAMAGED');
+        bytes += value.byteLength;
     }
     if (rows.length > budget.rows || bytes > budget.bytes) throw memoryError('MEMORY_MAP_SCAN_LIMIT');
     budget.rows -= rows.length; budget.bytes -= bytes;
+    const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+    for (const row of rows) for (const [name] of columns[kind].fields) {
+        const value = row[name];
+        if (value === null) continue;
+        if (!ArrayBuffer.isView(value)) throw memoryError('MEMORY_CONTEXT_DAMAGED');
+        try { row[name] = decoder.decode(new Uint8Array(value.buffer, value.byteOffset, value.byteLength)); }
+        catch { throw memoryError('MEMORY_CONTEXT_DAMAGED'); }
+    }
     return rows.some(row => row.__map_limited === 1);
 }
