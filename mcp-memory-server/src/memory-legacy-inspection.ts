@@ -15,7 +15,13 @@ const uint64 = z.string().regex(/^(?:0|[1-9][0-9]{0,19})$/)
     .refine(value => value.length < 20 || value <= '18446744073709551615');
 const identitySchema = z.object({ dev: uint64, ino: uint64 }).strict();
 export function memoryLegacyIdentity(stat: { dev: bigint; ino: bigint }) {
-    return identitySchema.parse({ dev: stat.dev.toString(), ino: stat.ino.toString() });
+    const encode = (value: bigint) => {
+        // Node's native BigInt64 stat buffer may expose unsigned IDs with the
+        // sign bit set as negative values. Preserve those bits, not their sign.
+        if (typeof value !== 'bigint' || value < -(1n << 63n) || value > (1n << 64n) - 1n) throw memoryError('MEMORY_FILE_UNSAFE');
+        return BigInt.asUintN(64, value).toString();
+    };
+    return identitySchema.parse({ dev: encode(stat.dev), ino: encode(stat.ino) });
 }
 const requestSchema = z.object({
     path: z.string().min(1).max(32768), key: z.string().min(1).max(4096),

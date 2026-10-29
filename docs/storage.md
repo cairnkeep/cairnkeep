@@ -468,6 +468,8 @@ are bounded, with a V8 old-space limit rather than a total process-memory cap;
 no writable fallback is attempted. Existing legacy commands remain unchanged.
 The child exchange preserves exact filesystem identities, including unsigned
 64-bit Windows file IDs that cannot be represented safely as JavaScript numbers.
+Node's signed native stat view is normalized by its exact 64-bit pattern; the
+wire format remains canonical unsigned decimal, with malformed/overflow IDs refused.
 Planning and inspection do not create assertion tables. Only a confirmed
 curation apply writes them, atomically with that key's metadata revision.
 Source generations, content digests, store identity and restore epoch are checked

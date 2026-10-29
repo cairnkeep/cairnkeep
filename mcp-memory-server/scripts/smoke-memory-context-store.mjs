@@ -52,12 +52,20 @@ try {
   const observer = fileURLToPath(new URL('../dist/memory-legacy-inspection.js', import.meta.url));
   emptyDescriptor = openSync(empty, 'r');
   const exactFile = fstatSync(emptyDescriptor, { bigint: true });
-  const highIdentity = { path: empty, key: options.key, dev: exactFile.dev.toString(), ino: '18446744073709551615' };
+  const maxId = (1n << 64n) - 1n;
+  const highIdentity = { path: empty, key: options.key, dev: BigInt.asUintN(64, exactFile.dev).toString(),
+    ino: (BigInt.asUintN(64, exactFile.ino) === maxId ? maxId - 1n : maxId).toString() };
   const mismatched = spawnSync(process.execPath, [observer], { input: JSON.stringify(highIdentity), encoding: 'utf8', timeout: 30000 });
   assert.equal(mismatched.status, 0, mismatched.stderr);
   assert.equal(JSON.parse(mismatched.stdout).code, 'MEMORY_FILE_CHANGED', 'uint64 identities must reach exact identity comparison, not fail safe-integer schema validation');
   const { memoryLegacyIdentity } = await import('../dist/memory-legacy-inspection.js');
   const large = 18014398509481984n;
+  let signedStat;
+  assert.doesNotThrow(() => { signedStat = memoryLegacyIdentity({ dev: -1n, ino: -(1n << 63n) }); }, 'SIGNED_STAT_RED: Node signed stat views must preserve their uint64 bit patterns');
+  assert.deepEqual(signedStat, { dev: '18446744073709551615', ino: '9223372036854775808' });
+  for (const ino of [-(1n << 63n) - 1n, 1n << 64n, Number(large)]) {
+    assert.throws(() => memoryLegacyIdentity({ dev: 0n, ino }), { code: 'MEMORY_FILE_UNSAFE' }, 'native identities must have a supported exact 64-bit representation');
+  }
   assert.deepEqual(memoryLegacyIdentity({ dev: 0n, ino: large }), { dev: '0', ino: '18014398509481984' });
   assert.notDeepEqual(memoryLegacyIdentity({ dev: 0n, ino: large }), memoryLegacyIdentity({ dev: 0n, ino: large + 1n }), 'adjacent uint64 identities must not collapse to the same floating-point value');
   for (const ino of ['18446744073709551616', '01', '-1', '1e16', Number(large)]) {
@@ -69,15 +77,15 @@ try {
   writeFileSync(largeIdPreload, `
     import fs from 'node:fs'; import {syncBuiltinESMExports} from 'node:module';
     const target=${JSON.stringify(empty)}, descriptors=new Set();
-    const inode=18014398509481985n+(process.env.CAIRN_TEST_ID_MISMATCH==='1' && process.argv[1]?.endsWith('memory-legacy-inspection.js') ? 1n : 0n);
+    const inode=BigInt(process.env.CAIRN_TEST_FILE_ID)-(process.env.CAIRN_TEST_ID_MISMATCH==='1' && process.argv[1]?.endsWith('memory-legacy-inspection.js') ? 1n : 0n);
     const stat=fs.lstatSync, fstat=fs.fstatSync, open=fs.openSync, close=fs.closeSync;
-    const patched=(info,options)=>Object.defineProperty(info,'ino',{value:options?.bigint ? inode : Number(inode)});
+    const patched=(info,options)=>Object.defineProperty(info,'ino',{value:options?.bigint ? BigInt.asIntN(64,inode) : Number(inode)});
     fs.lstatSync=(path,options)=>{const info=stat(path,options);return path===target ? patched(info,options) : info;};
     fs.openSync=(path,...args)=>{const fd=open(path,...args);if(path===target)descriptors.add(fd);return fd;};
     fs.fstatSync=(fd,options)=>{const info=fstat(fd,options);return descriptors.has(fd) ? patched(info,options) : info;};
     fs.closeSync=fd=>{descriptors.delete(fd);return close(fd);};syncBuiltinESMExports();
   `, { mode: 0o600, flag: 'wx' });
-  for (const mismatch of ['0', '1']) {
+  for (const fileId of ['18014398509481985', '18446744073709551615']) for (const mismatch of ['0', '1']) {
     const admitted = spawnSync(process.execPath, ['--import', pathToFileURL(largeIdPreload).href, '--input-type=module', '-e', `
       import assert from 'node:assert/strict';
       const {inspectMemoryCandidate}=await import(process.argv[1]);
@@ -85,7 +93,7 @@ try {
       if(process.env.CAIRN_TEST_ID_MISMATCH==='1')await assert.rejects(read(),{code:'MEMORY_FILE_CHANGED'});
       else assert.equal(await read(),null);
     `, new URL('../dist/memory-context-store.js', import.meta.url).href, empty], {
-      env: { ...lab.env, CAIRN_TEST_ID_MISMATCH: mismatch }, encoding: 'utf8', maxBuffer: 8192,
+      env: { ...lab.env, CAIRN_TEST_ID_MISMATCH: mismatch, CAIRN_TEST_FILE_ID: fileId }, encoding: 'utf8', maxBuffer: 8192,
       timeout: process.platform === 'win32' ? 120000 : 30000,
     });
     assert.equal(admitted.status, 0, admitted.stderr);
