@@ -23,7 +23,8 @@ const HELP = `Usage: cairn memory-context <init|status|doctor|backup|restore|ins
                        Observe one store, --depth 1|2, --limit 1..50 (default 50).
   map [--max-bytes 1024..8192] [--limit 1..50]
                        Deterministic navigation, default 4096 UTF-8 bytes including
-                       MCP framing; exact reads remain necessary. No providers.
+                       CallToolResult text + structured content (not transport
+                       envelopes); exact reads remain necessary. No providers.
 Entity JSON: schema_version:1, UUID id, title, aliases:[], anchor_key, claims:[].
 Claims contain key, attribute and value. Link JSON: schema_version:1, UUID id,
 from/to entity UUIDs, predicate, evidence_keys:[]. Remove JSON: schema_version:1,id.

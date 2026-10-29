@@ -822,7 +822,8 @@ See [connection curation, limits and reproducible evidence](memory-connections.m
 `cairn memory-context map --scope project --project /path/to/disposable-project --json`
 and gated `memory_map` provide deterministic prefix/entity navigation, not source
 text or automatic instructions. Default 4 KiB/hard 8 KiB includes the entire MCP
-frame; at most 50 entries span all visible partitions. `truncated` means follow
+CallToolResult (text and structured content, not transport envelopes); at most
+50 entries span all visible partitions. `truncated` means follow
 with exact reads, not that omitted facts are absent. Legacy navigation remains
 untracked. The same capability/profile/HTTP consent gates above apply; `all`
 keeps stores separate and never includes team/pack/skill backends. No provider

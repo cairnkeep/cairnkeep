@@ -9,6 +9,7 @@ import * as ordinary from '../dist/ordinary-memory-store.js';
 import * as connections from '../dist/memory-connections.js';
 import * as freshness from '../dist/memory-context-store.js';
 import { MemoryDatabase } from '../dist/memory-database.js';
+import { hardenPrivatePath } from '../dist/platform-security.js';
 
 const feature = await import('../dist/memory-map.js').catch(() => null);
 assert.ok(feature?.buildMemoryMap, 'MAP_RED: bounded ordinary-memory maps are missing');
@@ -147,7 +148,11 @@ try {
   // Legacy rows are read without SDK schema initialization or reliable revisions.
   const legacy = await lab.connect('neutral');
   await legacy.call('memory_write', { scope: 'project', key: 'legacy/anchor', value: 'legacy text' }); await legacy.close();
-  const legacyPath = join(lab.projects.neutral, '.agentfs', 'project.db'), legacyBefore = readFileSync(legacyPath);
+  const legacyPath = join(lab.projects.neutral, '.agentfs', 'project.db');
+  // The legacy SDK inherits Windows ACLs; the read-only observer correctly
+  // requires explicitly private fixture files. Do not weaken runtime admission.
+  hardenPrivatePath(join(lab.projects.neutral, '.agentfs')); hardenPrivatePath(legacyPath);
+  const legacyBefore = readFileSync(legacyPath);
   await assert.rejects(async () => {
     const view = await ordinary.openOrdinaryMemoryView(legacyPath, 'project', 'context-v1');
     await view?.close();

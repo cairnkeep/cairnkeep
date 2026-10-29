@@ -53,14 +53,24 @@ excluded before grouping, counts and caching.
 
 Default budget is 4,096 UTF-8 bytes; `max_bytes` accepts 1,024–8,192. The maximum
 is 50 entries across the whole result, not per partition. Budgeting includes the
-complete MCP text-plus-structured-content framing, escaping and truncation flags.
+serialized MCP CallToolResult, including text content, structuredContent,
+escaping and truncation flags. JSON-RPC IDs and HTTP/SSE envelopes are outside
+this tool-result budget.
 An oversized entry is omitted intact; even zero entries may be `truncated:true`.
 `navigation_truncated` marks prefix samples. Counts are observed partial counts
 when the scan is truncated, not authoritative totals. Use exact reads next.
 
-The whole request considers at most 5,000 ordinary/entity rows, with an 8 MiB
-source/assertion byte ceiling and 32 KiB per stored ordinary JSON value. Reads
-use bounded batches. Oversized sources and exhausted budgets signal truncation.
+The whole request materializes at most 5,000 source/assertion rows and 8 MiB of
+source/assertion UTF-8 payloads, including keys/IDs and both agreement reads
+across all scopes. Reserve half the remaining allowance for each read: at most
+2,500 rows and 4 MiB can contribute from one snapshot, less when freshness/entity
+records or earlier stores consume capacity. These are materialized-data limits,
+not SQLite execution-step or total process-memory limits. Per-value ordinary
+JSON is capped at 32 KiB. SQLite suppresses payloads before worker replies if
+they cannot fit the remaining allowance; no counter is clipped after overread.
+Legacy reads use one bounded key per query without requiring window functions;
+their child exchange also has a stricter 48 KiB encoded-key window. Oversized
+sources and exhausted budgets signal truncation.
 Two fresh snapshots must agree before a partition is returned; concurrent change
 produces an empty truncated partition. This does not promise cross-store or
 post-response linearizability. Changes, source ABA, stale assertions and managed

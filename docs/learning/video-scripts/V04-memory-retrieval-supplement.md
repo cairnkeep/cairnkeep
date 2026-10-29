@@ -58,7 +58,8 @@ node mcp-memory-server/scripts/run-memory-continuity-study.mjs --features freshn
 
 Zoom into `partitions`, prefix/entity navigation, a freshness warning, an
 ambiguity label and `truncated`. Explain the 4 KiB default/8 KiB hard UTF-8 budget
-including MCP framing. Follow one actual navigation with an exact read. Show a
+including serialized CallToolResult text/structured content, not transport
+envelopes. Follow one actual navigation with an exact read. Show a
 legacy null/untracked reference, then a source change invalidating an entity;
 do not demonstrate production conversion or claim facts were verified by reading.
 

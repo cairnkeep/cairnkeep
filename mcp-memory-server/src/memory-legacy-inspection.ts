@@ -30,7 +30,7 @@ const requestSchema = z.object({
 }).strict();
 const replySchema = z.union([
     z.object({ ok: z.literal(true), row: z.object({ value: z.string().nullable() }).strict().nullable() }).strict(),
-    z.object({ ok: z.literal(true), keys: z.array(z.string().min(1).max(4096)).max(5000), scanned: z.number().int().min(0).max(5000), truncated: z.boolean() }).strict(),
+    z.object({ ok: z.literal(true), keys: z.array(z.string().min(1).max(4096)).max(5000), scanned: z.number().int().min(0).max(5000), bytes: z.number().int().min(0).max(48000), truncated: z.boolean() }).strict(),
     z.object({ ok: z.literal(false), code: z.string().regex(/^MEMORY_[A-Z_]{1,64}$/) }).strict(),
 ]);
 function inspect(path: string) {
@@ -94,7 +94,8 @@ export async function readLegacyMemoryInspection(input: string, key: string) {
 export async function readLegacyMemoryMapKeys(input: string, limits: { rows: number; bytes: number }) {
     const reply = await observeLegacyMemory(input, undefined, limits);
     if (!('keys' in reply)) throw memoryError('MEMORY_LEGACY_INSPECTION_FAILED');
-    return { keys: reply.keys, scanned: reply.scanned, truncated: reply.truncated };
+    if (reply.scanned > limits.rows || reply.bytes > limits.bytes) throw memoryError('MEMORY_MAP_SCAN_LIMIT');
+    return { keys: reply.keys, scanned: reply.scanned, bytes: reply.bytes, truncated: reply.truncated };
 }
 
 async function runObserver() {
@@ -116,24 +117,27 @@ async function runObserver() {
         if (!db.readonly) throw memoryError('MEMORY_READ_ONLY');
         const result = await db.transaction(async () => {
             if (request.key === undefined) {
-                const keys: string[] = []; let truncated = false, bytes = 0, scanned = 0;
-                if (!await db!.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='kv_store'").get()) return { ok: true as const, keys, scanned, truncated };
-                scan: for (;;) {
-                    const rows = await db!.prepare(`SELECT CASE WHEN length(CAST(key AS BLOB))<=4096 THEN key END AS safe_key FROM kv_store
+                const keys: string[] = []; let truncated = false, bytes = 0, encodedBytes = 0, scanned = 0;
+                if (!await db!.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='kv_store'").get()) return { ok: true as const, keys, scanned, bytes, truncated };
+                for (;;) {
+                    const remaining = (request.map_bytes ?? 48000) - bytes;
+                    if (scanned === (request.map_limit ?? 5000) || remaining <= 0) { truncated = true; break; }
+                    // The legacy driver needs no window-function support: one
+                    // key at a time, rejected in SQL before materialization.
+                    const row = await db!.prepare(`SELECT CASE WHEN length(CAST(key AS BLOB))<=4096 AND length(CAST(key AS BLOB))<=? THEN key END AS safe_key,
+                        length(CAST(key AS BLOB))>? AS limited FROM kv_store
                         WHERE key!='__history__' AND substr(key,1,12)!='__history__/'
-                        AND key!='__reviewed__' AND substr(key,1,13)!='__reviewed__/' ORDER BY key LIMIT 32 OFFSET ?`).all(scanned);
-                    if (!rows.length) break;
-                    for (const row of rows) {
-                        if (scanned === (request.map_limit ?? 5000)) { truncated = true; break scan; }
-                        scanned++;
-                        if (typeof row.safe_key !== 'string' || !row.safe_key.length) { truncated = true; continue; }
-                        const size = Buffer.byteLength(JSON.stringify(row.safe_key)) + 1;
-                        if (bytes + size > (request.map_bytes ?? 48000)) { truncated = true; break scan; }
-                        keys.push(row.safe_key); bytes += size;
-                    }
-                    if (rows.length < 32) break;
+                        AND key!='__reviewed__' AND substr(key,1,13)!='__reviewed__/' ORDER BY key LIMIT 1 OFFSET ?`).get(remaining, remaining, scanned);
+                    if (!row) break;
+                    scanned++;
+                    if (row.limited === 1) { truncated = true; break; }
+                    if (typeof row.safe_key !== 'string' || !row.safe_key.length) { truncated = true; continue; }
+                    bytes += Buffer.byteLength(row.safe_key);
+                    const size = Buffer.byteLength(JSON.stringify(row.safe_key)) + 1;
+                    if (encodedBytes + size > 48000) { truncated = true; break; }
+                    keys.push(row.safe_key); encodedBytes += size;
                 }
-                return { ok: true as const, keys, scanned, truncated };
+                return { ok: true as const, keys, scanned, bytes, truncated };
             }
             if (!await db!.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='kv_store'").get()) return null;
             return await db!.prepare('SELECT CASE WHEN length(CAST(value AS BLOB))<=32768 THEN value END AS value FROM kv_store WHERE key=?').get(request.key) ?? null;

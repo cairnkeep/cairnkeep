@@ -167,13 +167,14 @@ async function compareMap(item) {
   const coldMs = performance.now() - started, warmed = performance.now();
   const warm = await buildMemoryMap([store(item)], { max_bytes: 8192 });
   const warmMs = performance.now() - warmed, mdStarted = performance.now(), markdown = markdownMap(item);
+  const markdownMs = performance.now() - mdStarted;
   assert.deepEqual(cold, markdown, 'equal-information Markdown map must derive the same bounded navigation independently');
   assert.deepEqual(warm, cold);
   assert.ok(Buffer.byteLength(JSON.stringify(memoryMapResponse(cold))) <= 8192);
   mapResults.push({ project: item.project ?? 'shared', scope: item.scope, parity: true,
     returned_bytes: Buffer.byteLength(JSON.stringify(memoryMapResponse(cold))), truncated: cold.truncated,
     cold_ms: Math.round(coldMs * 100) / 100, warm_ms: Math.round(warmMs * 100) / 100,
-    markdown_ms: Math.round((performance.now() - mdStarted) * 100) / 100 });
+    markdown_ms: Math.round(markdownMs * 100) / 100 });
 }
 try {
   for (const row of [{ project: 'alpha', scope: 'project' }, { project: 'beta', scope: 'project' }, { scope: 'identity' }]) {
@@ -248,7 +249,7 @@ try {
   const frozen = JSON.parse(readFileSync(new URL('./fixtures/memory-continuity-baseline-v227.json', import.meta.url)));
   const baselineLinked = frozen.results.find(row => row.adapter === 'cairn-v227' && row.case_id === 'linked-route').recall_at_5;
   assert.equal(baselineLinked, 1 / 3); assert.equal(results.find(row => row.case_id === 'linked-route').keys.length, 3);
-  const source = ['memory-connections.ts', 'memory-context-store.ts', 'memory-context-schema.ts', 'index.ts', ...(mapsEnabled ? ['memory-map.ts'] : [])]
+  const source = ['memory-connections.ts', 'memory-context-store.ts', 'memory-context-schema.ts', 'index.ts', ...(mapsEnabled ? ['memory-map.ts', 'memory-map-budget.ts'] : [])]
     .map(name => readFileSync(new URL(`../src/${name}`, import.meta.url)));
   console.log(JSON.stringify({ schema_version: 1, study: mapsEnabled ? 'native-memory-freshness-links-maps' : 'native-memory-freshness-links', synthetic_only: true,
     fixture_digest: hash(bytes), source_digest: hash(Buffer.concat(source)), configuration_digest: hash({ aliasInput, links: fixture.links, depth: 2, maps: mapsEnabled }),

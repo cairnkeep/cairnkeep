@@ -13,6 +13,7 @@ import { memoryStoreIdentity, openOrdinaryMemoryView } from './ordinary-memory-s
 import { probeOrdinaryMemoryFormat, validateMemoryContextFormat } from './memory-store-format.js';
 import { atomicReplace, hardenPrivatePath, memoryPathAncestorsAreSafe, privatePathIsSafe } from './platform-security.js';
 import { readStableJson } from './stable-file.js';
+import { memoryMapPage, chargeMemoryMapPage, type MemoryMapBudget } from './memory-map-budget.js';
 
 type Target = { path: string; scope: string };
 type Navigation = { key: string; source: MemorySourceRef | null; status: string };
@@ -45,14 +46,15 @@ function prefixes(rows: Navigation[]): Entry[] {
 }
 
 async function snapshot(target: Target, now: Date, budget: { rows: number; bytes: number }): Promise<Snapshot> {
+    const remaining: MemoryMapBudget = { ...budget };
     const kind = probeOrdinaryMemoryFormat(target.path).kind;
     const partition: Partition = { scope: target.scope, tracked: kind === 'context-v1', entries: [] };
     if (kind === 'missing') return { partition, revision: digest(['missing', memoryStoreIdentity(target.path, target.scope)]), truncated: false, scanned: 0, bytes: 0 };
     if (kind === 'legacy') {
-        const { keys, scanned, truncated } = await readLegacyMemoryMapKeys(target.path, budget);
+        const { keys, scanned, bytes, truncated } = await readLegacyMemoryMapKeys(target.path, budget);
         partition.entries = prefixes(keys.map(key => ({ key, source: null, status: 'untracked' })));
         return { partition, revision: digest(['legacy', memoryStoreIdentity(target.path, target.scope), keys]), truncated, scanned,
-            bytes: keys.reduce((total, key) => total + Buffer.byteLength(JSON.stringify(key)) + 1, 0) };
+            bytes };
     }
     if (kind !== 'context-v1') return fail('MEMORY_FORMAT_UNSUPPORTED');
     const view = await openOrdinaryMemoryView(target.path, target.scope, 'context-v1');
@@ -63,19 +65,18 @@ async function snapshot(target: Target, now: Date, budget: { rows: number; bytes
         return await db.transaction(async () => {
             const marker = await validateMemoryContextFormat(db, memoryStoreIdentity(target.path, target.scope));
             const sources = new Map<string, MemorySourceRef>();
-            let scanned = 0, bytes = 0, truncated = false;
-            scan: for (;;) {
-                const rows = await db.prepare(`SELECT CASE WHEN length(CAST(key AS BLOB))<=4096 THEN key END AS key,
-                    CASE WHEN length(CAST(value AS BLOB))<=32768 THEN value END AS value,
-                    r.generation,r.present,r.context_revision FROM kv_store LEFT JOIN ${CONTEXT_REVISION_TABLE} r USING(key) WHERE ${liveSql}
-                    ORDER BY kv_store.key LIMIT 32 OFFSET ?`).all(scanned);
+            let offset = 0, truncated = false;
+            for (;;) {
+                if (!remaining.rows || !remaining.bytes) { truncated = true; break; }
+                const page = memoryMapPage('ordinary', `SELECT key,value,r.generation,r.present,r.context_revision
+                    FROM kv_store LEFT JOIN ${CONTEXT_REVISION_TABLE} r USING(key) WHERE ${liveSql}`, [], offset, remaining);
+                const rows = await db.prepare(page.sql).all(...page.args);
+                const limited = chargeMemoryMapPage('ordinary', rows, remaining);
                 if (!rows.length) break;
+                offset += rows.length;
                 for (const row of rows) {
-                    if (scanned === budget.rows) { truncated = true; break scan; }
-                    scanned++;
+                    if (row.__map_limited === 1) continue;
                     if (typeof row.key !== 'string' || !row.key.length || typeof row.value !== 'string') { truncated = true; continue; }
-                    bytes += Buffer.byteLength(row.key) + Buffer.byteLength(row.value);
-                    if (bytes > budget.bytes) { bytes = budget.bytes; truncated = true; break scan; }
                     if (row.present !== 1) return fail('MEMORY_CONTEXT_DAMAGED');
                     const source = memorySourceRefSchema.safeParse({ schema_version: 1, owner_domain: marker.owner_domain, scope: marker.scope,
                         store_uuid: marker.store_uuid, restore_epoch: marker.restore_epoch, key: row.key, generation: row.generation,
@@ -83,12 +84,13 @@ async function snapshot(target: Target, now: Date, budget: { rows: number; bytes
                     if (!source.success) return fail('MEMORY_CONTEXT_DAMAGED');
                     sources.set(row.key, source.data);
                 }
-                if (rows.length < 32) break;
+                if (limited) { truncated = true; break; }
+                if (rows.length < page.limit) break;
             }
-            const fresh = await readMemoryMapFreshness(db, [...sources.values()], now, Math.max(0, budget.bytes - bytes));
-            const { statuses } = fresh; bytes = Math.min(budget.bytes, bytes + fresh.bytes);
+            const fresh = await readMemoryMapFreshness(db, [...sources.values()], now, remaining);
+            const { statuses } = fresh;
             partition.entries = prefixes([...sources.values()].map(source => ({ key: source.key, source, status: statuses.get(source.key)! })));
-            const graph = await readMemoryMapEntities(db, sources, Math.max(0, budget.rows - scanned), Math.max(0, budget.bytes - bytes));
+            const graph = await readMemoryMapEntities(db, sources, remaining);
             const aliases = new Map<string, Set<string>>();
             for (const entity of graph.entities) for (const alias of new Set([entity.title, ...entity.aliases])) {
                 const ids = aliases.get(alias) ?? new Set<string>(); ids.add(entity.id); aliases.set(alias, ids);
@@ -97,7 +99,7 @@ async function snapshot(target: Target, now: Date, budget: { rows: number; bytes
                 ambiguous: [entity.title, ...entity.aliases].some(alias => aliases.get(alias)!.size > 1) ? true : truncated || graph.truncated ? null : false,
                 navigation: [{ key: entity.anchor.key, source: entity.anchor, status: statuses.get(entity.anchor.key)! }] });
             return { partition, revision: digest([marker, [...sources.values()], [...statuses], graph.entities]), truncated: truncated || fresh.truncated || graph.truncated,
-                scanned: scanned + graph.scanned, bytes: bytes + graph.bytes };
+                scanned: budget.rows - remaining.rows, bytes: budget.bytes - remaining.bytes };
         })();
     } finally { await view.close(); }
 }
@@ -175,12 +177,15 @@ export async function buildMemoryMap(targets: Target[], input: { max_bytes?: num
     const states: Snapshot[] = [], budget = { rows: MAX_ROWS, bytes: MAX_SCAN_BYTES };
     let exhausted = false;
     for (const target of targets) {
-        if (budget.rows === 0 || budget.bytes === 0) { exhausted = true; break; }
-        const first = await snapshot(target, now, budget), second = await snapshot(target, now, budget);
+        if (budget.rows < 2 || budget.bytes < 2) { exhausted = true; break; }
+        // Reserve an equal validation allowance before the first read. The
+        // hard request ceiling covers BOTH snapshots, not their maximum.
+        const allowance = { rows: Math.floor(budget.rows / 2), bytes: Math.floor(budget.bytes / 2) };
+        const first = await snapshot(target, now, allowance), second = await snapshot(target, now, allowance);
         // Independent snapshots are not linearizable; omit uncertain results.
         if (digest(first) !== digest(second)) states.push({ ...second, partition: { ...second.partition, entries: [] }, truncated: true });
         else states.push(probeOrdinaryMemoryFormat(target.path).kind === 'missing' ? second : await cacheSnapshot(target, second));
-        budget.rows -= Math.max(first.scanned, second.scanned); budget.bytes -= Math.max(first.bytes, second.bytes);
+        budget.rows -= first.scanned + second.scanned; budget.bytes -= first.bytes + second.bytes;
     }
     const result = bounded(states, parsed.data);
     if (exhausted) result.truncated = true;
