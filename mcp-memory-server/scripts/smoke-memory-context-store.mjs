@@ -75,7 +75,12 @@ try {
   const competing = await plan();
   const contenders = await Promise.allSettled([apply(competing), apply(competing)]);
   assert.equal(contenders.filter(item => item.status === 'fulfilled').length, 1);
-  assert.match(contenders.find(item => item.status === 'rejected').reason.message, /MEMORY_FRESHNESS_STALE_PLAN/);
+  // Native ACL admission can outlast a competing opener's bounded lease wait.
+  // Both refusals are safe; require exactly one mutation and prove that the old
+  // confirmation still fails after all admission contention has ended.
+  assert.match(contenders.find(item => item.status === 'rejected').reason.message, /^MEMORY_(?:FRESHNESS_STALE_PLAN|ADMISSION_BUSY)$/);
+  assert.equal((await inspect()).source.context_revision, competing.source.context_revision + 1);
+  await assert.rejects(apply(competing), /MEMORY_FRESHNESS_STALE_PLAN/);
   const stale = await plan();
   await mutate(async agent => { await agent.kv.set(options.key, 'B'); await agent.kv.set(options.key, 'A'); });
   current = await inspect();
