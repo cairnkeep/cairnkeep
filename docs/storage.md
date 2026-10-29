@@ -463,9 +463,9 @@ read-only `memory_inspect` MCP tool observes these assertions; no curation tool 
 available through MCP. Inspection never initializes legacy SDK schema, including
 empty files; its isolated SDK-resolved read-only child requires private
 file/sidecar and parent-path admission. Process isolation prevents the SDK's
-readonly cache from poisoning later ordinary writes. Child input/output, time
-and JavaScript heap are bounded; no writable fallback is attempted. Existing
-legacy commands remain unchanged.
+readonly cache from poisoning later ordinary writes. Child input/output and time
+are bounded, with a V8 old-space limit rather than a total process-memory cap;
+no writable fallback is attempted. Existing legacy commands remain unchanged.
 Planning and inspection do not create assertion tables. Only a confirmed
 curation apply writes them, atomically with that key's metadata revision.
 Source generations, content digests, store identity and restore epoch are checked
