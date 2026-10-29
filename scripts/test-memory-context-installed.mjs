@@ -12,6 +12,7 @@ assert.notEqual(installed, realpathSync.native(resolve(dirname(fileURLToPath(imp
 assert.equal(JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')).name, '@cairnkeep/cli');
 assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-sqlite-worker.js')));
 assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-legacy-inspection.js')));
+assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-connections.js')));
 const load = name => import(pathToFileURL(join(installed, `mcp-memory-server/dist/${name}.js`)).href);
 const { hardenPrivatePath } = await load('platform-security');
 const store = await load('ordinary-memory-store');
@@ -58,6 +59,17 @@ try {
   const previous = cli('status').marker;
   agent = await store.openOrdinaryMemoryStore(path, 'project');
   await agent.kv.set('facts/installed', 'fixture'); await agent.close(); agent = undefined;
+  const entityId = 'fc3ff904-2c14-4fe4-8f57-29c842650098', entityFile = join(base, 'entity.json');
+  writeFileSync(entityFile, JSON.stringify({ schema_version: 1, id: entityId, title: 'Installed fixture', aliases: ['installed'],
+    anchor_key: 'facts/installed', claims: [] }), { mode: 0o600 }); hardenPrivatePath(entityFile);
+  const entityPlan = cli('entity', 'set', '--input', entityFile);
+  cli('entity', 'set', '--input', entityFile, '--apply', '--confirm', entityPlan.digest);
+  const linkFile = join(base, 'link.json');
+  writeFileSync(linkFile, JSON.stringify({ schema_version: 1, id: 'bfebd0cb-8c3a-40ab-b7a0-f21569e7d9aa',
+    from: entityId, to: entityId, predicate: 'references', evidence_keys: ['facts/installed'] }), { mode: 0o600 }); hardenPrivatePath(linkFile);
+  const linkPlan = cli('link', 'set', '--input', linkFile);
+  cli('link', 'set', '--input', linkFile, '--apply', '--confirm', linkPlan.digest);
+  assert.equal(cli('related', '--entity', 'installed').edges.length, 1);
   cli('backup', '--output', snapshot);
   // Only disposable fixture names, after every CLI/store connection has closed.
   for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(path + suffix, { force: true });
@@ -65,7 +77,8 @@ try {
   const restored = cli('restore', '--input', snapshot, '--apply', '--confirm', recovery.digest);
   assert.equal(restored.marker.store_uuid, previous.store_uuid);
   assert.notEqual(restored.marker.restore_epoch, previous.restore_epoch);
+  assert.deepEqual(cli('related', '--entity', 'installed').nodes, [], 'installed recovery never revives pre-restore graph evidence');
   view = await store.openOrdinaryMemoryView(path, 'project');
   assert.equal(await view.kv.get('facts/installed'), 'fixture');
-  console.log('PASS: installed package resolves its own readonly legacy driver and SQLite worker, preserves schema and completes fresh recovery');
+  console.log('PASS: installed package resolves its own readonly driver, worker and graph module, confirms graph curation and invalidates evidence after fresh recovery');
 } finally { await view?.close(); await agent?.close(); rmSync(base, { recursive: true, force: true }); }

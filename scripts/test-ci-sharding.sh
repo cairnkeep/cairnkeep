@@ -12,7 +12,7 @@ import { parse } from "yaml";
 const root = process.argv[2];
 const { buildShardPlan, smokeChecks } = await import(
   pathToFileURL(join(root, "mcp-memory-server", "scripts", "run-smoke-suite.mjs")));
-const plan = buildShardPlan(3);
+const plan = buildShardPlan(4);
 const measured = JSON.parse(readFileSync(join(root, 'mcp-memory-server/scripts/fixtures/windows-smoke-timings.json'), 'utf8'));
 assert.equal(measured.schema_version,1);
 const memoryMeasured = JSON.parse(readFileSync(join(root, 'mcp-memory-server/scripts/fixtures/windows-memory-smoke-timings.json'), 'utf8'));
@@ -36,8 +36,8 @@ assert.ok(Math.max(...weights) - Math.min(...weights) <= 5,
 const pkg = JSON.parse(readFileSync(join(root, "mcp-memory-server", "package.json"), "utf8"));
 assert.match(pkg.scripts["test:smoke"], /run-smoke-suite\.mjs/);
 const workflow = readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8");
-assert.match(workflow, /name: native-windows \(\$\{\{ matrix\.node \}\}\)/);
-for (const shard of ["1/3", "2/3", "3/3"]) assert.ok(workflow.includes(`shard: "${shard}"`));
+assert.match(workflow, /name: native-windows \(\$\{\{ matrix\.label \}\}\)/);
+for (const shard of ["1/4", "2/4", "3/4", "4/4"]) assert.ok(workflow.includes(`shard: "${shard}"`));
 assert.match(workflow, /run-smoke-suite\.mjs --shard \$\{\{ matrix\.shard \}\}/);
 assert.doesNotMatch(workflow.match(/  native-windows:[\s\S]*?\n  repository:/)?.[0] ?? "",
   /npm --prefix mcp-memory-server test/);
@@ -47,6 +47,10 @@ assert.ok(focused > native.indexOf("npm --prefix mcp-memory-server run build"));
 assert.ok(focused < native.indexOf("- name: Native Windows CLI contracts"));
 assert.ok(focused < native.indexOf("- name: Sharded memory-server contracts"));
 const jobs = parse(workflow).jobs;
+assert.deepEqual(jobs['native-windows'].strategy.matrix.include, [
+  { node: '22', label: '22', shard: '1/4' }, { node: '24', label: '24', shard: '2/4' },
+  { node: '26', label: '26', shard: '3/4' }, { node: '24', label: '24-extended', shard: '4/4' },
+], 'preserve required native check names and runtime coverage while adding capacity');
 assert.equal(jobs['native-windows'].strategy['fail-fast'], false, 'one native failure must not cancel independent evidence');
 const tracked = jobs['tracked-platform'];
 assert.deepEqual(tracked.strategy.matrix.os, ['windows-latest', 'macos-latest']);

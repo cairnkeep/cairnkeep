@@ -31,6 +31,9 @@ linked guides rather than the project landing page.
 
 ## Context intelligence
 
+- [Evidence-backed memory connections (unreleased)](memory-connections.md)
+  covers explicit entities, aliases, scoped traversal and possible conflicts in
+  fresh tracked stores; existing stores are not converted.
 - [Memory retrieval and the Markdown baseline](memory-retrieval.md) explains
   optional hybrid admission, aliases, relevance diagnostics and reproducible
   continuity evidence against searchable Markdown.

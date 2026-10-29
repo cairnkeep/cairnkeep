@@ -496,6 +496,18 @@ source text or reference values. Source-only CLI/MCP verification is distinct
 from a release or production admission; use disposable stores. See
 [freshness operations](operating.md#revision-bound-freshness-unreleased-source-checkout-only).
 
+### Development-only connection metadata
+
+Unreleased explicit entities and links use two additional tables in the same
+tracked database, not a graph backend or sidecar. Graph rows retain independent
+monotonic revisions and removal tombstones. Their full source references and
+endpoint digests prevent stale association revival without changing ordinary
+text or the source's freshness assertion. Backup includes these tables; managed
+restore renews the epoch, leaving prior references inactive. No existing-store
+conversion or automatic metadata repair is added. See
+[evidence-backed connections](memory-connections.md) for exact bounds, atomic
+curation and read-only observations.
+
 ### Released legacy memory commands
 
 For a local server, these commands report and move named/global scopes only:

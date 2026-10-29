@@ -178,7 +178,10 @@ export async function inspectMemoryCandidate(target: Target) {
             if (!row) return null;
             if (row.value === null) return { oversized: true as const };
             const freshness = await readTrackedFreshness(contextDatabase(view.getDatabase()), target, now);
-            return { scope: target.scope, key: target.key, value: decode(row.value), ...freshness };
+            const { readMemoryClaimConflicts } = await import('./memory-connections.js');
+            const conflicts = await readMemoryClaimConflicts(contextDatabase(view.getDatabase()), target, target.key);
+            return { scope: target.scope, key: target.key, value: decode(row.value), ...freshness,
+                ...(conflicts.length ? { claim_conflicts: conflicts } : {}) };
         });
     } finally { await view.close(); }
 }
@@ -208,7 +211,8 @@ export async function inspectMemoryCandidates(key: string, targets: Array<{ path
         if (Buffer.byteLength(JSON.stringify(memoryInspectionResponse(proposed))) > 32768) { payload.truncated = true; continue; }
         payload.candidates.push(candidate);
     }
-    payload.possible_conflicts = new Set(payload.candidates.map(candidate => candidate.value)).size > 1;
+    payload.possible_conflicts = new Set(payload.candidates.map(candidate => candidate.value)).size > 1
+        || payload.candidates.some(candidate => 'claim_conflicts' in candidate && Boolean(candidate.claim_conflicts?.length));
     return payload;
 }
 

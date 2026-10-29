@@ -1,0 +1,197 @@
+// Synthetic native/Markdown continuity parity, not autonomous model quality.
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { createContinuityLab } from './memory-continuity-lab.mjs';
+import * as ordinary from '../dist/ordinary-memory-store.js';
+import * as graph from '../dist/memory-connections.js';
+import { planFreshnessChange, applyFreshnessChange } from '../dist/memory-context-store.js';
+import { resolveMcpToolProfile } from '../dist/mcp-tool-profile.js';
+
+const args = process.argv.slice(2), bytes = readFileSync(new URL('./fixtures/memory-continuity-v2.json', import.meta.url));
+assert.ok(args[0] === '--features' && args[1] === 'freshness,links' && args.slice(2).every(arg => ['--check', '--summary'].includes(arg)),
+  'Usage: --features freshness,links [--check] [--summary]');
+const fixture = JSON.parse(bytes), lab = createContinuityLab();
+const hash = value => createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
+const records = new Map(fixture.records.map(row => [row.id, row]));
+const active = new Map(), generations = new Map(), metadataRevisions = new Map(), entities = [], links = [], results = [];
+let unsupportedEdges = 0, unauthorizedReturns = 0;
+const storeKey = row => `${row.scope === 'identity' ? 'shared' : row.project}:${row.scope}:${row.key}`;
+const store = row => ({ scope: row.scope, path: row.scope === 'identity' ? join(lab.env.CAIRN_AGENTFS_BASE_DIR, 'identity.db')
+  : join(lab.projects[row.project], '.agentfs', 'project.db') });
+const folder = join(lab.root, 'markdown'); mkdirSync(folder, { mode: 0o700 });
+const sessions = new Map();
+async function client(project, harness = 'a') {
+  const key = `${project}:${harness}`;
+  if (!sessions.has(key)) sessions.set(key, await lab.connect(project, { CAIRN_MEMORY_CONTEXT: '1' }, `continuity-harness-${harness}`));
+  return sessions.get(key);
+}
+async function mutate(operation, row) {
+  const input = { scope: row.scope, key: row.key }, session = await client(row.project), key = storeKey(row);
+  if (operation === 'delete') { await session.call('memory_delete', input); active.delete(key); }
+  else {
+    await session.call(operation === 'supersede' ? 'memory_supersede' : 'memory_write', { ...input, value: row.value,
+      ...(operation === 'supersede' ? { reason: 'synthetic continuity mutation' } : {}) });
+    active.set(key, row);
+  }
+  generations.set(key, (generations.get(key) ?? 0) + 1);
+  writeFileSync(join(folder, `${hash(key)}.md`), JSON.stringify({ key, generation: generations.get(key), present: active.has(key),
+    context_revision: metadataRevisions.get(key) ?? 0, row: active.get(key) ?? null }), { mode: 0o600 });
+}
+const aliasInput = { device: ['sensor lumen'], tunnel: ['cobalt'], endpoint: ['ember-42'],
+  'alias-one': ['relay'], 'alias-two': ['relay'], renamed: ['glimmer', 'lumen-current'], 'gateway-current': ['relaybox'] };
+const persistCuration = () => writeFileSync(join(folder, 'curation.json'), JSON.stringify({ entities, links }), { mode: 0o600 });
+async function curateEntity(row, input, operation = 'set') {
+  const target = store(row), plan = await graph.planMemoryEntityChange({ ...target, input, operation });
+  await graph.applyMemoryEntityChange({ ...target, input, operation, confirm: plan.digest });
+  const previous = entities.find(entity => entity.id === input.id), revision = (previous?.revision ?? 0) + 1;
+  // The control has its own monotonic curation revisions and assertion digest.
+  // It receives the same source provenance, never the native result/digest.
+  const assertion = operation === 'remove' ? null : { ...input, anchor: plan.record.anchor, revision };
+  const record = { id: input.id, revision, scope: row.scope, project: row.project, assertion,
+    assertion_digest: assertion ? hash(assertion) : null };
+  if (previous) entities[entities.indexOf(previous)] = record; else entities.push(record);
+  return plan;
+}
+async function curateLink(row, input, operation = 'set') {
+  const target = store(row), plan = await graph.planMemoryLinkChange({ ...target, input, operation });
+  await graph.applyMemoryLinkChange({ ...target, input, operation, confirm: plan.digest });
+  const previous = links.find(link => link.id === input.id), revision = (previous?.revision ?? 0) + 1;
+  const record = operation === 'remove' ? { id: input.id, revision, present: false } : { ...input, revision, present: true,
+    from: { id: input.from, digest: entities.find(entity => entity.id === input.from).assertion_digest },
+    to: { id: input.to, digest: entities.find(entity => entity.id === input.to).assertion_digest }, evidence: plan.record.evidence };
+  if (previous) links[links.indexOf(previous)] = record; else links.push(record);
+}
+const edgeView = edge => ({ id: edge.id, revision: edge.revision, from: edge.from.id, to: edge.to.id,
+  predicate: edge.predicate, evidence: edge.evidence });
+function markdownRelated(item) {
+  // Independently enumerate actual files; never choose records from native results.
+  const rows = readdirSync(folder).filter(name => name.endsWith('.md')).map(name => JSON.parse(readFileSync(join(folder, name), 'utf8')));
+  const visible = new Map(rows.filter(({ row, present }) => present && row.scope === item.scope
+    && (row.scope === 'identity' || row.project === item.project)).map(row => [row.row.key, row]));
+  const current = reference => {
+    const row = visible.get(reference.key);
+    return row && row.generation === reference.generation && row.context_revision === reference.context_revision
+      && hash(JSON.stringify(row.row.value)) === reference.content_digest;
+  };
+  const curation = JSON.parse(readFileSync(join(folder, 'curation.json'), 'utf8'));
+  const nodes = curation.entities.filter(row => row.assertion && row.scope === item.scope
+    && (row.scope === 'identity' || row.project === item.project) && current(row.assertion.anchor))
+    .map(row => ({ ...row.assertion, assertion_digest: row.assertion_digest }));
+  const seeds = nodes.filter(row => row.id === item.entity || row.aliases.includes(item.entity) || row.title === item.entity);
+  if (seeds.length !== 1) return { ambiguous: seeds.length > 1, keys: [], matches: seeds.map(row => row.anchor.key).sort(), edges: [] };
+  const found = new Set([seeds[0].id]), traversed = new Map(); let frontier = [seeds[0].id];
+  for (let level = 0; level < (item.depth ?? 1); level++) {
+    const next = [];
+    for (const id of frontier) for (const link of curation.links) {
+      if (!link.present || link.from.id !== id || !link.evidence.every(current)
+        || !nodes.some(row => row.id === link.from.id && row.assertion_digest === link.from.digest)
+        || !nodes.some(row => row.id === link.to.id && row.assertion_digest === link.to.digest)) continue;
+      traversed.set(link.id, edgeView(link));
+      if (!found.has(link.to.id)) { found.add(link.to.id); next.push(link.to.id); }
+    }
+    frontier = next;
+  }
+  return { ambiguous: false, keys: nodes.filter(row => found.has(row.id)).map(row => row.anchor.key).sort(),
+    matches: [seeds[0].anchor.key], edges: [...traversed.values()].sort((a, b) => a.id.localeCompare(b.id)) };
+}
+async function compare(item) {
+  const session = await client(item.project, item.harness ?? 'a'), started = performance.now();
+  const native = await session.call('memory_related', { scope: item.scope, entity: item.entity, depth: item.depth ?? 1 });
+  const nativeMs = performance.now() - started, markdownStarted = performance.now();
+  const markdown = markdownRelated(item), markdownMs = performance.now() - markdownStarted;
+  const observed = { ambiguous: native.ambiguous, keys: native.nodes.map(row => row.anchor.key).sort(),
+    matches: native.matches.map(row => row.anchor.key).sort(), edges: native.edges.map(edgeView).sort((a, b) => a.id.localeCompare(b.id)) };
+  unsupportedEdges += observed.edges.filter(edge => !markdown.edges.some(expected => hash(expected) === hash(edge))).length;
+  unauthorizedReturns += observed.keys.filter(key => !item.keys.includes(key)).length;
+  assert.deepEqual(observed, markdown, `${item.id}: equal-information graph policies must agree`);
+  assert.deepEqual(observed.keys, [...item.keys].sort()); assert.equal(observed.ambiguous, Boolean(item.ambiguous));
+  assert.ok(Buffer.byteLength(JSON.stringify(graph.memoryConnectionsResponse(native))) <= 32768);
+  results.push({ case_id: item.id, ...observed, native_ms: Math.round(nativeMs * 100) / 100,
+    markdown_ms: Math.round(markdownMs * 100) / 100, returned_bytes: Buffer.byteLength(JSON.stringify(graph.memoryConnectionsResponse(native))) });
+}
+try {
+  for (const row of [{ project: 'alpha', scope: 'project' }, { project: 'beta', scope: 'project' }, { scope: 'identity' }]) {
+    const target = store(row), plan = await ordinary.planContextStoreInit(target);
+    await ordinary.applyContextStoreInit({ ...target, confirm: plan.digest });
+  }
+  for (const event of fixture.events) { const [operation, id] = Object.entries(event)[0]; await mutate(operation, records.get(id)); }
+  const byRecord = new Map(); let nextId = 1;
+  for (const row of active.values()) {
+    if (row.project !== 'alpha') continue;
+    const id = `00000000-0000-4000-8000-${String(nextId++).padStart(12, '0')}`;
+    const input = { schema_version: 1, id, title: row.id, aliases: aliasInput[row.id] ?? [], anchor_key: row.key, claims: [] };
+    const plan = await curateEntity(row, input);
+    assert.equal(plan.record.anchor.generation, generations.get(storeKey(row)), 'Markdown must receive actual equivalent source generations');
+    byRecord.set(row.id, { id, row, input });
+  }
+  const edgeInputs = [];
+  for (const edge of fixture.links) {
+    const from = byRecord.get(edge.from), to = byRecord.get(edge.to), id = `00000000-0000-4000-8000-${String(nextId++).padStart(12, '0')}`;
+    const input = { schema_version: 1, id, from: from.id, to: to.id, predicate: edge.predicate,
+      evidence_keys: edge.evidence.map(id => byRecord.get(id).row.key) };
+    await curateLink(from.row, input); edgeInputs.push({ row: from.row, input });
+  }
+  persistCuration();
+  await compare({ id: 'linked-route', project: 'alpha', scope: 'project', entity: 'sensor lumen', depth: 2,
+    keys: ['devices/sensor-lumen', 'tunnels/cobalt', 'gateways/ember-42'] });
+  await compare({ id: 'ambiguous-alias', project: 'alpha', scope: 'project', entity: 'relay', keys: [], ambiguous: true });
+  await compare({ id: 'explicit-rename', project: 'alpha', scope: 'project', entity: 'glimmer', keys: ['devices/lumen-name'] });
+  await compare({ id: 'foreign-project-negative', project: 'beta', scope: 'project', entity: 'sensor lumen', keys: [] });
+  await compare({ id: 'nearby-identifier-negative', project: 'alpha', scope: 'project', entity: 'ember-43', keys: [] });
+  await compare({ id: 'cross-harness-cwd', project: 'neutral', harness: 'b', scope: 'identity', entity: 'relaybox', keys: ['decisions/office-tunnel'] });
+  const tunnel = byRecord.get('tunnel');
+  await curateEntity(tunnel.row, { ...tunnel.input, title: 'Explicitly revised tunnel' }); persistCuration();
+  await compare({ id: 'endpoint-recuration-negative', project: 'alpha', scope: 'project', entity: 'sensor lumen', depth: 2,
+    keys: ['devices/sensor-lumen'] });
+  for (const edge of edgeInputs) await curateLink(edge.row, edge.input);
+  await curateEntity(tunnel.row, { schema_version: 1, id: tunnel.id }, 'remove'); persistCuration();
+  await compare({ id: 'endpoint-removal-negative', project: 'alpha', scope: 'project', entity: 'sensor lumen', depth: 2,
+    keys: ['devices/sensor-lumen'] });
+  await curateEntity(tunnel.row, tunnel.input); persistCuration();
+  await compare({ id: 'endpoint-recreate-negative', project: 'alpha', scope: 'project', entity: 'sensor lumen', depth: 2,
+    keys: ['devices/sensor-lumen'] });
+  for (const edge of edgeInputs) await curateLink(edge.row, edge.input);
+  const first = edgeInputs[0];
+  await curateLink(first.row, { schema_version: 1, id: first.input.id }, 'remove'); persistCuration();
+  await compare({ id: 'link-removal-negative', project: 'alpha', scope: 'project', entity: 'sensor lumen', depth: 2,
+    keys: ['devices/sensor-lumen'] });
+  await curateLink(first.row, first.input); persistCuration();
+  await compare({ id: 'explicit-link-recreate', project: 'alpha', scope: 'project', entity: 'sensor lumen', depth: 2,
+    keys: ['devices/sensor-lumen', 'tunnels/cobalt', 'gateways/ember-42'] });
+  const old = records.get('route-old'), target = { ...store(old), key: old.key, input: { schema_version: 1,
+    source_refs: ['opaque:synthetic'], verified_at: '1999-01-01T00:00:00Z', review_after: '2000-01-01T00:00:00Z' } };
+  const freshness = await planFreshnessChange(target), assertion = await applyFreshnessChange({ ...target, confirm: freshness.digest });
+  metadataRevisions.set(storeKey(old), 1);
+  writeFileSync(join(folder, `${hash(storeKey(old))}.md`), JSON.stringify({ key: storeKey(old), generation: generations.get(storeKey(old)),
+    present: true, context_revision: 1, row: old }), { mode: 0o600 });
+  writeFileSync(join(folder, 'curation.json'), JSON.stringify({ entities, links,
+    freshness: [{ source: assertion.source, metadata: target.input }] }), { mode: 0o600 });
+  const status = await (await client('alpha')).call('memory_inspect', { scope: 'project', key: old.key });
+  assert.equal(status.candidates[0].status, 'needs_review'); assert.equal(status.candidates[0].value, old.value, 'review warnings must not silently rewrite text');
+  const mdFreshness = JSON.parse(readFileSync(join(folder, 'curation.json'), 'utf8')).freshness[0];
+  const mdSource = JSON.parse(readFileSync(join(folder, `${hash(storeKey(old))}.md`), 'utf8'));
+  assert.equal(mdSource.generation, mdFreshness.source.generation); assert.equal(mdSource.context_revision, mdFreshness.source.context_revision);
+  const mdStatus = mdFreshness.metadata.verified_at && Date.parse(mdFreshness.metadata.review_after) < Date.now() ? 'needs_review' : 'unknown';
+  assert.equal(mdStatus, status.candidates[0].status, 'Markdown receives the same asserted dates and current source metadata');
+  const renamed = records.get('renamed');
+  await mutate('write', { ...renamed, value: 'temporary replacement' }); await mutate('write', renamed);
+  await compare({ id: 'source-aba-negative', project: 'alpha', scope: 'project', entity: 'glimmer', keys: [] });
+  lab.assertOffline();
+  const frozen = JSON.parse(readFileSync(new URL('./fixtures/memory-continuity-baseline-v227.json', import.meta.url)));
+  const baselineLinked = frozen.results.find(row => row.adapter === 'cairn-v227' && row.case_id === 'linked-route').recall_at_5;
+  assert.equal(baselineLinked, 1 / 3); assert.equal(results.find(row => row.case_id === 'linked-route').keys.length, 3);
+  const source = ['memory-connections.ts', 'memory-context-store.ts', 'memory-context-schema.ts', 'index.ts']
+    .map(name => readFileSync(new URL(`../src/${name}`, import.meta.url)));
+  console.log(JSON.stringify({ schema_version: 1, study: 'native-memory-freshness-links', synthetic_only: true,
+    fixture_digest: hash(bytes), source_digest: hash(Buffer.concat(source)), configuration_digest: hash({ aliasInput, links: fixture.links, depth: 2 }),
+    profile_digest: resolveMcpToolProfile({ projectRoot: lab.projects.alpha, env: lab.env }).profile_digest,
+    adapters: ['cairn-freshness-links', 'markdown-curated-links'], cases: results.length, parity: true,
+    linked_recall: { frozen_baseline: baselineLinked, curated_native: 1, curated_markdown: 1 },
+    ambiguous_alias_signaled: true, overdue_review_signaled: true, unauthorized_returns: unauthorizedReturns, unsupported_edges: unsupportedEdges, network_attempts: 0,
+    limitations: ['Synthetic curated retrieval, not autonomous task quality or a human pilot.',
+      'Both formats receive identical explicit aliases, evidence and link metadata; neither infers entities.',
+      'Freshness dates warn without choosing truth or changing source text; no production conversion.',
+      'Feedback, maps, learned ranking and complete milestone held-out ablations remain separate.'], results }, null, 2));
+} finally { await lab.close(); }

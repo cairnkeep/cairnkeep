@@ -150,6 +150,18 @@ out of the demo. Fresh tracked stores use the separate SQLite backend.
 Do not demonstrate production migration or describe a native/human rehearsal
 that has not occurred. Existing published videos are not updated by this brief.
 
+Unreleased connection supplement, not a claim that this episode was rerecorded:
+show two explicit entity JSON inputs and one evidence-backed link. Pause on
+`cairn memory-context entity set --scope project --input sensor.json --json`
+and the exact-digest apply before moving to `link set`. Use a split terminal for
+`memory_related {"scope":"project","entity":"lumen","depth":2}` and its source
+provenance. Demonstrate an ambiguous alias, a source change invalidating the
+link, and explicit conflicting claims without selecting truth. Show the unchanged
+baseline and `--features freshness,links` replay separately; both feature
+resolvers receive the same curation. Do not imply automatic graph extraction,
+model/human quality gains, cross-project traversal or production admission.
+Keep all fixtures disposable and explain truncation before showing a partial graph.
+
 - Use a synthetic pack, trajectory, digests, endpoint, and API key placeholder.
 - Ensure the skill shown in the manifest is unapproved and absent from tree,
   search, trace, and summaries.

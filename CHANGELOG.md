@@ -51,6 +51,21 @@ All notable user-facing changes are documented here. This project follows
 - Keep legacy stores and existing MCP schemas unchanged. No automatic conversion,
   source fetching, verification from usage, production activation or release.
 
+### Evidence-backed connections (unreleased)
+
+- Add explicit local entity/link plan and exact-digest apply/remove with
+  monotonic graph revisions, tombstones and full source/endpoint binding.
+- Add separately gated, read-only `memory_related` with exact aliases,
+  ambiguity refusal, one-store bounded traversal and snapshot agreement.
+  Surface explicit same-entity claim conflicts without selecting truth.
+- Keep graph edits separate from ordinary text and source verification. Add
+  bounded schema/record diagnosis, rollback/race/ABA and HTTP isolation tests,
+  an independent Markdown feature replay, operator/storage/privacy guides and
+  unreleased learning/video briefs. No migration, provider or production activation.
+- Refresh Windows timing evidence and distribute all smoke groups over four
+  native lanes while retaining existing required check names; new group costs
+  remain provisional until measured by hosted CI.
+
 ## [2.27.0] - 2026-10-26
 
 ### Team operations
