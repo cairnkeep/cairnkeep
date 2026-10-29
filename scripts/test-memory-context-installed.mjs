@@ -34,7 +34,7 @@ const cli = (...args) => {
 let agent, view;
 try {
   const emptyLegacy = join(base, 'empty-legacy.db');
-  writeFileSync(emptyLegacy, '', { mode: 0o600 }); hardenPrivatePath(emptyLegacy);
+  writeFileSync(emptyLegacy, '', { mode: 0o600, flag: 'wx' }); hardenPrivatePath(emptyLegacy);
   assert.equal(await context.inspectMemoryCandidate({ path: emptyLegacy, scope: 'project', key: 'facts/installed' }), null);
   assert.equal(readFileSync(emptyLegacy).length, 0, 'installed SDK-resolved readonly opener must not initialize schema');
   const legacyPath = join(base, 'legacy.db');

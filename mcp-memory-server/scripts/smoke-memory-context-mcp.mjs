@@ -89,7 +89,7 @@ try {
   assert.equal(existsSync(path), false);
   mkdirSync(join(lab.projects.alpha, '.agentfs'), { recursive: true, mode: 0o700 });
   hardenPrivatePath(join(lab.projects.alpha, '.agentfs'));
-  writeFileSync(path, '', { mode: 0o600 }); hardenPrivatePath(path);
+  writeFileSync(path, '', { mode: 0o600, flag: 'wx' }); hardenPrivatePath(path);
   assert.deepEqual((await call(enabled.client, { scope: 'project', key })).candidates, []);
   assert.equal(readFileSync(path).length, 0, 'MCP observation must not initialize empty legacy schema');
   // Remove only this disposable empty fixture; explicit tracked init requires absence.

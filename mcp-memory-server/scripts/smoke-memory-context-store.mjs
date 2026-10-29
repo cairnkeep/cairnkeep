@@ -33,7 +33,7 @@ const tables = async () => {
 };
 try {
   const empty = join(lab.root, 'empty-legacy.db');
-  writeFileSync(empty, '', { mode: 0o600 }); hardenPrivatePath(empty);
+  writeFileSync(empty, '', { mode: 0o600, flag: 'wx' }); hardenPrivatePath(empty);
   assert.equal(await feature.inspectMemoryCandidate({ ...options, path: empty }), null);
   assert.equal(readFileSync(empty).length, 0, 'inspection must not initialize an empty legacy file');
   const minimal = join(lab.root, 'minimal-legacy.db');
