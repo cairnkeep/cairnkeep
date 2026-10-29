@@ -772,7 +772,17 @@ and reports possible same-key value conflicts without choosing truth. At most
 Oversized/omitted candidates set `truncated`; conflict labels describe returned
 candidates only, without hidden counts. Tracked text and provenance come from
 one SQLite snapshot; this does not promise cross-store linearizability.
-Legacy memory is labeled untracked/unknown; its existing driver constraints stay.
+Keys whose escaped empty response frame alone exceeds the limit refuse with
+`MEMORY_INSPECTION_LIMIT`; key identities are never silently shortened.
+Legacy memory is labeled untracked/unknown. Inspection uses the SDK's existing
+driver in an isolated read-only, existing-file child process without initializing SDK tables; empty
+or missing-KV-schema files return no candidate. It requires private file,
+sidecar and parent-path admission and refuses unsafe files without changing
+permissions. Other legacy memory commands retain their existing behavior.
+Isolation prevents the SDK's process-wide readonly cache from affecting later
+ordinary writes. Each child has a 30-second deadline, bounded input/output and
+a 128 MiB JavaScript heap cap. Failure refuses without a writable fallback,
+conversion or automatic restart.
 
 Operator curation is local only. On an explicitly initialized disposable tracked
 store, prepare a JSON file containing `schema_version:1`, `source_refs:[]`, and

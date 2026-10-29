@@ -23,7 +23,7 @@ function cleanupMemoryStage(stage: string, published: boolean): void {
     try { rmSync(stage, { recursive: true, force: true }); }
     catch (error) { if (published) throw memoryError('MEMORY_PUBLICATION_UNCERTAIN'); throw error; }
 }
-function assertNoPendingImport(path: string): void {
+export function assertNoPendingImport(path: string): void {
     if (info(join(dirname(path), '.cairn-memory-import-pending'))) throw memoryError('MEMORY_IMPORT_RECOVERY_REQUIRED');
 }
 function protectAgentKeyPrefixes(agent: AgentFS): AgentFS {

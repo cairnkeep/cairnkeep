@@ -141,6 +141,9 @@ Pause on the no-write plan; apply the exact digest locally, then call
 is stale, not a correction or automatic verification. Show that read-only profiles
 can inspect but cannot curate, and that HTTP requires separate
 `CAIRN_MEMORY_CONTEXT_HTTP=1` consent. Source references are opaque, never fetched.
+In a separate disposable legacy fixture, inspect before an ordinary read/write:
+the bounded read-only child must neither initialize SDK schema nor poison later
+writes through the SDK's connection cache. Never relax file permissions on failure.
 Do not demonstrate production migration or describe a native/human rehearsal
 that has not occurred. Existing published videos are not updated by this brief.
 

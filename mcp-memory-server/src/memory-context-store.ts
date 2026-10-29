@@ -9,6 +9,7 @@ import { memoryError } from './memory-database-protocol.js';
 import { probeOrdinaryMemoryFormat, readMemorySourceRef, validateMemoryContextFormat } from './memory-store-format.js';
 import { canonicalMemoryPath, memoryStoreIdentity, openOrdinaryMemoryStore, openOrdinaryMemoryView } from './ordinary-memory-store.js';
 import { withOrdinaryMemorySnapshot } from './ordinary-memory-store.js';
+import { readLegacyMemoryInspection } from './memory-legacy-inspection.js';
 
 export { readMemorySourceRef } from './memory-store-format.js';
 type Target = { path: string; scope: string; key: string; now?: () => Date };
@@ -159,6 +160,16 @@ export async function inspectMemoryCandidate(target: Target) {
     const now = clock(target.now), kind = probeOrdinaryMemoryFormat(target.path).kind;
     if (kind === 'missing') return null;
     if (kind === 'unsupported') throw memoryError('MEMORY_FORMAT_UNSUPPORTED');
+    const decode = (raw: unknown) => {
+        let value: unknown;
+        try { value = JSON.parse(String(raw)); } catch { throw memoryError('MEMORY_CONTEXT_DAMAGED'); }
+        return typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value);
+    };
+    if (kind === 'legacy') {
+        const row = await readLegacyMemoryInspection(target.path, target.key);
+        return !row ? null : row.value === null ? { oversized: true as const }
+            : { scope: target.scope, key: target.key, value: decode(row.value), ...untracked() };
+    }
     const view = await openOrdinaryMemoryView(target.path, target.scope);
     if (!view) return null;
     try {
@@ -166,10 +177,8 @@ export async function inspectMemoryCandidate(target: Target) {
             const row = await view.getDatabase().prepare('SELECT CASE WHEN length(CAST(value AS BLOB))<=32768 THEN value END AS value FROM kv_store WHERE key=?').get(target.key) as { value: unknown } | undefined;
             if (!row) return null;
             if (row.value === null) return { oversized: true as const };
-            let value: unknown;
-            try { value = JSON.parse(String(row.value)); } catch { throw memoryError('MEMORY_CONTEXT_DAMAGED'); }
-            const freshness = kind === 'context-v1' ? await readTrackedFreshness(contextDatabase(view.getDatabase()), target, now) : untracked();
-            return { scope: target.scope, key: target.key, value: typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value), ...freshness };
+            const freshness = await readTrackedFreshness(contextDatabase(view.getDatabase()), target, now);
+            return { scope: target.scope, key: target.key, value: decode(row.value), ...freshness };
         });
     } finally { await view.close(); }
 }
@@ -185,6 +194,9 @@ export async function inspectMemoryCandidates(key: string, targets: Array<{ path
     assertMemoryContextKey(key);
     if (targets.length > 32) throw memoryError('MEMORY_SCOPE_LIMIT');
     const payload: MemoryInspection = { schema_version: 1, key, candidates: [], possible_conflicts: false, truncated: false };
+    // The echoed key appears twice, with additional escaping in text content.
+    // Bound even an empty frame before accessing any store, not just additions.
+    if (Buffer.byteLength(JSON.stringify(memoryInspectionResponse(payload))) > 32768) throw memoryError('MEMORY_INSPECTION_LIMIT');
     for (const target of targets) {
         if (payload.candidates.length === 16) { payload.truncated = true; break; }
         const candidate = await inspectMemoryCandidate({ ...target, key });

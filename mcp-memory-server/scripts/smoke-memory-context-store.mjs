@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import childProcess, { spawnSync } from 'node:child_process';
+import { createRequire, syncBuiltinESMExports } from 'node:module';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { readFileSync, copyFileSync, unlinkSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, copyFileSync, unlinkSync, existsSync } from 'node:fs';
 import { createContinuityLab } from './memory-continuity-lab.mjs';
 import { hardenPrivatePath } from '../dist/platform-security.js';
 import * as ordinary from '../dist/ordinary-memory-store.js';
@@ -29,6 +32,45 @@ const tables = async () => {
   finally { await view.close(); }
 };
 try {
+  const empty = join(lab.root, 'empty-legacy.db');
+  writeFileSync(empty, '', { mode: 0o600 }); hardenPrivatePath(empty);
+  assert.equal(await feature.inspectMemoryCandidate({ ...options, path: empty }), null);
+  assert.equal(readFileSync(empty).length, 0, 'inspection must not initialize an empty legacy file');
+  const minimal = join(lab.root, 'minimal-legacy.db');
+  const minimalDb = await MemoryDatabase.open(minimal, { create: true });
+  await minimalDb.exec('CREATE TABLE kv_store(key TEXT PRIMARY KEY,value TEXT)');
+  await minimalDb.prepare('INSERT INTO kv_store VALUES(?,?)').run(options.key, JSON.stringify('minimal legacy'));
+  await minimalDb.close();
+  const minimalBefore = readFileSync(minimal);
+  assert.equal((await feature.inspectMemoryCandidate({ ...options, path: minimal })).value, 'minimal legacy');
+  const minimalView = await MemoryDatabase.open(minimal, { readOnly: true });
+  try {
+    assert.deepEqual((await minimalView.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all()).map(row => row.name), ['kv_store'], 'inspection must not initialize SDK tables, including in WAL');
+  } finally { await minimalView.close(); }
+  assert.deepEqual(readFileSync(minimal), minimalBefore);
+  const observer = fileURLToPath(new URL('../dist/memory-legacy-inspection.js', import.meta.url));
+  for (const malformed of ['{', ' '.repeat(65537)]) {
+    const response = spawnSync(process.execPath, [observer], { input: malformed, encoding: 'utf8', timeout: 30000 });
+    assert.equal(response.status, 0, response.stderr);
+    assert.equal(JSON.parse(response.stdout).ok, false);
+    assert.ok(Buffer.byteLength(response.stdout) <= 65536);
+  }
+  const execFile = childProcess.execFile;
+  try {
+    for (const fault of ['process.exit(7)', 'process.stdout.write("null")', 'process.stdout.write("x".repeat(70000))', 'setInterval(()=>{},1000)']) {
+      childProcess.execFile = (program, args, settings, callback) => {
+        assert.equal(settings.timeout, 30000); assert.equal(settings.maxBuffer, 65536);
+        assert.equal(settings.killSignal, 'SIGKILL'); assert.ok(args.includes('--max-old-space-size=128'));
+        return execFile(program, ['-e', fault], { ...settings, timeout: fault.startsWith('setInterval') ? 100 : settings.timeout }, callback);
+      };
+      syncBuiltinESMExports();
+      await assert.rejects(feature.inspectMemoryCandidate({ ...options, path: empty }), /MEMORY_LEGACY_INSPECTION_FAILED/);
+      assert.equal(readFileSync(empty).length, 0, 'failed child must not initialize or change the legacy store');
+      assert.equal(existsSync(`${empty}.cairn-admission`), false, 'failed child must release its owned admission lease');
+    }
+  } finally { childProcess.execFile = execFile; syncBuiltinESMExports(); }
+  await assert.rejects(feature.inspectMemoryCandidates('\u0000'.repeat(4096), []), /MEMORY_INSPECTION_LIMIT/);
+  await assert.rejects(feature.inspectMemoryCandidates('\u0000'.repeat(4096), [{ path: '\u0000invalid-path', scope: 'project' }]), /MEMORY_INSPECTION_LIMIT/, 'oversized framing must refuse before even probing a store');
   const init = await ordinary.planContextStoreInit(options);
   await ordinary.applyContextStoreInit({ ...options, confirm: init.digest });
   await mutate(agent => agent.kv.set(options.key, 'A'));
@@ -139,6 +181,44 @@ try {
   assert.equal((await inspect({ ...options, path: legacy })).tracked, false);
   await assert.rejects(plan(input, { ...options, path: legacy }), /MEMORY_FRESH_STORE_REQUIRED/);
   assert.deepEqual(readFileSync(legacy), legacyBefore);
+  const driver = pathToFileURL(createRequire(import.meta.resolve('agentfs-sdk')).resolve('@tursodatabase/database')).href;
+  const livePath = join(lab.root, 'live-legacy.db');
+  const writeLegacy = value => spawnSync(process.execPath, ['--input-type=module', '-e', `
+    const {Database}=await import(process.argv[1]);
+    const db=new Database(process.argv[2],{fileMustExist:true,timeout:100});
+    try { await db.connect(); await db.exec('BEGIN IMMEDIATE');
+      await db.prepare('UPDATE kv_store SET value=? WHERE key=?').run(JSON.stringify(process.argv[3]),process.argv[4]);
+      await db.exec('COMMIT'); console.log('written');
+    } catch(error) { if (!/busy|locked/i.test(String(error))) throw error; console.error(String(error)); console.log('blocked'); }
+    finally { await db.close(); }
+  `, driver, livePath, value, options.key], { encoding: 'utf8', timeout: 30000 });
+  const readLegacy = () => feature.inspectMemoryCandidate({ ...options, path: livePath });
+  const privateMask = process.umask(0o077);
+  let live;
+  try {
+    // Seed in another process: this SDK can retain its process-level file lease
+    // while closed native objects remain reachable. Positive/negative controls
+    // must not depend on garbage-collection timing.
+    const seeded = spawnSync(process.execPath, ['--input-type=module', '-e', `
+      const {AgentFS}=await import(process.argv[1]); const agent=await AgentFS.open({path:process.argv[2]});
+      await agent.kv.set(process.argv[3],'seed'); await agent.close();
+    `, import.meta.resolve('agentfs-sdk'), livePath, options.key], { encoding: 'utf8', timeout: 30000 });
+    assert.equal(seeded.status, 0, seeded.stderr); hardenPrivatePath(livePath);
+    const write = writeLegacy('committed'); assert.equal(write.status, 0, write.stderr); assert.equal(write.stdout.trim(), 'written', write.stderr);
+    assert.equal((await readLegacy()).value, 'committed');
+    live = await ordinary.openOrdinaryMemoryStore(livePath, 'project');
+    assert.equal(await live.kv.get(options.key), 'committed');
+    await live.kv.set(options.key, 'committed'); // Readonly-first inspection must not poison later ordinary writes.
+    await live.getDatabase().exec('BEGIN IMMEDIATE');
+    try {
+      await live.kv.set(options.key, 'uncommitted');
+      assert.equal((await readLegacy()).value, 'committed', 'inspection must not see an active SDK writer\'s uncommitted WAL');
+      const blocked = writeLegacy('must-not-write'); assert.equal(blocked.status, 0, blocked.stderr); assert.equal(blocked.stdout.trim(), 'blocked', 'inspection close must not release an active writer\'s lock');
+    } finally { await live.getDatabase().exec('ROLLBACK'); }
+    assert.equal(await live.kv.get(options.key), 'committed');
+    await live.kv.set(options.key, 'after');
+    assert.equal((await readLegacy()).value, 'after');
+  } finally { await live?.close(); process.umask(privateMask); }
   await assert.rejects(inspect({ ...options, scope: 'identity' }), /MEMORY_OWNER_MISMATCH/);
   await mutate(agent => agent.getDatabase().exec('DROP TABLE cairn_memory_context_facts_v1'));
   await assert.rejects(inspect(), /MEMORY_CONTEXT_DAMAGED/);

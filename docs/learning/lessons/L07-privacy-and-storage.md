@@ -49,6 +49,9 @@ will go before starting a session.
   `inspect` and metadata-only `doctor` on a disposable store. Show gated read-only
   `memory_inspect`, its separate HTTP consent and stale-plan refusal. Do not
   imply released availability, independent native qualification or a recording.
+  Explain that oversized escaped keys refuse rather than changing identity, and
+  legacy inspection never initializes SDK tables. Its bounded read-only child
+  cannot change the main server's SDK connection cache or later write behavior.
 
 ## Hands-on lab
 

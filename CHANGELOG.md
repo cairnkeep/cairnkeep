@@ -40,6 +40,9 @@ All notable user-facing changes are documented here. This project follows
 - Add local `memory-context inspect|set-freshness`, metadata-only status/doctor,
   and separately gated read-only `memory_inspect` with profile/capability/HTTP
   consent intersections, snapshot-bound provenance and bounded conflict signals.
+- Bound escaped empty response frames and inspect legacy files through the
+  existing SDK driver in a bounded read-only child without initializing SDK
+  schema or contaminating the main server's connection cache.
 - Keep legacy stores and existing MCP schemas unchanged. No automatic conversion,
   source fetching, verification from usage, production activation or release.
 

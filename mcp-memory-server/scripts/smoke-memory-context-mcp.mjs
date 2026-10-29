@@ -3,7 +3,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer } from 'node:net';
 import { request } from 'node:http';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { AgentFS } from 'agentfs-sdk';
@@ -83,7 +83,21 @@ try {
   assert.deepEqual(tool.annotations, { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false });
   assert.deepEqual((await call(enabled.client, { scope: 'project', key })).candidates, []);
   assert.equal(existsSync(path), false, 'inspection may not initialize a missing store');
+  const escapedKey = await enabled.client.callTool({ name: 'memory_inspect', arguments: { scope: 'project', key: '\u0000'.repeat(4096) } });
+  assert.equal(escapedKey.isError, true, 'escaped empty response frame must be bounded before store access');
+  assert.ok(Buffer.byteLength(JSON.stringify(escapedKey)) <= 32768);
+  assert.equal(existsSync(path), false);
+  mkdirSync(join(lab.projects.alpha, '.agentfs'), { recursive: true, mode: 0o700 });
+  hardenPrivatePath(join(lab.projects.alpha, '.agentfs'));
+  writeFileSync(path, '', { mode: 0o600 }); hardenPrivatePath(path);
+  assert.deepEqual((await call(enabled.client, { scope: 'project', key })).candidates, []);
+  assert.equal(readFileSync(path).length, 0, 'MCP observation must not initialize empty legacy schema');
+  // Remove only this disposable empty fixture; explicit tracked init requires absence.
+  unlinkSync(path);
   await seed(path, 'project', 'project value');
+  const escapedExisting = await enabled.client.callTool({ name: 'memory_inspect', arguments: { scope: 'project', key: '\u0000'.repeat(4096) } });
+  assert.equal(escapedExisting.isError, true);
+  assert.ok(Buffer.byteLength(JSON.stringify(escapedExisting)) <= 32768);
   assert.equal((await call(enabled.client, { scope: 'project', key })).candidates[0].status, 'unknown');
   const input = join(lab.root, 'freshness.json');
   const metadata = { schema_version: 1, source_refs: ['opaque:fixture'], verified_at: '2000-01-01T00:00:00Z', review_after: '2999-01-01T00:00:00Z' };
@@ -130,6 +144,11 @@ try {
     assert.equal(JSON.stringify(bounded).includes('hidden-fixture'), false);
     assert.ok(bounded.candidates.every(candidate => !candidate.tracked && candidate.status === 'unknown'));
     assert.deepEqual(readFileSync(join(lab.env.CAIRN_AGENTFS_BASE_DIR, 'visible-0.db')), legacyBefore, 'legacy inspection must not change durable schema/data');
+    const writeAfterInspection = await enabled.client.callTool({ name: 'memory_write', arguments: { scope: configured[0], key, value: 'ordinary write after inspection' } });
+    assert.notEqual(writeAfterInspection.isError, true, 'legacy inspection must not poison subsequent ordinary MCP writes');
+    const readAfterWrite = await enabled.client.callTool({ name: 'memory_read', arguments: { scope: configured[0], key } });
+    assert.notEqual(readAfterWrite.isError, true);
+    assert.ok(JSON.stringify(readAfterWrite).includes('ordinary write after inspection'));
   } finally { writeFileSync(configFile, configBefore); }
   const huge = await ordinary.openOrdinaryMemoryStore(path, 'project');
   try { await huge.kv.set('facts/huge', '界'.repeat(20000)); await huge.kv.set('facts/boundary', 'x'); } finally { await huge.close(); }

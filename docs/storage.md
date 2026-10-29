@@ -460,7 +460,13 @@ import authorization: tracked members still require explicit managed recovery.
 The unreleased freshness API and local `set-freshness` CLI add explicit assertions
 to a fresh tracked store. They do not convert legacy stores. The separately gated
 read-only `memory_inspect` MCP tool observes these assertions; no curation tool is
-available through MCP. Planning and inspection do not create assertion tables. Only a confirmed
+available through MCP. Inspection never initializes legacy SDK schema, including
+empty files; its isolated SDK-resolved read-only child requires private
+file/sidecar and parent-path admission. Process isolation prevents the SDK's
+readonly cache from poisoning later ordinary writes. Child input/output, time
+and JavaScript heap are bounded; no writable fallback is attempted. Existing
+legacy commands remain unchanged.
+Planning and inspection do not create assertion tables. Only a confirmed
 curation apply writes them, atomically with that key's metadata revision.
 Source generations, content digests, store identity and restore epoch are checked
 separately; identical text after A→B→A or delete/recreate cannot revive an old
