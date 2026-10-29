@@ -292,6 +292,43 @@ export async function inspectMemoryClaimConflicts(target: Target & { key: string
     if (['missing', 'legacy'].includes(probeOrdinaryMemoryFormat(target.path).kind)) return [];
     return withStore(target, false, db => readMemoryClaimConflicts(db, target, target.key));
 }
+
+/** Bounded map projection, within the caller's admitted snapshot. Only anchors
+ * in its visible source set may contribute titles, aliases or counts. No links
+ * or claims are exposed, and a missing/stale anchor cannot become navigation. */
+export async function readMemoryMapEntities(db: MemoryDatabase, sources: Map<string, MemorySourceRef>, remaining: number, byteBudget: number) {
+    const objects = await db.prepare('SELECT name,type,sql FROM sqlite_master WHERE name IN (?,?) ORDER BY name').all(CONTEXT_ENTITY_TABLE, CONTEXT_LINK_TABLE);
+    const entities: Array<{ id: string; revision: number; title: string; aliases: string[]; anchor: MemorySourceRef }> = [];
+    if (!objects.length) return { entities, truncated: false, scanned: 0, bytes: 0 };
+    if (objects.length !== 2 || objects.some(row => row.type !== 'table'
+        || row.sql !== CONTEXT_CONNECTION_SQL[[CONTEXT_ENTITY_TABLE, CONTEXT_LINK_TABLE].indexOf(String(row.name))])) return fail('MEMORY_CONTEXT_DAMAGED');
+    if (remaining === 0 || byteBudget === 0) return { entities, scanned: 0, bytes: 0,
+        truncated: Boolean(await db.prepare(`SELECT 1 FROM ${CONTEXT_ENTITY_TABLE} LIMIT 1`).get()) };
+    let cursor = '', scanned = 0, bytes = 0, truncated = false;
+    scan: for (;;) {
+        const rows = await db.prepare(`SELECT id,present,revision,CASE WHEN length(CAST(assertion_json AS BLOB))<=65536 THEN assertion_json END AS assertion_json
+            FROM ${CONTEXT_ENTITY_TABLE} WHERE id>? ORDER BY id LIMIT 32`).all(cursor);
+        if (!rows.length) break;
+        for (const row of rows) {
+            cursor = String(row.id);
+            if (scanned === remaining) { truncated = true; break scan; }
+            scanned++;
+            if (!z.uuid().safeParse(row.id).success || !Number.isSafeInteger(row.revision) || Number(row.revision) < 1
+                || (row.present !== 0 && row.present !== 1)) return fail('MEMORY_CONTEXT_DAMAGED');
+            if (!row.present) { if (row.assertion_json !== null) return fail('MEMORY_CONTEXT_DAMAGED'); continue; }
+            if (typeof row.assertion_json !== 'string') return fail('MEMORY_CONTEXT_DAMAGED');
+            bytes += Buffer.byteLength(row.assertion_json);
+            if (bytes > byteBudget) { truncated = true; break scan; }
+            let entity: MemoryEntity;
+            try { entity = memoryEntitySchema.parse(JSON.parse(row.assertion_json)); } catch { return fail('MEMORY_CONTEXT_DAMAGED'); }
+            if (entity.id !== row.id || entity.revision !== row.revision) return fail('MEMORY_CONTEXT_DAMAGED');
+            if (!sources.has(entity.anchor.key) || digest(sources.get(entity.anchor.key)) !== digest(entity.anchor)) continue;
+            entities.push({ id: entity.id, revision: entity.revision, title: entity.title, aliases: entity.aliases, anchor: entity.anchor });
+        }
+        if (rows.length < 32) break;
+    }
+    return { entities, truncated, scanned, bytes: Math.min(bytes, byteBudget) };
+}
 export async function memoryConnectionsStoreStatus(target: { path: string; scope?: string }) {
     const kind = probeOrdinaryMemoryFormat(target.path).kind;
     if (kind === 'legacy' || kind === 'missing') return { initialized: false, entities: 0, links: 0, tombstones: 0 };

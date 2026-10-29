@@ -500,7 +500,7 @@ vendor or host.
 | `CAIRN_MEMORY_RERANK_MODEL` | Required model identifier when reranking is enabled |
 | `CAIRN_MEMORY_RERANK_API_KEY` | Optional separate reranker credential; no extraction/embedding key fallback |
 | `CAIRN_MEMORY_RERANK_TIMEOUT_MS` | Reranking deadline, default `2000`, allowed `100`–`10000`; failure preserves existing search order |
-| `CAIRN_MEMORY_CONTEXT` | Unreleased opt-in `1` exposes read-only `memory_inspect` and `memory_related` and adds freshness/connection metadata validation to doctor; off by default |
+| `CAIRN_MEMORY_CONTEXT` | Unreleased opt-in `1` exposes read-only `memory_inspect`, `memory_related` and `memory_map` and adds freshness/connection metadata validation to doctor; off by default |
 | `CAIRN_MEMORY_CONTEXT_HTTP` | Separate unreleased `1` consent for inspection over authenticated project-resolved HTTP; also requires `CAIRN_MEMORY_CONTEXT=1` |
 | `CAIRN_AGENTFS_BASE_DIR` | Server-side base dir for named/global memory scopes (default `~/.cairnkeep`); it does not affect `project` scope |
 | `CAIRN_TRAJECTORY_CAPTURE` | Opt in to local structured session capture (`1`, `true`, `yes`, or `on`; unset/default → no capture work) |
@@ -758,8 +758,8 @@ and untouched for backup-guided manual recovery.
 
 ### Revision-bound freshness (unreleased, source checkout only)
 
-`CAIRN_MEMORY_CONTEXT=1` exposes the closed-world, read-only `memory_inspect`
-and `memory_related` tools under the `memory.search` capability and MCP tool profile. A read-only
+`CAIRN_MEMORY_CONTEXT=1` exposes the closed-world, read-only `memory_inspect`,
+`memory_related` and `memory_map` tools under the `memory.search` capability and MCP tool profile. A read-only
 profile may inspect; no MCP administration or freshness-write tool is added.
 HTTP additionally requires `CAIRN_MEMORY_CONTEXT_HTTP=1`, existing bearer/Host/
 CORS controls and a validated `X-Cairn-Project`. Without that project binding,
@@ -816,6 +816,18 @@ apply. Source/endpoint changes invalidate old associations; reads and graph edit
 never refresh source verification. Explicit conflicting claims on the same entity
 also appear as possible conflicts in bounded `memory_inspect` candidates.
 See [connection curation, limits and reproducible evidence](memory-connections.md).
+
+### Compact memory maps (unreleased, source checkout only)
+
+`cairn memory-context map --scope project --project /path/to/disposable-project --json`
+and gated `memory_map` provide deterministic prefix/entity navigation, not source
+text or automatic instructions. Default 4 KiB/hard 8 KiB includes the entire MCP
+frame; at most 50 entries span all visible partitions. `truncated` means follow
+with exact reads, not that omitted facts are absent. Legacy navigation remains
+untracked. The same capability/profile/HTTP consent gates above apply; `all`
+keeps stores separate and never includes team/pack/skill backends. No provider
+call, automatic injection, store conversion or source verification occurs.
+See [map limits, cache privacy and reproducible evidence](memory-maps.md).
 
 ### Domain knowledge (RAG via AnythingLLM, opt-in)
 

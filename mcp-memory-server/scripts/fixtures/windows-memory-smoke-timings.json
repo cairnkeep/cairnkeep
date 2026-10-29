@@ -34,6 +34,10 @@
       123394515229
     ]
   },
+  "provisional": {
+    "reason": "New map contracts and map-extended replay have no completed native timing yet; these are conservative scheduling budgets, not measurements.",
+    "budgets": { "memory-connections-mcp": 1045, "memory-map": 600, "memory-map-mcp": 450 }
+  },
   "measurements": {
     "team": 59,
     "team-cli": 99,

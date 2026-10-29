@@ -508,6 +508,16 @@ conversion or automatic metadata repair is added. See
 [evidence-backed connections](memory-connections.md) for exact bounds, atomic
 curation and read-only observations.
 
+### Development-only map cache
+
+Unreleased [memory maps](memory-maps.md) optionally keep a bounded disposable
+preview in `.memory-map-cache/` beside an existing ordinary database. It is not
+an authoritative sidecar or part of managed backups. Private modes/ACLs and safe
+atomic publication apply; every use revalidates visible source/epoch/context
+revisions. Corruption/unsafe paths degrade to uncached navigation, never schema
+repair or writable fallback. Legacy maps use the isolated read-only observer and
+remain untracked. No existing store is converted and no provider is called.
+
 ### Released legacy memory commands
 
 For a local server, these commands report and move named/global scopes only:

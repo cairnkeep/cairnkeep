@@ -40,6 +40,12 @@ import.
 
 ## Source material
 
+Unreleased ordinary-memory maps are a separate feature: typed nodes need not be
+enabled, and their existence grants no new scope or note-address access. A map
+lists key-prefix navigation and explicit current entity anchors, not an inferred
+typed graph or automatic memory promotion. Compare [map provenance and limits](../../memory-maps.md)
+with the hard-filter-before-ranking rule in this lesson.
+
 - [Operating guide: typed memory nodes](../../operating.md#typed-memory-nodes-and-note-address-spaces-opt-in)
 - [Storage and deployment](../../storage.md#typed-metadata-import-replay-and-history)
 - [Typed memory schema](../../../schemas/memory-node.schema.json)

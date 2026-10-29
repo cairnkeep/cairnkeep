@@ -39,7 +39,10 @@ export const smokeChecks = Object.freeze([
   check("memory-context-mcp", 311, node("smoke-memory-context-mcp.mjs")),
   // Actual completed connection-group timings, including private-ACL overhead.
   check("memory-connections", 874, node("smoke-memory-connections.mjs")),
-  check("memory-connections-mcp", 845, node("smoke-memory-connections-mcp.mjs"), node("run-memory-continuity-study.mjs", "--features", "freshness,links", "--check", "--summary")),
+  // Map additions have explicit provisional budgets pending native receipts.
+  check("memory-connections-mcp", 1045, node("smoke-memory-connections-mcp.mjs"), node("run-memory-continuity-study.mjs", "--features", "freshness,links,maps", "--check", "--summary")),
+  check("memory-map", 600, node("smoke-memory-map.mjs")),
+  check("memory-map-mcp", 450, node("smoke-memory-map-mcp.mjs")),
   check("memory-reranker", 28, node("smoke-memory-reranker.mjs"), node("smoke-memory-reranker-mcp.mjs"), node("run-memory-reranker-study.mjs", "--check", "--summary")),
   check("scope-guard", 3, node("smoke-scope-guard.mjs")),
   check("http-guard", 9, node("smoke-http-guard.mjs")),

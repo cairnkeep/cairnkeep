@@ -23,9 +23,15 @@ assert.ok(memoryMeasured.source_job_outcomes.every(outcome => ['success', 'timed
 assert.ok(memoryMeasured.inherited_measurements.names.every(name => smokeChecks.some(row => row.name === name)));
 assert.ok(Number.isSafeInteger(memoryMeasured.inherited_measurements.source_run));
 assert.match(memoryMeasured.inherited_measurements.source_commit, /^[a-f0-9]{40}$/);
-assert.equal(Object.keys(memoryMeasured.measurements).length, smokeChecks.length);
+const provisional = memoryMeasured.provisional?.budgets ?? {};
+assert.ok(typeof memoryMeasured.provisional?.reason === 'string');
+assert.equal(Object.keys({ ...memoryMeasured.measurements, ...provisional }).length, smokeChecks.length);
 for (const [name,seconds] of Object.entries({ ...measured.measurements, ...memoryMeasured.measurements })) {
-  assert.equal(smokeChecks.find(row=>row.name===name)?.weight,seconds,`measured weight drift: ${name}`);
+  assert.equal(smokeChecks.find(row=>row.name===name)?.weight,provisional[name] ?? seconds,`measured/provisional weight drift: ${name}`);
+}
+for (const [name, seconds] of Object.entries(provisional)) {
+  assert.ok(Number.isSafeInteger(seconds) && seconds > 0);
+  assert.equal(smokeChecks.find(row => row.name === name)?.weight, seconds, `provisional budget drift: ${name}`);
 }
 const flattened = plan.flatMap(({ checks }) => checks.map(({ name }) => name));
 assert.equal(flattened.length, smokeChecks.length);

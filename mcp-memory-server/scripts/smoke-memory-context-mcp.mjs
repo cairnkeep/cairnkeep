@@ -79,7 +79,7 @@ try {
   const catalog = (await enabled.client.listTools()).tools;
   const tool = catalog.find(tool => tool.name === 'memory_inspect');
   assert.ok(tool, 'FRESHNESS_MCP_RED: gated read-only inspection is missing');
-  assert.deepEqual(catalog.filter(tool => !['memory_inspect', 'memory_related'].includes(tool.name)), baseline, 'existing schemas/order changed when enabled');
+  assert.deepEqual(catalog.filter(tool => !['memory_inspect', 'memory_related', 'memory_map'].includes(tool.name)), baseline, 'existing schemas/order changed when enabled');
   assert.deepEqual(tool.annotations, { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false });
   assert.deepEqual((await call(enabled.client, { scope: 'project', key })).candidates, []);
   assert.equal(existsSync(path), false, 'inspection may not initialize a missing store');

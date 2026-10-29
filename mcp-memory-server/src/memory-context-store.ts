@@ -139,6 +139,33 @@ async function readTrackedFreshness(db: MemoryDatabase, target: Target, now: Dat
 const untracked = () => ({ schema_version: 1 as const, tracked: false, status: 'unknown' as const,
     source: null, metadata: null, stale: false, future_effective: false });
 
+/** Map snapshot projection: the caller already admitted these exact live refs.
+ * Do not re-open a store or validate its whole schema once per navigation key. */
+export async function readMemoryMapFreshness(db: MemoryDatabase, sources: MemorySourceRef[], now: Date, budget: number) {
+    const statuses = new Map(sources.map(source => [source.key, 'unknown']));
+    let bytes = 0, truncated = false;
+    if (await assertionTableExists(db)) {
+        scan: for (let offset = 0; offset < sources.length; offset += 32) {
+            const batch = sources.slice(offset, offset + 32), allowed = new Map(batch.map(source => [source.key, source]));
+            const rows = await db.prepare(`SELECT key,CASE WHEN length(CAST(assertion_json AS BLOB))<=65536 THEN assertion_json END AS assertion_json
+                FROM ${CONTEXT_FACT_TABLE} WHERE key IN (${batch.map(() => '?').join(',')}) ORDER BY key`).all(...allowed.keys());
+            for (const row of rows) {
+                if (typeof row.assertion_json !== 'string') throw memoryError('MEMORY_CONTEXT_DAMAGED');
+                bytes += Buffer.byteLength(row.assertion_json);
+                if (bytes > budget) { truncated = true; break scan; }
+                let assertion;
+                try { assertion = memoryFreshnessAssertionSchema.parse(JSON.parse(row.assertion_json)); }
+                catch { throw memoryError('MEMORY_CONTEXT_DAMAGED'); }
+                if (assertion.source.key !== row.key || (assertion.metadata.verified_at && Date.parse(assertion.metadata.verified_at) > Date.parse(assertion.captured_at))) throw memoryError('MEMORY_CONTEXT_DAMAGED');
+                if (hash(assertion.source) !== hash(allowed.get(String(row.key)))) continue;
+                statuses.set(String(row.key), !assertion.metadata.verified_at ? 'unverified'
+                    : assertion.metadata.review_after && Date.parse(assertion.metadata.review_after) <= now.getTime() ? 'needs_review' : 'current');
+            }
+        }
+    }
+    return { statuses, bytes, truncated };
+}
+
 export async function inspectMemoryFreshness(target: Target) {
     assertMemoryContextKey(target.key);
     const now = clock(target.now);

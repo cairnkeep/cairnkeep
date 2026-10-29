@@ -1584,6 +1584,24 @@ if (process.env.CAIRN_MEMORY_CONTEXT === '1'
             throw new Error(typeof code === 'string' && /^MEMORY_[A-Z_]{1,64}$/.test(code) ? code : 'MEMORY_CONNECTION_FAILED');
         }
     });
+    registerCapabilityTool('memory.search', 'memory_map', {
+        description: 'Orient within visible ordinary memory using bounded deterministic prefixes and current entity anchors. Stores stay separate; freshness is asserted metadata, legacy data is untracked. Follow navigation with exact reads. No source values, provider calls or permission changes.',
+        inputSchema: z.object({
+            scope: z.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9-]*$/),
+            max_bytes: z.number().int().min(1024).max(8192).optional(),
+            limit: z.number().int().min(1).max(50).optional(),
+        }).strict(),
+    }, async ({ scope, max_bytes, limit }) => {
+        try {
+            const scopes = [...new Set(getSearchScopes(scope, memoryConfig()))];
+            if (scopes.length > 32) throw Object.assign(new Error(), { code: 'MEMORY_SCOPE_LIMIT' });
+            const { buildMemoryMap, memoryMapResponse } = await import('./memory-map.js');
+            return memoryMapResponse(await buildMemoryMap(scopes.map(selected => ({ scope: selected, path: resolveScopePath(selected, scopeOptions) })), { max_bytes, limit }));
+        } catch (error) {
+            const code = (error as { code?: string }).code;
+            throw new Error(typeof code === 'string' && /^MEMORY_[A-Z_]{1,64}$/.test(code) ? code : 'MEMORY_MAP_FAILED');
+        }
+    });
 }
 
 registerTool(

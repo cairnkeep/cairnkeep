@@ -179,6 +179,13 @@ stores. It covers ambiguity, stale association invalidation, possible conflicts
 and equal-information native/Markdown replay, not automatic graph extraction or
 general model/human quality gains. See [memory connections](../memory-connections.md).
 
+The same source-only supplement now includes [compact memory maps](../memory-maps.md):
+bounded deterministic prefix/entity orientation, current source provenance and
+freshness/ambiguity labels. Legacy data stays untracked. Follow with exact reads;
+no automatic startup injection or provider is involved. L04/L05/L07/L14 and V04
+explain the 4 KiB default/8 KiB hard complete-frame budget, scope isolation and
+private disposable cache. This does not change released course prerequisites.
+
 ## Companion evaluation
 
 L27 keeps adjacent tools in separate layers. MemFork is evidence for

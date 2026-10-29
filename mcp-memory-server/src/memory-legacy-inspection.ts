@@ -24,11 +24,13 @@ export function memoryLegacyIdentity(stat: { dev: bigint; ino: bigint }) {
     return identitySchema.parse({ dev: encode(stat.dev), ino: encode(stat.ino) });
 }
 const requestSchema = z.object({
-    path: z.string().min(1).max(32768), key: z.string().min(1).max(4096),
+    path: z.string().min(1).max(32768), key: z.string().min(1).max(4096).optional(),
+    map_limit: z.number().int().min(1).max(5000).optional(), map_bytes: z.number().int().min(1).max(48000).optional(),
     ...identitySchema.shape,
 }).strict();
-const replySchema = z.discriminatedUnion('ok', [
+const replySchema = z.union([
     z.object({ ok: z.literal(true), row: z.object({ value: z.string().nullable() }).strict().nullable() }).strict(),
+    z.object({ ok: z.literal(true), keys: z.array(z.string().min(1).max(4096)).max(5000), scanned: z.number().int().min(0).max(5000), truncated: z.boolean() }).strict(),
     z.object({ ok: z.literal(false), code: z.string().regex(/^MEMORY_[A-Z_]{1,64}$/) }).strict(),
 ]);
 function inspect(path: string) {
@@ -49,14 +51,15 @@ function inspect(path: string) {
 
 /** Never imports a legacy driver into the caller. SDK readonly-first caching
  * would otherwise make subsequent ordinary writes fail until native-object GC. */
-export async function readLegacyMemoryInspection(input: string, key: string) {
+async function observeLegacyMemory(input: string, key?: string, limits?: { rows: number; bytes: number }) {
     const path = canonicalMemoryPath(input);
     assertNoPendingImport(path);
     return withMemoryAdmission(path, async () => {
         assertNoPendingImport(path);
         if (probeOrdinaryMemoryFormat(path).kind !== 'legacy') throw memoryError('MEMORY_FILE_CHANGED');
         const before = inspect(path);
-        const request = JSON.stringify(requestSchema.parse({ path, key, dev: before.dev, ino: before.ino }));
+        const request = JSON.stringify(requestSchema.parse({ path, key, dev: before.dev, ino: before.ino,
+            ...(limits ? { map_limit: limits.rows, map_bytes: Math.min(48000, limits.bytes) } : {}) }));
         if (Buffer.byteLength(request) > LIMIT) throw memoryError('MEMORY_INSPECTION_LIMIT');
         // Preserve explicit preload guards/instrumentation, not parent eval or
         // inspector arguments. Paths and keys travel over bounded stdin, no shell.
@@ -79,8 +82,19 @@ export async function readLegacyMemoryInspection(input: string, key: string) {
         try { reply = replySchema.parse(JSON.parse(output)); }
         catch { throw memoryError('MEMORY_LEGACY_INSPECTION_FAILED'); }
         if (!reply.ok) throw memoryError(reply.code);
-        return reply.row;
+        return reply;
     });
+}
+
+export async function readLegacyMemoryInspection(input: string, key: string) {
+    const reply = await observeLegacyMemory(input, key);
+    if (!('row' in reply)) throw memoryError('MEMORY_LEGACY_INSPECTION_FAILED');
+    return reply.row;
+}
+export async function readLegacyMemoryMapKeys(input: string, limits: { rows: number; bytes: number }) {
+    const reply = await observeLegacyMemory(input, undefined, limits);
+    if (!('keys' in reply)) throw memoryError('MEMORY_LEGACY_INSPECTION_FAILED');
+    return { keys: reply.keys, scanned: reply.scanned, truncated: reply.truncated };
 }
 
 async function runObserver() {
@@ -100,7 +114,27 @@ async function runObserver() {
         db = new Database(request.path, { readonly: true, fileMustExist: true, timeout: 500 });
         await db.connect();
         if (!db.readonly) throw memoryError('MEMORY_READ_ONLY');
-        let row = await db.transaction(async () => {
+        const result = await db.transaction(async () => {
+            if (request.key === undefined) {
+                const keys: string[] = []; let truncated = false, bytes = 0, scanned = 0;
+                if (!await db!.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='kv_store'").get()) return { ok: true as const, keys, scanned, truncated };
+                scan: for (;;) {
+                    const rows = await db!.prepare(`SELECT CASE WHEN length(CAST(key AS BLOB))<=4096 THEN key END AS safe_key FROM kv_store
+                        WHERE key!='__history__' AND substr(key,1,12)!='__history__/'
+                        AND key!='__reviewed__' AND substr(key,1,13)!='__reviewed__/' ORDER BY key LIMIT 32 OFFSET ?`).all(scanned);
+                    if (!rows.length) break;
+                    for (const row of rows) {
+                        if (scanned === (request.map_limit ?? 5000)) { truncated = true; break scan; }
+                        scanned++;
+                        if (typeof row.safe_key !== 'string' || !row.safe_key.length) { truncated = true; continue; }
+                        const size = Buffer.byteLength(JSON.stringify(row.safe_key)) + 1;
+                        if (bytes + size > (request.map_bytes ?? 48000)) { truncated = true; break scan; }
+                        keys.push(row.safe_key); bytes += size;
+                    }
+                    if (rows.length < 32) break;
+                }
+                return { ok: true as const, keys, scanned, truncated };
+            }
             if (!await db!.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='kv_store'").get()) return null;
             return await db!.prepare('SELECT CASE WHEN length(CAST(value AS BLOB))<=32768 THEN value END AS value FROM kv_store WHERE key=?').get(request.key) ?? null;
         })();
@@ -108,8 +142,11 @@ async function runObserver() {
         const after = inspect(request.path);
         if (before.dev !== after.dev || before.ino !== after.ino) throw memoryError('MEMORY_FILE_CHANGED');
         // Returning the stored JSON string needs its own escaping budget.
-        if (Buffer.byteLength(JSON.stringify({ ok: true, row })) > LIMIT) row = { value: null };
-        process.stdout.write(JSON.stringify(replySchema.parse({ ok: true, row })));
+        if (request.key === undefined) process.stdout.write(JSON.stringify(replySchema.parse(result)));
+        else {
+            const row = Buffer.byteLength(JSON.stringify({ ok: true, row: result })) > LIMIT ? { value: null } : result;
+            process.stdout.write(JSON.stringify(replySchema.parse({ ok: true, row })));
+        }
     } catch (error) {
         const code = (error as { code?: string }).code;
         process.stdout.write(JSON.stringify({ ok: false, code: typeof code === 'string' && /^MEMORY_[A-Z_]{1,64}$/.test(code) ? code : 'MEMORY_LEGACY_INSPECTION_FAILED' }));

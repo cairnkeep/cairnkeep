@@ -13,6 +13,7 @@ assert.equal(JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')).n
 assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-sqlite-worker.js')));
 assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-legacy-inspection.js')));
 assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-connections.js')));
+assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-map.js')));
 const load = name => import(pathToFileURL(join(installed, `mcp-memory-server/dist/${name}.js`)).href);
 const { hardenPrivatePath } = await load('platform-security');
 const store = await load('ordinary-memory-store');
@@ -70,6 +71,10 @@ try {
   const linkPlan = cli('link', 'set', '--input', linkFile);
   cli('link', 'set', '--input', linkFile, '--apply', '--confirm', linkPlan.digest);
   assert.equal(cli('related', '--entity', 'installed').edges.length, 1);
+  const navigation = cli('map', '--max-bytes', '8192');
+  assert.equal(navigation.exact_reads_required, true);
+  assert.ok(navigation.partitions[0].entries.some(entry => entry.id === entityId));
+  assert.ok(Buffer.byteLength(JSON.stringify(navigation)) <= 8192);
   cli('backup', '--output', snapshot);
   // Only disposable fixture names, after every CLI/store connection has closed.
   for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(path + suffix, { force: true });
@@ -78,6 +83,7 @@ try {
   assert.equal(restored.marker.store_uuid, previous.store_uuid);
   assert.notEqual(restored.marker.restore_epoch, previous.restore_epoch);
   assert.deepEqual(cli('related', '--entity', 'installed').nodes, [], 'installed recovery never revives pre-restore graph evidence');
+  assert.equal(cli('map').partitions[0].entries.some(entry => entry.id === entityId), false);
   view = await store.openOrdinaryMemoryView(path, 'project');
   assert.equal(await view.kv.get('facts/installed'), 'fixture');
   console.log('PASS: installed package resolves its own readonly driver, worker and graph module, confirms graph curation and invalidates evidence after fresh recovery');

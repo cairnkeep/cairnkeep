@@ -158,5 +158,6 @@ project isolation, harness/cwd continuity, source ABA, endpoint/link
 re-curation/removal/recreation and overdue freshness
 without network access. Improved linked recall in this synthetic fixture is not
 evidence of model intelligence, human productivity or general superiority over
-well-maintained Markdown. Maps, feedback and automatic extraction are not tested
-or implied by this feature.
+well-maintained Markdown. The separate [compact-map supplement](memory-maps.md)
+adds bounded orientation and its own parity/cost controls. Feedback and automatic
+extraction are not tested or implied by this feature.

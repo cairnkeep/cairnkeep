@@ -24,7 +24,7 @@ The Node 22.16 API floor alone is insufficient: tracked stores also require the
 bundled SQLite WAL-reset fix (3.51.3+ or documented maintenance backports).
 Unpatched native admission is refused; legacy stores keep their existing runtime.
 
-Unreleased `memory_inspect` and `memory_related` are read-only MCP observations enabled only
+Unreleased `memory_inspect`, `memory_related` and `memory_map` are read-only MCP observations enabled only
 by `CAIRN_MEMORY_CONTEXT=1`, subject to `memory.search` capability and profile
 restrictions. Authenticated HTTP additionally requires
 `CAIRN_MEMORY_CONTEXT_HTTP=1` and a validated project identity. No harness asset
@@ -36,6 +36,10 @@ scope; it never joins projects/scopes or resolves ambiguous aliases for a client
 The same protocol surface works across harnesses without copying configuration.
 See [connection limits and evidence](memory-connections.md); this does not claim
 new live-harness or independent-human qualification.
+`memory_map` adds bounded deterministic prefix/entity navigation followed by
+exact reads, without harness asset sync or automatic context injection. Its
+`all` request preserves separate visible ordinary-store partitions, not a graph
+join. See [map budgets, untracked legacy data and cache privacy](memory-maps.md).
 
 | Harness | Supported surface | Runtime status |
 |---|---|---|

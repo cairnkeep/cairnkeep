@@ -181,6 +181,15 @@ local curation is never exposed as an MCP write tool.
 
 ## Common failures
 
+The unreleased source-only [compact-map extension](../../memory-maps.md) adds
+ordinary-memory prefix/entity navigation, not context-pack promotion or automatic
+graph extraction. Request `memory_map`, inspect scope partitions, freshness,
+ambiguity and truncation, then read an exact source. Default 4 KiB/hard 8 KiB
+includes MCP framing; cache membership is not authority, legacy data stays
+untracked, and incomplete scans cannot claim unique aliases. Compare the
+equal-information Markdown arm and measured cold/warm costs without claiming a
+model/human-quality gain. V04 contains the recording brief; no recording implied.
+
 - **A hidden skill appears:** revoke exposure, run `cairn doctor`, and treat it as
   a visibility regression. Approval is bound to pack/path/file digests.
 - **Hierarchical search looks worse:** compare it with the frozen benchmark and
