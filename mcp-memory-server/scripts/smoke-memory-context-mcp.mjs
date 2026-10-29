@@ -3,7 +3,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer } from 'node:net';
 import { request } from 'node:http';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, openSync, closeSync, fstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { AgentFS } from 'agentfs-sdk';
@@ -87,13 +87,19 @@ try {
   assert.equal(escapedKey.isError, true, 'escaped empty response frame must be bounded before store access');
   assert.ok(Buffer.byteLength(JSON.stringify(escapedKey)) <= 32768);
   assert.equal(existsSync(path), false);
-  mkdirSync(join(lab.projects.alpha, '.agentfs'), { recursive: true, mode: 0o700 });
-  hardenPrivatePath(join(lab.projects.alpha, '.agentfs'));
-  writeFileSync(path, '', { mode: 0o600, flag: 'wx' }); hardenPrivatePath(path);
-  assert.deepEqual((await call(enabled.client, { scope: 'project', key })).candidates, []);
-  assert.equal(readFileSync(path).length, 0, 'MCP observation must not initialize empty legacy schema');
-  // Remove only this disposable empty fixture; explicit tracked init requires absence.
-  unlinkSync(path);
+  // Missing and preexisting-empty stores are independent fixtures. Create the
+  // latter exclusively and observe its held inode, not a re-resolved pathname.
+  const emptyDirectory = join(lab.projects.beta, '.agentfs');
+  mkdirSync(emptyDirectory, { recursive: true, mode: 0o700 }); hardenPrivatePath(emptyDirectory);
+  const emptyPath = join(emptyDirectory, 'project.db');
+  const emptyDescriptor = openSync(emptyPath, 'wx', 0o600);
+  let emptySession;
+  try {
+    hardenPrivatePath(emptyPath);
+    emptySession = await lab.connect('beta', { CAIRN_MEMORY_CONTEXT: '1' });
+    assert.deepEqual((await call(emptySession.client, { scope: 'project', key })).candidates, []);
+    assert.equal(fstatSync(emptyDescriptor).size, 0, 'MCP observation must not initialize empty legacy schema');
+  } finally { closeSync(emptyDescriptor); await emptySession?.close(); }
   await seed(path, 'project', 'project value');
   const escapedExisting = await enabled.client.callTool({ name: 'memory_inspect', arguments: { scope: 'project', key: '\u0000'.repeat(4096) } });
   assert.equal(escapedExisting.isError, true);
