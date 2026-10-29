@@ -54,6 +54,8 @@ export async function doctorNodes(options: { repair?: boolean; projectRoot?: str
                 const { memoryFreshnessStoreStatus } = await import('./memory-context-store.js');
                 // Explicit feature consent; diagnosis never creates/repairs assertions.
                 await memoryFreshnessStoreStatus({ path });
+                const { memoryConnectionsStoreStatus } = await import('./memory-connections.js');
+                await memoryConnectionsStoreStatus({ path });
             }
             scopes.push({ scope, path, ...result });
             issues.push(...result.issues.map((issue) => `${scope}: ${issue}`));

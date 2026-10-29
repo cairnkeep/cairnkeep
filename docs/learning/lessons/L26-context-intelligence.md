@@ -142,6 +142,43 @@ manage OpenViking, or replace Cairnkeep's reviewed memory, context-pack pins,
 approvals, evidence, or tool profiles. Leave the variables unset when you do not
 need the external index.
 
+## Source-checkout supplement: explicit memory connections (unreleased)
+
+This supplement is not part of the released 2.27.0 lesson above. Use only an
+explicitly initialized disposable tracked store and a runtime satisfying the
+[tracked-store requirements](../../storage.md#unreleased-tracked-store-foundation-source-checkout-only).
+Do not convert normal memory or enable the feature on a shared server for this lab.
+
+Follow [evidence-backed connections](../../memory-connections.md) to plan and
+exact-digest apply two UUID entities and a directed link with explicit evidence
+keys. Observe it locally with `memory-context related`, or call the read-only
+`memory_related` tool with `CAIRN_MEMORY_CONTEXT=1`. Exercise these controls:
+
+1. Query an explicit alias; then give both entities the same alias and verify
+   that ambiguity returns matches without choosing a node or traversing edges.
+2. Edit an anchor/evidence source and query again. The old association must
+   disappear, even after restoring identical text. Inspect and recurate deliberately.
+3. Add conflicting claims from two current keys to the same canonical entity.
+   Inspect `possible_conflicts`/`claim_conflicts`; neither claim is a truth verdict.
+4. Verify that graph edits leave source text and freshness dates unchanged.
+   Check that another project cannot resolve the same UUID, and that `all` is
+   refused rather than joining scopes.
+
+From the source checkout, compare the unchanged baseline with the separate
+feature replay:
+
+```sh
+node mcp-memory-server/scripts/run-memory-continuity-study.mjs --check --summary
+node mcp-memory-server/scripts/run-memory-continuity-study.mjs --features freshness,links --check --summary
+```
+
+Both native and Markdown feature resolvers receive the same explicit curation.
+Explain the linked-recall result as fixture-level conformance, not proof of human
+productivity or automatic extraction. Depth/bytes/scan limits are intentional;
+`truncated` is not a complete graph. No model, network service or graph backend
+is required. HTTP needs separate consent and authenticated project binding;
+local curation is never exposed as an MCP write tool.
+
 ## Common failures
 
 - **A hidden skill appears:** revoke exposure, run `cairn doctor`, and treat it as

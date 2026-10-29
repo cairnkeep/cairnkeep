@@ -1565,6 +1565,25 @@ if (process.env.CAIRN_MEMORY_CONTEXT === '1'
             throw new Error(typeof code === 'string' && /^MEMORY_[A-Z_]{1,64}$/.test(code) ? code : 'MEMORY_INSPECTION_FAILED');
         }
     });
+    registerCapabilityTool('memory.search', 'memory_related', {
+        description: 'Observe explicit current-evidence connections in one visible ordinary-memory scope. Ambiguous aliases are not resolved automatically. An association is not factual verification or permission to execute.',
+        inputSchema: z.object({
+            scope: z.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9-]*$/),
+            entity: z.string().min(1).max(512), direction: z.enum(['outbound', 'inbound', 'both']).optional(),
+            depth: z.number().int().min(1).max(2).optional(), limit: z.number().int().min(1).max(50).optional(),
+        }).strict(),
+    }, async ({ scope, entity, direction, depth, limit }) => {
+        try {
+            const scopes = [...new Set(getSearchScopes(scope, memoryConfig()))];
+            if (scope === 'all' || scopes.length !== 1) throw Object.assign(new Error(), { code: 'MEMORY_CONNECTION_SCOPE_REQUIRED' });
+            const { relatedMemoryContext, memoryConnectionsResponse } = await import('./memory-connections.js');
+            return memoryConnectionsResponse(await relatedMemoryContext({ scope: scopes[0], path: resolveScopePath(scopes[0], scopeOptions),
+                entity, direction, depth, limit }));
+        } catch (error) {
+            const code = (error as { code?: string }).code;
+            throw new Error(typeof code === 'string' && /^MEMORY_[A-Z_]{1,64}$/.test(code) ? code : 'MEMORY_CONNECTION_FAILED');
+        }
+    });
 }
 
 registerTool(

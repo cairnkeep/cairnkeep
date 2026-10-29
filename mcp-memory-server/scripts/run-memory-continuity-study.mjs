@@ -9,6 +9,10 @@ import { rankHybridMemory } from '../dist/memory-retrieval.js';
 import { resolveMcpToolProfile } from '../dist/mcp-tool-profile.js';
 
 const args = process.argv.slice(2);
+if (args[0] === '--features') {
+  await import('./run-memory-connections-study.mjs');
+  process.exit(0);
+}
 assert.ok(args.every(arg => ['--baseline', '--check', '--summary'].includes(arg)), 'Usage: run-memory-continuity-study.mjs [--baseline] [--check] [--summary]');
 const bytes = readFileSync(new URL('./fixtures/memory-continuity-v2.json', import.meta.url));
 const fixture = JSON.parse(bytes);

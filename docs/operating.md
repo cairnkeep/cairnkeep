@@ -500,7 +500,7 @@ vendor or host.
 | `CAIRN_MEMORY_RERANK_MODEL` | Required model identifier when reranking is enabled |
 | `CAIRN_MEMORY_RERANK_API_KEY` | Optional separate reranker credential; no extraction/embedding key fallback |
 | `CAIRN_MEMORY_RERANK_TIMEOUT_MS` | Reranking deadline, default `2000`, allowed `100`–`10000`; failure preserves existing search order |
-| `CAIRN_MEMORY_CONTEXT` | Unreleased opt-in `1` exposes read-only `memory_inspect` and adds freshness metadata validation to doctor; off by default |
+| `CAIRN_MEMORY_CONTEXT` | Unreleased opt-in `1` exposes read-only `memory_inspect` and `memory_related` and adds freshness/connection metadata validation to doctor; off by default |
 | `CAIRN_MEMORY_CONTEXT_HTTP` | Separate unreleased `1` consent for inspection over authenticated project-resolved HTTP; also requires `CAIRN_MEMORY_CONTEXT=1` |
 | `CAIRN_AGENTFS_BASE_DIR` | Server-side base dir for named/global memory scopes (default `~/.cairnkeep`); it does not affect `project` scope |
 | `CAIRN_TRAJECTORY_CAPTURE` | Opt in to local structured session capture (`1`, `true`, `yes`, or `on`; unset/default → no capture work) |
@@ -759,7 +759,7 @@ and untouched for backup-guided manual recovery.
 ### Revision-bound freshness (unreleased, source checkout only)
 
 `CAIRN_MEMORY_CONTEXT=1` exposes the closed-world, read-only `memory_inspect`
-tool under the `memory.search` capability and MCP tool profile. A read-only
+and `memory_related` tools under the `memory.search` capability and MCP tool profile. A read-only
 profile may inspect; no MCP administration or freshness-write tool is added.
 HTTP additionally requires `CAIRN_MEMORY_CONTEXT_HTTP=1`, existing bearer/Host/
 CORS controls and a validated `X-Cairn-Project`. Without that project binding,
@@ -803,6 +803,19 @@ atomically; stale confirmations refuse. Reads never advance verification dates.
 Doctor reports metadata state only and never repairs/asserts freshness, even with
 top-level repair requested. Existing-store conversion, release and production
 admission remain separate decisions. See [storage](storage.md#development-only-freshness-assertions).
+
+### Evidence-backed connections (unreleased, source checkout only)
+
+Explicit `memory-context entity set|remove` and `link set|remove` curate UUID
+entities, aliases, claims and directed evidence-backed links in fresh tracked
+stores. They require inspected, digest-confirmed local plans; no MCP write tool,
+automatic extraction, source fetching or migration is added. `memory_related`
+observes one physical scope at depth 1–2, refusing ambiguous entity selection.
+It cannot traverse `all` or cross projects. The same context/HTTP gates above
+apply. Source/endpoint changes invalidate old associations; reads and graph edits
+never refresh source verification. Explicit conflicting claims on the same entity
+also appear as possible conflicts in bounded `memory_inspect` candidates.
+See [connection curation, limits and reproducible evidence](memory-connections.md).
 
 ### Domain knowledge (RAG via AnythingLLM, opt-in)
 

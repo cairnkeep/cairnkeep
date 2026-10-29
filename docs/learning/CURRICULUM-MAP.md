@@ -112,7 +112,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn skill` | L19 |
 | `cairn graph` | L18 |
 | `cairn memory` | L07-L08 |
-| `cairn memory-context` | L07 advanced storage brief; unreleased fresh-store foundation, not an existing-store migration |
+| `cairn memory-context` | L07 advanced storage brief and L26 explicit-connection supplement; unreleased source-only features, not an existing-store migration |
 | `cairn audit-timer` | L05 and L13 |
 | `cairn uninstall` | L02 and L11-L12 |
 | `cairn completion` | L02 |

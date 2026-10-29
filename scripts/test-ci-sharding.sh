@@ -12,11 +12,18 @@ import { parse } from "yaml";
 const root = process.argv[2];
 const { buildShardPlan, smokeChecks } = await import(
   pathToFileURL(join(root, "mcp-memory-server", "scripts", "run-smoke-suite.mjs")));
-const plan = buildShardPlan(3);
+const plan = buildShardPlan(5);
 const measured = JSON.parse(readFileSync(join(root, 'mcp-memory-server/scripts/fixtures/windows-smoke-timings.json'), 'utf8'));
 assert.equal(measured.schema_version,1);
 const memoryMeasured = JSON.parse(readFileSync(join(root, 'mcp-memory-server/scripts/fixtures/windows-memory-smoke-timings.json'), 'utf8'));
 assert.equal(memoryMeasured.schema_version,1);
+assert.ok(memoryMeasured.source_jobs.length > 0);
+assert.equal(memoryMeasured.source_job_outcomes.length, memoryMeasured.source_jobs.length);
+assert.ok(memoryMeasured.source_job_outcomes.every(outcome => ['success', 'timed-out'].includes(outcome)));
+assert.ok(memoryMeasured.inherited_measurements.names.every(name => smokeChecks.some(row => row.name === name)));
+assert.ok(Number.isSafeInteger(memoryMeasured.inherited_measurements.source_run));
+assert.match(memoryMeasured.inherited_measurements.source_commit, /^[a-f0-9]{40}$/);
+assert.equal(Object.keys(memoryMeasured.measurements).length, smokeChecks.length);
 for (const [name,seconds] of Object.entries({ ...measured.measurements, ...memoryMeasured.measurements })) {
   assert.equal(smokeChecks.find(row=>row.name===name)?.weight,seconds,`measured weight drift: ${name}`);
 }
@@ -36,8 +43,8 @@ assert.ok(Math.max(...weights) - Math.min(...weights) <= 5,
 const pkg = JSON.parse(readFileSync(join(root, "mcp-memory-server", "package.json"), "utf8"));
 assert.match(pkg.scripts["test:smoke"], /run-smoke-suite\.mjs/);
 const workflow = readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8");
-assert.match(workflow, /name: native-windows \(\$\{\{ matrix\.node \}\}\)/);
-for (const shard of ["1/3", "2/3", "3/3"]) assert.ok(workflow.includes(`shard: "${shard}"`));
+assert.match(workflow, /name: native-windows \(\$\{\{ matrix\.label \}\}\)/);
+for (const shard of ["1/5", "2/5", "3/5", "4/5", "5/5"]) assert.ok(workflow.includes(`shard: "${shard}"`));
 assert.match(workflow, /run-smoke-suite\.mjs --shard \$\{\{ matrix\.shard \}\}/);
 assert.doesNotMatch(workflow.match(/  native-windows:[\s\S]*?\n  repository:/)?.[0] ?? "",
   /npm --prefix mcp-memory-server test/);
@@ -47,6 +54,11 @@ assert.ok(focused > native.indexOf("npm --prefix mcp-memory-server run build"));
 assert.ok(focused < native.indexOf("- name: Native Windows CLI contracts"));
 assert.ok(focused < native.indexOf("- name: Sharded memory-server contracts"));
 const jobs = parse(workflow).jobs;
+assert.deepEqual(jobs['native-windows'].strategy.matrix.include, [
+  { node: '22', label: '22', shard: '1/5' }, { node: '24', label: '24', shard: '2/5' },
+  { node: '26', label: '26', shard: '3/5' }, { node: '24', label: '24-extended', shard: '4/5' },
+  { node: '24', label: '24-additional', shard: '5/5' },
+], 'preserve required native check names and runtime coverage while adding capacity');
 assert.equal(jobs['native-windows'].strategy['fail-fast'], false, 'one native failure must not cancel independent evidence');
 const tracked = jobs['tracked-platform'];
 assert.deepEqual(tracked.strategy.matrix.os, ['windows-latest', 'macos-latest']);

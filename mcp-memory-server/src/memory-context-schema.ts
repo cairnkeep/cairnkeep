@@ -18,6 +18,40 @@ export const memorySourceRefSchema = contextStoreIdentitySchema.extend({
 }).strict();
 export type MemorySourceRef = z.infer<typeof memorySourceRefSchema>;
 
+const connectionText = (bytes: number) => z.string().min(1).max(bytes).refine(value => Buffer.byteLength(value) <= bytes);
+const connectionKey = connectionText(4096).refine(value => value !== '__history__' && !value.startsWith('__history__/')
+    && value !== '__reviewed__' && !value.startsWith('__reviewed__/'));
+const distinct = (values: string[]) => new Set(values).size === values.length;
+export const memoryEntityInputSchema = z.object({
+    schema_version: z.literal(1), id: z.uuid(), title: connectionText(512),
+    aliases: z.array(connectionText(512)).max(16).refine(distinct), anchor_key: connectionKey,
+    claims: z.array(z.object({ key: connectionKey, attribute: connectionText(128), value: connectionText(512) }).strict()).max(16),
+}).strict();
+export const memoryLinkInputSchema = z.object({
+    schema_version: z.literal(1), id: z.uuid(), from: z.uuid(), to: z.uuid(), predicate: connectionText(128),
+    evidence_keys: z.array(connectionKey).min(1).max(8).refine(distinct),
+}).strict();
+export const memoryConnectionRemoveSchema = z.object({ schema_version: z.literal(1), id: z.uuid() }).strict();
+const connectionRevision = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+export const memoryClaimSchema = z.object({ attribute: connectionText(128), value: connectionText(512), source: memorySourceRefSchema }).strict();
+export const memoryEntitySchema = z.object({
+    schema_version: z.literal(1), id: z.uuid(), revision: connectionRevision,
+    title: connectionText(512), aliases: z.array(connectionText(512)).max(16).refine(distinct),
+    anchor: memorySourceRefSchema, claims: z.array(memoryClaimSchema).max(16), captured_at: z.iso.datetime({ precision: 3 }),
+}).strict();
+export const memoryLinkSchema = z.object({
+    schema_version: z.literal(1), id: z.uuid(), revision: connectionRevision,
+    from: z.object({ id: z.uuid(), digest }).strict(), to: z.object({ id: z.uuid(), digest }).strict(),
+    predicate: connectionText(128), evidence: z.array(memorySourceRefSchema).min(1).max(8), captured_at: z.iso.datetime({ precision: 3 }),
+}).strict();
+export type MemoryEntity = z.infer<typeof memoryEntitySchema>;
+export type MemoryLink = z.infer<typeof memoryLinkSchema>;
+export type MemoryClaim = z.infer<typeof memoryClaimSchema>;
+export const CONTEXT_ENTITY_TABLE = 'cairn_memory_context_entities_v1';
+export const CONTEXT_LINK_TABLE = 'cairn_memory_context_links_v1';
+export const CONTEXT_CONNECTION_SQL = [CONTEXT_ENTITY_TABLE, CONTEXT_LINK_TABLE].map(name =>
+    `CREATE TABLE ${name}(id TEXT PRIMARY KEY, revision INTEGER NOT NULL CHECK(revision>0 AND revision<=${Number.MAX_SAFE_INTEGER}), present INTEGER NOT NULL CHECK(present IN(0,1)), assertion_json TEXT CHECK((present=0 AND assertion_json IS NULL) OR (present=1 AND assertion_json IS NOT NULL AND length(CAST(assertion_json AS BLOB))<=65536)))`);
+
 export const CONTEXT_FACT_TABLE = 'cairn_memory_context_facts_v1';
 export const CONTEXT_FACT_SQL = `CREATE TABLE ${CONTEXT_FACT_TABLE}(key TEXT PRIMARY KEY, assertion_json TEXT NOT NULL CHECK(length(CAST(assertion_json AS BLOB))<=65536))`;
 const utcDate = z.iso.datetime({ precision: 3 });

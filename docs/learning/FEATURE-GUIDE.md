@@ -173,6 +173,12 @@ See [L26](lessons/L26-context-intelligence.md), its
 [video script](video-scripts/V26-context-intelligence.md), and the
 [context-intelligence reference](../context-intelligence.md).
 
+L26 also has a clearly separated unreleased source-checkout supplement for
+explicit entities, aliases and evidence-backed links in disposable tracked
+stores. It covers ambiguity, stale association invalidation, possible conflicts
+and equal-information native/Markdown replay, not automatic graph extraction or
+general model/human quality gains. See [memory connections](../memory-connections.md).
+
 ## Companion evaluation
 
 L27 keeps adjacent tools in separate layers. MemFork is evidence for
