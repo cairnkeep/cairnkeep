@@ -62,9 +62,10 @@ All notable user-facing changes are documented here. This project follows
   bounded schema/record diagnosis, rollback/race/ABA and HTTP isolation tests,
   an independent Markdown feature replay, operator/storage/privacy guides and
   unreleased learning/video briefs. No migration, provider or production activation.
-- Refresh Windows timing evidence and distribute all smoke groups over four
-  native lanes while retaining existing required check names; new group costs
-  remain provisional until measured by hosted CI.
+- Refresh Windows timing evidence and distribute all smoke groups over five
+  native lanes while retaining existing required check names and the 30-minute
+  budget. Record completed group timings separately from job outcomes and retain
+  earlier verified measurements for groups interrupted by a timeout.
 
 ## [2.27.0] - 2026-10-26
 
