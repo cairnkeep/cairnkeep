@@ -11,22 +11,34 @@ import { inspectMemoryDatabaseMetadata, probeOrdinaryMemoryFormat } from './memo
 import { memoryError } from './memory-database-protocol.js';
 
 const LIMIT = 65536;
+const uint64 = z.string().regex(/^(?:0|[1-9][0-9]{0,19})$/)
+    .refine(value => value.length < 20 || value <= '18446744073709551615');
+const identitySchema = z.object({ dev: uint64, ino: uint64 }).strict();
+export function memoryLegacyIdentity(stat: { dev: bigint; ino: bigint }) {
+    return identitySchema.parse({ dev: stat.dev.toString(), ino: stat.ino.toString() });
+}
 const requestSchema = z.object({
     path: z.string().min(1).max(32768), key: z.string().min(1).max(4096),
-    dev: z.number().int().nonnegative(), ino: z.number().int().nonnegative(),
+    ...identitySchema.shape,
 }).strict();
 const replySchema = z.discriminatedUnion('ok', [
     z.object({ ok: z.literal(true), row: z.object({ value: z.string().nullable() }).strict().nullable() }).strict(),
     z.object({ ok: z.literal(false), code: z.string().regex(/^MEMORY_[A-Z_]{1,64}$/) }).strict(),
 ]);
 function inspect(path: string) {
-    const info = inspectMemoryDatabaseMetadata(path, true);
+    // Windows file IDs can exceed Number.MAX_SAFE_INTEGER. Bracket the existing
+    // permission checks with exact stats; never round an identity for IPC.
+    const before = lstatSync(path, { bigint: true });
+    inspectMemoryDatabaseMetadata(path, true);
     for (const suffix of ['-wal', '-shm', '-journal']) {
         try { lstatSync(path + suffix); }
         catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; throw error; }
         inspectMemoryDatabaseMetadata(path + suffix, true, true);
     }
-    return info;
+    const after = lstatSync(path, { bigint: true });
+    if (!before.isFile() || before.isSymbolicLink() || !after.isFile() || after.isSymbolicLink()
+        || before.dev !== after.dev || before.ino !== after.ino || before.uid !== after.uid || before.mode !== after.mode) throw memoryError('MEMORY_FILE_CHANGED');
+    return memoryLegacyIdentity(after);
 }
 
 /** Never imports a legacy driver into the caller. SDK readonly-first caching

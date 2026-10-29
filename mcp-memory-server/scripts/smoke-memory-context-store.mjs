@@ -3,7 +3,7 @@ import childProcess, { spawnSync } from 'node:child_process';
 import { createRequire, syncBuiltinESMExports } from 'node:module';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { readFileSync, writeFileSync, copyFileSync, unlinkSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, copyFileSync, unlinkSync, existsSync, openSync, closeSync, fstatSync } from 'node:fs';
 import { createContinuityLab } from './memory-continuity-lab.mjs';
 import { hardenPrivatePath } from '../dist/platform-security.js';
 import * as ordinary from '../dist/ordinary-memory-store.js';
@@ -31,6 +31,7 @@ const tables = async () => {
   try { return await view.getDatabase().prepare("SELECT name FROM sqlite_master WHERE name LIKE 'cairn_memory_context_%' ORDER BY name").all(); }
   finally { await view.close(); }
 };
+let emptyDescriptor;
 try {
   const empty = join(lab.root, 'empty-legacy.db');
   writeFileSync(empty, '', { mode: 0o600, flag: 'wx' }); hardenPrivatePath(empty);
@@ -49,6 +50,47 @@ try {
   } finally { await minimalView.close(); }
   assert.deepEqual(readFileSync(minimal), minimalBefore);
   const observer = fileURLToPath(new URL('../dist/memory-legacy-inspection.js', import.meta.url));
+  emptyDescriptor = openSync(empty, 'r');
+  const exactFile = fstatSync(emptyDescriptor, { bigint: true });
+  const highIdentity = { path: empty, key: options.key, dev: exactFile.dev.toString(), ino: '18446744073709551615' };
+  const mismatched = spawnSync(process.execPath, [observer], { input: JSON.stringify(highIdentity), encoding: 'utf8', timeout: 30000 });
+  assert.equal(mismatched.status, 0, mismatched.stderr);
+  assert.equal(JSON.parse(mismatched.stdout).code, 'MEMORY_FILE_CHANGED', 'uint64 identities must reach exact identity comparison, not fail safe-integer schema validation');
+  const { memoryLegacyIdentity } = await import('../dist/memory-legacy-inspection.js');
+  const large = 18014398509481984n;
+  assert.deepEqual(memoryLegacyIdentity({ dev: 0n, ino: large }), { dev: '0', ino: '18014398509481984' });
+  assert.notDeepEqual(memoryLegacyIdentity({ dev: 0n, ino: large }), memoryLegacyIdentity({ dev: 0n, ino: large + 1n }), 'adjacent uint64 identities must not collapse to the same floating-point value');
+  for (const ino of ['18446744073709551616', '01', '-1', '1e16', Number(large)]) {
+    const invalid = spawnSync(process.execPath, [observer], { input: JSON.stringify({ ...highIdentity, ino }), encoding: 'utf8', timeout: 30000 });
+    assert.equal(invalid.status, 0, invalid.stderr);
+    assert.equal(JSON.parse(invalid.stdout).code, 'MEMORY_LEGACY_INSPECTION_FAILED', 'noncanonical/overflow/lossy identity must refuse');
+  }
+  const largeIdPreload = join(lab.root, 'large-file-id.mjs');
+  writeFileSync(largeIdPreload, `
+    import fs from 'node:fs'; import {syncBuiltinESMExports} from 'node:module';
+    const target=${JSON.stringify(empty)}, descriptors=new Set();
+    const inode=18014398509481985n+(process.env.CAIRN_TEST_ID_MISMATCH==='1' && process.argv[1]?.endsWith('memory-legacy-inspection.js') ? 1n : 0n);
+    const stat=fs.lstatSync, fstat=fs.fstatSync, open=fs.openSync, close=fs.closeSync;
+    const patched=(info,options)=>Object.defineProperty(info,'ino',{value:options?.bigint ? inode : Number(inode)});
+    fs.lstatSync=(path,options)=>{const info=stat(path,options);return path===target ? patched(info,options) : info;};
+    fs.openSync=(path,...args)=>{const fd=open(path,...args);if(path===target)descriptors.add(fd);return fd;};
+    fs.fstatSync=(fd,options)=>{const info=fstat(fd,options);return descriptors.has(fd) ? patched(info,options) : info;};
+    fs.closeSync=fd=>{descriptors.delete(fd);return close(fd);};syncBuiltinESMExports();
+  `, { mode: 0o600, flag: 'wx' });
+  for (const mismatch of ['0', '1']) {
+    const admitted = spawnSync(process.execPath, ['--import', pathToFileURL(largeIdPreload).href, '--input-type=module', '-e', `
+      import assert from 'node:assert/strict';
+      const {inspectMemoryCandidate}=await import(process.argv[1]);
+      const read=()=>inspectMemoryCandidate({path:process.argv[2],scope:'project',key:'facts/device'});
+      if(process.env.CAIRN_TEST_ID_MISMATCH==='1')await assert.rejects(read(),{code:'MEMORY_FILE_CHANGED'});
+      else assert.equal(await read(),null);
+    `, new URL('../dist/memory-context-store.js', import.meta.url).href, empty], {
+      env: { ...lab.env, CAIRN_TEST_ID_MISMATCH: mismatch }, encoding: 'utf8', maxBuffer: 8192,
+      timeout: process.platform === 'win32' ? 120000 : 30000,
+    });
+    assert.equal(admitted.status, 0, admitted.stderr);
+    assert.equal(fstatSync(emptyDescriptor).size, 0);
+  }
   for (const malformed of ['{', ' '.repeat(65537)]) {
     const response = spawnSync(process.execPath, [observer], { input: malformed, encoding: 'utf8', timeout: 30000 });
     assert.equal(response.status, 0, response.stderr);
@@ -65,7 +107,7 @@ try {
       };
       syncBuiltinESMExports();
       await assert.rejects(feature.inspectMemoryCandidate({ ...options, path: empty }), /MEMORY_LEGACY_INSPECTION_FAILED/);
-      assert.equal(readFileSync(empty).length, 0, 'failed child must not initialize or change the legacy store');
+      assert.equal(fstatSync(emptyDescriptor).size, 0, 'failed child must not initialize or change the legacy store');
       assert.equal(existsSync(`${empty}.cairn-admission`), false, 'failed child must release its owned admission lease');
     }
   } finally { childProcess.execFile = execFile; syncBuiltinESMExports(); }
@@ -224,4 +266,4 @@ try {
   await assert.rejects(inspect(), /MEMORY_CONTEXT_DAMAGED/);
   lab.assertOffline();
   console.log('PASS: strict no-write freshness plans, atomic revisions, ABA/rollback/import/review invalidation, restore isolation and legacy refusal');
-} finally { await lab.close(); }
+} finally { if (emptyDescriptor !== undefined) closeSync(emptyDescriptor); await lab.close(); }

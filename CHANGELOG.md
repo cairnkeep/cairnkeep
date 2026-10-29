@@ -43,6 +43,8 @@ All notable user-facing changes are documented here. This project follows
 - Bound escaped empty response frames and inspect legacy files through the
   existing SDK driver in a bounded read-only child without initializing SDK
   schema or contaminating the main server's connection cache.
+- Preserve exact 64-bit filesystem identities across legacy inspection, including
+  Windows file IDs beyond JavaScript's safe-integer range.
 - Keep legacy stores and existing MCP schemas unchanged. No automatic conversion,
   source fetching, verification from usage, production activation or release.
 

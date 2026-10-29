@@ -97,7 +97,22 @@ try {
   try {
     hardenPrivatePath(emptyPath);
     emptySession = await lab.connect('beta', { CAIRN_MEMORY_CONTEXT: '1' });
-    assert.deepEqual((await call(emptySession.client, { scope: 'project', key })).candidates, []);
+    try {
+      assert.deepEqual((await call(emptySession.client, { scope: 'project', key })).candidates, []);
+    } catch (error) {
+      // Disposable fixture diagnostics only; production MCP errors remain
+      // categorical and never expose storage paths or raw driver failures.
+      const numeric = fstatSync(emptyDescriptor), exact = fstatSync(emptyDescriptor, { bigint: true });
+      console.error('EMPTY_STORE_IDENTITY', { dev: exact.dev.toString(), ino: exact.ino.toString(), safe_numeric_ino: Number.isSafeInteger(numeric.ino) });
+      const probe = spawnSync(process.execPath, ['--input-type=module', '-e', `
+        const {inspectMemoryCandidate}=await import(process.argv[1]);
+        console.log(JSON.stringify(await inspectMemoryCandidate({path:process.argv[2],scope:'project',key:process.argv[3]})));
+      `, new URL('../dist/memory-context-store.js', import.meta.url).href, emptyPath, key], {
+        cwd: lab.projects.beta, env: lab.env, encoding: 'utf8', maxBuffer: 8192, timeout: process.platform === 'win32' ? 120000 : 30000,
+      });
+      console.error('EMPTY_STORE_DIRECT_PROBE', { status: probe.status, error: probe.error?.code, stdout: probe.stdout, stderr: probe.stderr });
+      throw error;
+    }
     assert.equal(fstatSync(emptyDescriptor).size, 0, 'MCP observation must not initialize empty legacy schema');
   } finally { closeSync(emptyDescriptor); await emptySession?.close(); }
   await seed(path, 'project', 'project value');
