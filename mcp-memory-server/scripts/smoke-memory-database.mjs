@@ -141,10 +141,23 @@ try {
   await assert.rejects(db.prepare('SELECT ?').get('x'.repeat(8 * 1024 * 1024 + 1)), { code: 'MEMORY_REQUEST_LIMIT' });
   await assert.rejects(db.prepare('SELECT 1').get({ invalid: true }), { code: 'MEMORY_INVALID_BINDING' });
 
-  const short = await make('deadline', { limits: { operationMs: 500 } });
+  const initialize = AgentFS.openWith;
+  let short;
+  try {
+    // Controlled setup delay exceeds the later negative-control budget. Real
+    // SDK initialization must finish before arming that instance-local limit.
+    AgentFS.openWith = async function(...args) { await delay(750); return initialize.apply(this, args); };
+    short = await make('deadline');
+  } finally { AgentFS.openWith = initialize; }
+  assert.equal(short.db.limits.operationMs, 30000, 'SDK setup uses the ordinary bounded budget');
+  short.db.limits.operationMs = 500;
   const timed = short.db.transaction(async () => { await short.agent.kv.set('facts/timeout', 'bad'); await delay(800); })();
   await assert.rejects(timed, { code: 'MEMORY_OPERATION_TIMEOUT' });
   await assert.rejects(short.db.prepare('SELECT 1').get(), { code: 'MEMORY_DATABASE_UNUSABLE' });
+  await short.db.close();
+  const afterTimeout = await implementation.openMemoryDatabase(short.db.name, { readOnly: true }); opened.push(afterTimeout);
+  assert.equal(await afterTimeout.prepare('SELECT value FROM kv_store WHERE key=?').get('facts/timeout'), undefined,
+    'the timed-out transaction must roll back its staged value');
 
   const unclosed = await make('unclosed');
   await assert.rejects(unclosed.db.exclusive(async () => {
