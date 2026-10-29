@@ -67,6 +67,14 @@ of zero network traffic: configured search advertises open-world behavior.
 
 ## Source material
 
+Source-only advanced extension: request gated `memory_map` for an overview, then
+read an exact returned key. Compare prefix counts, current source references and
+freshness/ambiguity labels without treating them as truth. Default 4 KiB/hard
+8 KiB includes serialized CallToolResult text/structured content, not transport
+envelopes; `truncated` is explicit and legacy refs are
+null/untracked. Run the [map replay](../../memory-maps.md#reproduce) against the
+equal-information Markdown arm; no general agent-quality gain is implied.
+
 - [Operating guide](../../operating.md#the-workflow)
 - [Memory retrieval and the Markdown baseline](../../memory-retrieval.md)
 - [Recording supplement](../video-scripts/V04-memory-retrieval-supplement.md)

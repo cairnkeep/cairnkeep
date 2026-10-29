@@ -9,6 +9,7 @@ import { MemoryDatabase } from './memory-database.js';
 import { memoryError } from './memory-database-protocol.js';
 import { probeOrdinaryMemoryFormat, readMemorySourceRef, validateMemoryContextFormat } from './memory-store-format.js';
 import { canonicalMemoryPath, memoryStoreIdentity, openOrdinaryMemoryStore, openOrdinaryMemoryView } from './ordinary-memory-store.js';
+import { memoryMapPage, chargeMemoryMapPage, type MemoryMapBudget } from './memory-map-budget.js';
 
 type Target = { path: string; scope: string };
 type Mutation = Target & { input: unknown; operation?: 'set' | 'remove' };
@@ -291,6 +292,43 @@ export async function readMemoryClaimConflicts(db: MemoryDatabase, target: Targe
 export async function inspectMemoryClaimConflicts(target: Target & { key: string }): Promise<Conflict[]> {
     if (['missing', 'legacy'].includes(probeOrdinaryMemoryFormat(target.path).kind)) return [];
     return withStore(target, false, db => readMemoryClaimConflicts(db, target, target.key));
+}
+
+/** Bounded map projection, within the caller's admitted snapshot. Only anchors
+ * in its visible source set may contribute titles, aliases or counts. No links
+ * or claims are exposed, and a missing/stale anchor cannot become navigation. */
+export async function readMemoryMapEntities(db: MemoryDatabase, sources: Map<string, MemorySourceRef>, budget: MemoryMapBudget) {
+    const objects = await db.prepare('SELECT name,type,sql FROM sqlite_master WHERE name IN (?,?) ORDER BY name').all(CONTEXT_ENTITY_TABLE, CONTEXT_LINK_TABLE);
+    const entities: Array<{ id: string; revision: number; title: string; aliases: string[]; anchor: MemorySourceRef }> = [];
+    if (!objects.length) return { entities, truncated: false };
+    if (objects.length !== 2 || objects.some(row => row.type !== 'table'
+        || row.sql !== CONTEXT_CONNECTION_SQL[[CONTEXT_ENTITY_TABLE, CONTEXT_LINK_TABLE].indexOf(String(row.name))])) return fail('MEMORY_CONTEXT_DAMAGED');
+    if (!budget.rows || !budget.bytes) return { entities,
+        truncated: Boolean(await db.prepare(`SELECT 1 FROM ${CONTEXT_ENTITY_TABLE} LIMIT 1`).get()) };
+    let offset = 0, truncated = false;
+    for (;;) {
+        if (!budget.rows || !budget.bytes) { truncated = true; break; }
+        const page = memoryMapPage('entities', `SELECT id,present,revision,assertion_json FROM ${CONTEXT_ENTITY_TABLE}`, [], offset, budget);
+        const rows = await db.prepare(page.sql).all(...page.args);
+        const limited = chargeMemoryMapPage('entities', rows, budget);
+        if (!rows.length) break;
+        offset += rows.length;
+        for (const row of rows) {
+            if (row.__map_limited === 1) continue;
+            if (!z.uuid().safeParse(row.id).success || !Number.isSafeInteger(row.revision) || Number(row.revision) < 1
+                || (row.present !== 0 && row.present !== 1)) return fail('MEMORY_CONTEXT_DAMAGED');
+            if (!row.present) { if (row.assertion_json !== null) return fail('MEMORY_CONTEXT_DAMAGED'); continue; }
+            if (typeof row.assertion_json !== 'string') return fail('MEMORY_CONTEXT_DAMAGED');
+            let entity: MemoryEntity;
+            try { entity = memoryEntitySchema.parse(JSON.parse(row.assertion_json)); } catch { return fail('MEMORY_CONTEXT_DAMAGED'); }
+            if (entity.id !== row.id || entity.revision !== row.revision) return fail('MEMORY_CONTEXT_DAMAGED');
+            if (!sources.has(entity.anchor.key) || digest(sources.get(entity.anchor.key)) !== digest(entity.anchor)) continue;
+            entities.push({ id: entity.id, revision: entity.revision, title: entity.title, aliases: entity.aliases, anchor: entity.anchor });
+        }
+        if (limited) { truncated = true; break; }
+        if (rows.length < page.limit) break;
+    }
+    return { entities, truncated };
 }
 export async function memoryConnectionsStoreStatus(target: { path: string; scope?: string }) {
     const kind = probeOrdinaryMemoryFormat(target.path).kind;

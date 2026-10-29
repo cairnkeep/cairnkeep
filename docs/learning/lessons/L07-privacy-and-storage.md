@@ -57,6 +57,13 @@ will go before starting a session.
 
 ## Hands-on lab
 
+Source-only map extension: identify the private disposable `.memory-map-cache/`
+beside the selected database. It can contain sensitive keys/titles/provenance,
+but is not authoritative memory or part of managed backups. A missing/corrupt
+cache must not enable access, conversion or network traffic. Demonstrate HTTP's
+separate consent/project binding; `all` never joins stores or opens team/pack/
+skill backends. See [map privacy and limits](../../memory-maps.md).
+
 Draw the data flow for a default local setup and for a disposable loopback HTTP
 setup. Verify the local store path, inspect only file permissions and database
 names, and prove that no remote destination was discovered.

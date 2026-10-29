@@ -10,6 +10,7 @@ import { probeOrdinaryMemoryFormat, readMemorySourceRef, validateMemoryContextFo
 import { canonicalMemoryPath, memoryStoreIdentity, openOrdinaryMemoryStore, openOrdinaryMemoryView } from './ordinary-memory-store.js';
 import { withOrdinaryMemorySnapshot } from './ordinary-memory-store.js';
 import { readLegacyMemoryInspection } from './memory-legacy-inspection.js';
+import { memoryMapPage, chargeMemoryMapPage, type MemoryMapBudget } from './memory-map-budget.js';
 
 export { readMemorySourceRef } from './memory-store-format.js';
 type Target = { path: string; scope: string; key: string; now?: () => Date };
@@ -138,6 +139,36 @@ async function readTrackedFreshness(db: MemoryDatabase, target: Target, now: Dat
 }
 const untracked = () => ({ schema_version: 1 as const, tracked: false, status: 'unknown' as const,
     source: null, metadata: null, stale: false, future_effective: false });
+
+/** Map snapshot projection: the caller already admitted these exact live refs.
+ * Do not re-open a store or validate its whole schema once per navigation key. */
+export async function readMemoryMapFreshness(db: MemoryDatabase, sources: MemorySourceRef[], now: Date, budget: MemoryMapBudget) {
+    const statuses = new Map(sources.map(source => [source.key, 'unknown']));
+    let truncated = false;
+    if (await assertionTableExists(db)) {
+        scan: for (let offset = 0; offset < sources.length; offset += 32) {
+            if (!budget.rows || !budget.bytes) { truncated = true; break; }
+            const batch = sources.slice(offset, offset + 32), allowed = new Map(batch.map(source => [source.key, source]));
+            const page = memoryMapPage('freshness', `SELECT key,assertion_json FROM ${CONTEXT_FACT_TABLE}
+                WHERE key IN (${batch.map(() => '?').join(',')})`, [...allowed.keys()], 0, budget);
+            const rows = await db.prepare(page.sql).all(...page.args);
+            const limited = chargeMemoryMapPage('freshness', rows, budget);
+            for (const row of rows) {
+                if (row.__map_limited === 1) continue;
+                if (typeof row.assertion_json !== 'string') throw memoryError('MEMORY_CONTEXT_DAMAGED');
+                let assertion;
+                try { assertion = memoryFreshnessAssertionSchema.parse(JSON.parse(row.assertion_json)); }
+                catch { throw memoryError('MEMORY_CONTEXT_DAMAGED'); }
+                if (assertion.source.key !== row.key || (assertion.metadata.verified_at && Date.parse(assertion.metadata.verified_at) > Date.parse(assertion.captured_at))) throw memoryError('MEMORY_CONTEXT_DAMAGED');
+                if (hash(assertion.source) !== hash(allowed.get(String(row.key)))) continue;
+                statuses.set(String(row.key), !assertion.metadata.verified_at ? 'unverified'
+                    : assertion.metadata.review_after && Date.parse(assertion.metadata.review_after) <= now.getTime() ? 'needs_review' : 'current');
+            }
+            if (limited || budget.rows === 0 || budget.bytes === 0) { truncated = true; break scan; }
+        }
+    }
+    return { statuses, truncated };
+}
 
 export async function inspectMemoryFreshness(target: Target) {
     assertMemoryContextKey(target.key);

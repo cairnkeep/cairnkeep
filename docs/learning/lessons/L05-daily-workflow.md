@@ -37,6 +37,12 @@ queue before exiting.
 
 ## Source material
 
+Optional unreleased source-checkout exercise: after a synthetic cross-harness
+handoff, request `memory_map`, inspect `truncated`, and follow navigation with an
+exact read. Do not inject a global map at every startup or replace maintained
+sources with a prefix count. Maps are deterministic and provider-free; the
+[separate map guide](../../memory-maps.md) explains scope and cache boundaries.
+
 - [Operating guide](../../operating.md#the-workflow)
 - [Git provider configuration](../../git-providers.md)
 - [L13 - Session evidence and hindsight](L13-session-evidence.md)

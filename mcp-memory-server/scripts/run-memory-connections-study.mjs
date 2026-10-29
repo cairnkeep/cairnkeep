@@ -8,10 +8,12 @@ import * as ordinary from '../dist/ordinary-memory-store.js';
 import * as graph from '../dist/memory-connections.js';
 import { planFreshnessChange, applyFreshnessChange } from '../dist/memory-context-store.js';
 import { resolveMcpToolProfile } from '../dist/mcp-tool-profile.js';
+import { buildMemoryMap, memoryMapResponse } from '../dist/memory-map.js';
 
 const args = process.argv.slice(2), bytes = readFileSync(new URL('./fixtures/memory-continuity-v2.json', import.meta.url));
-assert.ok(args[0] === '--features' && args[1] === 'freshness,links' && args.slice(2).every(arg => ['--check', '--summary'].includes(arg)),
-  'Usage: --features freshness,links [--check] [--summary]');
+assert.ok(args[0] === '--features' && ['freshness,links', 'freshness,links,maps'].includes(args[1]) && args.slice(2).every(arg => ['--check', '--summary'].includes(arg)),
+  'Usage: --features freshness,links[,maps] [--check] [--summary]');
+const mapsEnabled = args[1].endsWith(',maps'), mapResults = [], markers = new Map();
 const fixture = JSON.parse(bytes), lab = createContinuityLab();
 const hash = value => createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
 const records = new Map(fixture.records.map(row => [row.id, row]));
@@ -20,6 +22,7 @@ let unsupportedEdges = 0, unauthorizedReturns = 0;
 const storeKey = row => `${row.scope === 'identity' ? 'shared' : row.project}:${row.scope}:${row.key}`;
 const store = row => ({ scope: row.scope, path: row.scope === 'identity' ? join(lab.env.CAIRN_AGENTFS_BASE_DIR, 'identity.db')
   : join(lab.projects[row.project], '.agentfs', 'project.db') });
+const partitionId = row => `${row.scope === 'identity' ? 'shared' : row.project}:${row.scope}`;
 const folder = join(lab.root, 'markdown'); mkdirSync(folder, { mode: 0o700 });
 const sessions = new Map();
 async function client(project, harness = 'a') {
@@ -111,10 +114,73 @@ async function compare(item) {
   results.push({ case_id: item.id, ...observed, native_ms: Math.round(nativeMs * 100) / 100,
     markdown_ms: Math.round(markdownMs * 100) / 100, returned_bytes: Buffer.byteLength(JSON.stringify(graph.memoryConnectionsResponse(native))) });
 }
+function markdownMap(item) {
+  const marker = markers.get(partitionId(item));
+  const rows = readdirSync(folder).filter(name => name.endsWith('.md')).map(name => JSON.parse(readFileSync(join(folder, name), 'utf8')))
+    .filter(({ row, present }) => present && row.scope === item.scope && (row.scope === 'identity' || row.project === item.project))
+    .sort((a, b) => a.row.key < b.row.key ? -1 : a.row.key > b.row.key ? 1 : 0);
+  const curation = JSON.parse(readFileSync(join(folder, 'curation.json'), 'utf8'));
+  const source = row => ({ schema_version: 1, owner_domain: marker.owner_domain, scope: marker.scope, store_uuid: marker.store_uuid,
+    restore_epoch: marker.restore_epoch, key: row.row.key, generation: row.generation,
+    content_digest: hash(JSON.stringify(row.row.value)), context_revision: row.context_revision });
+  const refs = new Map(rows.map(row => [row.row.key, source(row)]));
+  const sameRef = (left, right) => left && right && Object.keys(left).every(key => left[key] === right[key])
+    && Object.keys(left).length === Object.keys(right).length;
+  const status = ref => {
+    const assertion = curation.freshness?.find(row => sameRef(row.source, ref));
+    return !assertion ? 'unknown' : !assertion.metadata.verified_at ? 'unverified'
+      : assertion.metadata.review_after && Date.parse(assertion.metadata.review_after) <= Date.now() ? 'needs_review' : 'current';
+  };
+  const groups = new Map();
+  for (const row of rows) {
+    const key = row.row.key, prefix = key.includes('/') ? key.slice(0, key.indexOf('/')) : key;
+    const group = groups.get(prefix) ?? []; group.push({ key, source: refs.get(key), status: status(refs.get(key)) }); groups.set(prefix, group);
+  }
+  const entries = [...groups].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([prefix, group]) => {
+    const freshness = {}; for (const row of group) freshness[row.status] = (freshness[row.status] ?? 0) + 1;
+    return { kind: 'prefix', prefix, count: group.length, freshness, navigation: group.slice(0, 3), navigation_truncated: group.length > 3 };
+  });
+  const live = curation.entities.filter(row => row.assertion && row.scope === item.scope && (row.scope === 'identity' || row.project === item.project)
+    && sameRef(refs.get(row.assertion.anchor.key), row.assertion.anchor))
+    .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  for (const row of live) {
+    const entity = row.assertion, names = new Set([entity.title, ...entity.aliases]);
+    const ambiguous = live.some(other => other.id !== row.id && [other.assertion.title, ...other.assertion.aliases].some(alias => names.has(alias)));
+    entries.push({ kind: 'entity', id: row.id, title: entity.title, ambiguous,
+      navigation: [{ key: entity.anchor.key, source: entity.anchor, status: status(entity.anchor) }] });
+  }
+  const result = { schema_version: 1, partitions: [{ scope: item.scope, tracked: true, entries: [] }], exact_reads_required: true, truncated: false };
+  // Independently enforce the same complete MCP framing/budget, not the native
+  // output or its selected navigation. No production map builder is reused.
+  const framedBytes = value => Buffer.byteLength(JSON.stringify({ content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value }));
+  for (const entry of entries) {
+    if (result.partitions[0].entries.length === 50) { result.truncated = true; break; }
+    const proposed = { ...result, partitions: [{ ...result.partitions[0], entries: [...result.partitions[0].entries, entry] }], truncated: false };
+    if (framedBytes(proposed) > 8192) { result.truncated = true; continue; }
+    result.partitions[0].entries.push(entry);
+    if (entry.navigation_truncated) result.truncated = true;
+  }
+  return result;
+}
+async function compareMap(item) {
+  const started = performance.now(), cold = await buildMemoryMap([store(item)], { max_bytes: 8192 });
+  const coldMs = performance.now() - started, warmed = performance.now();
+  const warm = await buildMemoryMap([store(item)], { max_bytes: 8192 });
+  const warmMs = performance.now() - warmed, mdStarted = performance.now(), markdown = markdownMap(item);
+  const markdownMs = performance.now() - mdStarted;
+  assert.deepEqual(cold, markdown, 'equal-information Markdown map must derive the same bounded navigation independently');
+  assert.deepEqual(warm, cold);
+  assert.ok(Buffer.byteLength(JSON.stringify(memoryMapResponse(cold))) <= 8192);
+  mapResults.push({ project: item.project ?? 'shared', scope: item.scope, parity: true,
+    returned_bytes: Buffer.byteLength(JSON.stringify(memoryMapResponse(cold))), truncated: cold.truncated,
+    cold_ms: Math.round(coldMs * 100) / 100, warm_ms: Math.round(warmMs * 100) / 100,
+    markdown_ms: Math.round(markdownMs * 100) / 100 });
+}
 try {
   for (const row of [{ project: 'alpha', scope: 'project' }, { project: 'beta', scope: 'project' }, { scope: 'identity' }]) {
     const target = store(row), plan = await ordinary.planContextStoreInit(target);
     await ordinary.applyContextStoreInit({ ...target, confirm: plan.digest });
+    if (mapsEnabled) markers.set(partitionId(row), (await ordinary.contextStoreStatus(target.path, target.scope)).marker);
   }
   for (const event of fixture.events) { const [operation, id] = Object.entries(event)[0]; await mutate(operation, records.get(id)); }
   const byRecord = new Map(); let nextId = 1;
@@ -178,14 +244,15 @@ try {
   const renamed = records.get('renamed');
   await mutate('write', { ...renamed, value: 'temporary replacement' }); await mutate('write', renamed);
   await compare({ id: 'source-aba-negative', project: 'alpha', scope: 'project', entity: 'glimmer', keys: [] });
+  if (mapsEnabled) for (const item of [{ project: 'alpha', scope: 'project' }, { project: 'beta', scope: 'project' }, { scope: 'identity' }]) await compareMap(item);
   lab.assertOffline();
   const frozen = JSON.parse(readFileSync(new URL('./fixtures/memory-continuity-baseline-v227.json', import.meta.url)));
   const baselineLinked = frozen.results.find(row => row.adapter === 'cairn-v227' && row.case_id === 'linked-route').recall_at_5;
   assert.equal(baselineLinked, 1 / 3); assert.equal(results.find(row => row.case_id === 'linked-route').keys.length, 3);
-  const source = ['memory-connections.ts', 'memory-context-store.ts', 'memory-context-schema.ts', 'index.ts']
+  const source = ['memory-connections.ts', 'memory-context-store.ts', 'memory-context-schema.ts', 'index.ts', ...(mapsEnabled ? ['memory-map.ts', 'memory-map-budget.ts'] : [])]
     .map(name => readFileSync(new URL(`../src/${name}`, import.meta.url)));
-  console.log(JSON.stringify({ schema_version: 1, study: 'native-memory-freshness-links', synthetic_only: true,
-    fixture_digest: hash(bytes), source_digest: hash(Buffer.concat(source)), configuration_digest: hash({ aliasInput, links: fixture.links, depth: 2 }),
+  console.log(JSON.stringify({ schema_version: 1, study: mapsEnabled ? 'native-memory-freshness-links-maps' : 'native-memory-freshness-links', synthetic_only: true,
+    fixture_digest: hash(bytes), source_digest: hash(Buffer.concat(source)), configuration_digest: hash({ aliasInput, links: fixture.links, depth: 2, maps: mapsEnabled }),
     profile_digest: resolveMcpToolProfile({ projectRoot: lab.projects.alpha, env: lab.env }).profile_digest,
     adapters: ['cairn-freshness-links', 'markdown-curated-links'], cases: results.length, parity: true,
     linked_recall: { frozen_baseline: baselineLinked, curated_native: 1, curated_markdown: 1 },
@@ -193,5 +260,6 @@ try {
     limitations: ['Synthetic curated retrieval, not autonomous task quality or a human pilot.',
       'Both formats receive identical explicit aliases, evidence and link metadata; neither infers entities.',
       'Freshness dates warn without choosing truth or changing source text; no production conversion.',
-      'Feedback, maps, learned ranking and complete milestone held-out ablations remain separate.'], results }, null, 2));
+      'Maps are bounded orientation, not exact source reads or an automatic quality gain; warm cache still revalidates live records.',
+      'Feedback, learned ranking and complete milestone held-out ablations remain separate.'], ...(mapsEnabled ? { maps: mapResults } : {}), results }, null, 2));
 } finally { await lab.close(); }

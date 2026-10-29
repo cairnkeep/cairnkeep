@@ -45,3 +45,26 @@ it. Explain that the earlier HTTP-502 study is separate and remains a failed
 run. Demonstrate the doctor's synthetic request, then disable reranking and
 show unchanged memory text and provenance. This is a recording brief, not a
 claim that this segment has been filmed or published.
+
+## Source-only compact-map segment (unreleased)
+
+Use only the disposable synthetic fixture. Type and pause on:
+
+```sh
+node mcp-memory-server/scripts/smoke-memory-map.mjs
+node mcp-memory-server/scripts/smoke-memory-map-mcp.mjs
+node mcp-memory-server/scripts/run-memory-continuity-study.mjs --features freshness,links,maps --check --summary
+```
+
+Zoom into `partitions`, prefix/entity navigation, a freshness warning, an
+ambiguity label and `truncated`. Explain the 4 KiB default/8 KiB hard UTF-8 budget
+including serialized CallToolResult text/structured content, not transport
+envelopes. Follow one actual navigation with an exact read. Show a
+legacy null/untracked reference, then a source change invalidating an entity;
+do not demonstrate production conversion or claim facts were verified by reading.
+
+Compare the independently enumerated Markdown arm and actual cold/warm costs.
+Do not claim caching is faster: every map still revalidates current visibility
+and revisions. No model/provider or automatic `AGENTS.md` injection occurs.
+Explain private cache sensitivity and separate HTTP consent. This is a recording
+brief, not a claim that a new segment has been recorded or published.

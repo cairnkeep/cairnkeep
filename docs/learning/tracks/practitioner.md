@@ -19,6 +19,11 @@ review derived knowledge, run governed repository checks, locate the store, and
 perform a reversible backup or migration, and distinguish playbook selection
 from execution and approval.
 
+Optional unreleased source-only extension: use the [compact-map lab](../../memory-maps.md)
+for cross-session orientation, then read exact sources. Scope partitions,
+truncation, asserted freshness and a private disposable cache are not new
+permission or factual verification. Released prerequisites stay unchanged.
+
 Hands-on spine: `course-02-memory`, `course-03-quality`, and
 `course-05-evidence`, and `course-13-playbooks` in the public
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs).

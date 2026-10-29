@@ -211,13 +211,16 @@ export async function openOrdinaryMemoryStore(input: string, scope: string, opti
     });
 }
 
-export async function openOrdinaryMemoryView(input: string, scope?: string): Promise<OrdinaryMemoryReader | null> {
+export async function openOrdinaryMemoryView(input: string, scope?: string, expectedFormat?: 'context-v1'): Promise<OrdinaryMemoryReader | null> {
     const path = canonicalMemoryPath(input);
     assertNoPendingImport(path);
     if (!info(path)) return null;
     return withMemoryAdmission(path, async () => {
         assertNoPendingImport(path);
         const format = probeOrdinaryMemoryFormat(path);
+        // Derived observers that already selected the tracked format must not
+        // fall through to SDK initialization if the admitted path is replaced.
+        if (expectedFormat && format.kind !== expectedFormat) throw memoryError('MEMORY_FILE_CHANGED');
         if (format.kind === 'unsupported' || format.kind === 'missing') throw memoryError('MEMORY_FORMAT_UNSUPPORTED');
         if (format.kind === 'legacy') return protectAgentKeyPrefixes(await AgentFS.open({ id: scope ?? 'inspection', path }));
         const db = await openContextDatabase(path, scope, true);
