@@ -60,7 +60,7 @@ env -u CAIRN_NOTE_DISTILLATION cairn notes --help >/dev/null \
   || fail "installed package omitted the notes command"
 
 installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
-for module in memory-sqlite-worker memory-database memory-database-protocol memory-context-schema memory-store-format ordinary-memory-store memory-context-cli; do
+for module in memory-sqlite-worker memory-database memory-database-protocol memory-context-schema memory-store-format ordinary-memory-store memory-context-cli memory-legacy-inspection; do
   [[ -f "$installed_root/mcp-memory-server/dist/$module.js" ]] || fail "npm tarball omitted tracked-store module $module"
 done
 node "$ROOT/scripts/test-memory-context-installed.mjs" "$installed_root" || fail "installed tracked-store recovery failed"

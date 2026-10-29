@@ -278,7 +278,9 @@ fi
 
 # 11. Typed metadata overlays and canonical-note transaction state. The internal
 #    JSON seam enumerates only contained local databases and the one notes root;
-#    raw KV cells and unmarked Markdown bytes are never repair inputs.
+#    raw KV cells and unmarked Markdown bytes are never repair inputs. With
+#    CAIRN_MEMORY_CONTEXT=1, the same seam also validates freshness metadata,
+#    never creating assertion tables or changing verification dates.
 node_cli="$CAIRN_ROOT/mcp-memory-server/dist/node-cli.js"
 if [[ ! -f "$node_cli" ]]; then
   fail "typed-node diagnostics unavailable — rebuild mcp-memory-server"

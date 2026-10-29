@@ -15,7 +15,7 @@ All notable user-facing changes are documented here. This project follows
   imports with archive-wide preflight and recoverable, admission-blocking state.
 - Existing stores remain unchanged. No automatic conversion, older-client
   transparency, new context tools, production admission or release is implied;
-  native-platform and independent-review gates remain open. Update storage,
+  storage-foundation native-platform and independent-review gates pass. Update storage,
   compatibility, completions and the unreleased L07 teaching brief.
 - Preserve live SQLite locks across worker connections and file validation;
   retain probe descriptors until workers exit and avoid opening live sidecars.
@@ -30,6 +30,26 @@ All notable user-facing changes are documented here. This project follows
 - Require a bundled SQLite with the WAL-reset fix for the opt-in tracked format;
   reject unpatched native admission before creating a tracked store. Preserve the legacy
   Node engine floor and distinguish the API minimum from safe SQLite admission.
+
+### Revision-bound freshness (unreleased)
+
+- Add strict, explicit revision-bound freshness assertions for fresh tracked
+  stores, with no-write plans/inspection and atomic digest-confirmed curation.
+- Invalidate assertions after source changes, metadata changes and managed
+  restore without treating dates, usage or source references as factual truth.
+- Add local `memory-context inspect|set-freshness`, metadata-only status/doctor,
+  and separately gated read-only `memory_inspect` with profile/capability/HTTP
+  consent intersections, snapshot-bound provenance and bounded conflict signals.
+- Bound escaped empty response frames and inspect legacy files through the
+  existing SDK driver in a bounded read-only child without initializing SDK
+  schema or contaminating the main server's connection cache.
+- Preserve exact 64-bit filesystem identities across legacy inspection, including
+  Windows file IDs beyond JavaScript's safe-integer range.
+- Test active legacy writer isolation before and after inspection with distinct
+  writable connections, retaining POSIX external-writer controls and documenting
+  the existing Windows legacy driver's lack of cross-process file locking.
+- Keep legacy stores and existing MCP schemas unchanged. No automatic conversion,
+  source fetching, verification from usage, production activation or release.
 
 ## [2.27.0] - 2026-10-26
 

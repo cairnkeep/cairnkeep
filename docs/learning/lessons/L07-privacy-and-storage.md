@@ -24,7 +24,8 @@ will go before starting a session.
   `status` and `doctor` inspect the format without initializing SDK schemas.
   Existing stores are not converted, older clients refuse the new format, and
   turning off context tools does not roll back storage. Use disposable stores
-  only until the platform and recovery gates are complete. This is not a
+  only: foundation platform/recovery gates pass, but production admission and
+  release remain separate decisions. This is not a
   rehearsed lesson or a change to the released installation instructions.
 - Advanced recovery brief: `cairn memory-context backup --output FILE` creates
   a standalone no-overwrite snapshot. `restore --input FILE` plans an absent,
@@ -40,6 +41,19 @@ will go before starting a session.
 - Runtime check: the Node 22.16 API floor is not a safe SQLite-version promise.
   Tracked stores require a bundled SQLite with the WAL-reset fix; an unsupported
   native runtime refuses before writes while ordinary legacy memory still works.
+- Development-only freshness brief: explicit assertions bind source generations,
+  metadata revisions and restore epochs. Changed facts cannot become verified
+  again merely because their old text returns. Source references are opaque,
+  never fetched; reads do not verify facts. On the unreleased source branch,
+  demonstrate local `memory-context set-freshness` plan/exact-digest apply,
+  `inspect` and metadata-only `doctor` on a disposable store. Show gated read-only
+  `memory_inspect`, its separate HTTP consent and stale-plan refusal. Do not
+  imply released availability, independent native qualification or a recording.
+  Explain that oversized escaped keys refuse rather than changing identity, and
+  legacy inspection never initializes SDK tables. Its bounded read-only child
+  cannot change the main server's SDK connection cache or later write behavior.
+  This does not add cross-process file locking to the legacy Windows backend;
+  never demonstrate simultaneous writer processes against one such store.
 
 ## Hands-on lab
 

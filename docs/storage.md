@@ -368,8 +368,9 @@ HTTP mode is one trusted storage domain:
 
 Released installations and existing stores keep their original backend. The
 new `cairn memory-context` administration CLI is currently an isolated storage
-foundation, not production admission or a migration command. Use disposable
-stores until its native-platform and recovery gates have passed.
+foundation, not production admission or a migration command. The foundation has
+passed native-platform, recovery and independent-review gates; use disposable
+stores until a separate release and production-admission decision.
 
 `init --scope SCOPE --project PATH --json` prints a no-write digest-bound plan.
 Only `init ... --apply --confirm DIGEST` creates the inspected absent target.
@@ -453,6 +454,47 @@ stopped. Preserve these files; doctor never guesses the intended state.
 Generic export uses the managed online snapshot path for tracked global stores
 and keeps the SQLite CLI path for legacy stores. A mixed export is not a generic
 import authorization: tracked members still require explicit managed recovery.
+
+### Development-only freshness assertions
+
+The unreleased freshness API and local `set-freshness` CLI add explicit assertions
+to a fresh tracked store. They do not convert legacy stores. The separately gated
+read-only `memory_inspect` MCP tool observes these assertions; no curation tool is
+available through MCP. Inspection never initializes legacy SDK schema, including
+empty files; its isolated SDK-resolved read-only child requires private
+file/sidecar and parent-path admission. Process isolation prevents the SDK's
+readonly cache from poisoning later ordinary writes. Child input/output and time
+are bounded, with a V8 old-space limit rather than a total process-memory cap;
+no writable fallback is attempted. Existing legacy commands remain unchanged.
+The child exchange preserves exact filesystem identities, including unsigned
+64-bit Windows file IDs that cannot be represented safely as JavaScript numbers.
+Node's signed native stat view is normalized by its exact 64-bit pattern; the
+wire format remains canonical unsigned decimal, with malformed/overflow IDs refused.
+This does not upgrade the legacy driver's concurrency guarantees: its pinned
+Windows backend provides no cross-process file locking. Do not run simultaneous
+writer processes against one legacy store on Windows. Inspection remains
+read-only and untracked; fresh tracked stores use the separate SQLite backend.
+Tests preserve active-writer isolation with distinct connections on every
+platform and additionally require external-process exclusion on POSIX.
+Planning and inspection do not create assertion tables. Only a confirmed
+curation apply writes them, atomically with that key's metadata revision.
+Source generations, content digests, store identity and restore epoch are checked
+separately; identical text after A→B→A or delete/recreate cannot revive an old
+assertion. Editing another key's metadata does not invalidate this one.
+
+Assertions retain up to eight opaque source references (512 UTF-8 bytes each),
+optional UTC effective/verified/review dates and a separate capture timestamp.
+References are never fetched. Future verification is rejected; future effectiveness
+is labeled. `unknown`, `unverified`, `current` and `needs_review` describe the
+assertion's status, not factual truth. Stale metadata retains its asserted-source
+provenance but is not current evidence. Reads never advance verification dates.
+Managed restore retains assertions in the snapshot but the renewed epoch makes
+old assertions stale. Missing or malformed initialized assertion infrastructure
+fails closed rather than silently rebuilding it. `memory-context status|doctor`
+report whether assertion metadata is initialized and its bounded row count, not
+source text or reference values. Source-only CLI/MCP verification is distinct
+from a release or production admission; use disposable stores. See
+[freshness operations](operating.md#revision-bound-freshness-unreleased-source-checkout-only).
 
 ### Released legacy memory commands
 

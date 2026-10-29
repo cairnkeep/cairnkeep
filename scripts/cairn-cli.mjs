@@ -45,7 +45,7 @@ Usage:
   cairn setup [PATH]  # interactive Git, harness, memory, and confirmation selectors
   cairn setup PATH --git init|existing|none --harness LIST --memory local|none [--policy PATH] --yes [--json]
   cairn memory-server
-  cairn memory-context <init|status|doctor|backup|restore> --scope SCOPE [--project PATH] [--input FILE|--output FILE] [--apply --confirm DIGEST]
+  cairn memory-context <init|status|doctor|backup|restore|inspect|set-freshness> --scope SCOPE [--project PATH] [--key KEY] [--input FILE|--output FILE] [--apply --confirm DIGEST]
   cairn sync [--check|--apply] [--live-root DIR]
   cairn sync-pi [--check|--apply] [--live-root DIR]
   cairn sync-kimi [--check|--apply] [--live-root DIR]

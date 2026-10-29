@@ -16,12 +16,21 @@ The unreleased tracked-store foundation changes storage, not MCP tool schemas
 or harness configuration. Explicit fresh initialization requires a server with
 Node 22.16+ and the built-in SQLite API. Older database executables refuse its
 format; turning off context tools does not enable an older backend. Existing
-stores are not converted. Native-platform validation of this foundation remains
-a separate gate, not a claim derived from the existing harness matrix below.
+stores are not converted. The foundation passed native-platform and independent
+review gates; later freshness exposure requires its own qualification, not a
+claim derived from the existing harness matrix below.
 See [storage lifecycle and recovery](storage.md#unreleased-tracked-store-foundation-source-checkout-only).
 The Node 22.16 API floor alone is insufficient: tracked stores also require the
 bundled SQLite WAL-reset fix (3.51.3+ or documented maintenance backports).
 Unpatched native admission is refused; legacy stores keep their existing runtime.
+
+Unreleased `memory_inspect` is a separate read-only MCP observation enabled only
+by `CAIRN_MEMORY_CONTEXT=1`, subject to `memory.search` capability and profile
+restrictions. Authenticated HTTP additionally requires
+`CAIRN_MEMORY_CONTEXT_HTTP=1` and a validated project identity. No harness asset
+sync, model, source fetching or automatic freshness verification is required.
+Local operator curation is not exposed as an MCP tool. Existing tool schemas and
+feature-off discovery remain unchanged; no production activation is implied.
 
 | Harness | Supported surface | Runtime status |
 |---|---|---|

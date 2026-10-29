@@ -132,6 +132,24 @@ Point viewers to L26 and `docs/context-intelligence.md`.
 
 ## Recording cautions
 
+Unreleased follow-up only, not part of the existing recorded lesson: once the
+freshness candidate is qualified, prepare a disposable tracked store and show
+`cairn memory-context set-freshness --scope project --key facts/demo --input freshness.json --json`.
+Pause on the no-write plan; apply the exact digest locally, then call
+`memory_inspect {"scope":"project","key":"facts/demo"}` with
+`CAIRN_MEMORY_CONTEXT=1`. Change the source and inspect again: the old assertion
+is stale, not a correction or automatic verification. Show that read-only profiles
+can inspect but cannot curate, and that HTTP requires separate
+`CAIRN_MEMORY_CONTEXT_HTTP=1` consent. Source references are opaque, never fetched.
+In a separate disposable legacy fixture, inspect before an ordinary read/write:
+the bounded read-only child must neither initialize SDK schema nor poison later
+writes through the SDK's connection cache. Never relax file permissions on failure.
+Do not imply new cross-process locking guarantees for legacy Windows stores:
+their existing driver lacks that exclusion; keep simultaneous writer processes
+out of the demo. Fresh tracked stores use the separate SQLite backend.
+Do not demonstrate production migration or describe a native/human rehearsal
+that has not occurred. Existing published videos are not updated by this brief.
+
 - Use a synthetic pack, trajectory, digests, endpoint, and API key placeholder.
 - Ensure the skill shown in the manifest is unapproved and absent from tree,
   search, trace, and summaries.

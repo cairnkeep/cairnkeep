@@ -21,6 +21,7 @@ function environment(extra = {}) {
         "CAIRN_MCP_TOOL_PROFILE", "CAIRN_MCP_ALLOWED_TOOLS", "CAIRN_TYPED_MEMORY_NODES",
         "CAIRN_ARTIFACT_STORE", "CAIRN_ARTIFACT_HTTP", "CAIRN_CONTEXT_PACKS",
         "CAIRN_CONTEXT_PACK_HTTP", "CAIRN_CONTEXT_USAGE", "CAIRN_WORK_EVIDENCE", "CAIRN_CAPABILITY_CONTRACT", "MCP_HTTP_PORT",
+        "CAIRN_MEMORY_CONTEXT", "CAIRN_MEMORY_CONTEXT_HTTP",
     ]) delete env[name];
     return { ...env, CAIRN_AGENTFS_BASE_DIR: join(root, "memory"), ...extra };
 }
@@ -46,12 +47,12 @@ assert.deepEqual(explicitFull, implicitFull, "explicit full profile must preserv
 implicitFull.forEach(complete);
 
 const allGates = await tools(environment({
-    CAIRN_TYPED_MEMORY_NODES: "1", CAIRN_ARTIFACT_STORE: "1", CAIRN_CONTEXT_PACKS: "1", CAIRN_CONTEXT_USAGE: "1", CAIRN_WORK_EVIDENCE: "1",
+    CAIRN_TYPED_MEMORY_NODES: "1", CAIRN_ARTIFACT_STORE: "1", CAIRN_CONTEXT_PACKS: "1", CAIRN_CONTEXT_USAGE: "1", CAIRN_WORK_EVIDENCE: "1", CAIRN_MEMORY_CONTEXT: "1",
 }));
 assert.deepEqual(allGates.map(({ name }) => name), MCP_TOOL_NAMES, "whole catalog registration order");
 allGates.forEach(complete);
 
-const readOnly = await tools(environment({ CAIRN_MCP_TOOL_PROFILE: "read-only", CAIRN_TYPED_MEMORY_NODES: "1", CAIRN_ARTIFACT_STORE: "1", CAIRN_CONTEXT_PACKS: "1", CAIRN_CONTEXT_USAGE: "1", CAIRN_WORK_EVIDENCE: "1" }));
+const readOnly = await tools(environment({ CAIRN_MCP_TOOL_PROFILE: "read-only", CAIRN_TYPED_MEMORY_NODES: "1", CAIRN_ARTIFACT_STORE: "1", CAIRN_CONTEXT_PACKS: "1", CAIRN_CONTEXT_USAGE: "1", CAIRN_WORK_EVIDENCE: "1", CAIRN_MEMORY_CONTEXT: "1" }));
 assert.deepEqual(readOnly.map(({ name }) => name), MCP_TOOL_NAMES.filter((name) => MCP_TOOL_CATALOG[name].annotations.readOnlyHint));
 readOnly.forEach((tool) => assert.equal(tool.annotations.readOnlyHint, true));
 

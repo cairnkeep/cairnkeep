@@ -50,6 +50,11 @@ export async function doctorNodes(options: { repair?: boolean; projectRoot?: str
         for (const path of databasePaths(options.projectRoot ?? process.cwd())) {
             const scope = basename(path, ".db");
             const result = await doctorTypedNodeStore({ scope, baseDir: dirname(path), repair: options.repair });
+            if (process.env.CAIRN_MEMORY_CONTEXT === '1') {
+                const { memoryFreshnessStoreStatus } = await import('./memory-context-store.js');
+                // Explicit feature consent; diagnosis never creates/repairs assertions.
+                await memoryFreshnessStoreStatus({ path });
+            }
             scopes.push({ scope, path, ...result });
             issues.push(...result.issues.map((issue) => `${scope}: ${issue}`));
         }
