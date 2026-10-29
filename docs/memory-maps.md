@@ -71,6 +71,9 @@ they cannot fit the remaining allowance; no counter is clipped after overread.
 Fields cross the worker boundary as bounded raw bytes and are charged before
 strict UTF-8 decoding, preserving valid BOM characters. Malformed stored text
 refuses rather than expanding replacement characters beyond the allowance.
+Original SQLite storage classes are checked before conversion: only TEXT keys
+and values qualify. BLOB keys cannot be decoded into reserved history/review
+navigation, and BLOB values never acquire TEXT source provenance.
 Legacy reads use one bounded key per query without requiring window functions;
 their child exchange also has a stricter 48 KiB encoded-key window. Oversized
 sources and exhausted budgets signal truncation.

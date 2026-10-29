@@ -14,7 +14,7 @@ const columns = {
 export function memoryMapPage(kind: Kind, query: string, parameters: Array<string | number>, offset: number, budget: MemoryMapBudget) {
     if (!Number.isSafeInteger(budget.rows) || budget.rows <= 0 || !Number.isSafeInteger(budget.bytes) || budget.bytes <= 0) throw memoryError('MEMORY_MAP_SCAN_LIMIT');
     const { fields, extra } = columns[kind], limit = Math.min(32, budget.rows);
-    const projected = fields.map(([name, maximum], index) => `CASE WHEN length(CAST(${name} AS BLOB))<=${maximum} THEN ${name} END AS __map_data${index}`);
+    const projected = fields.map(([name, maximum], index) => `CASE WHEN typeof(${name})='text' AND length(CAST(${name} AS BLOB))<=${maximum} THEN ${name} END AS __map_data${index}`);
     const size = fields.map((_, index) => `COALESCE(length(CAST(__map_data${index} AS BLOB)),0)`).join('+');
     // Keep TEXT raw across the worker boundary. SQLite's string conversion can
     // expand malformed bytes to replacement characters before JS can reject it.

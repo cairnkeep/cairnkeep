@@ -124,9 +124,9 @@ async function runObserver() {
                     if (scanned === (request.map_limit ?? 5000) || remaining <= 0) { truncated = true; break; }
                     // The legacy driver needs no window-function support: one
                     // key at a time, rejected in SQL before materialization.
-                    const row = await db!.prepare(`SELECT CASE WHEN length(CAST(key AS BLOB))<=4096 AND length(CAST(key AS BLOB))<=? THEN CAST(key AS BLOB) END AS safe_key,
+                    const row = await db!.prepare(`SELECT CASE WHEN typeof(key)='text' AND length(CAST(key AS BLOB))<=4096 AND length(CAST(key AS BLOB))<=? THEN CAST(key AS BLOB) END AS safe_key,
                         length(CAST(key AS BLOB))>? AS limited FROM kv_store
-                        WHERE key!='__history__' AND substr(key,1,12)!='__history__/'
+                        WHERE typeof(key)='text' AND key!='__history__' AND substr(key,1,12)!='__history__/'
                         AND key!='__reviewed__' AND substr(key,1,13)!='__reviewed__/' ORDER BY key LIMIT 1 OFFSET ?`).get(remaining, remaining, scanned);
                     if (!row) break;
                     scanned++;

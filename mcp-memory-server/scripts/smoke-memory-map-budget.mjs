@@ -81,6 +81,20 @@ try {
   finally { await valid.close(); }
   const bom = await buildMemoryMap([target]);
   assert.equal(bom.partitions[0].entries[0].navigation[0].key, '\ufeffbom/界', 'strict decoding must preserve valid BOM and multibyte keys');
+  const typed = await ordinary.openOrdinaryMemoryStore(target.path, target.scope);
+  try {
+    for (const key of ['__history__/private-key', '__reviewed__/private-key']) {
+      await typed.getDatabase().prepare('INSERT INTO kv_store(key,value,created_at,updated_at) VALUES(?,?,1,1)').run(Buffer.from(key), JSON.stringify('hidden archive'));
+    }
+  } finally { await typed.close(); }
+  assert.deepEqual(await buildMemoryMap([target]), bom, 'MAP_STORAGE_CLASS_RED: non-TEXT reserved keys must not affect navigation, counts, truncation or cache');
+  const blobValue = await ordinary.openOrdinaryMemoryStore(target.path, target.scope);
+  try { await blobValue.getDatabase().prepare('INSERT INTO kv_store(key,value,created_at,updated_at) VALUES(?,?,1,1)').run('blob/key', Buffer.from(JSON.stringify('not TEXT'))); }
+  finally { await blobValue.close(); }
+  const excluded = await buildMemoryMap([target]);
+  assert.equal(excluded.truncated, true);
+  assert.equal(excluded.partitions.flatMap(partition => partition.entries).flatMap(entry => entry.navigation).some(row => row.key === 'blob/key'), false,
+    'a BLOB value must not receive TEXT source provenance after byte conversion');
   // Zero/tiny allowances must prevent fetching assertions, not clip counters.
   const agent = await ordinary.openOrdinaryMemoryStore(target.path, target.scope);
   try {

@@ -167,6 +167,13 @@ try {
   assert.deepEqual(limitedLegacy.keys, []);
   assert.equal(limitedLegacy.bytes, 0, 'legacy SQL must suppress a key that cannot fit before driver decoding');
   assert.ok(limitedLegacy.scanned <= 1); assert.equal(limitedLegacy.truncated, true);
+  const legacyWriter = await ordinary.openOrdinaryMemoryStore(legacyPath, 'project');
+  try {
+    await legacyWriter.getDatabase().prepare('INSERT INTO kv_store(key,value,created_at,updated_at) VALUES(?,?,1,1)')
+      .run(Buffer.from('__history__/private-key'), JSON.stringify('hidden legacy archive'));
+  } finally { await legacyWriter.close(); }
+  assert.deepEqual(await feature.buildMemoryMap([{ path: legacyPath, scope: 'project' }]), untracked,
+    'legacy BLOB storage class cannot bypass reserved-key filtering or alter visible counts');
   assert.equal(existsSync(lab.env.CAIRN_PACK_BASE_DIR), false, 'ordinary maps must not open or initialize pack storage');
   lab.assertOffline();
   assert.equal(networkAttempts, 0, 'in-process map/curation paths must remain offline even when errors are caught');

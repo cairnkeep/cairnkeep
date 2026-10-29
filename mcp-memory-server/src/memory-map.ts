@@ -27,7 +27,7 @@ const optionsSchema = z.object({ max_bytes: z.number().int().min(1024).max(8192)
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const fail = (code = 'MEMORY_MAP_INVALID'): never => { throw memoryError(code); };
 const compare = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
-const liveSql = "key!='__history__' AND substr(key,1,12)!='__history__/' AND key!='__reviewed__' AND substr(key,1,13)!='__reviewed__/'";
+const liveSql = "typeof(key)='text' AND key!='__history__' AND substr(key,1,12)!='__history__/' AND key!='__reviewed__' AND substr(key,1,13)!='__reviewed__/'";
 export const memoryMapResponse = (payload: MemoryMap) => ({ content: [{ type: 'text' as const, text: JSON.stringify(payload) }], structuredContent: payload });
 const empty = (): MemoryMap => ({ schema_version: 1, partitions: [], exact_reads_required: true, truncated: false });
 
