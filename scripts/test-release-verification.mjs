@@ -9,11 +9,12 @@ import { releaseAttestationArguments, validateReleaseOptions, verifyPublishedRel
 
 const options = { repo: "example/project", version: "1.2.3", commit: "a".repeat(40), tree: "b".repeat(40), ciRun: "12", publishRun: "13", securityRun: "14" };
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
-function fixture() {
+function fixture(expected = options) {
+  const options = expected;
   const tar = Buffer.from("synthetic-package");
   const sbom = Buffer.from(JSON.stringify({ bomFormat: "CycloneDX", specVersion: "1.6", metadata: { component: { version: options.version } } }));
-  const sums = Buffer.from(`${hash(tar)}  ./cairnkeep-cli-1.2.3.tgz\n${hash(sbom)}  ./cairnkeep-cli-1.2.3.cdx.json\n`);
-  const candidate = new Map([["cairnkeep-cli-1.2.3.tgz", tar], ["cairnkeep-cli-1.2.3.cdx.json", sbom], ["SHA256SUMS", sums],
+  const sums = Buffer.from(`${hash(tar)}  ./cairnkeep-cli-${options.version}.tgz\n${hash(sbom)}  ./cairnkeep-cli-${options.version}.cdx.json\n`);
+  const candidate = new Map([[`cairnkeep-cli-${options.version}.tgz`, tar], [`cairnkeep-cli-${options.version}.cdx.json`, sbom], ["SHA256SUMS", sums],
     ["RELEASE-CANDIDATE.json", Buffer.from(JSON.stringify({ schema_version: 1, tree: options.tree, version: options.version }))]]);
   const released = new Map([...candidate].filter(([name]) => name !== "RELEASE-CANDIDATE.json"));
   const api = new Map([
@@ -21,9 +22,9 @@ function fixture() {
     ["actions/runs/13", { conclusion: "success", path: ".github/workflows/publish.yml", head_sha: options.commit, event: "release" }],
     ["actions/runs/14", { conclusion: "success", path: ".github/workflows/security.yml", head_sha: options.commit }],
     [`git/commits/${options.commit}`, { tree: { sha: options.tree } }],
-    ["git/ref/tags/v1.2.3", { object: { type: "commit", sha: options.commit } }],
+    [`git/ref/tags/v${options.version}`, { object: { type: "commit", sha: options.commit } }],
     ["actions/runs/12/artifacts?per_page=100", { artifacts: [{ id: 5, name: `release-candidate-${options.tree}`, expired: false }] }],
-    ["releases/tags/v1.2.3", { draft: false, prerelease: false, tag_name: "v1.2.3" }],
+    [`releases/tags/v${options.version}`, { draft: false, prerelease: options.channel === "next", tag_name: `v${options.version}` }],
   ]);
   const objects = new Map();
   const add = value => { const digest = `sha256:${hash(Buffer.from(JSON.stringify(value)))}`; objects.set(digest, value); return digest; };
@@ -38,16 +39,17 @@ function fixture() {
   }
   const index = add({ manifests });
   let signed = 0, signatures = 0;
+  const references = [];
   const io = {
     api: async path => { assert(api.has(path), `unexpected API request ${path}`); return api.get(path); },
     candidate: async () => candidate, release: async () => released,
     registry: async () => ({ version: options.version, dist: { tarball: "https://registry.npmjs.org/package.tgz", integrity: `sha512-${createHash("sha512").update(tar).digest("base64")}` } }),
     tarball: async () => tar,
-    oci: async (_image, _kind, ref) => { const digest = ref.startsWith("sha256:") ? ref : index; return { digest, value: objects.get(digest) }; },
+    oci: async (_image, _kind, ref) => { references.push(ref); const digest = ref.startsWith("sha256:") ? ref : index; return { digest, value: objects.get(digest) }; },
     verifyAttestation: async (_image, digest, expected) => { assert.equal(digest, index); assert.deepEqual(expected, options); signed++; return true; },
     verifyNpm: async bytes => { assert(bytes.equals(tar)); signatures++; return true; },
   };
-  return { io, api, candidate, released, objects, manifests, index, counts: () => ({ signed, signatures }) };
+  return { io, api, candidate, released, objects, manifests, index, references, counts: () => ({ signed, signatures }) };
 }
 const originalFetch = globalThis.fetch;
 globalThis.fetch = () => { throw new Error("offline release controls must not use the network"); };
@@ -70,6 +72,26 @@ try {
   assert.equal(report.status, "verified"); assert.equal(report.images.length, 2);
   assert.equal(report.deployment_verified, false); assert.equal(report.full_image_layer_pull_verified, false);
   assert.deepEqual(valid.counts(), { signed: 2, signatures: 1 });
+  assert.ok(valid.references.includes("latest") && !valid.references.includes("next"));
+  const prerelease = { ...options, version: "1.2.4-rc.1", channel: "next" };
+  const preview = fixture(prerelease);
+  const previewReport = await verifyPublishedRelease(prerelease, preview.io);
+  assert.equal(previewReport.channel, "next", "PRERELEASE_RED: explicitly verify the next channel without weakening stable defaults");
+  assert.ok(preview.references.includes("next") && !preview.references.includes("latest"));
+  assert.deepEqual(preview.counts(), { signed: 2, signatures: 1 });
+  const previewIdentity = releaseAttestationArguments("example/project", `sha256:${"d".repeat(64)}`, prerelease);
+  assert.equal(previewIdentity[previewIdentity.indexOf("--source-ref") + 1], "refs/tags/v1.2.4-rc.1");
+  for (const invalid of [{ ...prerelease, channel: undefined }, { ...prerelease, channel: "latest" },
+    { ...prerelease, version: "1.2.4-rc.01" }, { ...options, channel: "next" }, { ...options, channel: "other" }]) {
+    assert.throws(() => validateReleaseOptions(invalid));
+  }
+  for (const mutate of [
+    f => { f.api.get(`releases/tags/v${prerelease.version}`).prerelease = false; },
+    f => { const original = f.io.oci; f.io.oci = async (...args) => args[2] === "next" ? { digest: `sha256:${"d".repeat(64)}`, value: {} } : original(...args); },
+    f => { f.io.verifyNpm = async () => false; },
+    f => { f.io.verifyAttestation = async () => false; },
+    f => { f.io.tarball = async () => Buffer.from("wrong"); },
+  ]) { const f = fixture(prerelease); mutate(f); await assert.rejects(() => verifyPublishedRelease(prerelease, f.io)); }
   for (const [name, mutate] of [
     ["failed CI", f => { f.api.get("actions/runs/12").conclusion = "failure"; }],
     ["wrong CI workflow", f => { f.api.get("actions/runs/12").path = ".github/workflows/other.yml"; }],
@@ -98,12 +120,15 @@ try {
   try {
     const output = join(scratch, "existing.json"); writeFileSync(output, "retained-report\n");
     const command = fileURLToPath(new URL("verify-published-release.mjs", import.meta.url));
-    const result = spawnSync(process.execPath, [command, "--version", options.version, "--commit", options.commit,
-      "--tree", options.tree, "--ci-run", options.ciRun, "--security-run", options.securityRun, "--publish-run", options.publishRun,
-      "--out", output, "--gh", join(scratch, "missing-command")], { encoding: "utf8", timeout: 3000 });
-    assert.notEqual(result.status, 0); assert.match(result.stderr, /output already exists/);
-    assert.equal(readFileSync(output, "utf8"), "retained-report\n");
-    assert.equal(result.stdout, "");
+    for (const selected of [options, prerelease]) {
+      const result = spawnSync(process.execPath, [command, "--version", selected.version, "--commit", selected.commit,
+        "--tree", selected.tree, "--ci-run", selected.ciRun, "--security-run", selected.securityRun, "--publish-run", selected.publishRun,
+        ...(selected.channel ? ["--channel", selected.channel] : []),
+        "--out", output, "--gh", join(scratch, "missing-command")], { encoding: "utf8", timeout: 3000 });
+      assert.notEqual(result.status, 0); assert.match(result.stderr, /output already exists/);
+      assert.equal(readFileSync(output, "utf8"), "retained-report\n");
+      assert.equal(result.stdout, "");
+    }
   } finally { rmSync(scratch, { recursive: true, force: true }); }
   console.log("PASS: offline exact-tree release, assets, registry, signatures, architectures, SBOM and provenance controls");
 } finally { globalThis.fetch = originalFetch; }

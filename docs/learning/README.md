@@ -4,6 +4,12 @@ This public learning path teaches Cairnkeep through small, verifiable outcomes.
 It is the technical source for guides, workshops, and independently reviewed
 publication material.
 
+Preview candidate: **2.28.0-rc.1**, for isolated fresh-store exercises only.
+Ready lessons remain verified against the stable baseline **2.27.0**; their
+installation pins and recording/readiness claims are not silently upgraded.
+Use the [preview continuity lab](../memory-continuity-workflow.md) and its
+separate RC notes. A prerelease package is not production admission or a new video.
+
 ## Start here
 
 Choose the shortest track that matches your goal:

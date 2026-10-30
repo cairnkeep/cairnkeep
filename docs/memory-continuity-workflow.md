@@ -13,6 +13,32 @@ project sources and outside facts still need their own verification.
 
 ## Start with the right boundary
 
+### Prerelease trial: 2.28.0-rc.1
+
+The release candidate is an explicitly opt-in preview, not a stable deployment.
+Until its normal publication workflow completes, use the verified CI tarball;
+do not assume the version is available in the registry. After publication use
+the exact version, never an unpinned channel, for a repeatable isolated trial.
+Keep production overlays, MCP registrations, service settings and memory roots
+unchanged. There is no existing-store conversion or in-place restore.
+
+From the matching source checkout, install the verified candidate into a new
+prefix and run the maintained installed-package drill:
+
+```sh
+trial=$(mktemp -d)
+npm install --prefix "$trial" --ignore-scripts --no-audit --no-fund \
+  ./artifacts/cairnkeep-cli-2.28.0-rc.1.tgz
+node scripts/test-memory-context-installed.mjs "$trial/node_modules/@cairnkeep/cli"
+```
+
+The drill uses a separate private home and synthetic stores, importing only
+installed package modules. It checks legacy bytes, explicit fresh init, graph/
+map/feedback and managed epoch recovery; it does not upgrade a server or prove
+autonomous task quality. Keep the prefix for inspection. The full source replay
+below independently covers two-client handoff and the combined workflow.
+Stable lesson installation pins remain 2.27.0; new-format material stays a brief.
+
 The released CLI still requires Node 22 or newer. Fresh tracked stores additionally
 need the Node 22.16+ built-in SQLite API **and** patched bundled SQLite: 3.51.3+
 or the documented 3.50.7/3.44.6 backports. The API floor alone is insufficient.

@@ -100,9 +100,15 @@ node scripts/verify-published-release.mjs \
 
 Provide the exact 40-character commit and tree and numeric run IDs. The output
 parent must already exist. The tool refuses to replace an existing report and
-writes one only after all checks succeed, with mode `0600` on POSIX. It supports
-stable releases whose npm version and both `latest` image tags are the expected
-release; it does not reinterpret an old release as the current channel.
+writes one only after all checks succeed, with mode `0600` on POSIX. Stable
+verification remains the default and requires a stable version and matching
+`latest` image tags. For numbered `alpha.N`, `beta.N` or `rc.N` prereleases,
+explicitly add `--channel next`; it requires a published GitHub prerelease and
+matching `next` image tags. A prerelease cannot pass the stable/default policy,
+and a stable version cannot pass `next`. Exact-source, artifact, registry,
+signature, provenance and architecture checks are identical in both policies.
+The verifier never moves a channel. It does not reinterpret an old release as
+the current channel or prove that a deployment was upgraded.
 
 It requires a GitHub CLI supporting `attestation verify` and its exact-source,
 workflow, certificate-identity and hosted-runner policy flags, plus a current

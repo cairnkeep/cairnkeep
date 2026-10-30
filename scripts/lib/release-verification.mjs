@@ -6,7 +6,10 @@ const digestPattern = /^sha256:[a-f0-9]{64}$/;
 
 export function validateReleaseOptions(options) {
   requireThat(/^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(options.repo ?? ""), "repository");
-  requireThat(/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(options.version ?? ""), "stable version");
+  const stable = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
+  const preview = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-(alpha|beta|rc)\.(0|[1-9][0-9]*)$/;
+  requireThat([undefined, "latest", "next"].includes(options.channel), "release channel");
+  requireThat(options.channel === "next" ? preview.test(options.version ?? "") : stable.test(options.version ?? ""), "version/channel binding");
   for (const field of ["commit", "tree"]) requireThat(/^[a-f0-9]{40}$/.test(options[field] ?? ""), `exact ${field}`);
   for (const field of ["ciRun", "securityRun", "publishRun"]) requireThat(/^[1-9][0-9]*$/.test(options[field] ?? ""), field);
 }
@@ -56,6 +59,7 @@ function verifyAssets(options, candidate, released) {
 
 export async function verifyPublishedRelease(options, io) {
   validateReleaseOptions(options);
+  const channel = options.channel ?? "latest";
   const api = path => io.api(path);
   const ci = await api(`actions/runs/${options.ciRun}`);
   requireThat(ci.conclusion === "success" && ci.path === ".github/workflows/ci.yml", "successful maintained CI");
@@ -71,7 +75,7 @@ export async function verifyPublishedRelease(options, io) {
   requireThat(publication.conclusion === "success" && publication.path === ".github/workflows/publish.yml"
     && publication.event === "release" && publication.head_sha === options.commit, "successful exact-source publication");
   const release = await api(`releases/tags/v${options.version}`);
-  requireThat(release.tag_name === `v${options.version}` && release.draft === false && release.prerelease === false, "published stable release");
+  requireThat(release.tag_name === `v${options.version}` && release.draft === false && release.prerelease === (channel === "next"), "published release/channel binding");
   const artifacts = (await api(`actions/runs/${options.ciRun}/artifacts?per_page=100`)).artifacts;
   const matches = artifacts?.filter(a => a.name === `release-candidate-${options.tree}` && a.expired === false);
   requireThat(matches?.length === 1, "one retained exact-tree candidate");
@@ -91,13 +95,13 @@ export async function verifyPublishedRelease(options, io) {
   for (const name of [project, `${project}-workspace`]) {
     const image = `${owner}/${name}`;
     const get = async (kind, ref) => {
-      requireThat([options.version, "latest"].includes(ref) || digestPattern.test(ref), "OCI reference");
+      requireThat([options.version, channel].includes(ref) || digestPattern.test(ref), "OCI reference");
       const result = await io.oci(image, kind, ref);
       requireThat(digestPattern.test(result.digest) && (!ref.startsWith("sha256:") || result.digest === ref), "OCI content digest");
       return result;
     };
     const index = await get("manifests", options.version);
-    requireThat((await get("manifests", "latest")).digest === index.digest, "stable image channel");
+    requireThat((await get("manifests", channel)).digest === index.digest, "image channel binding");
     const manifests = index.value.manifests;
     requireThat(Array.isArray(manifests) && manifests.length <= 32, "bounded OCI index");
     for (const arch of ["amd64", "arm64"]) {
