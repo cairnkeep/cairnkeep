@@ -67,6 +67,10 @@ The joint replay reports 30 operator plan/apply calls, plus 17 seed mutations an
 30 development feedback calls. This is the replay's total cost, **not a minimum onboarding requirement**.
 Standalone graph re-curation/removal and cold/warm-map adversarial controls still
 run separately, including through `--all`; the joint replay does not repeat them.
+Native qualification runs collection-only and bounded-ranking arms in separate
+jobs, each with the complete shared-state invalidation/restore controls. The
+default replay and `--all` still compare both arms together; a selected arm is
+explicitly labeled in its report, never presented as the full comparison.
 It is not free automatic graph retrieval. See the individual
 [freshness](operating.md#revision-bound-freshness-unreleased-source-checkout-only),
 [connections](memory-connections.md), [maps](memory-maps.md) and

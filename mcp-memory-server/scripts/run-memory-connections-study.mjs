@@ -11,9 +11,14 @@ import { resolveMcpToolProfile } from '../dist/mcp-tool-profile.js';
 import { buildMemoryMap, memoryMapResponse } from '../dist/memory-map.js';
 
 const args = process.argv.slice(2), bytes = readFileSync(new URL('./fixtures/memory-continuity-v2.json', import.meta.url));
-assert.ok(args[0] === '--features' && ['freshness,links', 'freshness,links,maps', 'freshness,links,maps,feedback'].includes(args[1]) && args.slice(2).every(arg => ['--check', '--summary'].includes(arg)),
-  'Usage: --features freshness,links[,maps[,feedback]] [--check] [--summary]');
+const selectedArm = args[2] === '--arm' ? args[3] : null;
+assert.ok(args[0] === '--features' && ['freshness,links', 'freshness,links,maps', 'freshness,links,maps,feedback'].includes(args[1])
+  && (!selectedArm || ['collection-only', 'bounded-ranking'].includes(selectedArm))
+  && args.slice(selectedArm ? 4 : 2).every(arg => ['--check', '--summary'].includes(arg)),
+  'Usage: --features freshness,links[,maps[,feedback]] [--arm collection-only|bounded-ranking] [--check] [--summary]');
 const mapsEnabled = args[1].split(',').includes('maps'), feedbackEnabled = args[1].endsWith(',feedback'), mapResults = [], markers = new Map();
+assert.ok(!selectedArm || feedbackEnabled, 'arm selection requires the actual joint feedback replay');
+const rankingArms = selectedArm ? [selectedArm === 'bounded-ranking'] : [false, true];
 const fixture = JSON.parse(bytes), lab = createContinuityLab();
 const hash = value => createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
 const records = new Map(fixture.records.map(row => [row.id, row]));
@@ -184,7 +189,7 @@ async function compareMap(item) {
     markdown_ms: Math.round(markdownMs * 100) / 100 });
 }
 const integrated = feedbackEnabled ? (await import('./memory-integrated-replay.mjs')).createIntegratedReplay({
-  fixture, corpusBytes: bytes, lab, folder, markers, generations, metadataRevisions,
+  fixture, corpusBytes: bytes, lab, folder, markers, generations, metadataRevisions, rankingArms,
   storeKey, partitionId, store, client, markdownMap, markdownRelated, hash,
   curationCost: () => ({ ...curationCounters, plan_apply_calls: 2 * (curationCounters.entity_changes + curationCounters.link_changes + curationCounters.freshness_changes) }),
   recordFreshness: elapsed => { curationCounters.freshness_changes++; curationCounters.elapsed_ms += elapsed; },
@@ -280,7 +285,7 @@ try {
     .map(name => readFileSync(new URL(`../src/${name}`, import.meta.url)));
   console.log(JSON.stringify({ schema_version: 1, study: integrated ? 'native-memory-integrated-continuity' : mapsEnabled ? 'native-memory-freshness-links-maps' : 'native-memory-freshness-links', synthetic_only: true,
     fixture_digest: hash(bytes), source_digest: hash(Buffer.concat(source)), configuration_digest: hash({ aliasInput, links: fixture.links, depth: 2, maps: mapsEnabled,
-      ...(integrated ? { feedback: 'collection-only-with-separate-ranking-control' } : {}) }),
+      ...(integrated ? { feedback: 'collection-only-with-separate-ranking-control', ranking_arms: rankingArms } : {}) }),
     profile_digest: resolveMcpToolProfile({ projectRoot: lab.projects.alpha, env: lab.env }).profile_digest,
     adapters: ['cairn-freshness-links', 'markdown-curated-links'], cases: results.length, parity: true,
     ...(integrated ? { separate_controls_replayed: false } : {}),

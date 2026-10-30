@@ -9,7 +9,7 @@ import { planFreshnessChange, applyFreshnessChange } from '../dist/memory-contex
 
 export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, markers, generations,
   metadataRevisions, storeKey, partitionId, store, client, closeClients, markdownMap, markdownRelated,
-  curationCost, recordFreshness, hash }) {
+  curationCost, recordFreshness, hash, rankingArms }) {
   const bytes = readFileSync(new URL('./fixtures/memory-integrated-workflows-v1.json', import.meta.url));
   const contract = JSON.parse(bytes), policyBytes = readFileSync(new URL('./fixtures/memory-feedback-policy-v1.json', import.meta.url));
   const policy = JSON.parse(policyBytes);
@@ -131,7 +131,7 @@ export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, mark
   }
   return {
     async start() {
-      console.error('Integrated replay: development-only votes and both linked workflows');
+      console.error(`Integrated replay: development-only votes and linked workflows for ranking arms ${JSON.stringify(rankingArms)}`);
       const trainingStarted = performance.now();
       // Only development relevance labels create votes, before any held-out replay.
       for (const item of fixture.queries.filter(row => row.split === 'development')) {
@@ -161,7 +161,8 @@ export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, mark
       writeFileSync(join(folder, 'feedback.json'), JSON.stringify([...votes]), { mode: 0o600 });
       trainingMs = performance.now() - trainingStarted;
       assert.equal(recorded, 15);
-      await workflow(false); await workflow(true); control('linked-workflow');
+      for (const ranked of rankingArms) await workflow(ranked);
+      control('linked-workflow');
       await relatedControl('ambiguous-alias', { project: 'alpha', scope: 'project', entity: 'relay' }, [], true);
       await relatedControl('foreign-project', { project: 'beta', scope: 'project', entity: 'sensor lumen' }, []);
       await relatedControl('nearby-identifier', { project: 'alpha', scope: 'project', entity: 'ember-43' }, []);
@@ -171,7 +172,7 @@ export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, mark
     async heldOut() {
       console.error('Integrated replay: unchanged ordinary-query collection/ranking ablations');
       const before = (await listMemoryFeedback(ledger)).records;
-      for (const item of fixture.queries) for (const ranked of [false, true]) {
+      for (const item of fixture.queries) for (const ranked of rankingArms) {
         const session = await client(item.project, ranked ? 'integrated-ranked' : 'integrated-a', ranked), calls = [];
         const native = await observed(session, 'memory_context_search', { scope: item.scope, query: item.query,
           top_k: fixture.limits.top_k }, calls);
@@ -285,11 +286,11 @@ export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, mark
           stale_returns: held.reduce((n, row) => n + row.stale_returns, 0), negative_false_positives: held.filter(row => row.false_positive).length,
           freshness_warnings: held.reduce((n, row) => n + row.freshness_warnings, 0) };
       });
-      assert.equal(ablations.length, fixture.queries.length * 4);
+      assert.equal(ablations.length, fixture.queries.length * 2 * rankingArms.length);
       assert.ok(metrics.every(row => row.negative_false_positives === 0));
       return { executed: true, workflow_fixture_digest: hash(bytes), corpus_digest: hash(corpusBytes), policy_digest: hash(policyBytes),
         evaluation_digest: hash(Buffer.concat([readFileSync(new URL(import.meta.url)), readFileSync(new URL('./run-memory-connections-study.mjs', import.meta.url))])),
-        sequence: contract.sequence, recommended_ranking_enabled: false, markdown_independent: true,
+        sequence: contract.sequence, ranking_arms: rankingArms, recommended_ranking_enabled: false, markdown_independent: true,
         development_feedback_records: recorded, feedback_training_split: 'development-only',
         feedback_training_calls: recorded * 2, training_and_control_ms: trainingMs,
         operator_curation: curationCost(), seed_mutations: fixture.events.length, workflows, controls, aba, restore, metrics, query_ablations: ablations,
