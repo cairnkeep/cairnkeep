@@ -1,18 +1,25 @@
 {
   "schema_version": 1,
-  "source_run": 41057133669,
-  "source_commit": "8fcf6f6b1ad3cf211747eb03e6bcdacc5fa0a3bb",
+  "source_run": 41063676819,
+  "source_run_attempt": 1,
+  "source_commit": "2784a0e01eb94b75a339e79cbe1c781926a6d6e5",
   "source_jobs": [
-    124067385520,
-    124067385666,
-    124067385684,
-    124067385790
+    124089484323,
+    124089484327,
+    124089484363,
+    124089484426,
+    124089484482,
+    124089484520,
+    124089484551
   ],
   "source_job_outcomes": [
     "success",
-    "cancelled",
-    "cancelled",
-    "cancelled"
+    "success",
+    "success",
+    "success",
+    "success",
+    "success",
+    "success"
   ],
   "runtimes": [
     "22",
@@ -20,471 +27,611 @@
     "26"
   ],
   "units": "seconds-ceiling",
-  "scope": "47 completed passing groups supply scheduling measurements, not successful-job or source qualification. Interrupted/cancelled groups are not passes; earlier qualified measurements remain explicitly inherited.",
+  "scope": "All 74 existing groups passed on the exact qualified source. No inherited measurements. Two new integration contracts have provisional budgets, not claimed native qualification.",
   "inherited_measurements": {
-    "names": [
-      "explore-crossref",
-      "trajectory-roundtrip",
-      "note-enrichment",
-      "capability-contract",
-      "eval-schema",
-      "eval-statistics",
-      "work-evidence",
-      "security-assurance",
-      "memory-store-restore",
-      "memory-connections",
-      "node-compat",
-      "eval-process",
-      "pi-bridge-child",
-      "okf",
-      "route-guard",
-      "artifact-store",
-      "context-pack",
-      "team-review",
-      "team-http",
-      "team-restore",
-      "graph-cli",
-      "context-pack-retrieval",
-      "typed-nodes",
-      "note-mcp",
-      "anythingllm-workspace",
-      "playbook"
-    ],
-    "source_run": 40954986149,
-    "source_commit": "c4ec92ee83f12198f69ba407ff761007eb698440",
-    "source_jobs": [
-      123732636779,
-      123732636902,
-      123732636923,
-      123732636973,
-      123732637024
-    ]
+    "names": []
   },
   "provisional": {
-    "reason": "Only unfinished feedback ranking retains an explicit scheduling budget; its interrupted native execution is not a completed measurement.",
+    "reason": "New integrated contracts await their first native run; retain headroom without weakening safety deadlines.",
     "budgets": {
-      "memory-feedback-ranking": 1200
+      "memory-context-integration": 750,
+      "memory-integrated-study": 1200
     }
   },
   "measurements": {
-    "team-onboarding": 251,
-    "memory-context-mcp": 334,
-    "memory-map-mcp": 173,
-    "memory-reranker": 30,
-    "explore-crossref": 3,
-    "trajectory-roundtrip": 2,
-    "note-enrichment": 1,
-    "node-doctor": 11,
-    "artifact-mcp": 33,
-    "capability-contract": 10,
-    "eval-schema": 4,
-    "eval-statistics": 1,
-    "context-pack-v216-compat": 25,
-    "work-evidence": 142,
-    "security-assurance": 131,
-    "team-mcp": 78,
-    "memory-retrieval": 38,
-    "memory-store-restore": 251,
-    "memory-connections": 861,
-    "trajectory-redaction": 1,
-    "trajectory-retention": 3,
-    "node-compat": 6,
-    "capability-mcp": 43,
-    "eval-process": 20,
-    "codex-protocol": 2,
-    "pi-bridge-child": 11,
-    "context-usage": 61,
-    "okf": 31,
-    "team-cli": 119,
-    "embeddings": 1,
-    "memory-continuity-baseline": 54,
-    "memory-connections-mcp": 890,
-    "http-guard": 10,
-    "remote-context": 24,
-    "explore-guard": 4,
-    "route-guard": 4,
-    "reviewed-memory": 22,
-    "note-signatures": 1,
-    "artifact-store": 35,
-    "pi-mcp-bridge": 4,
-    "context-pack": 72,
-    "team-review": 105,
-    "team-http": 30,
-    "team-restore": 62,
-    "memory-map": 650,
+    "team-restore": 63,
+    "memory-feedback-ranking": 1077,
     "scope-guard": 2,
-    "memory-import": 21,
-    "capability-logging": 9,
-    "capability-harness": 151,
-    "eval-protocol": 2,
-    "skill-lifecycle": 192,
-    "graph-cli": 2,
-    "mcp-trust": 15,
+    "route-guard": 3,
+    "node-compat": 4,
+    "node-doctor": 11,
+    "codex-protocol": 1,
     "pi-bridge-env": 1,
-    "context-pack-retrieval": 32,
+    "team-http": 43,
+    "team-cli": 123,
+    "embeddings": 1,
+    "memory-continuity-baseline": 64,
+    "memory-store-admission": 310,
+    "memory-map": 653,
+    "explore-guard": 4,
+    "explore-cache": 3,
+    "note-signatures": 1,
+    "context-pack": 74,
     "domain-retrieval": 3,
-    "team": 70,
-    "team-operations": 259,
-    "extract": 1,
-    "memory-database": 68,
-    "memory-store-admission": 330,
-    "memory-context-store": 453,
-    "explore-cache": 4,
+    "retrieval-benchmark": 25,
+    "team-operations": 252,
+    "memory-context-store": 465,
+    "memory-context-mcp": 327,
+    "remote-context": 23,
+    "trajectory-retention": 4,
+    "capability-contract": 11,
+    "capability-harness": 155,
+    "eval-process": 19,
+    "graph-cli": 3,
+    "context-pack-retrieval": 46,
+    "team-onboarding": 252,
+    "memory-feedback": 638,
+    "http-guard": 9,
+    "reviewed-memory": 29,
     "memory-proposals": 21,
-    "note-distillation": 4,
-    "typed-nodes": 19,
-    "note-mcp": 6,
+    "capability-mcp": 45,
+    "eval-schema": 4,
+    "skill-lifecycle": 254,
+    "anythingllm-workspace": 3,
+    "security-assurance": 142,
+    "team-mcp": 75,
+    "memory-retrieval": 28,
+    "memory-database": 54,
+    "memory-connections": 675,
+    "trajectory-roundtrip": 2,
+    "trajectory-redaction": 1,
+    "note-distillation": 3,
+    "typed-nodes": 23,
+    "note-mcp": 9,
     "compaction-capture": 1,
-    "anythingllm-workspace": 2,
-    "retrieval-benchmark": 20,
-    "playbook": 179,
-    "memory-feedback": 612,
-    "memory-feedback-mcp": 693
+    "okf": 24,
+    "playbook": 215,
+    "team-review": 168,
+    "extract": 1,
+    "memory-store-restore": 260,
+    "memory-feedback-mcp": 735,
+    "memory-reranker": 30,
+    "note-enrichment": 2,
+    "artifact-store": 37,
+    "mcp-trust": 14,
+    "pi-mcp-bridge": 4,
+    "pi-bridge-child": 11,
+    "work-evidence": 152,
+    "team": 57,
+    "memory-connections-mcp": 878,
+    "memory-map-mcp": 140,
+    "explore-crossref": 3,
+    "memory-import": 17,
+    "artifact-mcp": 32,
+    "capability-logging": 8,
+    "eval-statistics": 1,
+    "eval-protocol": 2,
+    "context-pack-v216-compat": 20,
+    "context-usage": 46
   },
   "completed_group_evidence": [
     {
       "schema_version": 1,
-      "name": "team-mcp",
-      "duration_ms": 77613,
+      "name": "team-restore",
+      "duration_ms": 62154,
       "status": 0,
-      "job_id": 124067385520
+      "job_id": 124089484323
     },
     {
       "schema_version": 1,
-      "name": "extract",
-      "duration_ms": 694,
+      "name": "memory-feedback-ranking",
+      "duration_ms": 1076040,
       "status": 0,
-      "job_id": 124067385520
-    },
-    {
-      "schema_version": 1,
-      "name": "memory-continuity-baseline",
-      "duration_ms": 53195,
-      "status": 0,
-      "job_id": 124067385520
-    },
-    {
-      "schema_version": 1,
-      "name": "memory-connections-mcp",
-      "duration_ms": 889441,
-      "status": 0,
-      "job_id": 124067385520
+      "job_id": 124089484323
     },
     {
       "schema_version": 1,
       "name": "scope-guard",
-      "duration_ms": 1719,
+      "duration_ms": 1518,
       "status": 0,
-      "job_id": 124067385520
+      "job_id": 124089484323
     },
     {
       "schema_version": 1,
-      "name": "explore-guard",
-      "duration_ms": 3176,
+      "name": "route-guard",
+      "duration_ms": 2278,
       "status": 0,
-      "job_id": 124067385520
+      "job_id": 124089484323
     },
     {
       "schema_version": 1,
-      "name": "reviewed-memory",
-      "duration_ms": 21450,
+      "name": "node-compat",
+      "duration_ms": 3816,
       "status": 0,
-      "job_id": 124067385520
-    },
-    {
-      "schema_version": 1,
-      "name": "trajectory-retention",
-      "duration_ms": 2914,
-      "status": 0,
-      "job_id": 124067385520
+      "job_id": 124089484323
     },
     {
       "schema_version": 1,
       "name": "node-doctor",
-      "duration_ms": 10979,
+      "duration_ms": 10014,
       "status": 0,
-      "job_id": 124067385520
-    },
-    {
-      "schema_version": 1,
-      "name": "artifact-mcp",
-      "duration_ms": 32693,
-      "status": 0,
-      "job_id": 124067385520
-    },
-    {
-      "schema_version": 1,
-      "name": "eval-protocol",
-      "duration_ms": 1233,
-      "status": 0,
-      "job_id": 124067385520
+      "job_id": 124089484323
     },
     {
       "schema_version": 1,
       "name": "codex-protocol",
-      "duration_ms": 1178,
+      "duration_ms": 918,
       "status": 0,
-      "job_id": 124067385520
-    },
-    {
-      "schema_version": 1,
-      "name": "skill-lifecycle",
-      "duration_ms": 191724,
-      "status": 0,
-      "job_id": 124067385520
-    },
-    {
-      "schema_version": 1,
-      "name": "retrieval-benchmark",
-      "duration_ms": 19821,
-      "status": 0,
-      "job_id": 124067385520
-    },
-    {
-      "schema_version": 1,
-      "name": "team-operations",
-      "duration_ms": 258035,
-      "status": 0,
-      "job_id": 124067385666
-    },
-    {
-      "schema_version": 1,
-      "name": "memory-database",
-      "duration_ms": 67332,
-      "status": 0,
-      "job_id": 124067385666
-    },
-    {
-      "schema_version": 1,
-      "name": "memory-map",
-      "duration_ms": 649880,
-      "status": 0,
-      "job_id": 124067385666
-    },
-    {
-      "schema_version": 1,
-      "name": "memory-map-mcp",
-      "duration_ms": 172082,
-      "status": 0,
-      "job_id": 124067385666
-    },
-    {
-      "schema_version": 1,
-      "name": "team-onboarding",
-      "duration_ms": 250630,
-      "status": 0,
-      "job_id": 124067385684
-    },
-    {
-      "schema_version": 1,
-      "name": "embeddings",
-      "duration_ms": 173,
-      "status": 0,
-      "job_id": 124067385684
-    },
-    {
-      "schema_version": 1,
-      "name": "memory-retrieval",
-      "duration_ms": 37165,
-      "status": 0,
-      "job_id": 124067385684
-    },
-    {
-      "schema_version": 1,
-      "name": "memory-store-admission",
-      "duration_ms": 329293,
-      "status": 0,
-      "job_id": 124067385684
-    },
-    {
-      "schema_version": 1,
-      "name": "memory-context-mcp",
-      "duration_ms": 333323,
-      "status": 0,
-      "job_id": 124067385684
-    },
-    {
-      "schema_version": 1,
-      "name": "memory-feedback",
-      "duration_ms": 611885,
-      "status": 0,
-      "job_id": 124067385684
-    },
-    {
-      "schema_version": 1,
-      "name": "memory-reranker",
-      "duration_ms": 29643,
-      "status": 0,
-      "job_id": 124067385684
-    },
-    {
-      "schema_version": 1,
-      "name": "http-guard",
-      "duration_ms": 9486,
-      "status": 0,
-      "job_id": 124067385684
-    },
-    {
-      "schema_version": 1,
-      "name": "remote-context",
-      "duration_ms": 23376,
-      "status": 0,
-      "job_id": 124067385684
-    },
-    {
-      "schema_version": 1,
-      "name": "note-signatures",
-      "duration_ms": 393,
-      "status": 0,
-      "job_id": 124067385684
-    },
-    {
-      "schema_version": 1,
-      "name": "note-distillation",
-      "duration_ms": 3202,
-      "status": 0,
-      "job_id": 124067385684
-    },
-    {
-      "schema_version": 1,
-      "name": "mcp-trust",
-      "duration_ms": 14137,
-      "status": 0,
-      "job_id": 124067385684
-    },
-    {
-      "schema_version": 1,
-      "name": "pi-mcp-bridge",
-      "duration_ms": 3748,
-      "status": 0,
-      "job_id": 124067385684
+      "job_id": 124089484323
     },
     {
       "schema_version": 1,
       "name": "pi-bridge-env",
-      "duration_ms": 292,
+      "duration_ms": 161,
       "status": 0,
-      "job_id": 124067385684
+      "job_id": 124089484323
     },
     {
       "schema_version": 1,
-      "name": "context-usage",
-      "duration_ms": 60477,
+      "name": "team-http",
+      "duration_ms": 42016,
       "status": 0,
-      "job_id": 124067385684
-    },
-    {
-      "schema_version": 1,
-      "name": "team",
-      "duration_ms": 69635,
-      "status": 0,
-      "job_id": 124067385790
+      "job_id": 124089484327
     },
     {
       "schema_version": 1,
       "name": "team-cli",
-      "duration_ms": 118639,
+      "duration_ms": 122464,
       "status": 0,
-      "job_id": 124067385790
+      "job_id": 124089484327
     },
     {
       "schema_version": 1,
-      "name": "memory-context-store",
-      "duration_ms": 452740,
+      "name": "embeddings",
+      "duration_ms": 138,
       "status": 0,
-      "job_id": 124067385790
+      "job_id": 124089484327
     },
     {
       "schema_version": 1,
-      "name": "memory-feedback-mcp",
-      "duration_ms": 692972,
+      "name": "memory-continuity-baseline",
+      "duration_ms": 63476,
       "status": 0,
-      "job_id": 124067385790
+      "job_id": 124089484327
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-store-admission",
+      "duration_ms": 309427,
+      "status": 0,
+      "job_id": 124089484327
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-map",
+      "duration_ms": 652835,
+      "status": 0,
+      "job_id": 124089484327
+    },
+    {
+      "schema_version": 1,
+      "name": "explore-guard",
+      "duration_ms": 3189,
+      "status": 0,
+      "job_id": 124089484327
     },
     {
       "schema_version": 1,
       "name": "explore-cache",
-      "duration_ms": 3025,
+      "duration_ms": 2863,
       "status": 0,
-      "job_id": 124067385790
+      "job_id": 124089484327
     },
     {
       "schema_version": 1,
-      "name": "memory-proposals",
-      "duration_ms": 20176,
+      "name": "note-signatures",
+      "duration_ms": 292,
       "status": 0,
-      "job_id": 124067385790
+      "job_id": 124089484327
     },
     {
       "schema_version": 1,
-      "name": "trajectory-redaction",
-      "duration_ms": 964,
+      "name": "context-pack",
+      "duration_ms": 73085,
       "status": 0,
-      "job_id": 124067385790
-    },
-    {
-      "schema_version": 1,
-      "name": "memory-import",
-      "duration_ms": 20255,
-      "status": 0,
-      "job_id": 124067385790
-    },
-    {
-      "schema_version": 1,
-      "name": "compaction-capture",
-      "duration_ms": 141,
-      "status": 0,
-      "job_id": 124067385790
-    },
-    {
-      "schema_version": 1,
-      "name": "capability-logging",
-      "duration_ms": 8392,
-      "status": 0,
-      "job_id": 124067385790
-    },
-    {
-      "schema_version": 1,
-      "name": "capability-harness",
-      "duration_ms": 150987,
-      "status": 0,
-      "job_id": 124067385790
-    },
-    {
-      "schema_version": 1,
-      "name": "capability-mcp",
-      "duration_ms": 42046,
-      "status": 0,
-      "job_id": 124067385790
-    },
-    {
-      "schema_version": 1,
-      "name": "context-pack-v216-compat",
-      "duration_ms": 24300,
-      "status": 0,
-      "job_id": 124067385790
+      "job_id": 124089484327
     },
     {
       "schema_version": 1,
       "name": "domain-retrieval",
-      "duration_ms": 2502,
+      "duration_ms": 2441,
       "status": 0,
-      "job_id": 124067385790
-    }
-  ],
-  "unfinished_groups": [
+      "job_id": 124089484327
+    },
     {
-      "name": "memory-feedback-ranking",
-      "job_id": 124067385666,
-      "observed_elapsed_lower_bound_ms": 574713,
-      "passed": false
-    }
-  ],
-  "unmeasured_failed_jobs": [
+      "schema_version": 1,
+      "name": "retrieval-benchmark",
+      "duration_ms": 24486,
+      "status": 0,
+      "job_id": 124089484327
+    },
     {
-      "job_id": 124067385861,
-      "outcome": "failure",
-      "reason": "PowerShell ACL inspection cold startup exceeded its unchanged 10-second bound before groups began."
+      "schema_version": 1,
+      "name": "team-operations",
+      "duration_ms": 251149,
+      "status": 0,
+      "job_id": 124089484363
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-context-store",
+      "duration_ms": 464673,
+      "status": 0,
+      "job_id": 124089484363
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-context-mcp",
+      "duration_ms": 326388,
+      "status": 0,
+      "job_id": 124089484363
+    },
+    {
+      "schema_version": 1,
+      "name": "remote-context",
+      "duration_ms": 22902,
+      "status": 0,
+      "job_id": 124089484363
+    },
+    {
+      "schema_version": 1,
+      "name": "trajectory-retention",
+      "duration_ms": 3806,
+      "status": 0,
+      "job_id": 124089484363
+    },
+    {
+      "schema_version": 1,
+      "name": "capability-contract",
+      "duration_ms": 10407,
+      "status": 0,
+      "job_id": 124089484363
+    },
+    {
+      "schema_version": 1,
+      "name": "capability-harness",
+      "duration_ms": 154674,
+      "status": 0,
+      "job_id": 124089484363
+    },
+    {
+      "schema_version": 1,
+      "name": "eval-process",
+      "duration_ms": 18906,
+      "status": 0,
+      "job_id": 124089484363
+    },
+    {
+      "schema_version": 1,
+      "name": "graph-cli",
+      "duration_ms": 2979,
+      "status": 0,
+      "job_id": 124089484363
+    },
+    {
+      "schema_version": 1,
+      "name": "context-pack-retrieval",
+      "duration_ms": 45588,
+      "status": 0,
+      "job_id": 124089484363
+    },
+    {
+      "schema_version": 1,
+      "name": "team-onboarding",
+      "duration_ms": 251776,
+      "status": 0,
+      "job_id": 124089484426
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-feedback",
+      "duration_ms": 637520,
+      "status": 0,
+      "job_id": 124089484426
+    },
+    {
+      "schema_version": 1,
+      "name": "http-guard",
+      "duration_ms": 8559,
+      "status": 0,
+      "job_id": 124089484426
+    },
+    {
+      "schema_version": 1,
+      "name": "reviewed-memory",
+      "duration_ms": 28629,
+      "status": 0,
+      "job_id": 124089484426
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-proposals",
+      "duration_ms": 20589,
+      "status": 0,
+      "job_id": 124089484426
+    },
+    {
+      "schema_version": 1,
+      "name": "capability-mcp",
+      "duration_ms": 44053,
+      "status": 0,
+      "job_id": 124089484426
+    },
+    {
+      "schema_version": 1,
+      "name": "eval-schema",
+      "duration_ms": 3424,
+      "status": 0,
+      "job_id": 124089484426
+    },
+    {
+      "schema_version": 1,
+      "name": "skill-lifecycle",
+      "duration_ms": 253304,
+      "status": 0,
+      "job_id": 124089484426
+    },
+    {
+      "schema_version": 1,
+      "name": "anythingllm-workspace",
+      "duration_ms": 2428,
+      "status": 0,
+      "job_id": 124089484426
+    },
+    {
+      "schema_version": 1,
+      "name": "security-assurance",
+      "duration_ms": 141656,
+      "status": 0,
+      "job_id": 124089484426
+    },
+    {
+      "schema_version": 1,
+      "name": "team-mcp",
+      "duration_ms": 74629,
+      "status": 0,
+      "job_id": 124089484482
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-retrieval",
+      "duration_ms": 27104,
+      "status": 0,
+      "job_id": 124089484482
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-database",
+      "duration_ms": 53153,
+      "status": 0,
+      "job_id": 124089484482
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-connections",
+      "duration_ms": 674147,
+      "status": 0,
+      "job_id": 124089484482
+    },
+    {
+      "schema_version": 1,
+      "name": "trajectory-roundtrip",
+      "duration_ms": 1435,
+      "status": 0,
+      "job_id": 124089484482
+    },
+    {
+      "schema_version": 1,
+      "name": "trajectory-redaction",
+      "duration_ms": 882,
+      "status": 0,
+      "job_id": 124089484482
+    },
+    {
+      "schema_version": 1,
+      "name": "note-distillation",
+      "duration_ms": 2400,
+      "status": 0,
+      "job_id": 124089484482
+    },
+    {
+      "schema_version": 1,
+      "name": "typed-nodes",
+      "duration_ms": 22022,
+      "status": 0,
+      "job_id": 124089484482
+    },
+    {
+      "schema_version": 1,
+      "name": "note-mcp",
+      "duration_ms": 8430,
+      "status": 0,
+      "job_id": 124089484482
+    },
+    {
+      "schema_version": 1,
+      "name": "compaction-capture",
+      "duration_ms": 115,
+      "status": 0,
+      "job_id": 124089484482
+    },
+    {
+      "schema_version": 1,
+      "name": "okf",
+      "duration_ms": 23128,
+      "status": 0,
+      "job_id": 124089484482
+    },
+    {
+      "schema_version": 1,
+      "name": "playbook",
+      "duration_ms": 214214,
+      "status": 0,
+      "job_id": 124089484482
+    },
+    {
+      "schema_version": 1,
+      "name": "team-review",
+      "duration_ms": 167737,
+      "status": 0,
+      "job_id": 124089484520
+    },
+    {
+      "schema_version": 1,
+      "name": "extract",
+      "duration_ms": 841,
+      "status": 0,
+      "job_id": 124089484520
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-store-restore",
+      "duration_ms": 259683,
+      "status": 0,
+      "job_id": 124089484520
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-feedback-mcp",
+      "duration_ms": 734081,
+      "status": 0,
+      "job_id": 124089484520
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-reranker",
+      "duration_ms": 29404,
+      "status": 0,
+      "job_id": 124089484520
+    },
+    {
+      "schema_version": 1,
+      "name": "note-enrichment",
+      "duration_ms": 1043,
+      "status": 0,
+      "job_id": 124089484520
+    },
+    {
+      "schema_version": 1,
+      "name": "artifact-store",
+      "duration_ms": 36225,
+      "status": 0,
+      "job_id": 124089484520
+    },
+    {
+      "schema_version": 1,
+      "name": "mcp-trust",
+      "duration_ms": 13474,
+      "status": 0,
+      "job_id": 124089484520
+    },
+    {
+      "schema_version": 1,
+      "name": "pi-mcp-bridge",
+      "duration_ms": 3324,
+      "status": 0,
+      "job_id": 124089484520
+    },
+    {
+      "schema_version": 1,
+      "name": "pi-bridge-child",
+      "duration_ms": 10261,
+      "status": 0,
+      "job_id": 124089484520
+    },
+    {
+      "schema_version": 1,
+      "name": "work-evidence",
+      "duration_ms": 151271,
+      "status": 0,
+      "job_id": 124089484520
+    },
+    {
+      "schema_version": 1,
+      "name": "team",
+      "duration_ms": 56252,
+      "status": 0,
+      "job_id": 124089484551
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-connections-mcp",
+      "duration_ms": 877920,
+      "status": 0,
+      "job_id": 124089484551
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-map-mcp",
+      "duration_ms": 139746,
+      "status": 0,
+      "job_id": 124089484551
+    },
+    {
+      "schema_version": 1,
+      "name": "explore-crossref",
+      "duration_ms": 2134,
+      "status": 0,
+      "job_id": 124089484551
+    },
+    {
+      "schema_version": 1,
+      "name": "memory-import",
+      "duration_ms": 16187,
+      "status": 0,
+      "job_id": 124089484551
+    },
+    {
+      "schema_version": 1,
+      "name": "artifact-mcp",
+      "duration_ms": 31740,
+      "status": 0,
+      "job_id": 124089484551
+    },
+    {
+      "schema_version": 1,
+      "name": "capability-logging",
+      "duration_ms": 7291,
+      "status": 0,
+      "job_id": 124089484551
+    },
+    {
+      "schema_version": 1,
+      "name": "eval-statistics",
+      "duration_ms": 58,
+      "status": 0,
+      "job_id": 124089484551
+    },
+    {
+      "schema_version": 1,
+      "name": "eval-protocol",
+      "duration_ms": 1127,
+      "status": 0,
+      "job_id": 124089484551
+    },
+    {
+      "schema_version": 1,
+      "name": "context-pack-v216-compat",
+      "duration_ms": 19309,
+      "status": 0,
+      "job_id": 124089484551
+    },
+    {
+      "schema_version": 1,
+      "name": "context-usage",
+      "duration_ms": 45039,
+      "status": 0,
+      "job_id": 124089484551
     }
   ]
 }

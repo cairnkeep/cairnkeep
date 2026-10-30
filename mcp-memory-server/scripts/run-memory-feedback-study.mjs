@@ -22,7 +22,8 @@ assert.equal(policy.default_enabled, false);
 const hash = value => createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
 const supplemental = {};
 if (args.includes('--all')) {
-  for (const [name, options] of [['baseline', ['--baseline']], ['freshness_links_maps', ['--features', 'freshness,links,maps']]]) {
+  for (const [name, options] of [['baseline', ['--baseline']], ['freshness_links_maps', ['--features', 'freshness,links,maps']],
+    ['integrated_workflow', ['--features', 'freshness,links,maps,feedback']]]) {
     const child = spawnSync(process.execPath, [fileURLToPath(new URL('./run-memory-continuity-study.mjs', import.meta.url)), ...options, '--check', '--summary'],
       { encoding: 'utf8', timeout: 1800000, maxBuffer: 4 * 1024 * 1024 });
     assert.equal(child.status, 0, child.stderr); supplemental[name] = JSON.parse(child.stdout);
