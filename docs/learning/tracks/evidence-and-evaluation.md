@@ -24,5 +24,14 @@ L16 also covers the offline memory protocol controls: distinguish direct tool
 events from narration and explain why protocol observations, caller-asserted
 consent and task-quality evidence are separate claims.
 
+Optional unreleased source-only supplement:
+[joint continuity evidence](../../memory-continuity-workflow.md). Inspect actual
+map/related/exact-read/search/inspection calls, the independently enumerated
+Markdown policy, development-only votes and eight held-out query cases per arm.
+Separate freshness warnings and curated linked coverage from ordinary retrieval
+quality; disclose operator work, per-call/summed bytes and different transport
+overhead. Keep the no-gain ranking result, negative controls and failed original
+SDK proposal visible. This is not an independent human pilot or a video recording.
+
 Hands-on spine: `course-05-evidence` through `course-07-evaluation` in the
 public [course labs](https://github.com/cairnkeep/cairnkeep-course-labs).

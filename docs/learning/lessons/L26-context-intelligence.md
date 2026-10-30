@@ -205,6 +205,13 @@ unchanged held-out scores support leaving ranking off. Exact keys, membership,
 source text and permissions stay fixed; one-slot/0.02 limits are not factual
 confidence. Separate feature controls are not a combined agent-productivity study.
 
+The optional [joint source-only lab](../../memory-continuity-workflow.md) now
+exercises all five ordinary-memory tools together, with independent Markdown,
+development-only feedback and managed restore. Inspect curation/call costs and
+per-call versus summed bytes, retain the no-gain query result, and distinguish
+protocol conformance from autonomous quality. It remains an unreleased supplement,
+not a change to the released lesson's prerequisites or a new recording.
+
 - **A hidden skill appears:** revoke exposure, run `cairn doctor`, and treat it as
   a visibility regression. Approval is bound to pack/path/file digests.
 - **Hierarchical search looks worse:** compare it with the frozen benchmark and

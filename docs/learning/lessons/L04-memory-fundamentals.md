@@ -86,6 +86,13 @@ Compare the separate default-off bounded ranking arm against collection-only:
 the frozen held-out replay found no gain. Explain the three-task minimum,
 0.02 adjustment and one-slot limit without calling them anti-Sybil protection.
 
+Follow the optional [joint continuity lab](../../memory-continuity-workflow.md)
+only from the matching unreleased source checkout. Explain why three linked
+records require explicit associations and seven calls, why a bounded map can
+omit an entity, and why a freshness warning does not correct an old fact.
+Compare the independent Markdown arm and retain the no-gain ranking result;
+this supplement does not change the released lab or this lesson's Brief status.
+
 - [Operating guide](../../operating.md#the-workflow)
 - [Memory retrieval and the Markdown baseline](../../memory-retrieval.md)
 - [Recording supplement](../video-scripts/V04-memory-retrieval-supplement.md)

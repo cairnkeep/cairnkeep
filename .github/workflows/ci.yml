@@ -27,6 +27,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+      - name: Complete two-arm continuity replay
+        run: node scripts/run-memory-continuity-study.mjs --all --check --summary
 
   native-windows:
     name: native-windows (${{ matrix.label }})
@@ -39,25 +41,34 @@ jobs:
         include:
           - node: "22"
             label: "22"
-            shard: "1/7"
+            shard: "1/10"
           - node: "24"
             label: "24"
-            shard: "2/7"
+            shard: "2/10"
           - node: "26"
             label: "26"
-            shard: "3/7"
+            shard: "3/10"
           - node: "24"
             label: "24-extended"
-            shard: "4/7"
+            shard: "4/10"
           - node: "24"
             label: "24-additional"
-            shard: "5/7"
+            shard: "5/10"
           - node: "24"
             label: "24-context"
-            shard: "6/7"
+            shard: "6/10"
           - node: "24"
             label: "24-feedback"
-            shard: "7/7"
+            shard: "7/10"
+          - node: "24"
+            label: "24-integrated"
+            shard: "8/10"
+          - node: "24"
+            label: "24-replay"
+            shard: "9/10"
+          - node: "24"
+            label: "24-integrated-ranking"
+            shard: "10/10"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

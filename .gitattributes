@@ -2,3 +2,5 @@
 examples/eval/task-set.json text eol=lf
 mcp-memory-server/scripts/fixtures/memory-reranker-study-v1.json text eol=lf
 mcp-memory-server/scripts/fixtures/memory-continuity-v2.json text eol=lf
+mcp-memory-server/scripts/fixtures/memory-feedback-policy-v1.json text eol=lf
+mcp-memory-server/scripts/fixtures/memory-integrated-workflows-v1.json text eol=lf

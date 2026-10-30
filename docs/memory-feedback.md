@@ -66,17 +66,17 @@ history. Exhaustion refuses writes, never silently purges. Votes older than 30
 days are ineligible; records remain until explicit forget. Inspect/export locally:
 
 ```sh
-cairn memory-context feedback list --scope project --project /path/to/disposable-project --json
-cairn memory-context feedback export --scope project --project /path/to/disposable-project --json
-cairn memory-context doctor --scope project --project /path/to/disposable-project --json
+node bin/cairn memory-context feedback list --scope project --project /path/to/disposable-project --json
+node bin/cairn memory-context feedback export --scope project --project /path/to/disposable-project --json
+node bin/cairn memory-context doctor --scope project --project /path/to/disposable-project --json
 ```
 
 Export goes to stdout; protect any redirected copy. To forget up to 500 explicit
 record IDs, prepare `{"schema_version":1,"ids":["<record digest>"]}` in a JSON file:
 
 ```sh
-cairn memory-context feedback forget --scope project --project /path/to/disposable-project --input selection.json --json
-cairn memory-context feedback forget --scope project --project /path/to/disposable-project --input selection.json --apply --confirm PLAN_DIGEST --json
+node bin/cairn memory-context feedback forget --scope project --project /path/to/disposable-project --input selection.json --json
+node bin/cairn memory-context feedback forget --scope project --project /path/to/disposable-project --input selection.json --apply --confirm PLAN_DIGEST --json
 ```
 
 Apply rechecks the exact selected records and ledger epoch transactionally. A
@@ -126,7 +126,9 @@ The frozen eight-case held-out replay showed **no ranking gain**: first-hit rate
 unchanged by feedback. Collection adds provenance bytes and ranking adds local
 work; these costs are reported, not hidden. Only development-query labels train
 votes, and an independently implemented equal-information Markdown policy
-matches. Baseline, freshness/links/maps and feedback reports are separate
-controls, not proof of a combined agent effect. No model-quality, productivity,
+matches. `--all` retains those separate controls and now includes an actual
+[joint continuity replay](memory-continuity-workflow.md), with explicit tool
+sequence, independent Markdown policy, costs and same-secret restore controls.
+Neither the separate nor joint replay is proof of a combined autonomous agent effect. No model-quality, productivity,
 live-harness or broad retrieval-quality improvement is established. Recommend
 collection-only experiments; keep ranking disabled pending broader evidence.

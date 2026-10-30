@@ -8,6 +8,13 @@ below (some operator-owned endpoints do not require a credential).
 
 ## Data flows
 
+The [unreleased source-only continuity workflow](memory-continuity-workflow.md)
+keeps these boundaries separate even with all context tools enabled. Its local
+tests trap external requests; its authenticated HTTP tests deliberately use
+loopback. A shared bearer domain is not per-user authorization. Minimized
+feedback digests remain sensitive, and retained history is not automatic expiry
+or physical erasure. No existing-store conversion or production enrollment occurs.
+
 | Feature | Data that can leave the server machine | Destination |
 |---|---|---|
 | Local substring search | None | Local SQLite only |

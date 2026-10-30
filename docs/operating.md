@@ -759,6 +759,11 @@ and untouched for backup-guided manual recovery.
 
 ### Revision-bound freshness (unreleased, source checkout only)
 
+For the combined disposable lab, start with the
+[source-only continuity workflow](memory-continuity-workflow.md). Use the checkout's
+`node bin/cairn` for `memory-context` examples here, not an older global CLI.
+These optional tools do not change released installation or migrate existing stores.
+
 `CAIRN_MEMORY_CONTEXT=1` exposes the closed-world, read-only `memory_inspect`,
 `memory_related` and `memory_map` tools under the `memory.search` capability and MCP tool profile. A read-only
 profile may inspect; no MCP administration or freshness-write tool is added.
@@ -790,10 +795,10 @@ store, prepare a JSON file containing `schema_version:1`, `source_refs:[]`, and
 optional UTC `effective_at`, `verified_at`, `review_after` dates, then run:
 
 ```sh
-cairn memory-context set-freshness --scope project --project /path/to/disposable-project --key facts/demo --input freshness.json --json
+node bin/cairn memory-context set-freshness --scope project --project /path/to/disposable-project --key facts/demo --input freshness.json --json
 # Inspect the no-write plan, then repeat with --apply --confirm PLAN_DIGEST.
-cairn memory-context inspect --scope project --project /path/to/disposable-project --key facts/demo --json
-cairn memory-context doctor --scope project --project /path/to/disposable-project --json
+node bin/cairn memory-context inspect --scope project --project /path/to/disposable-project --key facts/demo --json
+node bin/cairn memory-context doctor --scope project --project /path/to/disposable-project --json
 ```
 
 Input is strict, bounded to 64 KiB and read without following links/devices.
@@ -844,6 +849,12 @@ The separate `CAIRN_MEMORY_FEEDBACK_RANKING=1` experiment allows only same-store
 same-tier adjacent swaps, maximum one slot per result and 0.02 adjustment after
 three distinct task digests. It preserves original scores/exact matches and is
 off by default. The frozen held-out replay showed no gain; prefer collection-only.
+
+The [combined replay](memory-continuity-workflow.md) now exercises all five tools
+together and keeps its ordinary-query ablations distinct from extra-curated
+multi-call navigation. Its explicit feedback never refreshes dates or resolves
+facts. Local project roots and HTTP project IDs select different physical paths;
+switching harness/session requires a new receipt, not a new memory store.
 
 ### Domain knowledge (RAG via AnythingLLM, opt-in)
 

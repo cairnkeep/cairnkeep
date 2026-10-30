@@ -11,23 +11,30 @@ import { resolveMcpToolProfile } from '../dist/mcp-tool-profile.js';
 import { buildMemoryMap, memoryMapResponse } from '../dist/memory-map.js';
 
 const args = process.argv.slice(2), bytes = readFileSync(new URL('./fixtures/memory-continuity-v2.json', import.meta.url));
-assert.ok(args[0] === '--features' && ['freshness,links', 'freshness,links,maps'].includes(args[1]) && args.slice(2).every(arg => ['--check', '--summary'].includes(arg)),
-  'Usage: --features freshness,links[,maps] [--check] [--summary]');
-const mapsEnabled = args[1].endsWith(',maps'), mapResults = [], markers = new Map();
+const selectedArm = args[2] === '--arm' ? args[3] : null;
+assert.ok(args[0] === '--features' && ['freshness,links', 'freshness,links,maps', 'freshness,links,maps,feedback'].includes(args[1])
+  && (!selectedArm || ['collection-only', 'bounded-ranking'].includes(selectedArm))
+  && args.slice(selectedArm ? 4 : 2).every(arg => ['--check', '--summary'].includes(arg)),
+  'Usage: --features freshness,links[,maps[,feedback]] [--arm collection-only|bounded-ranking] [--check] [--summary]');
+const mapsEnabled = args[1].split(',').includes('maps'), feedbackEnabled = args[1].endsWith(',feedback'), mapResults = [], markers = new Map();
+assert.ok(!selectedArm || feedbackEnabled, 'arm selection requires the actual joint feedback replay');
+const rankingArms = selectedArm ? [selectedArm === 'bounded-ranking'] : [false, true];
 const fixture = JSON.parse(bytes), lab = createContinuityLab();
 const hash = value => createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
 const records = new Map(fixture.records.map(row => [row.id, row]));
 const active = new Map(), generations = new Map(), metadataRevisions = new Map(), entities = [], links = [], results = [];
 let unsupportedEdges = 0, unauthorizedReturns = 0;
+const curationCounters = { entity_changes: 0, link_changes: 0, freshness_changes: 0, elapsed_ms: 0 };
 const storeKey = row => `${row.scope === 'identity' ? 'shared' : row.project}:${row.scope}:${row.key}`;
 const store = row => ({ scope: row.scope, path: row.scope === 'identity' ? join(lab.env.CAIRN_AGENTFS_BASE_DIR, 'identity.db')
   : join(lab.projects[row.project], '.agentfs', 'project.db') });
 const partitionId = row => `${row.scope === 'identity' ? 'shared' : row.project}:${row.scope}`;
 const folder = join(lab.root, 'markdown'); mkdirSync(folder, { mode: 0o700 });
 const sessions = new Map();
-async function client(project, harness = 'a') {
+async function client(project, harness = 'a', ranked = false) {
   const key = `${project}:${harness}`;
-  if (!sessions.has(key)) sessions.set(key, await lab.connect(project, { CAIRN_MEMORY_CONTEXT: '1' }, `continuity-harness-${harness}`));
+  if (!sessions.has(key)) sessions.set(key, await lab.connect(project, { CAIRN_MEMORY_CONTEXT: '1',
+    CAIRN_MEMORY_FEEDBACK_RANKING: ranked ? '1' : '0' }, `continuity-harness-${harness}`));
   return sessions.get(key);
 }
 async function mutate(operation, row) {
@@ -46,8 +53,9 @@ const aliasInput = { device: ['sensor lumen'], tunnel: ['cobalt'], endpoint: ['e
   'alias-one': ['relay'], 'alias-two': ['relay'], renamed: ['glimmer', 'lumen-current'], 'gateway-current': ['relaybox'] };
 const persistCuration = () => writeFileSync(join(folder, 'curation.json'), JSON.stringify({ entities, links }), { mode: 0o600 });
 async function curateEntity(row, input, operation = 'set') {
-  const target = store(row), plan = await graph.planMemoryEntityChange({ ...target, input, operation });
+  const started = performance.now(), target = store(row), plan = await graph.planMemoryEntityChange({ ...target, input, operation });
   await graph.applyMemoryEntityChange({ ...target, input, operation, confirm: plan.digest });
+  curationCounters.entity_changes++; curationCounters.elapsed_ms += performance.now() - started;
   const previous = entities.find(entity => entity.id === input.id), revision = (previous?.revision ?? 0) + 1;
   // The control has its own monotonic curation revisions and assertion digest.
   // It receives the same source provenance, never the native result/digest.
@@ -58,8 +66,9 @@ async function curateEntity(row, input, operation = 'set') {
   return plan;
 }
 async function curateLink(row, input, operation = 'set') {
-  const target = store(row), plan = await graph.planMemoryLinkChange({ ...target, input, operation });
+  const started = performance.now(), target = store(row), plan = await graph.planMemoryLinkChange({ ...target, input, operation });
   await graph.applyMemoryLinkChange({ ...target, input, operation, confirm: plan.digest });
+  curationCounters.link_changes++; curationCounters.elapsed_ms += performance.now() - started;
   const previous = links.find(link => link.id === input.id), revision = (previous?.revision ?? 0) + 1;
   const record = operation === 'remove' ? { id: input.id, revision, present: false } : { ...input, revision, present: true,
     from: { id: input.from, digest: entities.find(entity => entity.id === input.from).assertion_digest },
@@ -75,7 +84,10 @@ function markdownRelated(item) {
     && (row.scope === 'identity' || row.project === item.project)).map(row => [row.row.key, row]));
   const current = reference => {
     const row = visible.get(reference.key);
+    const marker = markers.get(partitionId(item));
     return row && row.generation === reference.generation && row.context_revision === reference.context_revision
+      && (!marker || (marker.owner_domain === reference.owner_domain && marker.store_uuid === reference.store_uuid
+        && marker.restore_epoch === reference.restore_epoch && marker.scope === reference.scope))
       && hash(JSON.stringify(row.row.value)) === reference.content_digest;
   };
   const curation = JSON.parse(readFileSync(join(folder, 'curation.json'), 'utf8'));
@@ -176,6 +188,13 @@ async function compareMap(item) {
     cold_ms: Math.round(coldMs * 100) / 100, warm_ms: Math.round(warmMs * 100) / 100,
     markdown_ms: Math.round(markdownMs * 100) / 100 });
 }
+const integrated = feedbackEnabled ? (await import('./memory-integrated-replay.mjs')).createIntegratedReplay({
+  fixture, corpusBytes: bytes, lab, folder, markers, generations, metadataRevisions, rankingArms,
+  storeKey, partitionId, store, client, markdownMap, markdownRelated, hash,
+  curationCost: () => ({ ...curationCounters, plan_apply_calls: 2 * (curationCounters.entity_changes + curationCounters.link_changes + curationCounters.freshness_changes) }),
+  recordFreshness: elapsed => { curationCounters.freshness_changes++; curationCounters.elapsed_ms += elapsed; },
+  closeClients: async () => { for (const session of sessions.values()) await session.close(); sessions.clear(); },
+}) : null;
 try {
   for (const row of [{ project: 'alpha', scope: 'project' }, { project: 'beta', scope: 'project' }, { scope: 'identity' }]) {
     const target = store(row), plan = await ordinary.planContextStoreInit(target);
@@ -200,6 +219,11 @@ try {
     await curateLink(from.row, input); edgeInputs.push({ row: from.row, input });
   }
   persistCuration();
+  await integrated?.start();
+  // The unchanged standalone replay owns graph re-curation/removal and cold/
+  // warm-map ablations. The joint replay keeps its own shared-state controls,
+  // without repeating those independent suites inside an already lengthy job.
+  if (!integrated) {
   await compare({ id: 'linked-route', project: 'alpha', scope: 'project', entity: 'sensor lumen', depth: 2,
     keys: ['devices/sensor-lumen', 'tunnels/cobalt', 'gateways/ember-42'] });
   await compare({ id: 'ambiguous-alias', project: 'alpha', scope: 'project', entity: 'relay', keys: [], ambiguous: true });
@@ -226,9 +250,11 @@ try {
   await curateLink(first.row, first.input); persistCuration();
   await compare({ id: 'explicit-link-recreate', project: 'alpha', scope: 'project', entity: 'sensor lumen', depth: 2,
     keys: ['devices/sensor-lumen', 'tunnels/cobalt', 'gateways/ember-42'] });
+  }
   const old = records.get('route-old'), target = { ...store(old), key: old.key, input: { schema_version: 1,
     source_refs: ['opaque:synthetic'], verified_at: '1999-01-01T00:00:00Z', review_after: '2000-01-01T00:00:00Z' } };
-  const freshness = await planFreshnessChange(target), assertion = await applyFreshnessChange({ ...target, confirm: freshness.digest });
+  const freshnessStarted = performance.now(), freshness = await planFreshnessChange(target), assertion = await applyFreshnessChange({ ...target, confirm: freshness.digest });
+  curationCounters.freshness_changes++; curationCounters.elapsed_ms += performance.now() - freshnessStarted;
   metadataRevisions.set(storeKey(old), 1);
   writeFileSync(join(folder, `${hash(storeKey(old))}.md`), JSON.stringify({ key: storeKey(old), generation: generations.get(storeKey(old)),
     present: true, context_revision: 1, row: old }), { mode: 0o600 });
@@ -241,25 +267,35 @@ try {
   assert.equal(mdSource.generation, mdFreshness.source.generation); assert.equal(mdSource.context_revision, mdFreshness.source.context_revision);
   const mdStatus = mdFreshness.metadata.verified_at && Date.parse(mdFreshness.metadata.review_after) < Date.now() ? 'needs_review' : 'unknown';
   assert.equal(mdStatus, status.candidates[0].status, 'Markdown receives the same asserted dates and current source metadata');
+  await integrated?.heldOut();
   const renamed = records.get('renamed');
+  await integrated?.metadataChange(renamed);
   await mutate('write', { ...renamed, value: 'temporary replacement' }); await mutate('write', renamed);
-  await compare({ id: 'source-aba-negative', project: 'alpha', scope: 'project', entity: 'glimmer', keys: [] });
-  if (mapsEnabled) for (const item of [{ project: 'alpha', scope: 'project' }, { project: 'beta', scope: 'project' }, { scope: 'identity' }]) await compareMap(item);
+  if (!integrated) await compare({ id: 'source-aba-negative', project: 'alpha', scope: 'project', entity: 'glimmer', keys: [] });
+  await integrated?.afterAba(renamed);
+  if (mapsEnabled && !integrated) for (const item of [{ project: 'alpha', scope: 'project' }, { project: 'beta', scope: 'project' }, { scope: 'identity' }]) await compareMap(item);
+  await integrated?.finishRestore();
   lab.assertOffline();
   const frozen = JSON.parse(readFileSync(new URL('./fixtures/memory-continuity-baseline-v227.json', import.meta.url)));
   const baselineLinked = frozen.results.find(row => row.adapter === 'cairn-v227' && row.case_id === 'linked-route').recall_at_5;
-  assert.equal(baselineLinked, 1 / 3); assert.equal(results.find(row => row.case_id === 'linked-route').keys.length, 3);
+  const jointReport = integrated?.report();
+  assert.equal(baselineLinked, 1 / 3);
+  assert.equal(jointReport ? jointReport.workflows[0].keys.length : results.find(row => row.case_id === 'linked-route').keys.length, 3);
   const source = ['memory-connections.ts', 'memory-context-store.ts', 'memory-context-schema.ts', 'index.ts', ...(mapsEnabled ? ['memory-map.ts', 'memory-map-budget.ts'] : [])]
     .map(name => readFileSync(new URL(`../src/${name}`, import.meta.url)));
-  console.log(JSON.stringify({ schema_version: 1, study: mapsEnabled ? 'native-memory-freshness-links-maps' : 'native-memory-freshness-links', synthetic_only: true,
-    fixture_digest: hash(bytes), source_digest: hash(Buffer.concat(source)), configuration_digest: hash({ aliasInput, links: fixture.links, depth: 2, maps: mapsEnabled }),
+  console.log(JSON.stringify({ schema_version: 1, study: integrated ? 'native-memory-integrated-continuity' : mapsEnabled ? 'native-memory-freshness-links-maps' : 'native-memory-freshness-links', synthetic_only: true,
+    fixture_digest: hash(bytes), source_digest: hash(Buffer.concat(source)), configuration_digest: hash({ aliasInput, links: fixture.links, depth: 2, maps: mapsEnabled,
+      ...(integrated ? { feedback: 'collection-only-with-separate-ranking-control', ranking_arms: rankingArms } : {}) }),
     profile_digest: resolveMcpToolProfile({ projectRoot: lab.projects.alpha, env: lab.env }).profile_digest,
     adapters: ['cairn-freshness-links', 'markdown-curated-links'], cases: results.length, parity: true,
+    ...(integrated ? { separate_controls_replayed: false } : {}),
     linked_recall: { frozen_baseline: baselineLinked, curated_native: 1, curated_markdown: 1 },
     ambiguous_alias_signaled: true, overdue_review_signaled: true, unauthorized_returns: unauthorizedReturns, unsupported_edges: unsupportedEdges, network_attempts: 0,
     limitations: ['Synthetic curated retrieval, not autonomous task quality or a human pilot.',
       'Both formats receive identical explicit aliases, evidence and link metadata; neither infers entities.',
       'Freshness dates warn without choosing truth or changing source text; no production conversion.',
       'Maps are bounded orientation, not exact source reads or an automatic quality gain; warm cache still revalidates live records.',
-      'Feedback, learned ranking and complete milestone held-out ablations remain separate.'], ...(mapsEnabled ? { maps: mapResults } : {}), results }, null, 2));
+      integrated ? 'Joint synthetic tool workflow is not an autonomous agent-quality or human-pilot result; original held-out feedback no-gain evidence remains separate.'
+        : 'Feedback, learned ranking and complete milestone held-out ablations remain separate.'],
+    ...(jointReport ? { integrated: jointReport } : {}), ...(mapsEnabled ? { maps: mapResults } : {}), results }, null, 2));
 } finally { await lab.close(); }

@@ -51,7 +51,7 @@ lane exercises the Windows CLI and packed global install on its Node version.
 A bounded, read-only Windows ACL-runtime warm-up precedes the unchanged strict
 bounded-input controls, so cold startup and platform-specific failures surface
 before the longer smoke shards. The complete memory-server smoke catalog runs
-exactly once across seven lanes, preserving Node 22/24/26 coverage and the existing
+exactly once across ten lanes, preserving Node 22/24/26 coverage and the existing
 required check names. Each native job retains its 30-minute limit.
 
 Shard weights use completed native-Windows group timings, with source runs and
@@ -59,7 +59,9 @@ inherited measurements recorded in the versioned timing receipt. Unmeasured work
 uses an explicit provisional budget. Interrupted groups are never recorded as passes;
 timing estimates are scheduling inputs, not qualification evidence. The Linux
 Node 22/24/26 matrix independently runs the complete catalog on every supported
-runtime. All native lanes, the six focused Windows/macOS runtime lanes, installed
+runtime, plus the complete two-arm continuity replay. Native joint collection
+and ranking arms run separately with all shared-state controls; `--all` retains
+the complete comparison. All native lanes, the six focused Windows/macOS runtime lanes, installed
 packages, container and shell checks must succeed before candidate creation.
 
 Stable versions must use a stable GitHub Release and publish to npm's `latest`

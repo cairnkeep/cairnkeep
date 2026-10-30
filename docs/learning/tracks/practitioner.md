@@ -32,6 +32,12 @@ no ranking and never substitutes for source review or sharing approval.
 Inspect the separate default-off ranking replay and its no-gain result; leave
 ranking disabled rather than tuning to held-out cases or claiming quality gains.
 
+Optional source-only supplement after L07:
+[fresh and connected continuity](../../memory-continuity-workflow.md). Practice
+handoff, bounded orientation, exact reads and an overdue warning together;
+separate ordinary query results from the extra-curated linked workflow. This
+unreleased lab changes neither the released setup nor lesson readiness.
+
 Hands-on spine: `course-02-memory`, `course-03-quality`, and
 `course-05-evidence`, and `course-13-playbooks` in the public
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs).

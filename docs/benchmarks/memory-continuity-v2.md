@@ -55,41 +55,49 @@ a backend-efficiency comparison. No embeddings or reranker are used. The gaps
 justify investigating better context signals, not replacing working continuity
 or promising a perfect score against a baseline.
 
-## Revision feasibility gate — blocked
+## Historical SDK feasibility gate
 
 Reliable source revision tracking must distinguish A→B→A, deletion/recreation
 and restored copies, not merely compare a content hash and a timestamp. The
 probe deterministically demonstrates an A→B→A hash/timestamp collision.
 
-With the current AgentFS SDK 0.6.4/database dependency 0.4.4:
+The original transparent-trigger proposal was blocked with AgentFS SDK
+0.6.4/database dependency 0.4.4:
 
 - Creating SQL triggers fails because experimental triggers are disabled.
 - An unchanged AgentFS client also refuses to reopen a database containing a
   trigger created by another SQLite implementation.
 - The failed schema transaction rolls back without changing ordinary values.
 
-Therefore enabling triggers elsewhere is not a backward-compatible workaround.
-The proposed revision-dependent features are **not ready**. No experimental
-trigger flag, runtime dependency or store format is changed by this work.
+Enabling triggers elsewhere was therefore not a backward-compatible workaround.
+That evidence remains valid for the original proposal, not a current blocker
+for the separately implemented fresh-only tracked format. The revised source
+uses a checked built-in SQLite worker, refuses old database clients and never
+converts an existing store. See [storage admission and recovery](../storage.md#unreleased-tracked-store-foundation-source-checkout-only).
 
-The normal capability probe deliberately exits **2** while this design gate is
-unresolved:
+The original SDK capability probe still deliberately exits **2**. It probes that
+old backend, not qualification of the revised tracked architecture:
 
 ```bash
 node mcp-memory-server/scripts/probe-memory-context-revisions.mjs
 ```
 
 Its `--baseline` mode asserts the known limitation and passes the regression
-suite; that pass does **not** mean trigger compatibility or source-revision
-invalidation works. Similarly, the following explicit RED probe exits **86**
-while the planned tools are missing; it is not registered as a passing feature:
+suite; that pass does **not** establish transparent old-client compatibility.
+The old `smoke-memory-context-contract.mjs --expect-red` probe is retired now
+that its tools exist; do not use it as a current passing test. The maintained
+default-off snapshot and tracked-format tests are separate:
 
 ```bash
-node mcp-memory-server/scripts/smoke-memory-context-contract.mjs --expect-red
+node mcp-memory-server/scripts/smoke-memory-context-contract.mjs --baseline
+node mcp-memory-server/scripts/smoke-memory-database.mjs
+node mcp-memory-server/scripts/smoke-memory-store-restore.mjs
 ```
 
-Before dependent implementation, review whether to wait for stable compatible
-backend support or introduce an explicitly versioned opt-in store contract.
-Neither relaxing ABA protection nor silently changing existing stores is an
-acceptable substitute. Restore-epoch and concurrent old-writer guarantees remain
-unverified until that architecture decision is settled.
+Freshness, connections, maps and feedback remain unreleased source-only features,
+not an upgrade enrollment or production-admission decision. The
+[joint workflow guide](../memory-continuity-workflow.md) documents actual combined
+replay, independent same-information Markdown, invalidation and honest costs.
+The frozen corpus/report and this baseline's observations remain unchanged;
+later evidence does not retroactively turn the failed original proposal into a
+successful compatible migration.

@@ -169,8 +169,16 @@ not replace this older study or retroactively make that failed run successful.
 For the separate source-checkout longitudinal baseline, see
 [synthetic memory continuity](benchmarks/memory-continuity-v2.md). It replays
 actual mutations and fresh MCP clients, keeps an equal-information Markdown
-control, and records the unresolved revision-storage compatibility gate. It
-does not introduce freshness, graph or feedback tools or change this strategy.
+control, and preserves the historical SDK revision-storage limitation. That
+baseline is unchanged; the revised fresh-only tracked format is a separate,
+unreleased source contract, not a silent conversion of old stores.
+
+The [combined continuity workflow](memory-continuity-workflow.md) now exercises
+freshness, links, maps, context search and explicit feedback together. It keeps
+ordinary-query comparisons separate from extra-curated multi-call navigation:
+the latter reaches three linked records but needs additional inputs and calls.
+The equal-information Markdown control matches; ranking still shows no gain.
+Existing `memory_search` schemas, defaults and admission are unchanged.
 
 ## Optional learned reranking
 

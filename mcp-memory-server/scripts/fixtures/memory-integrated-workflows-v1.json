@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "name": "ordinary-memory-integrated-workflow-v1",
+  "corpus_sha256": "30951af421d3854f6df46b4b7eca1fa9f51a25c347e151acb3fe0336ee23a5e4",
+  "feedback_policy_sha256": "69e4ca89dabc7ec25f8372f0ab2a336c9af8d6eecc35be723c5e95e079118b8e",
+  "sequence": ["memory_map", "memory_related", "memory_read", "memory_context_search", "memory_inspect"],
+  "linked_keys": ["devices/sensor-lumen", "gateways/ember-42", "tunnels/cobalt"],
+  "development_tasks_per_query": 3,
+  "recommended_ranking_enabled": false,
+  "map_bytes": 8192,
+  "observation_bytes": 32768,
+  "required_controls": ["linked-workflow", "ambiguous-alias", "foreign-project", "nearby-identifier", "generic-cwd-handoff", "metadata-invalidation", "source-aba", "managed-restore"]
+}

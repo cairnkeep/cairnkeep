@@ -63,6 +63,14 @@ Separate experimental ranking is default off, bounded to same-store adjacent
 swaps and showed no held-out gain. Prefer collection-only; do not advertise
 self-reported votes as verified facts or a model-quality improvement.
 
+The [combined continuity workflow](../memory-continuity-workflow.md) joins
+freshness, explicit links, maps, provenance search and feedback in a disposable
+source-only exercise. It now tests real MCP stdio/HTTP and managed restore
+together, with independent Markdown and curation/call costs. Ordinary query
+ranking shows no gain; an extra-curated seven-call linked workflow is a different
+comparison. Released 2.27 prerequisites remain unchanged; no production enrollment,
+new harness UI qualification or completed video is implied.
+
 ## The three-layer model
 
 1. **Memory server:** an MCP process that owns scoped durable storage. The

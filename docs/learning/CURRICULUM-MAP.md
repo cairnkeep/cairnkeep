@@ -1,7 +1,7 @@
 # Curriculum Coverage Map
 
 **Baseline:** Cairnkeep 2.27.0
-**Last reviewed:** 2026-10-26
+**Last reviewed:** 2026-10-30
 
 This map prevents the course from drifting behind the product. It assigns each
 user-facing surface to a lesson and records whether the lesson is complete or
@@ -46,6 +46,13 @@ been rehearsed.
 | Branchable agent state, model-managed context, and learned decision-model comparisons | L27 | V27 | Ready; evidence runners are operator-invoked and no companion is a runtime dependency or authority |
 | Threat model, local posture check, portable-path adversarial tests, and release security controls | L28 | V28 | Ready; diagnostic is read-only and evidence is not certification |
 | Token-first team identity, reviewed project memory, local stdio bridge, revocation and fresh-only restore | L29 | V29 | Brief; opt-in 2.25 preview; deployment-specific production admission required |
+| Fresh-only tracked storage, revision-bound freshness and managed epoch recovery | L07 | L07 and operator track | Brief; unreleased source-only; patched bundled SQLite required; no existing-store conversion |
+| Explicit ordinary-memory links and bounded maps | L04-L05 | L05 and evidence track | Brief; unreleased source-only; caller-supplied aliases, current evidence and exact reads |
+| Explicit feedback, typed provenance coherence and joint continuity evidence | L04/L14 | L05/L07, evidence track and V04 supplement | Brief; unreleased source-only; ranking off, no gain, no new recording claimed |
+
+The optional [combined continuity lab](../memory-continuity-workflow.md) connects
+these source-only supplements. Released prerequisites and Ready/Brief statuses
+are unchanged; source qualification is not production enrollment or a filmed lesson.
 
 ## Release Review
 
@@ -112,7 +119,7 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn skill` | L19 |
 | `cairn graph` | L18 |
 | `cairn memory` | L07-L08 |
-| `cairn memory-context` | L07 advanced storage, L26 connections, L04/L05 map orientation and V04 recording brief; unreleased source-only features, not an existing-store migration |
+| `cairn memory-context` | L07 storage/freshness, L26 connections, L04/L05 combined workflow, L14 coherence and V04 brief; unreleased source-only, not an existing-store migration |
 | `cairn audit-timer` | L05 and L13 |
 | `cairn uninstall` | L02 and L11-L12 |
 | `cairn completion` | L02 |
