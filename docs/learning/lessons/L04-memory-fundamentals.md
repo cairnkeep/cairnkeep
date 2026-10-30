@@ -75,6 +75,12 @@ envelopes; `truncated` is explicit and legacy refs are
 null/untracked. Run the [map replay](../../memory-maps.md#reproduce) against the
 equal-information Markdown arm; no general agent-quality gain is implied.
 
+The unreleased [feedback extension](../../memory-feedback.md) provides a separate
+provenance-bearing search and explicit session-bound useful/stale/wrong-context
+records. It collects nothing automatically, changes no ranking by collection
+alone, and grants no truth or permission. Practice receipt rejection after a
+source change and exact-ID forget only in disposable tracked projects.
+
 - [Operating guide](../../operating.md#the-workflow)
 - [Memory retrieval and the Markdown baseline](../../memory-retrieval.md)
 - [Recording supplement](../video-scripts/V04-memory-retrieval-supplement.md)

@@ -31,6 +31,8 @@ export const MCP_TOOL_CATALOG = {
     memory_list: observation("List memory"),
     memory_delete: mutation("Delete memory"),
     memory_search: observation("Search memory"),
+    memory_context_search: observation("Search memory with current provenance"),
+    memory_feedback_record: additive("Record explicit memory usefulness"),
     memory_inspect: observation("Inspect memory freshness"),
     memory_related: observation("Inspect evidenced memory connections"),
     memory_map: observation("Orient within visible memory"),
@@ -61,9 +63,12 @@ export function isCairnToolName(value: string): value is CairnToolName {
     return Object.hasOwn(MCP_TOOL_CATALOG, value);
 }
 
-export function metadataForTool(name: string, options: { memoryReranking?: boolean } = {}): CairnToolMetadata {
+export function metadataForTool(name: string, options: { memoryReranking?: boolean; memoryContextProviders?: boolean } = {}): CairnToolMetadata {
     if (!isCairnToolName(name)) throw new Error(`MCP tool ${name} has no annotation contract.`);
     if (name === 'memory_search' && options.memoryReranking) {
+        return { ...MCP_TOOL_CATALOG[name], annotations: { ...MCP_TOOL_CATALOG[name].annotations, openWorldHint: true } };
+    }
+    if (name === 'memory_context_search' && options.memoryContextProviders) {
         return { ...MCP_TOOL_CATALOG[name], annotations: { ...MCP_TOOL_CATALOG[name].annotations, openWorldHint: true } };
     }
     return MCP_TOOL_CATALOG[name];

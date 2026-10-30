@@ -3,7 +3,7 @@ import { resolveMemoryScopePath } from './reviewed-memory-store.js';
 import { planContextStoreInit, applyContextStoreInit, contextStoreStatus, backupMemoryContextStore, planContextStoreRestore, applyContextStoreRestore } from './ordinary-memory-store.js';
 import { readStableJson } from './stable-file.js';
 
-const HELP = `Usage: cairn memory-context <init|status|doctor|backup|restore|inspect|set-freshness|entity|link|related|map> --scope SCOPE [--project PATH] [--json]
+const HELP = `Usage: cairn memory-context <init|status|doctor|backup|restore|inspect|set-freshness|entity|link|related|map|feedback> --scope SCOPE [--project PATH] [--json]
   init                 Print a no-write plan for a fresh, absent store.
   init --apply --confirm DIGEST
                        Create exactly the inspected fresh store.
@@ -25,6 +25,11 @@ const HELP = `Usage: cairn memory-context <init|status|doctor|backup|restore|ins
                        Deterministic navigation, default 4096 UTF-8 bytes including
                        CallToolResult text + structured content (not transport
                        envelopes); exact reads remain necessary. No providers.
+  feedback list|export --scope project
+                       Inspect minimized project feedback records, never values.
+  feedback forget --scope project --input FILE
+                       Plan exact removal of JSON schema_version:1,ids:[DIGEST].
+                       Apply with --apply --confirm DIGEST; no automatic purge.
 Entity JSON: schema_version:1, UUID id, title, aliases:[], anchor_key, claims:[].
 Claims contain key, attribute and value. Link JSON: schema_version:1, UUID id,
 from/to entity UUIDs, predicate, evidence_keys:[]. Remove JSON: schema_version:1,id.
@@ -49,11 +54,12 @@ export async function runMemoryContextCli(args = process.argv.slice(2)): Promise
             'max-bytes': { type: 'string' },
         } });
         if (values.help || positionals.length === 0) { process.stdout.write(HELP); return 0; }
-        const [command, operation] = positionals, curation = command === 'entity' || command === 'link';
-        if (positionals.length !== (curation ? 2 : 1) || !['init', 'status', 'doctor', 'backup', 'restore', 'inspect', 'set-freshness', 'entity', 'link', 'related', 'map'].includes(command) || !values.scope
+        const [command, operation] = positionals, curation = command === 'entity' || command === 'link', feedback = command === 'feedback';
+        if (positionals.length !== (curation || feedback ? 2 : 1) || !['init', 'status', 'doctor', 'backup', 'restore', 'inspect', 'set-freshness', 'entity', 'link', 'related', 'map', 'feedback'].includes(command) || !values.scope
             || (curation && !['set', 'remove'].includes(operation))
-            || (!['init', 'restore', 'set-freshness', 'entity', 'link'].includes(command) && (values.apply || values.confirm)) || Boolean(values.apply) !== Boolean(values.confirm)
-            || (command === 'backup') !== Boolean(values.output) || (['restore', 'set-freshness', 'entity', 'link'].includes(command)) !== Boolean(values.input)
+            || (feedback && (values.scope !== 'project' || !['list', 'export', 'forget'].includes(operation)))
+            || (!(feedback && operation === 'forget') && !['init', 'restore', 'set-freshness', 'entity', 'link'].includes(command) && (values.apply || values.confirm)) || Boolean(values.apply) !== Boolean(values.confirm)
+            || (command === 'backup') !== Boolean(values.output) || (['restore', 'set-freshness', 'entity', 'link'].includes(command) || (feedback && operation === 'forget')) !== Boolean(values.input)
             || ['inspect', 'set-freshness'].includes(command) !== Boolean(values.key) || (command === 'related') !== Boolean(values.entity)
             || (command !== 'related' && (values.direction || values.depth)) || (!['related', 'map'].includes(command) && values.limit)
             || (command !== 'map' && values['max-bytes'] !== undefined)
@@ -61,6 +67,13 @@ export async function runMemoryContextCli(args = process.argv.slice(2)): Promise
             || (values.depth !== undefined && !/^[12]$/.test(values.depth))
             || (values.limit !== undefined && !/^(?:[1-9]|[1-4][0-9]|50)$/.test(values.limit))) throw new Error('MEMORY_ARGUMENTS_INVALID');
         const path = resolveMemoryScopePath(values.scope, { cwd: values.project });
+        if (feedback) {
+            const feature = await import('./memory-feedback.js'), target = { path, scope: values.scope };
+            const input = values.input ? readStableJson(values.input, { label: 'Feedback selection', maxBytes: 65536 }) : undefined;
+            const result = operation !== 'forget' ? await feature.listMemoryFeedback(target)
+                : values.apply ? await feature.forgetMemoryFeedback(target, input, values.confirm!) : await feature.planForgetMemoryFeedback(target, input);
+            process.stdout.write(`${JSON.stringify(result)}\n`); return 0;
+        }
         if (command === 'map') {
             const { buildMemoryMap } = await import('./memory-map.js');
             const result = await buildMemoryMap([{ path, scope: values.scope }], { max_bytes: values['max-bytes'] === undefined ? undefined : Number(values['max-bytes']),
@@ -99,6 +112,10 @@ export async function runMemoryContextCli(args = process.argv.slice(2)): Promise
             Object.assign(result, { freshness: await memoryFreshnessStoreStatus({ path, scope: values.scope }) });
             const { memoryConnectionsStoreStatus } = await import('./memory-connections.js');
             Object.assign(result, { connections: await memoryConnectionsStoreStatus({ path, scope: values.scope }) });
+            if (values.scope === 'project') {
+                const { memoryFeedbackStatus } = await import('./memory-feedback.js');
+                Object.assign(result, { feedback: await memoryFeedbackStatus({ path, scope: values.scope }) });
+            }
         }
         process.stdout.write(`${JSON.stringify(result, null, values.json ? 0 : 2)}\n`);
         return ('format' in result && result.format === 'unsupported') || ('ok' in result && !result.ok) ? 1 : 0;

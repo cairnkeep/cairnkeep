@@ -18,6 +18,19 @@ export const memorySourceRefSchema = contextStoreIdentitySchema.extend({
 }).strict();
 export type MemorySourceRef = z.infer<typeof memorySourceRefSchema>;
 
+export const memoryFeedbackOutcomeSchema = z.enum(['useful', 'stale', 'wrong_context']);
+export const memoryFeedbackInputSchema = z.object({
+    receipt: z.string().min(1).max(16384), task_digest: digest, outcome: memoryFeedbackOutcomeSchema,
+}).strict();
+export const memoryFeedbackRecordSchema = z.object({
+    schema_version: z.literal(1), id: digest, task_digest: digest, source_digest: digest,
+    ledger_uuid: z.uuid(), ledger_epoch: z.uuid(), outcome: memoryFeedbackOutcomeSchema,
+    created_at: z.iso.datetime({ precision: 3 }),
+}).strict();
+export type MemoryFeedbackRecord = z.infer<typeof memoryFeedbackRecordSchema>;
+export const CONTEXT_FEEDBACK_TABLE = 'cairn_memory_feedback_v1';
+export const CONTEXT_FEEDBACK_SQL = `CREATE TABLE ${CONTEXT_FEEDBACK_TABLE}(id TEXT PRIMARY KEY CHECK(typeof(id)='text' AND length(id)=64 AND id NOT GLOB '*[^0-9a-f]*'),record_json TEXT NOT NULL CHECK(typeof(record_json)='text' AND length(CAST(record_json AS BLOB))<=2048))`;
+
 const connectionText = (bytes: number) => z.string().min(1).max(bytes).refine(value => Buffer.byteLength(value) <= bytes);
 const connectionKey = connectionText(4096).refine(value => value !== '__history__' && !value.startsWith('__history__/')
     && value !== '__reviewed__' && !value.startsWith('__reviewed__/'));

@@ -190,6 +190,16 @@ untracked, and incomplete scans cannot claim unique aliases. Compare the
 equal-information Markdown arm and measured cold/warm costs without claiming a
 model/human-quality gain. V04 contains the recording brief; no recording implied.
 
+The unreleased [ordinary-memory feedback extension](../../memory-feedback.md)
+is separate from pack usage receipts: `memory_context_search` returns current
+provenance and optional short-lived session receipts; `memory_feedback_record`
+explicitly records useful/stale/wrong-context outcomes. It needs write allowance,
+never changes truth/freshness/approval and collects nothing automatically. Inspect
+minimized project records with `memory-context feedback list|export`; forget only
+exact confirmed IDs. Collection alone changes no ranking; no quality gain follows
+from self-reported votes. Source changes/restore invalidate eligibility, and
+fabricated task digests remain possible. Use disposable tracked project stores.
+
 - **A hidden skill appears:** revoke exposure, run `cairn doctor`, and treat it as
   a visibility regression. Approval is bound to pack/path/file digests.
 - **Hierarchical search looks worse:** compare it with the frozen benchmark and

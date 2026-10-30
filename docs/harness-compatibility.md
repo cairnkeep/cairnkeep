@@ -41,6 +41,13 @@ exact reads, without harness asset sync or automatic context injection. Its
 `all` request preserves separate visible ordinary-store partitions, not a graph
 join. See [map budgets, untracked legacy data and cache privacy](memory-maps.md).
 
+Unreleased `memory_context_search` and explicit `memory_feedback_record` work
+through that same gated MCP connection. Receipts are session-bound, so switching
+harness/session requires a new search receipt; minimized recorded outcomes remain
+project-local. Read-only profiles can search but cannot record. No harness asset
+sync, automatic collection or truth/approval change is added. See
+[feedback privacy and retention](memory-feedback.md).
+
 | Harness | Supported surface | Runtime status |
 |---|---|---|
 | Claude Code | Memory MCP, commands (including `/cairn-work`), agents, hooks, launcher | Exercised by Cairnkeep tests |

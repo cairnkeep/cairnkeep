@@ -998,7 +998,8 @@ function buildMemoryServer(
         config: CapabilityToolConfig<Args>,
         callback: AsyncToolCallback<Args>,
     ): void => {
-        const metadata = metadataForTool(name, { memoryReranking });
+        const metadata = metadataForTool(name, { memoryReranking,
+            memoryContextProviders: name === 'memory_context_search' && Boolean(getEmbeddingConfig() || memoryReranking) });
         if (!profileAllowsTool(toolProfile, name)) return;
         server.registerTool(name, {
             ...config,
@@ -1546,6 +1547,77 @@ registerCapabilityTool(
 
 if (process.env.CAIRN_MEMORY_CONTEXT === '1'
     && (!context.remote || (process.env.CAIRN_MEMORY_CONTEXT_HTTP === '1' && Boolean(context.projectId)))) {
+    let feedbackSession: Promise<import('./memory-feedback.js').MemoryFeedbackSession> | undefined;
+    const getFeedback = () => feedbackSession ??= import('./memory-feedback.js').then(({ MemoryFeedbackSession }) =>
+        new MemoryFeedbackSession({ scope: 'project', path: resolveScopePath('project', scopeOptions) }, selected => {
+            // Recheck the current visible configuration, not just the signed token.
+            if (!getSearchScopes('all', memoryConfig()).includes(selected)) throw Object.assign(new Error(), { code: 'MEMORY_FEEDBACK_SCOPE_DENIED' });
+            return { scope: selected, path: resolveScopePath(selected, scopeOptions) };
+        }));
+    const contextError = (error: unknown, fallback: string): never => {
+        const code = (error as { code?: string }).code;
+        throw new Error(typeof code === 'string' && /^MEMORY_[A-Z_]{1,64}$/.test(code) ? code : fallback);
+    };
+    registerCapabilityTool('memory.search', 'memory_context_search', {
+        description: 'Search visible ordinary memory through the existing hybrid/provider/reranker pipeline, with current provenance and optional session-bound feedback receipts. Untracked results have no receipt. Feedback is self-reported usefulness, not factual verification. No automatic collection or source mutation.',
+        inputSchema: z.object({
+            scope: z.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9-]*$/),
+            query: z.string().trim().min(1).max(4096).refine(value => Buffer.byteLength(value) <= 4096),
+            top_k: z.number().int().min(1).max(50).optional(), min_score: z.number().min(0).max(1).optional(),
+            query_aliases: z.array(z.string().trim().min(1).max(256).refine(value => Buffer.byteLength(value) <= 256)).max(8).optional(),
+            explain: z.boolean().optional(), task_digest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+            ...(typedNodesEnabled ? {
+                node_types: z.array(nodeTypeSchema).min(1).optional(),
+                tags_all: canonicalTagsSchema.pipe(z.array(z.string()).min(1)).optional(),
+                tags_any: canonicalTagsSchema.pipe(z.array(z.string()).min(1)).optional(),
+            } : {}),
+        }).strict(),
+    }, async input => {
+        const { scope, query, top_k, min_score, query_aliases, explain, task_digest } = input;
+        try {
+            const scopes = [...new Set(getSearchScopes(scope, memoryConfig()))];
+            if (scopes.length > 32) throw Object.assign(new Error(), { code: 'MEMORY_SCOPE_LIMIT' });
+            rankHybridMemory([], query, { topK: top_k ?? 8, minScore: min_score ?? 0, aliases: query_aliases });
+            const searched = await semanticSearch(scope, query, top_k ?? 8, min_score ?? 0, memoryConfig(), context.projectId,
+                { strategy: 'hybrid', aliases: query_aliases, explain, typed: typedNodesEnabled,
+                    filters: typedNodesEnabled ? memoryFiltersFromInput(input) : {} });
+            const { inspectMemoryCandidate } = await import('./memory-context-store.js');
+            const payload = { schema_version: 1, mode: searched.mode, model: searched.model, count: 0,
+                results: [] as Array<Record<string, unknown>>, truncated: false,
+                evidence: 'retrieval-not-truth', ...(searched.retrieval ? { retrieval: searched.retrieval } : {}) };
+            const response = () => ({ content: [{ type: 'text' as const, text: JSON.stringify(payload) }], structuredContent: payload });
+            for (const entry of searched.results) {
+                const current = await inspectMemoryCandidate({ scope: entry.scope, path: resolveScopePath(entry.scope, scopeOptions), key: entry.key });
+                if (!current || 'oversized' in current || current.value !== entry.value) { payload.truncated = true; continue; }
+                const receipt = task_digest && current.source && getSearchScopes('all', memoryConfig()).includes(entry.scope)
+                    ? await (await getFeedback()).issue(current.source, task_digest) : null;
+                const item = { ...entry, source: current.source, tracked: current.tracked, freshness: current.status,
+                    ...(task_digest ? { receipt, feedback_available: Boolean(receipt) } : {}) };
+                payload.results.push(item); payload.count = payload.results.length;
+                // Reserve false flags (larger than true) and include both MCP representations.
+                const truncated = payload.truncated; payload.truncated = false;
+                const fits = Buffer.byteLength(JSON.stringify(response())) <= 32768;
+                payload.truncated = truncated;
+                if (!fits) { payload.results.pop(); payload.count--; payload.truncated = true; }
+            }
+            if (payload.retrieval?.possible_conflicts) {
+                const returned = new Set(payload.results.map(row => row.key));
+                payload.retrieval.possible_conflicts = payload.retrieval.possible_conflicts.filter(row => returned.has(row.key));
+            }
+            if (Buffer.byteLength(JSON.stringify(response())) > 32768) throw Object.assign(new Error(), { code: 'MEMORY_CONTEXT_SEARCH_LIMIT' });
+            return response();
+        } catch (error) { return contextError(error, 'MEMORY_CONTEXT_SEARCH_FAILED'); }
+    });
+    registerCapabilityTool('memory.write', 'memory_feedback_record', {
+        description: 'Explicitly record useful, stale or wrong-context self-reported feedback for a current result receipt from this session/project/task. Does not change memory, freshness, approval, sharing or ranking by default. No free-text payload.',
+        inputSchema: z.object({ receipt: z.string().min(1).max(16384), task_digest: z.string().regex(/^[a-f0-9]{64}$/),
+            outcome: z.enum(['useful', 'stale', 'wrong_context']) }).strict(),
+    }, async value => {
+        try {
+            const payload = await (await getFeedback()).record(value);
+            return { content: [{ type: 'text', text: JSON.stringify(payload) }], structuredContent: payload };
+        } catch (error) { return contextError(error, 'MEMORY_FEEDBACK_FAILED'); }
+    });
     registerCapabilityTool('memory.search', 'memory_inspect', {
         description: 'Inspect visible ordinary memory and revision-bound freshness assertions. Status and possible conflicts are recorded evidence, not factual verification. No sources are fetched or changed.',
         inputSchema: z.object({

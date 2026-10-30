@@ -14,6 +14,7 @@ assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-sqlite-worke
 assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-legacy-inspection.js')));
 assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-connections.js')));
 assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-map.js')));
+assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-feedback.js')));
 const load = name => import(pathToFileURL(join(installed, `mcp-memory-server/dist/${name}.js`)).href);
 const { hardenPrivatePath } = await load('platform-security');
 const store = await load('ordinary-memory-store');
@@ -60,6 +61,12 @@ try {
   const previous = cli('status').marker;
   agent = await store.openOrdinaryMemoryStore(path, 'project');
   await agent.kv.set('facts/installed', 'fixture'); await agent.close(); agent = undefined;
+  const { MemoryFeedbackSession } = await load('memory-feedback');
+  const feedback = new MemoryFeedbackSession({ path, scope: 'project' }, () => ({ path, scope: 'project' }));
+  const taskDigest = 'a'.repeat(64), source = (await context.inspectMemoryCandidate({ path, scope: 'project', key: 'facts/installed' })).source;
+  const receipt = await feedback.issue(source, taskDigest);
+  assert.equal((await feedback.record({ receipt, task_digest: taskDigest, outcome: 'useful' })).recorded, true);
+  assert.equal(cli('feedback', 'export').records.length, 1);
   const entityId = 'fc3ff904-2c14-4fe4-8f57-29c842650098', entityFile = join(base, 'entity.json');
   writeFileSync(entityFile, JSON.stringify({ schema_version: 1, id: entityId, title: 'Installed fixture', aliases: ['installed'],
     anchor_key: 'facts/installed', claims: [] }), { mode: 0o600 }); hardenPrivatePath(entityFile);

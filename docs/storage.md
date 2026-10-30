@@ -508,6 +508,16 @@ conversion or automatic metadata repair is added. See
 [evidence-backed connections](memory-connections.md) for exact bounds, atomic
 curation and read-only observations.
 
+### Development-only feedback metadata
+
+Development-only [explicit feedback](memory-feedback.md) adds a minimized
+`cairn_memory_feedback_v1` table only on explicit recording in the tracked project
+database, not in shared source stores or an authoritative sidecar. Managed backups
+include it; renewed restore epochs invalidate old receipts and eligibility while
+retaining history. The 10,000-row cap includes stale/expired records; no automatic
+purge. Local exact-selection forget removes only confirmed record IDs. Search and
+doctor never initialize or repair the table. No ordinary text or freshness changes.
+
 ### Development-only map cache
 
 Unreleased [memory maps](memory-maps.md) optionally keep a bounded disposable

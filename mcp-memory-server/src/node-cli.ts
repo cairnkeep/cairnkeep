@@ -56,6 +56,11 @@ export async function doctorNodes(options: { repair?: boolean; projectRoot?: str
                 await memoryFreshnessStoreStatus({ path });
                 const { memoryConnectionsStoreStatus } = await import('./memory-connections.js');
                 await memoryConnectionsStoreStatus({ path });
+                if (path === join(resolve(options.projectRoot ?? process.cwd()), '.agentfs', 'project.db')
+                    || dirname(path) === join(baseDirectory(), 'projects')) {
+                    const { memoryFeedbackStatus } = await import('./memory-feedback.js');
+                    await memoryFeedbackStatus({ path, scope: 'project' });
+                }
             }
             scopes.push({ scope, path, ...result });
             issues.push(...result.issues.map((issue) => `${scope}: ${issue}`));

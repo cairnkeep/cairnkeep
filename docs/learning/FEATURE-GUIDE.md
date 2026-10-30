@@ -54,6 +54,12 @@ local stdio MCP bridge. Installing it enables no sharing. L29/V29 cover its
 bounded trial and the distinction between preview availability and production
 admission; team search does not use personal-memory embeddings or reranking.
 
+Unreleased source-checkout [explicit memory feedback](../memory-feedback.md)
+adds provenance-bearing context search and opt-in, session-bound self-reported
+usefulness records. It changes no ranking by collection alone and grants no
+truth, approval or sharing authority. L26 covers the project ledger, expiry and
+exact-selection forget boundary; production conversion is not provided.
+
 ## The three-layer model
 
 1. **Memory server:** an MCP process that owns scoped durable storage. The

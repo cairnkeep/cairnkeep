@@ -33,6 +33,7 @@ linked guides rather than the project landing page.
 
 - [Evidence-backed memory connections (unreleased)](memory-connections.md)
 - [Compact ordinary-memory maps (unreleased)](memory-maps.md)
+- [Explicit ordinary-memory feedback (unreleased)](memory-feedback.md)
   covers explicit entities, aliases, scoped traversal and possible conflicts in
   fresh tracked stores; existing stores are not converted.
 - [Memory retrieval and the Markdown baseline](memory-retrieval.md) explains

@@ -68,3 +68,17 @@ Do not claim caching is faster: every map still revalidates current visibility
 and revisions. No model/provider or automatic `AGENTS.md` injection occurs.
 Explain private cache sensitivity and separate HTTP consent. This is a recording
 brief, not a claim that a new segment has been recorded or published.
+
+## Unreleased explicit-feedback recording brief
+
+Use a disposable tracked project and the existing harness MCP connection. Call
+`memory_context_search` with an opaque task digest; zoom into current provenance
+and the session-bound receipt. Explicitly record `useful`, then repeat it to show
+idempotency. A conflicting outcome, another session/project and source ABA must
+refuse. Inspect `memory-context feedback export --scope project` and verify no
+query, key, source value or receipt is copied into the feedback records. Show
+exact-ID forget plan/apply and separate HTTP consent/profile restrictions.
+
+Collection changes no ranking and self-reported feedback is not truth, human
+review or anti-Sybil evidence. No production conversion, activation, fabricated
+model-quality gain or new recording/publication is implied by this brief.
