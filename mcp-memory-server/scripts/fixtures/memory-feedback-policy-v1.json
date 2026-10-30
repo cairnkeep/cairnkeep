@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "name": "feedback-adjacent-v1",
+  "max_delta": 0.02,
+  "tier_width": 0.1,
+  "minimum_tasks": 3,
+  "max_displacement": 1,
+  "development_repetitions": 3,
+  "training": "development queries only; explicit usefulness labels, no held-out labels",
+  "default_enabled": false
+}

@@ -17,6 +17,9 @@ const serverEntry = fileURLToPath(new URL("../dist/index.js", import.meta.url));
 
 function environment(extra = {}) {
     const env = { ...process.env };
+    // Catalog observations here assert the unconfigured provider contract.
+    // A contributor's live endpoint must not alter this fixture or be called.
+    for (const name of Object.keys(env)) if (/^CAIRN_(?:LLM_|MEMORY_EMBEDDING_|MEMORY_RERANK)/.test(name)) delete env[name];
     for (const name of [
         "CAIRN_MCP_TOOL_PROFILE", "CAIRN_MCP_ALLOWED_TOOLS", "CAIRN_TYPED_MEMORY_NODES",
         "CAIRN_ARTIFACT_STORE", "CAIRN_ARTIFACT_HTTP", "CAIRN_CONTEXT_PACKS",

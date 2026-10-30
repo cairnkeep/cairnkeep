@@ -500,8 +500,9 @@ vendor or host.
 | `CAIRN_MEMORY_RERANK_MODEL` | Required model identifier when reranking is enabled |
 | `CAIRN_MEMORY_RERANK_API_KEY` | Optional separate reranker credential; no extraction/embedding key fallback |
 | `CAIRN_MEMORY_RERANK_TIMEOUT_MS` | Reranking deadline, default `2000`, allowed `100`–`10000`; failure preserves existing search order |
-| `CAIRN_MEMORY_CONTEXT` | Unreleased opt-in `1` exposes read-only `memory_inspect`, `memory_related` and `memory_map` and adds freshness/connection metadata validation to doctor; off by default |
+| `CAIRN_MEMORY_CONTEXT` | Unreleased opt-in `1` exposes `memory_inspect`, `memory_related`, `memory_map`, `memory_context_search` and explicit additive `memory_feedback_record`; observations require search allowance and feedback requires write allowance. Adds metadata validation to doctor; off by default |
 | `CAIRN_MEMORY_CONTEXT_HTTP` | Separate unreleased `1` consent for inspection over authenticated project-resolved HTTP; also requires `CAIRN_MEMORY_CONTEXT=1` |
+| `CAIRN_MEMORY_FEEDBACK_RANKING` | Unreleased experimental `1` applies bounded current feedback only to `memory_context_search`; off by default, no admission/authority changes, optional failure preserves baseline order. Frozen replay found no gain; collection-only recommended |
 | `CAIRN_AGENTFS_BASE_DIR` | Server-side base dir for named/global memory scopes (default `~/.cairnkeep`); it does not affect `project` scope |
 | `CAIRN_TRAJECTORY_CAPTURE` | Opt in to local structured session capture (`1`, `true`, `yes`, or `on`; unset/default → no capture work) |
 | `CAIRN_TRAJECTORY_SESSION_MAX_BYTES` | Maximum serialized bytes per session (default `5242880`, 5 MiB; minimum 1024) |
@@ -829,6 +830,20 @@ untracked. The same capability/profile/HTTP consent gates above apply; `all`
 keeps stores separate and never includes team/pack/skill backends. No provider
 call, automatic injection, store conversion or source verification occurs.
 See [map limits, cache privacy and reproducible evidence](memory-maps.md).
+
+### Explicit retrieval feedback (unreleased, source checkout only)
+
+`memory_context_search` shares the existing hybrid/provider/reranker pipeline and
+can issue short-lived project/session/source-bound receipts. Only an explicit
+`memory_feedback_record` call records self-reported useful/stale/wrong-context
+outcomes; no raw query/value/receipt text is retained, and collection changes no
+ranking. A fresh tracked project ledger is required, never initialized by search.
+Use local `memory-context feedback list|export|forget --scope project` and the
+exact digest-bound deletion plan. See [feedback limits and privacy](memory-feedback.md).
+The separate `CAIRN_MEMORY_FEEDBACK_RANKING=1` experiment allows only same-store,
+same-tier adjacent swaps, maximum one slot per result and 0.02 adjustment after
+three distinct task digests. It preserves original scores/exact matches and is
+off by default. The frozen held-out replay showed no gain; prefer collection-only.
 
 ### Domain knowledge (RAG via AnythingLLM, opt-in)
 

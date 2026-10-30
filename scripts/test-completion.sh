@@ -11,6 +11,8 @@ for shell in bash zsh fish; do
   grep -q 'completion' "$tmp/$shell"
   grep -q 'memory-context' "$tmp/$shell"
   grep -q 'set-freshness' "$tmp/$shell"
+  grep -q 'feedback' "$tmp/$shell"
+  grep -q 'forget' "$tmp/$shell"
   grep -q -- '--key\|-l key' "$tmp/$shell"
 done
 

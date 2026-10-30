@@ -75,6 +75,17 @@ envelopes; `truncated` is explicit and legacy refs are
 null/untracked. Run the [map replay](../../memory-maps.md#reproduce) against the
 equal-information Markdown arm; no general agent-quality gain is implied.
 
+The unreleased [feedback extension](../../memory-feedback.md) provides a separate
+provenance-bearing search and explicit session-bound useful/stale/wrong-context
+records. It collects nothing automatically, changes no ranking by collection
+alone, and grants no truth or permission. Practice receipt rejection after a
+source change and exact-ID forget only in disposable tracked projects.
+Change only tags or node type during a search: the old typed result must be
+omitted with truncation, not given fresh provenance for unchanged text.
+Compare the separate default-off bounded ranking arm against collection-only:
+the frozen held-out replay found no gain. Explain the three-task minimum,
+0.02 adjustment and one-slot limit without calling them anti-Sybil protection.
+
 - [Operating guide](../../operating.md#the-workflow)
 - [Memory retrieval and the Markdown baseline](../../memory-retrieval.md)
 - [Recording supplement](../video-scripts/V04-memory-retrieval-supplement.md)

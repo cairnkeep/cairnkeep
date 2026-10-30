@@ -68,3 +68,29 @@ Do not claim caching is faster: every map still revalidates current visibility
 and revisions. No model/provider or automatic `AGENTS.md` injection occurs.
 Explain private cache sensitivity and separate HTTP consent. This is a recording
 brief, not a claim that a new segment has been recorded or published.
+
+## Unreleased explicit-feedback recording brief
+
+Use a disposable tracked project and the existing harness MCP connection. Call
+`memory_context_search` with an opaque task digest; zoom into current provenance
+and the session-bound receipt. Explicitly record `useful`, then repeat it to show
+idempotency. A conflicting outcome, another session/project and source ABA must
+refuse. Inspect `memory-context feedback export --scope project` and verify no
+query, key, source value or receipt is copied into the feedback records. Show
+exact-ID forget plan/apply and separate HTTP consent/profile restrictions.
+
+Collection changes no ranking and self-reported feedback is not truth, human
+review or anti-Sybil evidence. No production conversion, activation, fabricated
+model-quality gain or new recording/publication is implied by this brief.
+In the source-only coherence test, pause at the synthetic reranker barrier and
+change tags/type without changing text. Show omission with `truncated: true`,
+then a fresh correctly filtered search; never attach current provenance to old
+typed fields. Keep the isolated legacy observer and its locking limits explicit.
+
+For an optional source-only ranking segment, run the real feedback policy/MCP
+tests and `run-memory-continuity-study.mjs --all --check --summary`. Pause on the
+no-held-out-improvement decision: unchanged first-hit/recall, stale count and
+negatives, with added provenance bytes and local latency. Show the opt-in kill
+switch, three-task minimum and bounded one-slot swap using only synthetic data.
+Explain that fabricated task IDs remain possible and recommend collection-only.
+Do not present independent feature controls as a combined agent-quality gain.

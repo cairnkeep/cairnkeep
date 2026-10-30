@@ -45,7 +45,7 @@ Usage:
   cairn setup [PATH]  # interactive Git, harness, memory, and confirmation selectors
   cairn setup PATH --git init|existing|none --harness LIST --memory local|none [--policy PATH] --yes [--json]
   cairn memory-server
-  cairn memory-context <init|status|doctor|backup|restore|inspect|set-freshness|entity|link|related|map> --scope SCOPE [--project PATH] [--key KEY] [--input FILE|--output FILE] [--apply --confirm DIGEST]
+  cairn memory-context <init|status|doctor|backup|restore|inspect|set-freshness|entity|link|related|map|feedback> --scope SCOPE [--project PATH] [--key KEY] [--input FILE|--output FILE] [--apply --confirm DIGEST]
     entity|link set|remove --input FILE; related --entity ID_OR_ALIAS [--direction outbound|inbound|both] [--depth 1|2] [--limit 1..50]
     map [--max-bytes 1024..8192] [--limit 1..50]; bounded navigation followed by exact reads
   cairn sync [--check|--apply] [--live-root DIR]

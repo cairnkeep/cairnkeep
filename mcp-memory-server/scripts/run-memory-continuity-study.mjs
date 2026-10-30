@@ -9,6 +9,10 @@ import { rankHybridMemory } from '../dist/memory-retrieval.js';
 import { resolveMcpToolProfile } from '../dist/mcp-tool-profile.js';
 
 const args = process.argv.slice(2);
+if (args.includes('--all')) {
+  await import('./run-memory-feedback-study.mjs');
+  process.exit(0);
+}
 if (args[0] === '--features') {
   await import('./run-memory-connections-study.mjs');
   process.exit(0);

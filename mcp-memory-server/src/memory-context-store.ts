@@ -11,6 +11,7 @@ import { canonicalMemoryPath, memoryStoreIdentity, openOrdinaryMemoryStore, open
 import { withOrdinaryMemorySnapshot } from './ordinary-memory-store.js';
 import { readLegacyMemoryInspection } from './memory-legacy-inspection.js';
 import { memoryMapPage, chargeMemoryMapPage, type MemoryMapBudget } from './memory-map-budget.js';
+import { readMemorySearchMetadata } from './memory-search-metadata.js';
 
 export { readMemorySourceRef } from './memory-store-format.js';
 type Target = { path: string; scope: string; key: string; now?: () => Date };
@@ -215,6 +216,61 @@ export async function inspectMemoryCandidate(target: Target) {
                 ...(conflicts.length ? { claim_conflicts: conflicts } : {}) };
         });
     } finally { await view.close(); }
+}
+
+/** One admitted snapshot per physical tracked scope, not one worker per result.
+ * Targets and already-admitted entries come only from the trusted retrieval path. */
+export async function inspectMemorySearchEntries(targets: Array<{ path: string; scope: string }>,
+    entries: Array<{ key: string; scope: string; value: string; node_type?: string; tags?: string[] }>) {
+    if (entries.length > 50 || targets.length > 32) throw memoryError('MEMORY_CONTEXT_SEARCH_LIMIT');
+    const result = new Map<string, { source: MemorySourceRef | null; tracked: boolean; status: string }>();
+    for (const entry of entries) assertMemoryContextKey(entry.key);
+    for (const target of targets) {
+        const group = entries.filter(entry => entry.scope === target.scope);
+        if (!group.length) continue;
+        const kind = probeOrdinaryMemoryFormat(target.path).kind;
+        if (kind === 'missing') continue;
+        if (kind === 'legacy') {
+            for (const entry of group) {
+                const typed = entry.node_type !== undefined || entry.tags !== undefined;
+                const observed = await readLegacyMemoryInspection(target.path, entry.key, { typed });
+                if (!observed || observed.value === null) continue;
+                let decoded: unknown;
+                try { decoded = JSON.parse(observed.value); } catch { throw memoryError('MEMORY_CONTEXT_DAMAGED'); }
+                const value = typeof decoded === 'string' ? decoded : decoded == null ? '' : JSON.stringify(decoded);
+                if (value !== entry.value || (typed && (!observed.metadata || observed.metadata.node_type !== entry.node_type
+                    || JSON.stringify(observed.metadata.tags) !== JSON.stringify(entry.tags)))) continue;
+                result.set(JSON.stringify([entry.scope, entry.key]), untracked());
+            }
+            continue;
+        }
+        if (kind !== 'context-v1') throw memoryError('MEMORY_FORMAT_UNSUPPORTED');
+        const view = await openOrdinaryMemoryView(target.path, target.scope, 'context-v1');
+        if (!view) continue;
+        try {
+            const db = contextDatabase(view.getDatabase()), now = clock();
+            await db.transaction(async () => {
+                for (const entry of group) {
+                    const row = await db.prepare("SELECT CASE WHEN typeof(value)='text' AND length(CAST(value AS BLOB))<=32768 THEN CAST(value AS BLOB) END AS value FROM kv_store WHERE key=?").get(entry.key);
+                    if (!row || row.value === null) continue;
+                    let decoded: unknown;
+                    try {
+                        if (!(row.value instanceof Uint8Array)) throw new Error();
+                        decoded = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(row.value));
+                    } catch { throw memoryError('MEMORY_CONTEXT_DAMAGED'); }
+                    const value = typeof decoded === 'string' ? decoded : decoded == null ? '' : JSON.stringify(decoded);
+                    if (value !== entry.value) continue;
+                    if (entry.node_type !== undefined || entry.tags !== undefined) {
+                        const metadata = await readMemorySearchMetadata(db, entry.key);
+                        if (metadata.node_type !== entry.node_type || JSON.stringify(metadata.tags) !== JSON.stringify(entry.tags)) continue;
+                    }
+                    const current = await readTrackedFreshness(db, { ...target, key: entry.key }, now);
+                    result.set(JSON.stringify([entry.scope, entry.key]), { source: current.source, tracked: true, status: current.status });
+                }
+            })();
+        } finally { await view.close(); }
+    }
+    return result;
 }
 
 type Candidate = Exclude<Awaited<ReturnType<typeof inspectMemoryCandidate>>, null | { oversized: true }>;
