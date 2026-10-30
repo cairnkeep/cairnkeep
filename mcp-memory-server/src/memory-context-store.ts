@@ -217,6 +217,50 @@ export async function inspectMemoryCandidate(target: Target) {
     } finally { await view.close(); }
 }
 
+/** One admitted snapshot per physical tracked scope, not one worker per result.
+ * Targets and already-admitted entries come only from the trusted retrieval path. */
+export async function inspectMemorySearchEntries(targets: Array<{ path: string; scope: string }>,
+    entries: Array<{ key: string; scope: string; value: string }>) {
+    if (entries.length > 50 || targets.length > 32) throw memoryError('MEMORY_CONTEXT_SEARCH_LIMIT');
+    const result = new Map<string, { source: MemorySourceRef | null; tracked: boolean; status: string }>();
+    for (const entry of entries) assertMemoryContextKey(entry.key);
+    for (const target of targets) {
+        const group = entries.filter(entry => entry.scope === target.scope);
+        if (!group.length) continue;
+        const kind = probeOrdinaryMemoryFormat(target.path).kind;
+        if (kind === 'missing') continue;
+        if (kind === 'legacy') {
+            for (const entry of group) {
+                const observed = await inspectMemoryCandidate({ ...target, key: entry.key });
+                if (observed && !('oversized' in observed) && observed.value === entry.value) result.set(JSON.stringify([entry.scope, entry.key]), untracked());
+            }
+            continue;
+        }
+        if (kind !== 'context-v1') throw memoryError('MEMORY_FORMAT_UNSUPPORTED');
+        const view = await openOrdinaryMemoryView(target.path, target.scope, 'context-v1');
+        if (!view) continue;
+        try {
+            const db = contextDatabase(view.getDatabase()), now = clock();
+            await db.transaction(async () => {
+                for (const entry of group) {
+                    const row = await db.prepare("SELECT CASE WHEN typeof(value)='text' AND length(CAST(value AS BLOB))<=32768 THEN CAST(value AS BLOB) END AS value FROM kv_store WHERE key=?").get(entry.key);
+                    if (!row || row.value === null) continue;
+                    let decoded: unknown;
+                    try {
+                        if (!(row.value instanceof Uint8Array)) throw new Error();
+                        decoded = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(row.value));
+                    } catch { throw memoryError('MEMORY_CONTEXT_DAMAGED'); }
+                    const value = typeof decoded === 'string' ? decoded : decoded == null ? '' : JSON.stringify(decoded);
+                    if (value !== entry.value) continue;
+                    const current = await readTrackedFreshness(db, { ...target, key: entry.key }, now);
+                    result.set(JSON.stringify([entry.scope, entry.key]), { source: current.source, tracked: true, status: current.status });
+                }
+            })();
+        } finally { await view.close(); }
+    }
+    return result;
+}
+
 type Candidate = Exclude<Awaited<ReturnType<typeof inspectMemoryCandidate>>, null | { oversized: true }>;
 export type MemoryInspection = { schema_version: 1; key: string; candidates: Candidate[]; possible_conflicts: boolean; truncated: boolean };
 export const memoryInspectionResponse = (payload: MemoryInspection) => ({

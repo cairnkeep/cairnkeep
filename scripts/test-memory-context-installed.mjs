@@ -61,12 +61,27 @@ try {
   const previous = cli('status').marker;
   agent = await store.openOrdinaryMemoryStore(path, 'project');
   await agent.kv.set('facts/installed', 'fixture'); await agent.close(); agent = undefined;
-  const { MemoryFeedbackSession } = await load('memory-feedback');
+  const { MemoryFeedbackSession, rankMemoryWithFeedback } = await load('memory-feedback');
   const feedback = new MemoryFeedbackSession({ path, scope: 'project' }, () => ({ path, scope: 'project' }));
   const taskDigest = 'a'.repeat(64), source = (await context.inspectMemoryCandidate({ path, scope: 'project', key: 'facts/installed' })).source;
   const receipt = await feedback.issue(source, taskDigest);
   assert.equal((await feedback.record({ receipt, task_digest: taskDigest, outcome: 'useful' })).recorded, true);
   assert.equal(cli('feedback', 'export').records.length, 1);
+  agent = await store.openOrdinaryMemoryStore(path, 'project');
+  await agent.kv.set('facts/installed-ranking', 'ranking fixture'); await agent.close(); agent = undefined;
+  const second = (await context.inspectMemoryCandidate({ path, scope: 'project', key: 'facts/installed-ranking' })).source;
+  for (let i = 2; i <= 4; i++) {
+    const task = String(i).padStart(64, '0');
+    const receipts = await feedback.issueMany([second], task);
+    assert.equal(receipts.size, 1);
+    await feedback.record({ receipt: [...receipts.values()][0], task_digest: task, outcome: 'useful' });
+  }
+  const eligible = await feedback.eligible([source, second]);
+  const ranked = rankMemoryWithFeedback([
+    { key: source.key, scope: 'project', source, score: 0.5, value: 'fixture' },
+    { key: second.key, scope: 'project', source: second, score: 0.5, value: 'ranking fixture' },
+  ], eligible, { query: 'synthetic fixture' });
+  assert.equal(ranked[0].key, second.key); assert.equal(ranked[0].feedback.delta, 0.02);
   const entityId = 'fc3ff904-2c14-4fe4-8f57-29c842650098', entityFile = join(base, 'entity.json');
   writeFileSync(entityFile, JSON.stringify({ schema_version: 1, id: entityId, title: 'Installed fixture', aliases: ['installed'],
     anchor_key: 'facts/installed', claims: [] }), { mode: 0o600 }); hardenPrivatePath(entityFile);

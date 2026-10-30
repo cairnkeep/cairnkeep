@@ -13,6 +13,7 @@ type Target = { path: string; scope: string };
 const CAPACITY = 10000, TTL = 86400000, RETENTION = 30 * TTL;
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/);
 export const memoryFeedbackDigest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+export const memoryFeedbackSourceDigest = (value: MemorySourceRef): string => memoryFeedbackDigest(memorySourceRefSchema.parse(value));
 const receiptSchema = z.object({
     schema_version: z.literal(1), source: memorySourceRefSchema, task_digest: digestSchema,
     project: digestSchema, ledger_uuid: z.uuid(), ledger_epoch: z.uuid(), issued: z.number().int().nonnegative(),
@@ -62,19 +63,31 @@ async function withLedger<T>(target: Target, write: boolean, action: (db: Memory
         return await (write ? run.immediate() : run());
     } finally { await view.close(); }
 }
-async function currentSource(target: Target, source: MemorySourceRef): Promise<boolean> {
-    if (target.scope !== source.scope || probeOrdinaryMemoryFormat(target.path).kind !== 'context-v1') return false;
-    const view = await openOrdinaryMemoryView(target.path, target.scope, 'context-v1');
-    if (!view) return false;
-    try {
-        const db = dbOf(view.getDatabase());
-        return await db.transaction(async () => {
-            // Bound before reading provenance, including when a value grew since search.
-            const allowed = await db.prepare("SELECT 1 AS allowed FROM kv_store WHERE key=? AND typeof(value)='text' AND length(CAST(value AS BLOB))<=32768").get(source.key);
-            if (!allowed) return false;
-            return memoryFeedbackDigest(await readMemorySourceRef(db, memoryStoreIdentity(target.path, target.scope), source.key)) === memoryFeedbackDigest(source);
-        })();
-    } finally { await view.close(); }
+async function currentSources(targets: Array<{ target: Target; source: MemorySourceRef }>): Promise<Set<string>> {
+    const groups = new Map<string, typeof targets>(), current = new Set<string>();
+    for (const item of targets) {
+        const id = JSON.stringify([canonicalMemoryPath(item.target.path), item.target.scope]);
+        const group = groups.get(id) ?? []; group.push(item); groups.set(id, group);
+    }
+    for (const group of groups.values()) {
+        const { target } = group[0];
+        if (probeOrdinaryMemoryFormat(target.path).kind !== 'context-v1') continue;
+        const view = await openOrdinaryMemoryView(target.path, target.scope, 'context-v1');
+        if (!view) continue;
+        try {
+            const db = dbOf(view.getDatabase());
+            await db.transaction(async () => {
+                for (const { source } of group) {
+                    if (target.scope !== source.scope) continue;
+                    const allowed = await db.prepare("SELECT 1 AS allowed FROM kv_store WHERE key=? AND typeof(value)='text' AND length(CAST(value AS BLOB))<=32768").get(source.key);
+                    if (!allowed) continue;
+                    const found = await readMemorySourceRef(db, memoryStoreIdentity(target.path, target.scope), source.key);
+                    if (memoryFeedbackDigest(found) === memoryFeedbackDigest(source)) current.add(memoryFeedbackDigest(source));
+                }
+            })();
+        } finally { await view.close(); }
+    }
+    return current;
 }
 
 export async function memoryFeedbackStatus(target: Target) {
@@ -113,18 +126,29 @@ export class MemoryFeedbackSession {
         private readonly now: () => Date = () => new Date()) {}
 
     async issue(sourceInput: MemorySourceRef, taskDigest: string): Promise<string | null> {
-        const source = memorySourceRefSchema.parse(sourceInput); assertMemoryContextKey(source.key);
+        const source = memorySourceRefSchema.parse(sourceInput);
+        return (await this.issueMany([source], taskDigest)).get(memoryFeedbackDigest(source)) ?? null;
+    }
+    async issueMany(input: MemorySourceRef[], taskDigest: string): Promise<Map<string, string>> {
+        if (!Array.isArray(input) || input.length > 50) throw memoryError('MEMORY_FEEDBACK_INPUT_INVALID');
+        const sources = input.map(value => memorySourceRefSchema.parse(value));
+        for (const source of sources) assertMemoryContextKey(source.key);
+        const result = new Map<string, string>();
         if (!digestSchema.safeParse(taskDigest).success) throw memoryError('MEMORY_FEEDBACK_INPUT_INVALID');
-        if (probeOrdinaryMemoryFormat(this.ledger.path).kind !== 'context-v1') return null;
+        if (!sources.length || probeOrdinaryMemoryFormat(this.ledger.path).kind !== 'context-v1') return result;
         const marker = await withLedger(this.ledger, false, db => validateMemoryContextFormat(db, memoryStoreIdentity(this.ledger.path, this.ledger.scope)));
-        if (!await currentSource(this.resolveSource(source.scope), source)) return null;
+        const current = await currentSources(sources.map(source => ({ target: this.resolveSource(source.scope), source })));
         const issued = checkedTime(this.now);
-        const payload = receiptSchema.parse({ schema_version: 1, project: projectId(this.ledger), ledger_uuid: marker.store_uuid,
-            ledger_epoch: marker.restore_epoch, source, task_digest: taskDigest, issued, expires: issued + TTL });
-        const nonce = randomBytes(12), cipher = createCipheriv('aes-256-gcm', this.secret, nonce);
-        cipher.setAAD(Buffer.from('cairn-feedback-receipt-v1'));
-        const token = Buffer.concat([nonce, cipher.update(JSON.stringify(payload), 'utf8'), cipher.final(), cipher.getAuthTag()]).toString('base64url');
-        return token.length <= 16384 ? token : null;
+        for (const source of sources) {
+            if (!current.has(memoryFeedbackDigest(source))) continue;
+            const payload = receiptSchema.parse({ schema_version: 1, project: projectId(this.ledger), ledger_uuid: marker.store_uuid,
+                ledger_epoch: marker.restore_epoch, source, task_digest: taskDigest, issued, expires: issued + TTL });
+            const nonce = randomBytes(12), cipher = createCipheriv('aes-256-gcm', this.secret, nonce);
+            cipher.setAAD(Buffer.from('cairn-feedback-receipt-v1'));
+            const token = Buffer.concat([nonce, cipher.update(JSON.stringify(payload), 'utf8'), cipher.final(), cipher.getAuthTag()]).toString('base64url');
+            if (token.length <= 16384) result.set(memoryFeedbackDigest(source), token);
+        }
+        return result;
     }
     private decode(token: string, taskDigest: string) {
         try {
@@ -149,7 +173,8 @@ export class MemoryFeedbackSession {
         return withLedger(this.ledger, true, async db => {
             const marker = await validateMemoryContextFormat(db, memoryStoreIdentity(this.ledger.path, this.ledger.scope));
             if (receipt.ledger_uuid !== marker.store_uuid || receipt.ledger_epoch !== marker.restore_epoch) throw memoryError('MEMORY_FEEDBACK_SOURCE_STALE');
-            if (!await currentSource(this.resolveSource(receipt.source.scope), receipt.source)) throw memoryError('MEMORY_FEEDBACK_SOURCE_STALE');
+            const current = await currentSources([{ target: this.resolveSource(receipt.source.scope), source: receipt.source }]);
+            if (!current.has(memoryFeedbackDigest(receipt.source))) throw memoryError('MEMORY_FEEDBACK_SOURCE_STALE');
             // An admission wait or source snapshot can cross the receipt deadline.
             this.decode(input.receipt, input.task_digest);
             const sourceDigest = memoryFeedbackDigest(receipt.source);
@@ -175,9 +200,11 @@ export class MemoryFeedbackSession {
         return withLedger(this.ledger, false, async db => {
             const marker = await validateMemoryContextFormat(db, memoryStoreIdentity(this.ledger.path, this.ledger.scope));
             const now = checkedTime(this.now), records = await rows(db);
-            for (const source of sources) {
-                if (!await currentSource(this.resolveSource(source.scope), source)) continue;
+            const checked = sources.map(source => memorySourceRefSchema.parse(source));
+            const current = await currentSources(checked.map(source => ({ target: this.resolveSource(source.scope), source })));
+            for (const source of checked) {
                 const digest = memoryFeedbackDigest(source);
+                if (!current.has(digest)) continue;
                 const active = records.filter(row => row.source_digest === digest && row.ledger_uuid === marker.store_uuid
                     && row.ledger_epoch === marker.restore_epoch && Date.parse(row.created_at) <= now && now - Date.parse(row.created_at) < RETENTION);
                 if (active.length) result.set(digest, active);
@@ -185,4 +212,55 @@ export class MemoryFeedbackSession {
             return result;
         });
     }
+}
+
+export const MEMORY_FEEDBACK_POLICY = Object.freeze({
+    name: 'feedback-adjacent-v1', max_delta: 0.02, tier_width: 0.1, minimum_tasks: 3, max_displacement: 1,
+});
+type FeedbackRankEntry = { scope: string; key: string; score: number; source: MemorySourceRef | null };
+const round = (value: number) => Math.round(value * 1e6) / 1e6;
+
+/** Policy over already admitted, response-bounded candidates, never an admission
+ * scorer. Returned scores and source text remain unchanged. Provider ordering is
+ * the baseline; zero feedback cannot undo it even when hybrid scores differ. */
+export function rankMemoryWithFeedback<T extends FeedbackRankEntry>(entries: T[], eligible: Map<string, MemoryFeedbackRecord[]>,
+    options: { query: string; aliases?: string[]; enabled?: boolean }) {
+    if (options.enabled === false || entries.length < 2 || entries.length > 50 || !eligible.size
+        || entries.some(row => Object.hasOwn(row, 'feedback'))) return entries;
+    const exact = new Set([options.query, ...(options.aliases ?? [])].map(value => value.normalize('NFKC').toLowerCase().trim()));
+    const weights = entries.map(entry => {
+        if (!entry.source || entry.source.key !== entry.key || entry.source.scope !== entry.scope
+            || !Number.isFinite(entry.score) || entry.score < 0 || entry.score > 1) return { count: 0, delta: 0 };
+        const digest = memoryFeedbackSourceDigest(entry.source), votes = eligible.get(digest) ?? [];
+        if (votes.length > CAPACITY) return { count: 0, delta: 0 };
+        const tasks = new Map<string, string>(), conflicts = new Set<string>();
+        for (const vote of votes) {
+            if (vote.source_digest !== digest || !digestSchema.safeParse(vote.task_digest).success
+                || !['useful', 'stale', 'wrong_context'].includes(vote.outcome) || conflicts.has(vote.task_digest)) continue;
+            const previous = tasks.get(vote.task_digest);
+            if (previous && previous !== vote.outcome) { tasks.delete(vote.task_digest); conflicts.add(vote.task_digest); }
+            else tasks.set(vote.task_digest, vote.outcome);
+        }
+        if (tasks.size < MEMORY_FEEDBACK_POLICY.minimum_tasks) return { count: tasks.size, delta: 0 };
+        const mean = [...tasks.values()].reduce((n, outcome) => n + (outcome === 'useful' ? 1 : -1), 0) / tasks.size;
+        return { count: tasks.size, delta: round(Math.max(0, Math.min(1, entry.score + 0.02 * mean)) - entry.score) };
+    });
+    const result = [...entries]; let changed = false;
+    for (let index = 0; index + 1 < entries.length; index++) {
+        const left = entries[index], right = entries[index + 1], a = left.source, b = right.source;
+        if (!a || !b || a.owner_domain !== b.owner_domain || a.store_uuid !== b.store_uuid
+            || a.restore_epoch !== b.restore_epoch || left.scope !== right.scope
+            || a.key !== left.key || b.key !== right.key || a.scope !== left.scope || b.scope !== right.scope
+            || exact.has(left.key.normalize('NFKC').toLowerCase()) || exact.has(right.key.normalize('NFKC').toLowerCase())
+            || !Number.isFinite(left.score) || !Number.isFinite(right.score)
+            || Math.floor(left.score * 10) !== Math.floor(right.score * 10)) continue;
+        if (round(weights[index + 1].delta - weights[index].delta) <= round(Math.abs(right.score - left.score))) continue;
+        const explanation = (position: number, displacement: number) => ({ policy: MEMORY_FEEDBACK_POLICY.name,
+            evidence: 'self-reported-usefulness', distinct_tasks: weights[position].count,
+            delta: weights[position].delta, displacement });
+        result[index] = { ...right, feedback: explanation(index + 1, -1) };
+        result[index + 1] = { ...left, feedback: explanation(index, 1) };
+        changed = true; index++; // Disjoint swaps: never ratchet a source through this result.
+    }
+    return changed ? result : entries;
 }

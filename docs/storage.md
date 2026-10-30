@@ -517,6 +517,9 @@ include it; renewed restore epochs invalidate old receipts and eligibility while
 retaining history. The 10,000-row cap includes stale/expired records; no automatic
 purge. Local exact-selection forget removes only confirmed record IDs. Search and
 doctor never initialize or repair the table. No ordinary text or freshness changes.
+The separately opted-in bounded ranking experiment reads current eligible votes
+directly, with no persistent aggregate or ranking cache. Forget is therefore
+effective on the next read; expiry affects eligibility, not retained history.
 
 ### Development-only map cache
 

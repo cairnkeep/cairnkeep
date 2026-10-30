@@ -67,6 +67,19 @@ All notable user-facing changes are documented here. This project follows
   budget. Record completed group timings separately from job outcomes and retain
   earlier verified measurements for groups interrupted by a timeout.
 
+### Explicit retrieval feedback (unreleased)
+
+- Add gated provenance-bearing `memory_context_search` and explicit
+  `memory_feedback_record`, with project/session/task/source-bound opaque receipts,
+  minimized project-ledger records, strict capacity and exact-selection forget.
+- Preserve ordinary search defaults, source text, freshness and permissions.
+  Separately default-off experimental ranking permits only bounded same-store,
+  same-tier adjacent swaps after admission and optional provider reranking.
+- Keep ranking off: the frozen held-out replay found no retrieval-quality gain.
+  Include equal-information Markdown, provider-failure, isolation, concurrency,
+  installed-package and byte-bound controls, plus operator/learning/video briefs.
+  No automatic collection, conversion, release or production activation is implied.
+
 ## [2.27.0] - 2026-10-26
 
 ### Team operations

@@ -16,4 +16,13 @@ grep -qF 'same admission' docs/memory-retrieval.md
 grep -qF 'HTTP 502' docs/memory-retrieval.md
 grep -qF 'ranking-not-confidence' docs/memory-retrieval.md
 grep -qF 'Status: available since Cairnkeep 2.23.0' docs/memory-retrieval.md
+for path in docs/memory-feedback.md docs/operating.md; do
+  grep -qF 'CAIRN_MEMORY_FEEDBACK_RANKING' "$path"
+done
+grep -qF 'no ranking gain' docs/memory-feedback.md
+grep -qF 'feedback-adjacent-v1' docs/memory-feedback.md
+grep -qF 'independently implemented equal-information Markdown' docs/memory-feedback.md
+for path in docs/learning/FEATURE-GUIDE.md docs/learning/lessons/L04-memory-fundamentals.md docs/learning/lessons/L26-context-intelligence.md docs/learning/tracks/practitioner.md docs/learning/video-scripts/V04-memory-retrieval-supplement.md; do
+  grep -qiE 'no[ -](held-out[ -])?(improvement|gain)|unchanged held-out' "$path"
+done
 echo 'PASS: hybrid retrieval, Markdown parity, provider limitations and learning/recording references'

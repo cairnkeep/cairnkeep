@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import * as ordinary from '../dist/ordinary-memory-store.js';
-import { inspectMemoryCandidate } from '../dist/memory-context-store.js';
+import { inspectMemoryCandidate, inspectMemorySearchEntries } from '../dist/memory-context-store.js';
 import { MemoryDatabase } from '../dist/memory-database.js';
 
 assert.ok(existsSync(new URL('../dist/memory-feedback.js', import.meta.url)), 'FEEDBACK_RED: authenticated explicit feedback is not implemented');
@@ -32,6 +32,21 @@ const session = () => new MemoryFeedbackSession(ledger, targetFor, now);
 const fails = async (operation, code) => assert.rejects(operation, error => error.code === code);
 try {
   await seed(ledger); await seed(beta); await seed(shared);
+  const batchWriter = await ordinary.openOrdinaryMemoryStore(ledger.path, 'project');
+  const batchEntries = Array.from({ length: 8 }, (_, i) => ({ scope: 'project', key: `batch/item-${i}`, value: `batch value ${i}` }));
+  try { for (const row of batchEntries) await batchWriter.kv.set(row.key, row.value); } finally { await batchWriter.close(); }
+  const originalOpen = MemoryDatabase.open; let opens = 0;
+  MemoryDatabase.open = function(...args) { opens++; return originalOpen.apply(this, args); };
+  try {
+    const inspected = await inspectMemorySearchEntries([ledger], batchEntries);
+    assert.equal(inspected.size, batchEntries.length); assert.equal(opens, 1, 'one tracked snapshot per scope, not per result');
+    const sources = [...inspected.values()].map(row => row.source), batched = session();
+    opens = 0;
+    assert.equal((await batched.issueMany(sources, digest('batch-task'))).size, batchEntries.length);
+    assert.equal(opens, 2, 'receipt batch opens only ledger and source snapshots');
+    opens = 0; assert.equal((await batched.eligible(sources)).size, 0);
+    assert.equal(opens, 2, 'eligibility batch opens only ledger and source snapshots');
+  } finally { MemoryDatabase.open = originalOpen; }
   const current = await inspectMemoryCandidate({ ...ledger, key });
   const source = current.source, task = digest('opaque-task');
   const service = session();

@@ -85,9 +85,47 @@ persistent feedback-ranking cache can retain a forgotten vote.
 
 ## Ranking boundary
 
-Collection alone changes no ranking. A bounded ranking experiment is separate
-work and must remain independently opt-in/default off. Self-reported task digests
-are not independently verified identities: one caller can fabricate many tasks.
-Vote counts are not anti-Sybil protection, factual confidence or authority.
-No model-quality or human-productivity improvement is established by collection
-and conformance tests. Legacy `context_usage_record` remains separate and unchanged.
+Collection alone changes no ranking. `CAIRN_MEMORY_FEEDBACK_RANKING=1` separately
+opts in to the experimental `feedback-adjacent-v1` policy, only for
+`memory_context_search`. It is off by default. Existing hybrid admission,
+filters, configured reranking and response truncation happen first. Feedback
+never adds or removes a result, changes its original score/text, crosses a
+physical store, or moves an exact key/explicit alias.
+
+At least three distinct current task digests per source are needed for a vote
+adjustment. Useful votes contribute +1; stale/wrong-context votes contribute -1.
+Their mean produces a maximum score adjustment of 0.02. Only adjacent candidates
+in the same original 0.1 score tier may swap, when the adjustment difference
+exceeds their original score gap. Disjoint swaps limit each result to one slot.
+Only moved results receive a self-reported-usefulness explanation. If explanation
+bytes would exceed the response limit, baseline order is retained. Missing,
+expired or damaged optional feedback falls back to baseline order; no-feedback
+and kill-switch paths leave ranking unchanged. There is no learned model or
+persistent aggregate/cache. Revalidation uses per-store snapshots, not an atomic
+snapshot across all stores or a guarantee against a later concurrent change.
+
+Self-reported task digests are not independently verified identities: one caller
+can fabricate many tasks. Minimum counts and bounded influence are not anti-Sybil
+protection, factual confidence or authority. Legacy `context_usage_record`
+remains separate and unchanged.
+
+## Reproduce the evidence
+
+From this source checkout, using only disposable synthetic data:
+
+```sh
+npm --prefix mcp-memory-server run build
+node mcp-memory-server/scripts/smoke-memory-feedback-ranking.mjs
+node mcp-memory-server/scripts/smoke-memory-feedback-ranking-mcp.mjs
+node mcp-memory-server/scripts/run-memory-continuity-study.mjs --all --check --summary
+```
+
+The frozen eight-case held-out replay showed **no ranking gain**: first-hit rate
+1.0, mean recall@5 0.8333, one stale return and zero negative false positives,
+unchanged by feedback. Collection adds provenance bytes and ranking adds local
+work; these costs are reported, not hidden. Only development-query labels train
+votes, and an independently implemented equal-information Markdown policy
+matches. Baseline, freshness/links/maps and feedback reports are separate
+controls, not proof of a combined agent effect. No model-quality, productivity,
+live-harness or broad retrieval-quality improvement is established. Recommend
+collection-only experiments; keep ranking disabled pending broader evidence.

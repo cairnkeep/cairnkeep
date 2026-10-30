@@ -199,6 +199,11 @@ minimized project records with `memory-context feedback list|export`; forget onl
 exact confirmed IDs. Collection alone changes no ranking; no quality gain follows
 from self-reported votes. Source changes/restore invalidate eligibility, and
 fabricated task digests remain possible. Use disposable tracked project stores.
+Run the [feedback replay](../../memory-feedback.md#reproduce-the-evidence) and
+compare collection-only with separately enabled bounded ranking. Explain why
+unchanged held-out scores support leaving ranking off. Exact keys, membership,
+source text and permissions stay fixed; one-slot/0.02 limits are not factual
+confidence. Separate feature controls are not a combined agent-productivity study.
 
 - **A hidden skill appears:** revoke exposure, run `cairn doctor`, and treat it as
   a visibility regression. Approval is bound to pack/path/file digests.

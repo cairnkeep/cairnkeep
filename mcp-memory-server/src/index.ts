@@ -562,6 +562,10 @@ function defaultAnythingLLMWorkspace(config: MemoryConfig, remote = false): stri
 }
 
 type ScoredEntry = MemoryEntry & { score: number };
+type ContextSearchEntry = ScoredEntry & {
+    source: import('./memory-context-schema.js').MemorySourceRef | null;
+    tracked: boolean; freshness: string; receipt?: string | null; feedback_available?: boolean;
+};
 
 function entryText(entry: MemoryEntry): string {
     const metadata = [entry.node_type, ...(entry.tags ?? [])].filter(Boolean).join("\n");
@@ -1581,16 +1585,21 @@ if (process.env.CAIRN_MEMORY_CONTEXT === '1'
             const searched = await semanticSearch(scope, query, top_k ?? 8, min_score ?? 0, memoryConfig(), context.projectId,
                 { strategy: 'hybrid', aliases: query_aliases, explain, typed: typedNodesEnabled,
                     filters: typedNodesEnabled ? memoryFiltersFromInput(input) : {} });
-            const { inspectMemoryCandidate } = await import('./memory-context-store.js');
+            const { inspectMemorySearchEntries } = await import('./memory-context-store.js');
+            const currentEntries = await inspectMemorySearchEntries(scopes.map(selected => ({ scope: selected,
+                path: resolveScopePath(selected, scopeOptions) })), searched.results);
+            const receiptSources = task_digest ? [...currentEntries.values()].flatMap(row => row.source
+                && getSearchScopes('all', memoryConfig()).includes(row.source.scope) ? [row.source] : []) : [];
+            const receipts = receiptSources.length ? await (await getFeedback()).issueMany(receiptSources, task_digest!) : new Map<string, string>();
+            const receiptKey = task_digest ? (await import('./memory-feedback.js')).memoryFeedbackDigest : () => '';
             const payload = { schema_version: 1, mode: searched.mode, model: searched.model, count: 0,
-                results: [] as Array<Record<string, unknown>>, truncated: false,
+                results: [] as ContextSearchEntry[], truncated: false,
                 evidence: 'retrieval-not-truth', ...(searched.retrieval ? { retrieval: searched.retrieval } : {}) };
             const response = () => ({ content: [{ type: 'text' as const, text: JSON.stringify(payload) }], structuredContent: payload });
             for (const entry of searched.results) {
-                const current = await inspectMemoryCandidate({ scope: entry.scope, path: resolveScopePath(entry.scope, scopeOptions), key: entry.key });
-                if (!current || 'oversized' in current || current.value !== entry.value) { payload.truncated = true; continue; }
-                const receipt = task_digest && current.source && getSearchScopes('all', memoryConfig()).includes(entry.scope)
-                    ? await (await getFeedback()).issue(current.source, task_digest) : null;
+                const current = currentEntries.get(JSON.stringify([entry.scope, entry.key]));
+                if (!current) { payload.truncated = true; continue; }
+                const receipt = current.source ? receipts.get(receiptKey(current.source)) ?? null : null;
                 const item = { ...entry, source: current.source, tracked: current.tracked, freshness: current.status,
                     ...(task_digest ? { receipt, feedback_available: Boolean(receipt) } : {}) };
                 payload.results.push(item); payload.count = payload.results.length;
@@ -1603,6 +1612,19 @@ if (process.env.CAIRN_MEMORY_CONTEXT === '1'
             if (payload.retrieval?.possible_conflicts) {
                 const returned = new Set(payload.results.map(row => row.key));
                 payload.retrieval.possible_conflicts = payload.retrieval.possible_conflicts.filter(row => returned.has(row.key));
+            }
+            if (process.env.CAIRN_MEMORY_FEEDBACK_RANKING === '1' && payload.results.length > 1) {
+                const baseline = payload.results;
+                try {
+                    const { rankMemoryWithFeedback } = await import('./memory-feedback.js');
+                    const eligible = await (await getFeedback()).eligible(baseline.flatMap(row => row.source ? [row.source] : []));
+                    payload.results = rankMemoryWithFeedback(baseline, eligible, { query, aliases: query_aliases });
+                    // Do not turn explanation overhead into a membership change.
+                    if (Buffer.byteLength(JSON.stringify(response())) > 32768) payload.results = baseline;
+                } catch {
+                    payload.results = baseline;
+                    process.stderr.write('MEMORY_FEEDBACK_RANKING_UNAVAILABLE\n');
+                }
             }
             if (Buffer.byteLength(JSON.stringify(response())) > 32768) throw Object.assign(new Error(), { code: 'MEMORY_CONTEXT_SEARCH_LIMIT' });
             return response();

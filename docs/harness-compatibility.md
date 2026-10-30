@@ -47,6 +47,9 @@ harness/session requires a new search receipt; minimized recorded outcomes remai
 project-local. Read-only profiles can search but cannot record. No harness asset
 sync, automatic collection or truth/approval change is added. See
 [feedback privacy and retention](memory-feedback.md).
+The separately default-off feedback ranking experiment uses those project-local
+records across sessions, never old session receipts. It is MCP-protocol tested,
+not a claim of new live-harness qualification or an observed quality gain.
 
 | Harness | Supported surface | Runtime status |
 |---|---|---|

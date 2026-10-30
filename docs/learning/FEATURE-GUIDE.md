@@ -59,6 +59,9 @@ adds provenance-bearing context search and opt-in, session-bound self-reported
 usefulness records. It changes no ranking by collection alone and grants no
 truth, approval or sharing authority. L26 covers the project ledger, expiry and
 exact-selection forget boundary; production conversion is not provided.
+Separate experimental ranking is default off, bounded to same-store adjacent
+swaps and showed no held-out gain. Prefer collection-only; do not advertise
+self-reported votes as verified facts or a model-quality improvement.
 
 ## The three-layer model
 

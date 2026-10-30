@@ -82,3 +82,11 @@ exact-ID forget plan/apply and separate HTTP consent/profile restrictions.
 Collection changes no ranking and self-reported feedback is not truth, human
 review or anti-Sybil evidence. No production conversion, activation, fabricated
 model-quality gain or new recording/publication is implied by this brief.
+
+For an optional source-only ranking segment, run the real feedback policy/MCP
+tests and `run-memory-continuity-study.mjs --all --check --summary`. Pause on the
+no-held-out-improvement decision: unchanged first-hit/recall, stale count and
+negatives, with added provenance bytes and local latency. Show the opt-in kill
+switch, three-task minimum and bounded one-slot swap using only synthetic data.
+Explain that fabricated task IDs remain possible and recommend collection-only.
+Do not present independent feature controls as a combined agent-quality gain.

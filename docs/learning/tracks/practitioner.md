@@ -29,6 +29,8 @@ For explicit usefulness capture, follow the unreleased
 record one outcome deliberately, demonstrate stale/session refusal, inspect
 minimized records and confirm an exact forget plan. Collection alone changes
 no ranking and never substitutes for source review or sharing approval.
+Inspect the separate default-off ranking replay and its no-gain result; leave
+ranking disabled rather than tuning to held-out cases or claiming quality gains.
 
 Hands-on spine: `course-02-memory`, `course-03-quality`, and
 `course-05-evidence`, and `course-13-playbooks` in the public
