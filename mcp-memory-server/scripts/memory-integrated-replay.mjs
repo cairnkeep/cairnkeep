@@ -17,8 +17,9 @@ export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, mark
   const controls = [], workflows = [], ablations = [], votes = new Map();
   const ledger = store({ project: 'alpha', scope: 'project' });
   const admin = new MemoryFeedbackSession(ledger, scope => store({ project: 'alpha', scope }));
-  let recorded = 0, trainingMs = 0, restore, metadataReceipt, metadataSource;
+  let recorded = 0, trainingMs = 0, restore, aba, metadataReceipt, metadataSource, abaReceipt, abaSource;
   const task = hash('integrated-metadata-control');
+  const abaTask = hash('integrated-current-aba-control');
   const mdRows = item => readdirSync(folder).filter(name => name.endsWith('.md'))
     .map(name => JSON.parse(readFileSync(join(folder, name), 'utf8')))
     .filter(entry => entry.present && (entry.row.scope !== 'project' || entry.row.project === item.project)
@@ -214,13 +215,23 @@ export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, mark
       assert.equal((await admin.eligible([metadataSource, source(row)])).size, 0);
       assert.equal(mdEligible({ source: source(row) }, 'alpha').length, 0);
       await relatedControl('metadata-invalidation', { project: 'alpha', scope: 'project', entity: 'glimmer' }, []);
+      // A receipt already rejected by metadata change cannot prove ABA rejection.
+      // Issue a fresh, currently valid receipt without adding another vote.
+      abaSource = source(row); abaReceipt = await admin.issue(abaSource, abaTask);
+      assert.ok(abaReceipt);
     },
     async afterAba(row) {
-      assert.ok(source(row).generation > metadataSource.generation);
-      await assert.rejects(admin.record({ receipt: metadataReceipt, task_digest: task, outcome: 'useful' }), /MEMORY_FEEDBACK_SOURCE_STALE/);
+      const searched = await observed(await client('alpha', 'integrated-a'), 'memory_context_search', { scope: row.scope, query: row.key });
+      const current = searched.results.find(entry => entry.key === row.key);
+      assert.ok(current); assert.equal(current.value, row.value);
+      assert.deepEqual(current.source, source(row));
+      assert.ok(current.source.generation > abaSource.generation);
+      assert.deepEqual(current.source, { ...abaSource, generation: current.source.generation }, 'ABA changes generation, not identity/content/context metadata');
+      await assert.rejects(admin.record({ receipt: abaReceipt, task_digest: abaTask, outcome: 'useful' }), /MEMORY_FEEDBACK_SOURCE_STALE/);
       assert.equal((await admin.eligible([source(row)])).size, 0);
       assert.equal(mdEligible({ source: source(row) }, 'alpha').length, 0);
       await relatedControl('source-aba', { project: 'alpha', scope: 'project', entity: 'glimmer' }, []);
+      aba = { receipt_current_before: true, original_content_restored: true, generation_advanced: true, current_receipt_rejected: true };
     },
     async finishRestore() {
       const local = { project: 'alpha', scope: 'project', key: 'constraints/release-ledger' };
@@ -239,10 +250,12 @@ export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, mark
       const applied = await ordinary.applyContextStoreRestore({ ...ledger, input: output, confirm: plan.digest });
       markers.set('alpha:project', applied.marker);
       assert.notEqual(applied.marker.restore_epoch, projectSource.restore_epoch);
+      assert.equal(applied.marker.store_uuid, projectSource.store_uuid);
+      assert.equal(applied.marker.owner_domain, projectSource.owner_domain);
       // Keep the same cryptographic session object: failure specifically tests epoch renewal.
       await assert.rejects(admin.record({ receipt, task_digest: restoreTask, outcome: 'useful' }), /MEMORY_FEEDBACK_SOURCE_STALE/);
       const current = mdCandidates(local).find(row => row.key === local.key);
-      assert.equal(current.source.generation, projectSource.generation);
+      assert.deepEqual(current.source, { ...projectSource, restore_epoch: applied.marker.restore_epoch }, 'managed recovery changes only epoch in this source reference');
       assert.equal((await admin.eligible([current.source, identitySource])).size, 0);
       assert.equal(mdEligible(current, 'alpha').length, 0);
       assert.equal(mdEligible({ source: identitySource }, 'alpha').length, 0, 'restoring project ledger invalidates even unchanged shared-source votes');
@@ -256,7 +269,7 @@ export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, mark
       assert.equal(exact.results[0].value, current.value);
       restore = { epoch_changed: true, old_graph_active: false, old_feedback_eligible: false,
         old_feedback_rows_retained: true, retained_feedback_rows: previous.length, same_secret_epoch_control: true,
-        unchanged_shared_source_vote_invalidated: true, old_directory_retained: true };
+        store_identity_preserved: true, unchanged_shared_source_vote_invalidated: true, old_directory_retained: true };
       control('managed-restore');
     },
     report() {
@@ -275,7 +288,7 @@ export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, mark
         sequence: contract.sequence, recommended_ranking_enabled: false, markdown_independent: true,
         development_feedback_records: recorded, feedback_training_split: 'development-only',
         feedback_training_calls: recorded * 2, training_and_control_ms: trainingMs,
-        operator_curation: curationCost(), seed_mutations: fixture.events.length, workflows, controls, restore, metrics, query_ablations: ablations,
+        operator_curation: curationCost(), seed_mutations: fixture.events.length, workflows, controls, aba, restore, metrics, query_ablations: ablations,
         limitations: ['Synthetic explicit tool sequence, not autonomous model quality or real harness UI.',
           'Both arms receive the same explicit curation; graph traversal adds calls and operator work.',
           'Per-call frame budgets are not whole-conversation budgets; workflow costs are summed separately.',
