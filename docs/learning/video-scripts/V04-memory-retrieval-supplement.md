@@ -82,6 +82,10 @@ exact-ID forget plan/apply and separate HTTP consent/profile restrictions.
 Collection changes no ranking and self-reported feedback is not truth, human
 review or anti-Sybil evidence. No production conversion, activation, fabricated
 model-quality gain or new recording/publication is implied by this brief.
+In the source-only coherence test, pause at the synthetic reranker barrier and
+change tags/type without changing text. Show omission with `truncated: true`,
+then a fresh correctly filtered search; never attach current provenance to old
+typed fields. Keep the isolated legacy observer and its locking limits explicit.
 
 For an optional source-only ranking segment, run the real feedback policy/MCP
 tests and `run-memory-continuity-study.mjs --all --check --summary`. Pause on the

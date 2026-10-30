@@ -37,7 +37,7 @@
     "reason": "Only the three new feedback groups await native qualification. Scheduling budgets are not completed measurements.",
     "budgets": {
       "memory-feedback": 450,
-      "memory-feedback-mcp": 450,
+      "memory-feedback-mcp": 650,
       "memory-feedback-ranking": 450
     }
   },

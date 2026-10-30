@@ -45,7 +45,7 @@ export const smokeChecks = Object.freeze([
   check("memory-map-mcp", 177, node("smoke-memory-map-mcp.mjs")),
   // Explicit provisional budgets until these contracts finish on native runners.
   check("memory-feedback", 450, node("smoke-memory-feedback.mjs")),
-  check("memory-feedback-mcp", 450, node("smoke-memory-feedback-mcp.mjs")),
+  check("memory-feedback-mcp", 650, node("smoke-memory-feedback-mcp.mjs"), node("smoke-memory-feedback-coherence.mjs")),
   check("memory-feedback-ranking", 450, node("smoke-memory-feedback-ranking.mjs"), node("smoke-memory-feedback-ranking-mcp.mjs"), node("run-memory-feedback-study.mjs", "--check", "--summary")),
   check("memory-reranker", 28, node("smoke-memory-reranker.mjs"), node("smoke-memory-reranker-mcp.mjs"), node("run-memory-reranker-study.mjs", "--check", "--summary")),
   check("scope-guard", 2, node("smoke-scope-guard.mjs")),

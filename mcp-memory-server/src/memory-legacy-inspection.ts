@@ -9,6 +9,8 @@ import type { Database as LegacyDatabase } from '@tursodatabase/database';
 import { assertNoPendingImport, canonicalMemoryPath, withMemoryAdmission } from './ordinary-memory-store.js';
 import { inspectMemoryDatabaseMetadata, probeOrdinaryMemoryFormat } from './memory-store-format.js';
 import { memoryError } from './memory-database-protocol.js';
+import { nodeMetadataSchema } from './node-schema.js';
+import { readMemorySearchMetadata } from './memory-search-metadata.js';
 
 const LIMIT = 65536;
 const uint64 = z.string().regex(/^(?:0|[1-9][0-9]{0,19})$/)
@@ -25,11 +27,12 @@ export function memoryLegacyIdentity(stat: { dev: bigint; ino: bigint }) {
 }
 const requestSchema = z.object({
     path: z.string().min(1).max(32768), key: z.string().min(1).max(4096).optional(),
+    typed: z.literal(true).optional(),
     map_limit: z.number().int().min(1).max(5000).optional(), map_bytes: z.number().int().min(1).max(48000).optional(),
     ...identitySchema.shape,
 }).strict();
 const replySchema = z.union([
-    z.object({ ok: z.literal(true), row: z.object({ value: z.string().nullable() }).strict().nullable() }).strict(),
+    z.object({ ok: z.literal(true), row: z.object({ value: z.string().nullable(), metadata: nodeMetadataSchema.optional() }).strict().nullable() }).strict(),
     z.object({ ok: z.literal(true), keys: z.array(z.string().min(1).max(4096)).max(5000), scanned: z.number().int().min(0).max(5000), bytes: z.number().int().min(0).max(48000), truncated: z.boolean() }).strict(),
     z.object({ ok: z.literal(false), code: z.string().regex(/^MEMORY_[A-Z_]{1,64}$/) }).strict(),
 ]);
@@ -51,7 +54,7 @@ function inspect(path: string) {
 
 /** Never imports a legacy driver into the caller. SDK readonly-first caching
  * would otherwise make subsequent ordinary writes fail until native-object GC. */
-async function observeLegacyMemory(input: string, key?: string, limits?: { rows: number; bytes: number }) {
+async function observeLegacyMemory(input: string, key?: string, limits?: { rows: number; bytes: number }, typed = false) {
     const path = canonicalMemoryPath(input);
     assertNoPendingImport(path);
     return withMemoryAdmission(path, async () => {
@@ -59,6 +62,7 @@ async function observeLegacyMemory(input: string, key?: string, limits?: { rows:
         if (probeOrdinaryMemoryFormat(path).kind !== 'legacy') throw memoryError('MEMORY_FILE_CHANGED');
         const before = inspect(path);
         const request = JSON.stringify(requestSchema.parse({ path, key, dev: before.dev, ino: before.ino,
+            ...(typed ? { typed: true } : {}),
             ...(limits ? { map_limit: limits.rows, map_bytes: Math.min(48000, limits.bytes) } : {}) }));
         if (Buffer.byteLength(request) > LIMIT) throw memoryError('MEMORY_INSPECTION_LIMIT');
         // Preserve explicit preload guards/instrumentation, not parent eval or
@@ -86,8 +90,8 @@ async function observeLegacyMemory(input: string, key?: string, limits?: { rows:
     });
 }
 
-export async function readLegacyMemoryInspection(input: string, key: string) {
-    const reply = await observeLegacyMemory(input, key);
+export async function readLegacyMemoryInspection(input: string, key: string, options: { typed?: boolean } = {}) {
+    const reply = await observeLegacyMemory(input, key, undefined, options.typed);
     if (!('row' in reply)) throw memoryError('MEMORY_LEGACY_INSPECTION_FAILED');
     return reply.row;
 }
@@ -145,7 +149,9 @@ async function runObserver() {
                 return { ok: true as const, keys, scanned, bytes, truncated };
             }
             if (!await db!.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='kv_store'").get()) return null;
-            return await db!.prepare('SELECT CASE WHEN length(CAST(value AS BLOB))<=32768 THEN value END AS value FROM kv_store WHERE key=?').get(request.key) ?? null;
+            const row = await db!.prepare('SELECT CASE WHEN length(CAST(value AS BLOB))<=32768 THEN value END AS value FROM kv_store WHERE key=?').get(request.key);
+            if (!row) return null;
+            return { ...row, ...(request.typed && row.value !== null ? { metadata: await readMemorySearchMetadata(db!, request.key) } : {}) };
         })();
         await db.close(); db = undefined;
         const after = inspect(request.path);

@@ -172,7 +172,8 @@ try {
   assert.deepEqual(readFileSync(new URL('./fixtures/memory-continuity-v2.json', import.meta.url)), fixtureBytes);
   assert.deepEqual(readFileSync(new URL('./fixtures/memory-continuity-baseline-v227.json', import.meta.url)), frozenBytes);
   const size = path => readdirSync(path, { withFileTypes: true }).reduce((n, item) => n + (item.isDirectory() ? size(join(path, item.name)) : statSync(join(path, item.name)).size), 0);
-  const sourceFiles = ['index.ts', 'memory-feedback.ts', 'memory-context-store.ts', 'memory-context-schema.ts', 'memory-retrieval.ts', 'memory-reranker.ts'];
+  const sourceFiles = ['index.ts', 'memory-feedback.ts', 'memory-context-store.ts', 'memory-context-schema.ts',
+    'memory-search-metadata.ts', 'memory-legacy-inspection.ts', 'node-schema.ts', 'memory-retrieval.ts', 'memory-reranker.ts'];
   const report = { schema_version: 1, study: 'frozen-longitudinal-feedback', synthetic_only: true, native_harness_ui_verified: false,
     fixture_digest: hash(fixtureBytes), frozen_reference_digest: hash(frozenBytes), policy_digest: hash(policyBytes),
     source_digest: hash(sourceFiles.map(file => ({ file, digest: hash(readFileSync(new URL(`../src/${file}`, import.meta.url))) }))),

@@ -72,6 +72,9 @@ All notable user-facing changes are documented here. This project follows
 - Add gated provenance-bearing `memory_context_search` and explicit
   `memory_feedback_record`, with project/session/task/source-bound opaque receipts,
   minimized project-ledger records, strict capacity and exact-selection forget.
+- Omit results whose text or typed fields changed before inspection; never
+  attach new provenance or a receipt to stale tags/node types, including legacy
+  observations. Keep text and typed metadata in one admitted read snapshot.
 - Preserve ordinary search defaults, source text, freshness and permissions.
   Separately default-off experimental ranking permits only bounded same-store,
   same-tier adjacent swaps after admission and optional provider reranking.

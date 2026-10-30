@@ -17,7 +17,8 @@ It does not change `memory_search`. Example arguments:
 
 The optional task digest is a caller-chosen opaque task identifier, not raw
 prompt text. Results include current source provenance, asserted freshness and
-tracked/untracked status. Changed or oversized results are omitted with explicit
+tracked/untracked status. Changed text or typed fields (tags/node type), and
+oversized results, are omitted with explicit
 truncation. Query limit is 4,096 UTF-8 bytes, aliases at most eight of 256 bytes,
 results at most 50, and the complete serialized MCP CallToolResult at most
 32 KiB, including text, structured content and escaping, not transport envelopes.
