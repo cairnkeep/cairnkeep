@@ -1,6 +1,7 @@
 # Cairnkeep feature guide
 
 **Baseline:** Cairnkeep 2.27.0
+**Preview candidate:** Cairnkeep 2.28.0-rc.1 (isolated exercises only)
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one

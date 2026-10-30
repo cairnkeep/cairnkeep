@@ -4,12 +4,30 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$ROOT"
 
-version=$(node -p "require('./package.json').version")
+package_version=$(node -p "require('./package.json').version")
+version=$package_version
 landing=docs/learning/README.md
 coverage=docs/learning/CURRICULUM-MAP.md
 feature_guide=docs/learning/FEATURE-GUIDE.md
 
 [[ -f "$landing" && -f "$coverage" && -f "$feature_guide" ]]
+if [[ "$package_version" == *-* ]]; then
+  version=$(sed -n 's/^\*\*Baseline:\*\* Cairnkeep \([0-9][0-9.]*\)$/\1/p' "$coverage")
+  node - "$version" "$package_version" <<'NODE'
+const assert = require('node:assert/strict');
+const [stable, preview] = process.argv.slice(2);
+assert.match(stable, /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/);
+assert.match(preview, /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-(alpha|beta|rc)\.(0|[1-9][0-9]*)$/);
+const a = stable.split('.').map(Number), b = preview.split('-')[0].split('.').map(Number);
+assert.ok([...a, ...b].every(Number.isSafeInteger));
+const first = a.findIndex((n, i) => n !== b[i]);
+assert.ok(first >= 0 && a[first] < b[first], 'preview must follow the verified stable lesson baseline');
+NODE
+  for path in "$coverage" "$feature_guide"; do
+    grep -qF "**Preview candidate:** Cairnkeep $package_version (isolated exercises only)" "$path"
+  done
+  grep -qF 'Ready lessons remain verified against the stable baseline' "$landing"
+fi
 grep -qF 'docs/learning/README.md' README.md
 grep -qF "**Baseline:** Cairnkeep $version" "$coverage"
 grep -qF "**Baseline:** Cairnkeep $version" "$feature_guide"
@@ -71,10 +89,10 @@ while read -r command; do
   }
 done < <(bin/cairn help | sed -n 's/^  cairn \([a-z-]*\).*/\1/p' | sort -u)
 
-node <<'NODE'
+node - "$version" <<'NODE'
 const { existsSync, readdirSync, readFileSync } = require("node:fs");
 const { dirname, resolve } = require("node:path");
-const packageVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
+const packageVersion = process.argv[2];
 
 function markdownFiles(root) {
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {

@@ -5,6 +5,29 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.28.0-rc.1] - 2026-10-30
+
+Prerelease candidate for isolated trials only. The stable channel, existing
+memory stores, providers, overlays and fleet are not changed by this release.
+All new memory-context features remain explicitly opt-in; no existing-store
+conversion or in-place restore is provided. Tracked-store admission requires
+the documented built-in SQLite API floor **and** patched bundled SQLite.
+
+### Qualification and teaching
+
+- Exercise freshness, connections, maps and feedback together over real MCP,
+  with explicit curation costs, scope/consent controls and independent Markdown.
+  Retain negative results: ranking remains off because held-out quality did not
+  improve; the explicit linked workflow adds input, curation and tool calls.
+- Preserve all native contracts and strict ACL/deadline gates while splitting
+  long replay arms across isolated lanes. Linux also runs the full two-arm
+  comparison. Test installed-package recovery without touching normal memory.
+- Add explicit `next`-channel prerelease artifact verification with the same
+  exact-source, signature, provenance, SBOM and architecture checks as stable.
+- Keep Ready learning exercises pinned to their verified stable baseline;
+  label the RC trial separately. Update guidance and recording briefs without
+  claiming a new recording, human pilot or production admission.
+
 ### Isolated tracked-store foundation
 
 - Add explicit fresh-only `memory-context init`, read-only format diagnosis,
