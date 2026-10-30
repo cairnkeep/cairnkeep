@@ -63,9 +63,10 @@ a 4 KiB default/8 KiB hard complete-result budget, while inspection, related
 context and context search have their own 32 KiB complete-result limits.
 JSON-RPC/HTTP envelopes are outside those budgets.
 
-The full adversarial replay reports 48 operator plan/apply calls, including
-deliberate re-curation/removal, plus 17 seed mutations and 30 development feedback
-calls. This is the replay's total cost, **not a minimum onboarding requirement**.
+The joint replay reports 30 operator plan/apply calls, plus 17 seed mutations and
+30 development feedback calls. This is the replay's total cost, **not a minimum onboarding requirement**.
+Standalone graph re-curation/removal and cold/warm-map adversarial controls still
+run separately, including through `--all`; the joint replay does not repeat them.
 It is not free automatic graph retrieval. See the individual
 [freshness](operating.md#revision-bound-freshness-unreleased-source-checkout-only),
 [connections](memory-connections.md), [maps](memory-maps.md) and

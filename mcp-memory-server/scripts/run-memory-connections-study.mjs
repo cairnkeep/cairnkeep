@@ -215,6 +215,10 @@ try {
   }
   persistCuration();
   await integrated?.start();
+  // The unchanged standalone replay owns graph re-curation/removal and cold/
+  // warm-map ablations. The joint replay keeps its own shared-state controls,
+  // without repeating those independent suites inside an already lengthy job.
+  if (!integrated) {
   await compare({ id: 'linked-route', project: 'alpha', scope: 'project', entity: 'sensor lumen', depth: 2,
     keys: ['devices/sensor-lumen', 'tunnels/cobalt', 'gateways/ember-42'] });
   await compare({ id: 'ambiguous-alias', project: 'alpha', scope: 'project', entity: 'relay', keys: [], ambiguous: true });
@@ -241,6 +245,7 @@ try {
   await curateLink(first.row, first.input); persistCuration();
   await compare({ id: 'explicit-link-recreate', project: 'alpha', scope: 'project', entity: 'sensor lumen', depth: 2,
     keys: ['devices/sensor-lumen', 'tunnels/cobalt', 'gateways/ember-42'] });
+  }
   const old = records.get('route-old'), target = { ...store(old), key: old.key, input: { schema_version: 1,
     source_refs: ['opaque:synthetic'], verified_at: '1999-01-01T00:00:00Z', review_after: '2000-01-01T00:00:00Z' } };
   const freshnessStarted = performance.now(), freshness = await planFreshnessChange(target), assertion = await applyFreshnessChange({ ...target, confirm: freshness.digest });
@@ -261,14 +266,16 @@ try {
   const renamed = records.get('renamed');
   await integrated?.metadataChange(renamed);
   await mutate('write', { ...renamed, value: 'temporary replacement' }); await mutate('write', renamed);
-  await compare({ id: 'source-aba-negative', project: 'alpha', scope: 'project', entity: 'glimmer', keys: [] });
+  if (!integrated) await compare({ id: 'source-aba-negative', project: 'alpha', scope: 'project', entity: 'glimmer', keys: [] });
   await integrated?.afterAba(renamed);
-  if (mapsEnabled) for (const item of [{ project: 'alpha', scope: 'project' }, { project: 'beta', scope: 'project' }, { scope: 'identity' }]) await compareMap(item);
+  if (mapsEnabled && !integrated) for (const item of [{ project: 'alpha', scope: 'project' }, { project: 'beta', scope: 'project' }, { scope: 'identity' }]) await compareMap(item);
   await integrated?.finishRestore();
   lab.assertOffline();
   const frozen = JSON.parse(readFileSync(new URL('./fixtures/memory-continuity-baseline-v227.json', import.meta.url)));
   const baselineLinked = frozen.results.find(row => row.adapter === 'cairn-v227' && row.case_id === 'linked-route').recall_at_5;
-  assert.equal(baselineLinked, 1 / 3); assert.equal(results.find(row => row.case_id === 'linked-route').keys.length, 3);
+  const jointReport = integrated?.report();
+  assert.equal(baselineLinked, 1 / 3);
+  assert.equal(jointReport ? jointReport.workflows[0].keys.length : results.find(row => row.case_id === 'linked-route').keys.length, 3);
   const source = ['memory-connections.ts', 'memory-context-store.ts', 'memory-context-schema.ts', 'index.ts', ...(mapsEnabled ? ['memory-map.ts', 'memory-map-budget.ts'] : [])]
     .map(name => readFileSync(new URL(`../src/${name}`, import.meta.url)));
   console.log(JSON.stringify({ schema_version: 1, study: integrated ? 'native-memory-integrated-continuity' : mapsEnabled ? 'native-memory-freshness-links-maps' : 'native-memory-freshness-links', synthetic_only: true,
@@ -276,6 +283,7 @@ try {
       ...(integrated ? { feedback: 'collection-only-with-separate-ranking-control' } : {}) }),
     profile_digest: resolveMcpToolProfile({ projectRoot: lab.projects.alpha, env: lab.env }).profile_digest,
     adapters: ['cairn-freshness-links', 'markdown-curated-links'], cases: results.length, parity: true,
+    ...(integrated ? { separate_controls_replayed: false } : {}),
     linked_recall: { frozen_baseline: baselineLinked, curated_native: 1, curated_markdown: 1 },
     ambiguous_alias_signaled: true, overdue_review_signaled: true, unauthorized_returns: unauthorizedReturns, unsupported_edges: unsupportedEdges, network_attempts: 0,
     limitations: ['Synthetic curated retrieval, not autonomous task quality or a human pilot.',
@@ -284,5 +292,5 @@ try {
       'Maps are bounded orientation, not exact source reads or an automatic quality gain; warm cache still revalidates live records.',
       integrated ? 'Joint synthetic tool workflow is not an autonomous agent-quality or human-pilot result; original held-out feedback no-gain evidence remains separate.'
         : 'Feedback, learned ranking and complete milestone held-out ablations remain separate.'],
-    ...(integrated ? { integrated: integrated.report() } : {}), ...(mapsEnabled ? { maps: mapResults } : {}), results }, null, 2));
+    ...(jointReport ? { integrated: jointReport } : {}), ...(mapsEnabled ? { maps: mapResults } : {}), results }, null, 2));
 } finally { await lab.close(); }

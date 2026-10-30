@@ -12,7 +12,7 @@ import { parse } from "yaml";
 const root = process.argv[2];
 const { buildShardPlan, smokeChecks } = await import(
   pathToFileURL(join(root, "mcp-memory-server", "scripts", "run-smoke-suite.mjs")));
-const plan = buildShardPlan(8);
+const plan = buildShardPlan(9);
 const measured = JSON.parse(readFileSync(join(root, 'mcp-memory-server/scripts/fixtures/windows-smoke-timings.json'), 'utf8'));
 assert.equal(measured.schema_version,1);
 const memoryMeasured = JSON.parse(readFileSync(join(root, 'mcp-memory-server/scripts/fixtures/windows-memory-smoke-timings.json'), 'utf8'));
@@ -59,9 +59,15 @@ assert.deepEqual([...flattened].sort(), smokeChecks.map(({ name }) => name).sort
 assert.ok(plan.every(({ checks }) => checks.length > 0));
 const teamContracts = ['team', 'team-review', 'team-http', 'team-mcp', 'team-restore', 'team-cli', 'team-onboarding', 'team-operations'];
 for (const name of teamContracts) assert.ok(flattened.includes(name), `missing team contract: ${name}`);
-for (const name of ['memory-context-integration', 'memory-integrated-study']) assert.ok(flattened.includes(name), `INTEGRATED_CATALOG_RED: missing ${name}`);
-assert.ok(plan.every(({ checks }) => checks.some(({ name }) => teamContracts.includes(name))),
-  'native ACL-heavy team contracts must be distributed across all Windows shards');
+for (const name of ['memory-context-integration', 'memory-integrated-study', 'memory-feedback-study']) assert.ok(flattened.includes(name), `INTEGRATED_CATALOG_RED: missing ${name}`);
+assert.deepEqual(smokeChecks.filter(row => ['memory-feedback-ranking', 'memory-feedback-study'].includes(row.name)).flatMap(row => row.commands), [
+  ['scripts/smoke-memory-feedback-ranking.mjs'], ['scripts/smoke-memory-feedback-ranking-mcp.mjs'],
+  ['scripts/run-memory-feedback-study.mjs', '--check', '--summary'],
+], 'split the oversized group without omitting or duplicating any feedback command');
+assert.ok(plan.filter(({ checks }) => checks.some(({ name }) => teamContracts.includes(name))).length >= 7,
+  'native ACL-heavy team contracts must be distributed rather than clustered');
+assert.ok(plan.slice(0, 3).every(({ checks }) => checks.some(({ name }) => teamContracts.includes(name))),
+  'preserve team ACL coverage in every required Node runtime lane');
 const weights = plan.map(({ weight }) => weight);
 assert.ok(Math.max(...weights) - Math.min(...weights) <= 5,
   `SHARD_CAPACITY_RED: native Windows shards are imbalanced: ${weights.join(", ")}`);
@@ -71,7 +77,7 @@ const pkg = JSON.parse(readFileSync(join(root, "mcp-memory-server", "package.jso
 assert.match(pkg.scripts["test:smoke"], /run-smoke-suite\.mjs/);
 const workflow = readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8");
 assert.match(workflow, /name: native-windows \(\$\{\{ matrix\.label \}\}\)/);
-for (const shard of ["1/8", "2/8", "3/8", "4/8", "5/8", "6/8", "7/8", "8/8"]) assert.ok(workflow.includes(`shard: "${shard}"`));
+for (let index = 1; index <= 9; index++) assert.ok(workflow.includes(`shard: "${index}/9"`));
 assert.match(workflow, /run-smoke-suite\.mjs --shard \$\{\{ matrix\.shard \}\}/);
 assert.doesNotMatch(workflow.match(/  native-windows:[\s\S]*?\n  repository:/)?.[0] ?? "",
   /npm --prefix mcp-memory-server test/);
@@ -82,11 +88,12 @@ assert.ok(focused < native.indexOf("- name: Native Windows CLI contracts"));
 assert.ok(focused < native.indexOf("- name: Sharded memory-server contracts"));
 const jobs = parse(workflow).jobs;
 assert.deepEqual(jobs['native-windows'].strategy.matrix.include, [
-  { node: '22', label: '22', shard: '1/8' }, { node: '24', label: '24', shard: '2/8' },
-  { node: '26', label: '26', shard: '3/8' }, { node: '24', label: '24-extended', shard: '4/8' },
-  { node: '24', label: '24-additional', shard: '5/8' },
-  { node: '24', label: '24-context', shard: '6/8' }, { node: '24', label: '24-feedback', shard: '7/8' },
-  { node: '24', label: '24-integrated', shard: '8/8' },
+  { node: '22', label: '22', shard: '1/9' }, { node: '24', label: '24', shard: '2/9' },
+  { node: '26', label: '26', shard: '3/9' }, { node: '24', label: '24-extended', shard: '4/9' },
+  { node: '24', label: '24-additional', shard: '5/9' },
+  { node: '24', label: '24-context', shard: '6/9' }, { node: '24', label: '24-feedback', shard: '7/9' },
+  { node: '24', label: '24-integrated', shard: '8/9' },
+  { node: '24', label: '24-replay', shard: '9/9' },
 ], 'preserve required native check names and runtime coverage while adding capacity');
 assert.equal(jobs['native-windows']['timeout-minutes'], 30);
 assert.equal(jobs['native-windows'].strategy['fail-fast'], false, 'one native failure must not cancel independent evidence');
@@ -109,7 +116,7 @@ for (const job of [jobs['native-windows'], tracked]) {
 assert.equal(tracked.steps.find(step => step.name === 'Warm Windows ACL runtime').if, "runner.os == 'Windows'");
 assert.ok(jobs['release-candidate'].needs.includes('native-windows'));
 const releasing = readFileSync(join(root, 'docs/releasing.md'), 'utf8');
-assert.match(releasing, /across eight lanes/);
+assert.match(releasing, /across nine lanes/);
 assert.match(releasing, /Interrupted groups are never recorded as passes/);
 console.log(`PASS: ${smokeChecks.length} memory-server contracts split once across balanced Windows shards (${weights.join(", ")})`);
 NODE

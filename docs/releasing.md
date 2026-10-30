@@ -51,7 +51,7 @@ lane exercises the Windows CLI and packed global install on its Node version.
 A bounded, read-only Windows ACL-runtime warm-up precedes the unchanged strict
 bounded-input controls, so cold startup and platform-specific failures surface
 before the longer smoke shards. The complete memory-server smoke catalog runs
-exactly once across eight lanes, preserving Node 22/24/26 coverage and the existing
+exactly once across nine lanes, preserving Node 22/24/26 coverage and the existing
 required check names. Each native job retains its 30-minute limit.
 
 Shard weights use completed native-Windows group timings, with source runs and

@@ -131,6 +131,7 @@ export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, mark
   }
   return {
     async start() {
+      console.error('Integrated replay: development-only votes and both linked workflows');
       const trainingStarted = performance.now();
       // Only development relevance labels create votes, before any held-out replay.
       for (const item of fixture.queries.filter(row => row.split === 'development')) {
@@ -168,6 +169,7 @@ export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, mark
       await relatedControl('generic-cwd-handoff', { project: 'neutral', scope: 'identity', entity: 'relaybox' }, ['decisions/office-tunnel']);
     },
     async heldOut() {
+      console.error('Integrated replay: unchanged ordinary-query collection/ranking ablations');
       const before = (await listMemoryFeedback(ledger)).records;
       for (const item of fixture.queries) for (const ranked of [false, true]) {
         const session = await client(item.project, ranked ? 'integrated-ranked' : 'integrated-a', ranked), calls = [];
@@ -196,6 +198,7 @@ export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, mark
       assert.deepEqual((await listMemoryFeedback(ledger)).records, before, 'held-out queries never train feedback');
     },
     async metadataChange(row) {
+      console.error('Integrated replay: metadata invalidation and fresh pre-ABA receipt');
       metadataSource = source(row); metadataReceipt = await admin.issue(metadataSource, task);
       assert.ok(metadataReceipt); assert.ok((await admin.eligible([metadataSource])).size > 0);
       const target = { ...store(row), key: row.key, input: { schema_version: 1, source_refs: ['opaque:integrated-control'],
@@ -234,6 +237,7 @@ export function createIntegratedReplay({ fixture, corpusBytes, lab, folder, mark
       aba = { receipt_current_before: true, original_content_restored: true, generation_advanced: true, current_receipt_rejected: true };
     },
     async finishRestore() {
+      console.error('Integrated replay: same-secret managed restore and retained-history controls');
       const local = { project: 'alpha', scope: 'project', key: 'constraints/release-ledger' };
       const projectSource = mdCandidates(local).find(row => row.key === local.key).source;
       const identitySource = mdCandidates({ project: 'alpha', scope: 'identity' })[0].source;

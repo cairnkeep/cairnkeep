@@ -113,8 +113,9 @@ Zoom into the actual seven-call sequence, then pause on `map_truncated` and
 `related_seed`: the alias is explicit caller input, not an invented complete map.
 Show all three exact linked values versus the original one-record search, then
 the independent Markdown result. Keep additional curation, calls and bytes on
-screen; the 48 plan/apply calls are the whole adversarial replay, not a minimum
-onboarding requirement. Compare native MCP with the in-process control without
+screen; the 30 plan/apply calls are the joint replay's cost, not a minimum
+onboarding requirement. Standalone re-curation and cold/warm-map controls remain
+separate in `--all`. Compare native MCP with the in-process control without
 claiming a storage-speed advantage.
 
 Pause on the old route's warning: the stale value remains, and no tool chooses
