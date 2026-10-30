@@ -372,6 +372,10 @@ foundation, not production admission or a migration command. The foundation has
 passed native-platform, recovery and independent-review gates; use disposable
 stores until a separate release and production-admission decision.
 
+The [source-only continuity lab](memory-continuity-workflow.md) combines the
+verified storage/metadata surfaces without changing released installation. Run
+these `memory-context` examples with the checkout's `node bin/cairn`.
+
 `init --scope SCOPE --project PATH --json` prints a no-write digest-bound plan.
 Only `init ... --apply --confirm DIGEST` creates the inspected absent target.
 Every existing file, including an empty or zero-byte file, refuses conversion.
@@ -421,9 +425,9 @@ or discard a returned database connection. Resolve the remnant before new opens.
 For a disposable tracked store:
 
 ```bash
-cairn memory-context backup --scope project --project /path/to/disposable-project --output /safe/path/snapshot.db
+node bin/cairn memory-context backup --scope project --project /path/to/disposable-project --output /safe/path/snapshot.db
 # Stop clients, preserve the current store separately, and use an absent target.
-cairn memory-context restore --scope project --project /path/to/disposable-project --input /safe/path/snapshot.db --json
+node bin/cairn memory-context restore --scope project --project /path/to/disposable-project --input /safe/path/snapshot.db --json
 # Inspect the plan, then repeat with --apply --confirm DIGEST.
 ```
 
@@ -520,6 +524,12 @@ doctor never initialize or repair the table. No ordinary text or freshness chang
 The separately opted-in bounded ranking experiment reads current eligible votes
 directly, with no persistent aggregate or ranking cache. Forget is therefore
 effective on the next read; expiry affects eligibility, not retained history.
+
+The combined restore control preserves the entire stopped store directory and
+uses the same receipt secret across managed fresh-destination recovery. It checks
+epoch rejection independently of restart, retains old feedback rows and makes
+even unchanged shared-source votes ineligible when their project ledger is
+restored. See the [workflow and limitations](memory-continuity-workflow.md).
 
 ### Development-only map cache
 

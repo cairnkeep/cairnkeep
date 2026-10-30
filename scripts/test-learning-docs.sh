@@ -201,4 +201,14 @@ for file in "$l28" "$video28" docs/security-assurance.md; do
   done
 done
 
+for file in docs/learning/FEATURE-GUIDE.md docs/learning/CURRICULUM-MAP.md \
+  docs/learning/lessons/L04-memory-fundamentals.md docs/learning/lessons/L05-daily-workflow.md \
+  docs/learning/lessons/L07-privacy-and-storage.md docs/learning/lessons/L14-typed-memory.md \
+  docs/learning/tracks/practitioner.md docs/learning/tracks/operator.md docs/learning/tracks/evidence-and-evaluation.md \
+  docs/learning/video-scripts/V04-memory-retrieval-supplement.md; do
+  grep -qF 'memory-continuity-workflow.md' "$file" || { echo "INTEGRATED_LEARNING_RED: missing source-only workflow routing in $file" >&2; exit 1; }
+done
+grep -qF 'freshness,links,maps,feedback' docs/learning/video-scripts/V04-memory-retrieval-supplement.md
+grep -qF 'smoke-memory-feedback-coherence.mjs' docs/learning/lessons/L14-typed-memory.md
+grep -qF 'unreleased source-only' "$coverage"
 echo "PASS: public learning path structure, readiness, links, and version alignment"

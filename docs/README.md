@@ -31,11 +31,15 @@ linked guides rather than the project landing page.
 
 ## Context intelligence
 
+- [Fresh and connected memory workflow (unreleased)](memory-continuity-workflow.md)
+  joins freshness, links, maps and explicit feedback in a disposable source-only
+  lab, with same-information Markdown controls and costs/limitations disclosed.
 - [Evidence-backed memory connections (unreleased)](memory-connections.md)
-- [Compact ordinary-memory maps (unreleased)](memory-maps.md)
-- [Explicit ordinary-memory feedback (unreleased)](memory-feedback.md)
   covers explicit entities, aliases, scoped traversal and possible conflicts in
   fresh tracked stores; existing stores are not converted.
+- [Compact ordinary-memory maps (unreleased)](memory-maps.md)
+- [Explicit ordinary-memory feedback (unreleased)](memory-feedback.md)
+  covers minimized usefulness records and separately default-off bounded ranking.
 - [Memory retrieval and the Markdown baseline](memory-retrieval.md) explains
   optional hybrid admission, aliases, relevance diagnostics and reproducible
   continuity evidence against searchable Markdown.

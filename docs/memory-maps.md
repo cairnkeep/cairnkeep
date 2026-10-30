@@ -15,8 +15,8 @@ Existing-store conversion remains out of scope.
 ## Use
 
 ```sh
-cairn memory-context map --scope project --project /path/to/disposable-project --json
-cairn memory-context map --scope project --project /path/to/disposable-project --max-bytes 8192 --limit 50 --json
+node bin/cairn memory-context map --scope project --project /path/to/disposable-project --json
+node bin/cairn memory-context map --scope project --project /path/to/disposable-project --max-bytes 8192 --limit 50 --json
 ```
 
 The local CLI resolves one concrete scope. With `CAIRN_MEMORY_CONTEXT=1`, an MCP
@@ -119,5 +119,9 @@ The synthetic replay independently enumerates equivalent curated Markdown and
 checks identical bounded navigation, provenance and freshness. It reports actual
 returned bytes and cold/warm costs; live revalidation means caching need not make
 the warm read faster. This is not an autonomous task-quality, productivity or
-human-pilot result. The frozen baseline is unchanged. Feedback/ranking and final
-integrated milestone qualification remain separate work.
+human-pilot result. The frozen baseline is unchanged. The
+[combined source-only workflow](memory-continuity-workflow.md) now covers maps
+with freshness, links and explicit feedback, including restore and handoff.
+Its bounded map can omit an entity: the demonstrated related-query alias is
+explicit caller input, not an invented complete inventory. Ranking stays off;
+source qualification is separate from release and production admission.

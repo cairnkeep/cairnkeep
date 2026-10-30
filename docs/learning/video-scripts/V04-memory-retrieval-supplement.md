@@ -94,3 +94,37 @@ negatives, with added provenance bytes and local latency. Show the opt-in kill
 switch, three-task minimum and bounded one-slot swap using only synthetic data.
 Explain that fabricated task IDs remain possible and recommend collection-only.
 Do not present independent feature controls as a combined agent-quality gain.
+
+## Joint continuity recording brief (unreleased source-only)
+
+Use the [combined workflow guide](../../memory-continuity-workflow.md), a patched
+runtime and this exact source checkout. This is an updated brief, not a claim
+that another segment has been recorded or published. Type these real commands
+at readable speed, pausing after each result:
+
+```sh
+npm run build:server
+node mcp-memory-server/scripts/smoke-memory-context-integration.mjs
+node mcp-memory-server/scripts/smoke-memory-integrated-study.mjs
+node mcp-memory-server/scripts/run-memory-continuity-study.mjs --features freshness,links,maps,feedback --check --summary
+```
+
+Zoom into the actual seven-call sequence, then pause on `map_truncated` and
+`related_seed`: the alias is explicit caller input, not an invented complete map.
+Show all three exact linked values versus the original one-record search, then
+the independent Markdown result. Keep additional curation, calls and bytes on
+screen; the 48 plan/apply calls are the whole adversarial replay, not a minimum
+onboarding requirement. Compare native MCP with the in-process control without
+claiming a storage-speed advantage.
+
+Pause on the old route's warning: the stale value remains, and no tool chooses
+truth. Show the ordinary-query no-gain result, leave ranking off, and explain why
+explicit feedback is neither factual verification nor permission. Show metadata
+and ABA refusals, different-client receipt rejection, then the same-secret
+managed restore control with retained historical votes and zero eligibility.
+Explain the separate HTTP consent and trusted-bearer-domain limitation.
+
+Use short terminal zooms and result comparisons, with silence after a refusal
+and before the next command. Never substitute a production store, display real
+credentials or imply new native-harness/human-pilot qualification. Close by
+distinguishing this technical recording brief from an actually produced video.

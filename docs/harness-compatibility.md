@@ -51,6 +51,12 @@ The separately default-off feedback ranking experiment uses those project-local
 records across sessions, never old session receipts. It is MCP-protocol tested,
 not a claim of new live-harness qualification or an observed quality gain.
 
+The [combined source-only lab](memory-continuity-workflow.md) tests all five
+context tools with real separate MCP clients and authenticated HTTP, including
+profile/capability/direct-name refusals. Client labels are not native harness UI
+qualification. Shared identity can be read from a generic cwd; local project
+roots and remote project headers still select their own distinct stores.
+
 | Harness | Supported surface | Runtime status |
 |---|---|---|
 | Claude Code | Memory MCP, commands (including `/cairn-work`), agents, hooks, launcher | Exercised by Cairnkeep tests |

@@ -43,6 +43,17 @@ exact read. Do not inject a global map at every startup or replace maintained
 sources with a prefix count. Maps are deterministic and provider-free; the
 [separate map guide](../../memory-maps.md) explains scope and cache boundaries.
 
+For a complete optional source-only exercise, follow the
+[joint continuity workflow](../../memory-continuity-workflow.md). Start with
+ordinary task-derived recall, confirm the project scope, orient with a bounded
+map, follow a caller-known explicit alias and read exact sources. Inspect an
+overdue assertion instead of silently choosing truth. Repeat from another MCP
+client/generic folder using shared identity, while keeping project selection
+explicit. At the end, review durable changes separately from optional usefulness
+feedback; feedback neither approves a write nor changes ranking by collection.
+The lab is synthetic and unreleased, not a rehearsed new video or an agent task
+quality result. The existing daily workflow remains usable without these tools.
+
 - [Operating guide](../../operating.md#the-workflow)
 - [Git provider configuration](../../git-providers.md)
 - [L13 - Session evidence and hindsight](L13-session-evidence.md)

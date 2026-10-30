@@ -57,6 +57,18 @@ will go before starting a session.
 
 ## Hands-on lab
 
+The optional [source-only joint lab](../../memory-continuity-workflow.md) adds
+feedback privacy and managed restore to the same workflow. Locate the project
+ledger, explain why minimized digests are still sensitive, and distinguish
+30-day eligibility from retained history and its 10,000-row cap. Export is local;
+forget requires exact selected IDs and a current digest, never an automatic purge.
+Show the same-secret epoch control: restore retains records but invalidates votes
+even about unchanged shared memory. The fixture preserves its entire stopped
+old directory; never demonstrate deleting a real database. Deliberate loopback
+HTTP traffic is distinct from external provider traffic, and one bearer domain
+does not create per-user ACLs. Keep this unreleased supplement separate from
+ordinary released setup and legacy Windows locking limits.
+
 Source-only map extension: identify the private disposable `.memory-map-cache/`
 beside the selected database. It can contain sensitive keys/titles/provenance,
 but is not authoritative memory or part of managed backups. A missing/corrupt

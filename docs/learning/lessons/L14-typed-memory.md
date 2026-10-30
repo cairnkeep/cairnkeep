@@ -46,6 +46,20 @@ lists key-prefix navigation and explicit current entity anchors, not an inferred
 typed graph or automatic memory promotion. Compare [map provenance and limits](../../memory-maps.md)
 with the hard-filter-before-ranking rule in this lesson.
 
+In the optional [joint continuity lab](../../memory-continuity-workflow.md),
+provenance must agree with text **and** typed metadata. A same-value tag/type
+change during search must omit the old typed result with explicit truncation,
+not give it the replacement's receipt. From a built source checkout, run:
+
+```sh
+node mcp-memory-server/scripts/smoke-memory-feedback-coherence.mjs
+```
+
+The disposable tracked and isolated-legacy controls include unchanged positive
+cases and fresh filtered reads. They do not add cross-process writer locking to
+legacy stores or promote typed metadata/feedback into truth or sharing approval.
+This is an unreleased Brief extension, not a new recorded lesson.
+
 - [Operating guide: typed memory nodes](../../operating.md#typed-memory-nodes-and-note-address-spaces-opt-in)
 - [Storage and deployment](../../storage.md#typed-metadata-import-replay-and-history)
 - [Typed memory schema](../../../schemas/memory-node.schema.json)

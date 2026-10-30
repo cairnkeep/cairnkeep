@@ -40,6 +40,14 @@ L27 separates protocol observations from measured task benefits. L28 adds
 deployment posture, adversarial source-checkout controls and exact-source
 release verification; a verified artifact is not a verified fleet rollout.
 
+Optional unreleased source-only supplement:
+[combined continuity and recovery](../../memory-continuity-workflow.md). Verify
+patched SQLite admission, full/read-only/custom tool intersections, separate
+HTTP consent/project routing and same-secret restore-epoch invalidation. Protect
+feedback exports and the retained old directory. Feature-off is not a storage
+rollback; no existing-store conversion, production activation or team enrollment
+is part of this lab. Released prerequisites and Brief statuses stay unchanged.
+
 Hands-on spine: `course-04-operation`, `course-06-governance`, and
 `course-07-evaluation`, `course-10-trust-context`, and
 `course-12-guided-setup`, and `course-13-playbooks` in the public
