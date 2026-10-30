@@ -39,19 +39,25 @@ jobs:
         include:
           - node: "22"
             label: "22"
-            shard: "1/5"
+            shard: "1/7"
           - node: "24"
             label: "24"
-            shard: "2/5"
+            shard: "2/7"
           - node: "26"
             label: "26"
-            shard: "3/5"
+            shard: "3/7"
           - node: "24"
             label: "24-extended"
-            shard: "4/5"
+            shard: "4/7"
           - node: "24"
             label: "24-additional"
-            shard: "5/5"
+            shard: "5/7"
+          - node: "24"
+            label: "24-context"
+            shard: "6/7"
+          - node: "24"
+            label: "24-feedback"
+            shard: "7/7"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -64,6 +70,12 @@ jobs:
           npm ci
           npm --prefix mcp-memory-server ci
           npm --prefix mcp-memory-server run build
+      - name: Warm Windows ACL runtime
+        timeout-minutes: 1
+        shell: pwsh
+        run: >-
+          powershell.exe -NoLogo -NoProfile -NonInteractive -Command
+          '$ErrorActionPreference="Stop"; $sections=[System.Security.AccessControl.AccessControlSections]::Owner -bor [System.Security.AccessControl.AccessControlSections]::Access; $acl=[System.Security.AccessControl.DirectorySecurity]::new((Get-Location).Path,$sections); if (!$acl.Owner) { throw "Windows ACL warm-up failed" }; Write-Output "Windows ACL runtime ready"'
       - name: Focused bounded runtime input controls
         shell: pwsh
         run: node mcp-memory-server/scripts/smoke-bounded-input-reads.mjs
@@ -110,6 +122,13 @@ jobs:
           cache-dependency-path: mcp-memory-server/package-lock.json
       - run: npm --prefix mcp-memory-server ci
       - run: npm --prefix mcp-memory-server run build
+      - name: Warm Windows ACL runtime
+        if: runner.os == 'Windows'
+        timeout-minutes: 1
+        shell: pwsh
+        run: >-
+          powershell.exe -NoLogo -NoProfile -NonInteractive -Command
+          '$ErrorActionPreference="Stop"; $sections=[System.Security.AccessControl.AccessControlSections]::Owner -bor [System.Security.AccessControl.AccessControlSections]::Access; $acl=[System.Security.AccessControl.DirectorySecurity]::new((Get-Location).Path,$sections); if (!$acl.Owner) { throw "Windows ACL warm-up failed" }; Write-Output "Windows ACL runtime ready"'
       - name: Patched SQLite runtime admission
         run: node mcp-memory-server/scripts/smoke-memory-runtime-admission.mjs
       - name: Native file and header admission

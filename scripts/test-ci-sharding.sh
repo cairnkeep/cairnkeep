@@ -12,19 +12,36 @@ import { parse } from "yaml";
 const root = process.argv[2];
 const { buildShardPlan, smokeChecks } = await import(
   pathToFileURL(join(root, "mcp-memory-server", "scripts", "run-smoke-suite.mjs")));
-const plan = buildShardPlan(5);
+const plan = buildShardPlan(7);
 const measured = JSON.parse(readFileSync(join(root, 'mcp-memory-server/scripts/fixtures/windows-smoke-timings.json'), 'utf8'));
 assert.equal(measured.schema_version,1);
 const memoryMeasured = JSON.parse(readFileSync(join(root, 'mcp-memory-server/scripts/fixtures/windows-memory-smoke-timings.json'), 'utf8'));
 assert.equal(memoryMeasured.schema_version,1);
 assert.ok(memoryMeasured.source_jobs.length > 0);
 assert.equal(memoryMeasured.source_job_outcomes.length, memoryMeasured.source_jobs.length);
-assert.ok(memoryMeasured.source_job_outcomes.every(outcome => ['success', 'timed-out'].includes(outcome)));
+assert.ok(memoryMeasured.source_job_outcomes.every(outcome => ['success', 'timed-out', 'cancelled'].includes(outcome)));
+const completed = memoryMeasured.completed_group_evidence;
+assert.ok(Array.isArray(completed) && completed.length > 0);
+assert.equal(new Set(completed.map(row => row.name)).size, completed.length);
+for (const row of completed) {
+  assert.equal(row.status, 0, 'only completed successful groups may supply measurements');
+  assert.ok(memoryMeasured.source_jobs.includes(row.job_id));
+  assert.ok(Number.isSafeInteger(row.duration_ms) && row.duration_ms >= 0);
+  assert.equal(memoryMeasured.measurements[row.name], Math.max(1, Math.ceil(row.duration_ms / 1000)));
+}
 assert.ok(memoryMeasured.inherited_measurements.names.every(name => smokeChecks.some(row => row.name === name)));
+const measuredNames = [...completed.map(row => row.name), ...memoryMeasured.inherited_measurements.names];
+assert.equal(new Set(measuredNames).size, measuredNames.length, 'each measurement has exactly one declared source');
+assert.deepEqual(measuredNames.sort(), Object.keys(memoryMeasured.measurements).sort());
 assert.ok(Number.isSafeInteger(memoryMeasured.inherited_measurements.source_run));
 assert.match(memoryMeasured.inherited_measurements.source_commit, /^[a-f0-9]{40}$/);
 const provisional = memoryMeasured.provisional?.budgets ?? {};
 assert.ok(typeof memoryMeasured.provisional?.reason === 'string');
+for (const row of memoryMeasured.unfinished_groups ?? []) {
+  assert.equal(row.passed, false, 'interrupted groups are never recorded as passes');
+  assert.ok(Object.hasOwn(provisional, row.name));
+  assert.ok(!Object.hasOwn(memoryMeasured.measurements, row.name), 'an interrupted group is not a measurement');
+}
 assert.equal(Object.keys({ ...memoryMeasured.measurements, ...provisional }).length, smokeChecks.length);
 for (const [name,seconds] of Object.entries({ ...measured.measurements, ...memoryMeasured.measurements })) {
   assert.equal(smokeChecks.find(row=>row.name===name)?.weight,provisional[name] ?? seconds,`measured/provisional weight drift: ${name}`);
@@ -44,13 +61,14 @@ assert.ok(plan.every(({ checks }) => checks.some(({ name }) => teamContracts.inc
   'native ACL-heavy team contracts must be distributed across all Windows shards');
 const weights = plan.map(({ weight }) => weight);
 assert.ok(Math.max(...weights) - Math.min(...weights) <= 5,
-  `native Windows shards are imbalanced: ${weights.join(", ")}`);
+  `SHARD_CAPACITY_RED: native Windows shards are imbalanced: ${weights.join(", ")}`);
+assert.ok(Math.max(...weights) <= 1500, 'leave setup and installed-package headroom inside the unchanged 30-minute native job');
 
 const pkg = JSON.parse(readFileSync(join(root, "mcp-memory-server", "package.json"), "utf8"));
 assert.match(pkg.scripts["test:smoke"], /run-smoke-suite\.mjs/);
 const workflow = readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8");
 assert.match(workflow, /name: native-windows \(\$\{\{ matrix\.label \}\}\)/);
-for (const shard of ["1/5", "2/5", "3/5", "4/5", "5/5"]) assert.ok(workflow.includes(`shard: "${shard}"`));
+for (const shard of ["1/7", "2/7", "3/7", "4/7", "5/7", "6/7", "7/7"]) assert.ok(workflow.includes(`shard: "${shard}"`));
 assert.match(workflow, /run-smoke-suite\.mjs --shard \$\{\{ matrix\.shard \}\}/);
 assert.doesNotMatch(workflow.match(/  native-windows:[\s\S]*?\n  repository:/)?.[0] ?? "",
   /npm --prefix mcp-memory-server test/);
@@ -61,10 +79,12 @@ assert.ok(focused < native.indexOf("- name: Native Windows CLI contracts"));
 assert.ok(focused < native.indexOf("- name: Sharded memory-server contracts"));
 const jobs = parse(workflow).jobs;
 assert.deepEqual(jobs['native-windows'].strategy.matrix.include, [
-  { node: '22', label: '22', shard: '1/5' }, { node: '24', label: '24', shard: '2/5' },
-  { node: '26', label: '26', shard: '3/5' }, { node: '24', label: '24-extended', shard: '4/5' },
-  { node: '24', label: '24-additional', shard: '5/5' },
+  { node: '22', label: '22', shard: '1/7' }, { node: '24', label: '24', shard: '2/7' },
+  { node: '26', label: '26', shard: '3/7' }, { node: '24', label: '24-extended', shard: '4/7' },
+  { node: '24', label: '24-additional', shard: '5/7' },
+  { node: '24', label: '24-context', shard: '6/7' }, { node: '24', label: '24-feedback', shard: '7/7' },
 ], 'preserve required native check names and runtime coverage while adding capacity');
+assert.equal(jobs['native-windows']['timeout-minutes'], 30);
 assert.equal(jobs['native-windows'].strategy['fail-fast'], false, 'one native failure must not cancel independent evidence');
 const tracked = jobs['tracked-platform'];
 assert.deepEqual(tracked.strategy.matrix.os, ['windows-latest', 'macos-latest']);
@@ -75,5 +95,17 @@ for (const script of ['smoke-memory-runtime-admission.mjs', 'smoke-memory-file-a
 }
 assert.ok(jobs['release-candidate'].needs.includes('tracked-platform'));
 assert.equal(tracked.steps.filter(step => /^Installed tracked worker/.test(step.name ?? '')).length, 2);
+for (const job of [jobs['native-windows'], tracked]) {
+  const warm = job.steps.find(step => step.name === 'Warm Windows ACL runtime');
+  assert.equal(warm['timeout-minutes'], 1);
+  assert.match(warm.run, /powershell\.exe -NoLogo -NoProfile -NonInteractive/);
+  assert.match(warm.run, /DirectorySecurity/);
+  assert.doesNotMatch(warm.run, /Set-Acl|icacls|SetAccessRule|SetOwner/);
+}
+assert.equal(tracked.steps.find(step => step.name === 'Warm Windows ACL runtime').if, "runner.os == 'Windows'");
+assert.ok(jobs['release-candidate'].needs.includes('native-windows'));
+const releasing = readFileSync(join(root, 'docs/releasing.md'), 'utf8');
+assert.match(releasing, /across seven lanes/);
+assert.match(releasing, /Interrupted groups are never recorded as passes/);
 console.log(`PASS: ${smokeChecks.length} memory-server contracts split once across balanced Windows shards (${weights.join(", ")})`);
 NODE
