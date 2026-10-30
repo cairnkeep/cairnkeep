@@ -12,6 +12,8 @@ import { serverEntry } from './memory-continuity-lab.mjs';
 import { createHash } from 'node:crypto';
 import { createContinuityLab } from './memory-continuity-lab.mjs';
 import * as ordinary from '../dist/ordinary-memory-store.js';
+import { hardenPrivatePath } from '../dist/platform-security.js';
+import { inspectMemoryDatabaseMetadata } from '../dist/memory-store-format.js';
 
 process.umask(0o077);
 const lab = createContinuityLab(), flag = { CAIRN_MEMORY_CONTEXT: '1' };
@@ -100,6 +102,10 @@ try {
   }
   const legacy = await lab.connect('neutral', flag);
   await legacy.call('memory_write', { scope: 'project', key: 'network/tunnel', value: 'Legacy tunnel entry.' });
+  // SDK-created legacy leaves inherit an unprotected ACL on Windows. Admit
+  // this disposable fixture explicitly; never relax the observer's ACL checks.
+  const legacyPath = join(lab.projects.neutral, '.agentfs', 'project.db');
+  hardenPrivatePath(legacyPath); inspectMemoryDatabaseMetadata(legacyPath, true);
   const untracked = await legacy.call('memory_context_search', args);
   assert.equal(untracked.results[0].tracked, false); assert.equal(untracked.results[0].receipt, null);
   const providerCatalog = await lab.connect('alpha', { ...flag, CAIRN_MEMORY_RERANK: '1',

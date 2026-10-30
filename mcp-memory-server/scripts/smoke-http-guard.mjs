@@ -6,6 +6,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -17,7 +18,16 @@ function check(name, cond) {
     if (!cond) failures += 1;
 }
 
-const PORT = 8000 + (process.pid % 1500);
+async function unusedPort(host = "127.0.0.1") {
+    const probe = createServer();
+    await new Promise((resolve, reject) => { probe.once("error", reject); probe.listen(0, host, resolve); });
+    const port = probe.address().port;
+    await new Promise((resolve, reject) => probe.close(error => error ? reject(error) : resolve()));
+    return port;
+}
+// Do not derive ports from PIDs: a developer may have a real local service in
+// that range. Only the disposable child processes below may be terminated.
+const PORT = await unusedPort();
 const TOKEN = "smoke-secret-token-with-at-least-32-bytes";
 const WINDOWS_COMMAND_OPTIONS = { encoding: "utf8", windowsHide: true, timeout: 10_000, maxBuffer: 1024 * 1024 };
 const INIT_BODY = JSON.stringify({
@@ -108,7 +118,7 @@ function waitForExit(proc) {
 
 // 1. Fail closed: HTTP mode without a token must refuse to start.
 {
-    const env = { ...process.env, MCP_HTTP_PORT: String(PORT + 1) };
+    const env = { ...process.env, MCP_HTTP_PORT: String(PORT) };
     delete env.CAIRN_MEMORY_HTTP_TOKEN;
     const proc = spawn("node", ["dist/index.js"], { env });
     const code = await waitForExit(proc);
@@ -116,7 +126,7 @@ function waitForExit(proc) {
 }
 
 for (const unsafeToken of ["🪨".repeat(8), "line-one\nline-two"]) {
-    const proc = spawn("node", ["dist/index.js"], { env: { ...process.env, MCP_HTTP_PORT: String(PORT + 1), CAIRN_MEMORY_HTTP_TOKEN: unsafeToken } });
+    const proc = spawn("node", ["dist/index.js"], { env: { ...process.env, MCP_HTTP_PORT: String(PORT), CAIRN_MEMORY_HTTP_TOKEN: unsafeToken } });
     const code = await waitForExit(proc);
     check("header-unsafe bearer token → server refuses to start", code !== 0);
 }
@@ -184,7 +194,7 @@ for (const defaultPort of [80, 443]) {
 }
 
 // 4. Authority normalization covers bracketed IPv6 and DNS case folding.
-const ipv6Port = PORT + 3;
+const ipv6Port = await unusedPort("::1");
 const ipv6Server = spawn("node", ["dist/index.js"], {
     env: { ...process.env, MCP_HTTP_PORT: String(ipv6Port), CAIRN_MEMORY_HTTP_TOKEN: TOKEN, MCP_HTTP_HOST: "::1" },
 });
@@ -198,7 +208,7 @@ try {
     await waitForExit(ipv6Server).catch(() => {});
 }
 
-const dnsPort = PORT + 4;
+const dnsPort = await unusedPort();
 const dnsServer = spawn("node", ["dist/index.js"], {
     env: {
         ...process.env,
@@ -235,7 +245,7 @@ if (process.platform === "win32") {
 }
 hardenPrivatePath(tokenPath);
 writeFileSync(tokenPath, `${TOKEN}\n`, { mode: 0o600 });
-const filePort = PORT + 2;
+const filePort = await unusedPort();
 const fileServer = spawn("node", ["dist/index.js"], {
     env: (() => {
         const env = { ...process.env, MCP_HTTP_PORT: String(filePort), CAIRN_MEMORY_HTTP_TOKEN_FILE: tokenPath, MCP_HTTP_HOST: "" };

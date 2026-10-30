@@ -8,6 +8,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { createContinuityLab, serverEntry } from './memory-continuity-lab.mjs';
 import * as ordinary from '../dist/ordinary-memory-store.js';
 import { inspectMemoryCandidate } from '../dist/memory-context-store.js';
+import { hardenPrivatePath } from '../dist/platform-security.js';
+import { inspectMemoryDatabaseMetadata } from '../dist/memory-store-format.js';
 
 process.umask(0o077);
 const lab = createContinuityLab();
@@ -26,7 +28,9 @@ try {
     }
     // The legacy SDK holds an exclusive process lock. Exercise concurrent MCP
     // requests in one process there, rather than bypassing its lock boundary.
-    if (!tracked) await writer.close();
+    if (!tracked) {
+      await writer.close(); hardenPrivatePath(target.path); inspectMemoryDatabaseMetadata(target.path, true);
+    }
     const ready = join(lab.root, `${project}-ready`), release = join(lab.root, `${project}-release`);
     // A positive, bounded barrier at the real reranking seam. No socket or
     // provider is used; inherit the lab's network trap even in observer children.

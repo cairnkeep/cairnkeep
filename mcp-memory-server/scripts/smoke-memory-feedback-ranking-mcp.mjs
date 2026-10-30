@@ -54,7 +54,8 @@ try {
   await new Promise(resolve => provider.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${provider.address().port}/v1`;
   // Only the explicitly configured loopback mock may be contacted by this child.
-  const guard = `const original=globalThis.fetch;globalThis.fetch=(input,init)=>{const u=new URL(typeof input==='string'?input:input.url??input);if(u.origin!==${JSON.stringify(new URL(url).origin)})throw Error('ONLY_LOCAL_PROVIDER_FIXTURE');return original(input,init);};`;
+  // Keep code static: fixture configuration is data, never JavaScript source.
+  const guard = `const allowed=new URL(process.env.CAIRN_MEMORY_RERANK_URL);if(allowed.protocol!=='http:'||allowed.hostname!=='127.0.0.1')throw Error('ONLY_LOCAL_PROVIDER_FIXTURE');const original=globalThis.fetch;globalThis.fetch=(input,init)=>{const u=new URL(typeof input==='string'?input:input.url??input);if(u.origin!==allowed.origin)throw Error('ONLY_LOCAL_PROVIDER_FIXTURE');return original(input,init);};`;
   providerTransport = new StdioClientTransport({ command: process.execPath, args: ['--import', `data:text/javascript,${encodeURIComponent(guard)}`, serverEntry],
     cwd: lab.projects.alpha, env: { ...lab.env, ...flags, CAIRN_MEMORY_FEEDBACK_RANKING: '1', CAIRN_MEMORY_RERANK: '1',
       CAIRN_MEMORY_RERANK_URL: url, CAIRN_MEMORY_RERANK_MODEL: 'fixture-only', CAIRN_MEMORY_RERANK_TIMEOUT_MS: '2000' }, stderr: 'pipe' });
