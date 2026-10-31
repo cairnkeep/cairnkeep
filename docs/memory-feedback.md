@@ -1,7 +1,7 @@
-# Explicit memory feedback (unreleased)
+# Explicit memory feedback (opt-in since 2.28.0)
 
-This source-only extension records self-reported usefulness, not factual
-correctness, review, sharing consent or permission to execute. It adds no model,
+Available since Cairnkeep 2.28.0, this opt-in extension records self-reported
+usefulness, not factual correctness, review, sharing consent or permission to execute. It adds no model,
 framework or automatic usage tracking. Use disposable projects: no existing
 store is converted, and no production activation follows from an upgrade.
 
@@ -66,17 +66,17 @@ history. Exhaustion refuses writes, never silently purges. Votes older than 30
 days are ineligible; records remain until explicit forget. Inspect/export locally:
 
 ```sh
-node bin/cairn memory-context feedback list --scope project --project /path/to/disposable-project --json
-node bin/cairn memory-context feedback export --scope project --project /path/to/disposable-project --json
-node bin/cairn memory-context doctor --scope project --project /path/to/disposable-project --json
+cairn memory-context feedback list --scope project --project /path/to/disposable-project --json
+cairn memory-context feedback export --scope project --project /path/to/disposable-project --json
+cairn memory-context doctor --scope project --project /path/to/disposable-project --json
 ```
 
 Export goes to stdout; protect any redirected copy. To forget up to 500 explicit
 record IDs, prepare `{"schema_version":1,"ids":["<record digest>"]}` in a JSON file:
 
 ```sh
-node bin/cairn memory-context feedback forget --scope project --project /path/to/disposable-project --input selection.json --json
-node bin/cairn memory-context feedback forget --scope project --project /path/to/disposable-project --input selection.json --apply --confirm PLAN_DIGEST --json
+cairn memory-context feedback forget --scope project --project /path/to/disposable-project --input selection.json --json
+cairn memory-context feedback forget --scope project --project /path/to/disposable-project --input selection.json --apply --confirm PLAN_DIGEST --json
 ```
 
 Apply rechecks the exact selected records and ledger epoch transactionally. A

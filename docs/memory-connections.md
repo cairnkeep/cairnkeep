@@ -1,10 +1,10 @@
-# Evidence-backed memory connections (unreleased)
+# Evidence-backed memory connections (opt-in since 2.28.0)
 
-This source-checkout feature adds explicit entities, aliases and directed links
-to **fresh tracked stores only**. It does not convert existing memory, infer a
+Available since Cairnkeep 2.28.0, this opt-in feature adds explicit entities,
+aliases and directed links to **fresh tracked stores only**. It does not convert existing memory, infer a
 graph from prose, add a model or provider, or enable anything in production.
-Use disposable data until release and admission are separately approved.
-See [tracked-store requirements](storage.md#unreleased-tracked-store-foundation-source-checkout-only)
+Start with disposable data; production admission remains a separate decision.
+See [tracked-store requirements](storage.md#tracked-store-foundation-opt-in-since-2280)
 before initializing a store; the Node API floor alone is not sufficient.
 
 ## What a connection means

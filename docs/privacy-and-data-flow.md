@@ -8,7 +8,7 @@ below (some operator-owned endpoints do not require a credential).
 
 ## Data flows
 
-The [unreleased source-only continuity workflow](memory-continuity-workflow.md)
+The [opt-in continuity workflow](memory-continuity-workflow.md)
 keeps these boundaries separate even with all context tools enabled. Its local
 tests trap external requests; its authenticated HTTP tests deliberately use
 loopback. A shared bearer domain is not per-user authorization. Minimized
@@ -18,13 +18,13 @@ or physical erasure. No existing-store conversion or production enrollment occur
 | Feature | Data that can leave the server machine | Destination |
 |---|---|---|
 | Local substring search | None | Local SQLite only |
-| Unreleased local freshness curation and inspection | None | Explicit assertions remain in the selected ordinary database; source references are opaque and never fetched. Legacy inspection uses a bounded local read-only child, with no SDK schema initialization or writable fallback |
+| Opt-in local freshness curation and inspection | None | Explicit assertions remain in the selected ordinary database; source references are opaque and never fetched. Legacy inspection uses a bounded local read-only child, with no SDK schema initialization or writable fallback |
 | Separately enabled freshness inspection over HTTP | Ordinary text, source provenance and asserted freshness/source references | Explicit authenticated project-resolved server; requires both `CAIRN_MEMORY_CONTEXT=1` and `CAIRN_MEMORY_CONTEXT_HTTP=1`, plus existing transport protections |
-| Unreleased local entity/link curation and observation | None | Explicit aliases, claims, evidence and tombstones remain in the selected tracked ordinary database; no inference, source fetching, embeddings or graph sidecar |
+| Opt-in local entity/link curation and observation | None | Explicit aliases, claims, evidence and tombstones remain in the selected tracked ordinary database; no inference, source fetching, embeddings or graph sidecar |
 | Separately enabled connection observation over HTTP | Curated entities, aliases, claims, links and exact source provenance | Same explicitly authenticated/project-bound memory server and dual context consent gates; one physical scope only, never a cross-project graph |
-| Unreleased local memory maps | None | Bounded prefix/entity navigation and private disposable cache beside the selected ordinary database; no values, model, source fetching or automatic startup injection |
+| Opt-in local memory maps | None | Bounded prefix/entity navigation and private disposable cache beside the selected ordinary database; no values, model, source fetching or automatic startup injection |
 | Separately enabled memory maps over HTTP | Visible key names, prefix counts, entity titles, ambiguity/freshness labels and source provenance | Existing authenticated/project-bound memory server with both context consent gates; separate physical-store partitions, never team/pack/skill expansion |
-| Unreleased explicit memory feedback | Context search may use existing configured embedding/reranker providers; feedback recording itself calls none | Explicit task/result feedback is minimized to digests, opaque IDs, outcome and time in the tracked project database; no query/value/receipt retention, no automatic collection. HTTP needs both context consent gates and existing authentication/project/Host/CORS protection |
+| Opt-in explicit memory feedback | Context search may use existing configured embedding/reranker providers; feedback recording itself calls none | Explicit task/result feedback is minimized to digests, opaque IDs, outcome and time in the tracked project database; no query/value/receipt retention, no automatic collection. HTTP needs both context consent gates and existing authentication/project/Host/CORS protection |
 | Separately opted-in feedback ranking | None beyond the existing context-search pipeline | Local current project votes permit bounded same-store adjacent swaps only; no new provider, persistent ranking cache, truth change or sharing permission. Off by default; self-reported task digests are not verified identities |
 | Embedding-ranked search | Stored memory values that are not cached, plus the search query | `CAIRN_MEMORY_EMBEDDING_URL` or `CAIRN_LLM_API_URL` |
 | Separately opted-in memory reranking | Query and at most 50 scope/current/filter-admitted key/value excerpts, each at most 4 KiB | Only the explicit `CAIRN_MEMORY_RERANK_URL`; separate optional credential, no retries/redirects/alternate hosts |

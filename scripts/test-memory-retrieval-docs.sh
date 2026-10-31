@@ -27,10 +27,16 @@ for path in docs/learning/FEATURE-GUIDE.md docs/learning/lessons/L04-memory-fund
 done
 guide=docs/memory-continuity-workflow.md
 [[ -f "$guide" ]] || { echo 'INTEGRATED_DOCS_RED: missing source-only continuity workflow guide' >&2; exit 1; }
-for phrase in 'unreleased' 'source-only' 'node bin/cairn' 'freshness,links,maps,feedback' \
+for phrase in 'Status: available since Cairnkeep 2.28.0' 'opt-in' 'node bin/cairn' 'freshness,links,maps,feedback' \
   'no ranking gain' 'not a storage-efficiency comparison' 'same-secret' 'not per-user ACLs' \
   '3.51.3' '3.50.7' '3.44.6' '30 operator plan/apply calls' 'seven tool calls'; do
   grep -qF -- "$phrase" "$guide" || { echo "integrated guide missing boundary: $phrase" >&2; exit 1; }
+done
+for path in docs/memory-continuity-workflow.md docs/memory-connections.md docs/memory-maps.md docs/memory-feedback.md; do
+  if head -n 5 "$path" | grep -qiE 'unreleased|source-only'; then
+    echo "STABLE_CONTEXT_RED: released opt-in feature still labelled unreleased: $path" >&2
+    exit 1
+  fi
 done
 for path in docs/README.md docs/operating.md docs/storage.md docs/privacy-and-data-flow.md docs/harness-compatibility.md docs/memory-retrieval.md docs/memory-feedback.md docs/memory-maps.md; do
   grep -qF 'memory-continuity-workflow.md' "$path"

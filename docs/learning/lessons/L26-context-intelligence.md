@@ -1,7 +1,7 @@
 # L26 - Context intelligence with explicit authority
 
 **Status:** Ready
-**Tested with:** Cairnkeep 2.27.0 and Node.js 22 or newer
+**Tested with:** Cairnkeep 2.28.0 and Node.js 22 or newer
 
 ## Outcome
 
@@ -142,11 +142,11 @@ manage OpenViking, or replace Cairnkeep's reviewed memory, context-pack pins,
 approvals, evidence, or tool profiles. Leave the variables unset when you do not
 need the external index.
 
-## Source-checkout supplement: explicit memory connections (unreleased)
+## Optional supplement: explicit memory connections (since 2.28.0)
 
-This supplement is not part of the released 2.27.0 lesson above. Use only an
+This supplement is not a claim that earlier recordings of this lesson were updated. Use only an
 explicitly initialized disposable tracked store and a runtime satisfying the
-[tracked-store requirements](../../storage.md#unreleased-tracked-store-foundation-source-checkout-only).
+[tracked-store requirements](../../storage.md#tracked-store-foundation-opt-in-since-2280).
 Do not convert normal memory or enable the feature on a shared server for this lab.
 
 Follow [evidence-backed connections](../../memory-connections.md) to plan and
@@ -181,7 +181,7 @@ local curation is never exposed as an MCP write tool.
 
 ## Common failures
 
-The unreleased source-only [compact-map extension](../../memory-maps.md) adds
+The introduced in 2.28.0; opt-in [compact-map extension](../../memory-maps.md) adds
 ordinary-memory prefix/entity navigation, not context-pack promotion or automatic
 graph extraction. Request `memory_map`, inspect scope partitions, freshness,
 ambiguity and truncation, then read an exact source. Default 4 KiB/hard 8 KiB
@@ -190,7 +190,7 @@ untracked, and incomplete scans cannot claim unique aliases. Compare the
 equal-information Markdown arm and measured cold/warm costs without claiming a
 model/human-quality gain. V04 contains the recording brief; no recording implied.
 
-The unreleased [ordinary-memory feedback extension](../../memory-feedback.md)
+The optional [ordinary-memory feedback extension](../../memory-feedback.md)
 is separate from pack usage receipts: `memory_context_search` returns current
 provenance and optional short-lived session receipts; `memory_feedback_record`
 explicitly records useful/stale/wrong-context outcomes. It needs write allowance,
@@ -205,11 +205,11 @@ unchanged held-out scores support leaving ranking off. Exact keys, membership,
 source text and permissions stay fixed; one-slot/0.02 limits are not factual
 confidence. Separate feature controls are not a combined agent-productivity study.
 
-The optional [joint source-only lab](../../memory-continuity-workflow.md) now
+The optional [joint opt-in lab](../../memory-continuity-workflow.md) now
 exercises all five ordinary-memory tools together, with independent Markdown,
 development-only feedback and managed restore. Inspect curation/call costs and
 per-call versus summed bytes, retain the no-gain query result, and distinguish
-protocol conformance from autonomous quality. It remains an unreleased supplement,
+protocol conformance from autonomous quality. It remains an opt-in supplement,
 not a change to the released lesson's prerequisites or a new recording.
 
 - **A hidden skill appears:** revoke exposure, run `cairn doctor`, and treat it as

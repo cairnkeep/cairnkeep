@@ -12,19 +12,19 @@ Cairnkeep commands, hooks or native trajectory capture.
 
 ## Support levels
 
-The unreleased tracked-store foundation changes storage, not MCP tool schemas
-or harness configuration. Explicit fresh initialization requires a server with
+The optional tracked-store foundation, available since 2.28.0, changes storage,
+not MCP tool schemas or harness configuration. Explicit fresh initialization requires a server with
 Node 22.16+ and the built-in SQLite API. Older database executables refuse its
 format; turning off context tools does not enable an older backend. Existing
 stores are not converted. The foundation passed native-platform and independent
-review gates; later freshness exposure requires its own qualification, not a
-claim derived from the existing harness matrix below.
-See [storage lifecycle and recovery](storage.md#unreleased-tracked-store-foundation-source-checkout-only).
+review gates; its context tools also passed separate qualification, not a
+claim derived solely from the existing harness matrix below.
+See [storage lifecycle and recovery](storage.md#tracked-store-foundation-opt-in-since-2280).
 The Node 22.16 API floor alone is insufficient: tracked stores also require the
 bundled SQLite WAL-reset fix (3.51.3+ or documented maintenance backports).
 Unpatched native admission is refused; legacy stores keep their existing runtime.
 
-Unreleased `memory_inspect`, `memory_related` and `memory_map` are read-only MCP observations enabled only
+Optional `memory_inspect`, `memory_related` and `memory_map` are read-only MCP observations enabled only
 by `CAIRN_MEMORY_CONTEXT=1`, subject to `memory.search` capability and profile
 restrictions. Authenticated HTTP additionally requires
 `CAIRN_MEMORY_CONTEXT_HTTP=1` and a validated project identity. No harness asset
@@ -41,7 +41,7 @@ exact reads, without harness asset sync or automatic context injection. Its
 `all` request preserves separate visible ordinary-store partitions, not a graph
 join. See [map budgets, untracked legacy data and cache privacy](memory-maps.md).
 
-Unreleased `memory_context_search` and explicit `memory_feedback_record` work
+Optional `memory_context_search` and explicit `memory_feedback_record` work
 through that same gated MCP connection. Receipts are session-bound, so switching
 harness/session requires a new search receipt; minimized recorded outcomes remain
 project-local. Read-only profiles can search but cannot record. No harness asset
@@ -51,7 +51,7 @@ The separately default-off feedback ranking experiment uses those project-local
 records across sessions, never old session receipts. It is MCP-protocol tested,
 not a claim of new live-harness qualification or an observed quality gain.
 
-The [combined source-only lab](memory-continuity-workflow.md) tests all five
+The [combined opt-in lab](memory-continuity-workflow.md) tests all five
 context tools with real separate MCP clients and authenticated HTTP, including
 profile/capability/direct-name refusals. Client labels are not native harness UI
 qualification. Shared identity can be read from a generic cwd; local project
@@ -67,6 +67,22 @@ roots and remote project headers still select their own distinct stores.
 | oh-my-pi (omp) | Memory MCP through maintained local stdio extension (Pi-successor API) | Smoke-tested against the local omp checkout with the deterministic bridge verification |
 | Codex CLI | Project-scoped memory MCP, launcher, and project `AGENTS.md` durable-context and playbook guidance | Setup and launcher contract-tested on POSIX and simulated native Windows; project trust remains operator-controlled |
 | Other MCP clients | Memory plus optional domain-knowledge and context-pack tools | Protocol-compatible; not automatically runtime-tested |
+
+An isolated model-free 2.28 release rehearsal connected the OpenCode 2.2.2
+backend to the installed memory server and loaded the maintained extension in
+the Pi 1.4.0 SDK, executing memory writes, reads, maps and context search. This
+is adapter/startup evidence, not a full interactive UI or autonomous-quality
+claim. OpenCode 2 uses entries under `mcp.servers` and `disabled`, unlike the
+1.x `mcp.<name>` / `enabled` layout. Prefer its native registration command:
+
+```sh
+opencode mcp add cairn-memory --global -- cairn memory-server
+opencode mcp list
+```
+
+Check the [version-specific MCP configuration](https://opencode.ai/v2/docs/mcp-servers)
+and the persistent backend's ready state. Preserve unrelated server definitions;
+do not treat a transient startup listing as permission to delete configuration.
 
 Only Claude Code and OpenCode currently receive the complete operating layer.
 Kimi receives narrow graph and playbook Skills, while Pi receives matching narrow prompts;

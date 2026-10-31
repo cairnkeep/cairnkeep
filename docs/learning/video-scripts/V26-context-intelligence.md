@@ -132,8 +132,8 @@ Point viewers to L26 and `docs/context-intelligence.md`.
 
 ## Recording cautions
 
-Unreleased follow-up only, not part of the existing recorded lesson: once the
-freshness candidate is qualified, prepare a disposable tracked store and show
+Optional 2.28 follow-up, not part of the existing recorded lesson: using the
+qualified release, prepare a disposable tracked store and show
 `cairn memory-context set-freshness --scope project --key facts/demo --input freshness.json --json`.
 Pause on the no-write plan; apply the exact digest locally, then call
 `memory_inspect {"scope":"project","key":"facts/demo"}` with
@@ -150,7 +150,7 @@ out of the demo. Fresh tracked stores use the separate SQLite backend.
 Do not demonstrate production migration or describe a native/human rehearsal
 that has not occurred. Existing published videos are not updated by this brief.
 
-Unreleased connection supplement, not a claim that this episode was rerecorded:
+Optional 2.28 connection supplement, not a claim that this episode was rerecorded:
 show two explicit entity JSON inputs and one evidence-backed link. Pause on
 `cairn memory-context entity set --scope project --input sensor.json --json`
 and the exact-digest apply before moving to `link set`. Use a split terminal for

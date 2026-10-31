@@ -500,9 +500,9 @@ vendor or host.
 | `CAIRN_MEMORY_RERANK_MODEL` | Required model identifier when reranking is enabled |
 | `CAIRN_MEMORY_RERANK_API_KEY` | Optional separate reranker credential; no extraction/embedding key fallback |
 | `CAIRN_MEMORY_RERANK_TIMEOUT_MS` | Reranking deadline, default `2000`, allowed `100`–`10000`; failure preserves existing search order |
-| `CAIRN_MEMORY_CONTEXT` | Unreleased opt-in `1` exposes `memory_inspect`, `memory_related`, `memory_map`, `memory_context_search` and explicit additive `memory_feedback_record`; observations require search allowance and feedback requires write allowance. Adds metadata validation to doctor; off by default |
-| `CAIRN_MEMORY_CONTEXT_HTTP` | Separate unreleased `1` consent for inspection over authenticated project-resolved HTTP; also requires `CAIRN_MEMORY_CONTEXT=1` |
-| `CAIRN_MEMORY_FEEDBACK_RANKING` | Unreleased experimental `1` applies bounded current feedback only to `memory_context_search`; off by default, no admission/authority changes, optional failure preserves baseline order. Frozen replay found no gain; collection-only recommended |
+| `CAIRN_MEMORY_CONTEXT` | Opt-in since 2.28.0: `1` exposes `memory_inspect`, `memory_related`, `memory_map`, `memory_context_search` and explicit additive `memory_feedback_record`; observations require search allowance and feedback requires write allowance. Adds metadata validation to doctor; off by default |
+| `CAIRN_MEMORY_CONTEXT_HTTP` | Separate opt-in since 2.28.0: `1` consent for inspection over authenticated project-resolved HTTP; also requires `CAIRN_MEMORY_CONTEXT=1` |
+| `CAIRN_MEMORY_FEEDBACK_RANKING` | Experimental opt-in since 2.28.0: `1` applies bounded current feedback only to `memory_context_search`; off by default, no admission/authority changes, optional failure preserves baseline order. Frozen replay found no gain; collection-only recommended |
 | `CAIRN_AGENTFS_BASE_DIR` | Server-side base dir for named/global memory scopes (default `~/.cairnkeep`); it does not affect `project` scope |
 | `CAIRN_TRAJECTORY_CAPTURE` | Opt in to local structured session capture (`1`, `true`, `yes`, or `on`; unset/default → no capture work) |
 | `CAIRN_TRAJECTORY_SESSION_MAX_BYTES` | Maximum serialized bytes per session (default `5242880`, 5 MiB; minimum 1024) |
@@ -757,12 +757,14 @@ pre-images, but verifies and finalizes committed-before-cleanup journals without
 undoing the completed operation. Unverifiable committed state remains failed
 and untouched for backup-guided manual recovery.
 
-### Revision-bound freshness (unreleased, source checkout only)
+<a id="revision-bound-freshness-unreleased-source-checkout-only"></a>
+
+### Revision-bound freshness (opt-in since 2.28.0)
 
 For the combined disposable lab, start with the
-[source-only continuity workflow](memory-continuity-workflow.md). Use the checkout's
-`node bin/cairn` for `memory-context` examples here, not an older global CLI.
-These optional tools do not change released installation or migrate existing stores.
+[opt-in continuity workflow](memory-continuity-workflow.md). Use `cairn` from
+2.28.0 or newer for these examples; contributors can use `node bin/cairn` from
+the matching checkout. Installation leaves features off and never migrates existing stores.
 
 `CAIRN_MEMORY_CONTEXT=1` exposes the closed-world, read-only `memory_inspect`,
 `memory_related` and `memory_map` tools under the `memory.search` capability and MCP tool profile. A read-only
@@ -795,10 +797,10 @@ store, prepare a JSON file containing `schema_version:1`, `source_refs:[]`, and
 optional UTC `effective_at`, `verified_at`, `review_after` dates, then run:
 
 ```sh
-node bin/cairn memory-context set-freshness --scope project --project /path/to/disposable-project --key facts/demo --input freshness.json --json
+cairn memory-context set-freshness --scope project --project /path/to/disposable-project --key facts/demo --input freshness.json --json
 # Inspect the no-write plan, then repeat with --apply --confirm PLAN_DIGEST.
-node bin/cairn memory-context inspect --scope project --project /path/to/disposable-project --key facts/demo --json
-node bin/cairn memory-context doctor --scope project --project /path/to/disposable-project --json
+cairn memory-context inspect --scope project --project /path/to/disposable-project --key facts/demo --json
+cairn memory-context doctor --scope project --project /path/to/disposable-project --json
 ```
 
 Input is strict, bounded to 64 KiB and read without following links/devices.
@@ -807,10 +809,12 @@ They are never fetched. Future verification refuses; future effectiveness is
 labeled. Apply rechecks source generation, identity, epoch and metadata revision
 atomically; stale confirmations refuse. Reads never advance verification dates.
 Doctor reports metadata state only and never repairs/asserts freshness, even with
-top-level repair requested. Existing-store conversion, release and production
-admission remain separate decisions. See [storage](storage.md#development-only-freshness-assertions).
+top-level repair requested. Existing-store conversion and production
+admission remain separate decisions. See [storage](storage.md#optional-freshness-assertions).
 
-### Evidence-backed connections (unreleased, source checkout only)
+<a id="evidence-backed-connections-unreleased-source-checkout-only"></a>
+
+### Evidence-backed connections (opt-in since 2.28.0)
 
 Explicit `memory-context entity set|remove` and `link set|remove` curate UUID
 entities, aliases, claims and directed evidence-backed links in fresh tracked
@@ -823,7 +827,9 @@ never refresh source verification. Explicit conflicting claims on the same entit
 also appear as possible conflicts in bounded `memory_inspect` candidates.
 See [connection curation, limits and reproducible evidence](memory-connections.md).
 
-### Compact memory maps (unreleased, source checkout only)
+<a id="compact-memory-maps-unreleased-source-checkout-only"></a>
+
+### Compact memory maps (opt-in since 2.28.0)
 
 `cairn memory-context map --scope project --project /path/to/disposable-project --json`
 and gated `memory_map` provide deterministic prefix/entity navigation, not source
@@ -836,7 +842,9 @@ keeps stores separate and never includes team/pack/skill backends. No provider
 call, automatic injection, store conversion or source verification occurs.
 See [map limits, cache privacy and reproducible evidence](memory-maps.md).
 
-### Explicit retrieval feedback (unreleased, source checkout only)
+<a id="explicit-retrieval-feedback-unreleased-source-checkout-only"></a>
+
+### Explicit retrieval feedback (opt-in since 2.28.0)
 
 `memory_context_search` shares the existing hybrid/provider/reranker pipeline and
 can issue short-lived project/session/source-bound receipts. Only an explicit

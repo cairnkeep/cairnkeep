@@ -73,7 +73,7 @@ Enabling triggers elsewhere was therefore not a backward-compatible workaround.
 That evidence remains valid for the original proposal, not a current blocker
 for the separately implemented fresh-only tracked format. The revised source
 uses a checked built-in SQLite worker, refuses old database clients and never
-converts an existing store. See [storage admission and recovery](../storage.md#unreleased-tracked-store-foundation-source-checkout-only).
+converts an existing store. See [storage admission and recovery](../storage.md#tracked-store-foundation-opt-in-since-2280).
 
 The original SDK capability probe still deliberately exits **2**. It probes that
 old backend, not qualification of the revised tracked architecture:
@@ -94,7 +94,7 @@ node mcp-memory-server/scripts/smoke-memory-database.mjs
 node mcp-memory-server/scripts/smoke-memory-store-restore.mjs
 ```
 
-Freshness, connections, maps and feedback remain unreleased source-only features,
+Freshness, connections, maps and feedback are available as opt-in features since 2.28.0,
 not an upgrade enrollment or production-admission decision. The
 [joint workflow guide](../memory-continuity-workflow.md) documents actual combined
 replay, independent same-information Markdown, invalidation and honest costs.

@@ -1,4 +1,4 @@
-# Compact memory maps (unreleased)
+# Compact memory maps (opt-in since 2.28.0)
 
 A map answers “what is here, and where should I read next?” without copying
 stored memory text into the prompt. It groups current ordinary keys by their
@@ -6,17 +6,17 @@ first slash prefix and lists explicitly curated entities with current anchors.
 It is navigation, not a summary, verification, permission or replacement for
 exact reads. Nothing is injected automatically into startup or `AGENTS.md`.
 
-This is source-checkout work, not a released feature or production activation.
+Available since Cairnkeep 2.28.0, this feature remains opt-in, not production activation.
 Use disposable stores. Legacy stores can supply untracked key navigation without
 conversion; reliable provenance, freshness and entities require the explicitly
-initialized [tracked format](storage.md#unreleased-tracked-store-foundation-source-checkout-only).
+initialized [tracked format](storage.md#tracked-store-foundation-opt-in-since-2280).
 Existing-store conversion remains out of scope.
 
 ## Use
 
 ```sh
-node bin/cairn memory-context map --scope project --project /path/to/disposable-project --json
-node bin/cairn memory-context map --scope project --project /path/to/disposable-project --max-bytes 8192 --limit 50 --json
+cairn memory-context map --scope project --project /path/to/disposable-project --json
+cairn memory-context map --scope project --project /path/to/disposable-project --max-bytes 8192 --limit 50 --json
 ```
 
 The local CLI resolves one concrete scope. With `CAIRN_MEMORY_CONTEXT=1`, an MCP
@@ -120,8 +120,8 @@ checks identical bounded navigation, provenance and freshness. It reports actual
 returned bytes and cold/warm costs; live revalidation means caching need not make
 the warm read faster. This is not an autonomous task-quality, productivity or
 human-pilot result. The frozen baseline is unchanged. The
-[combined source-only workflow](memory-continuity-workflow.md) now covers maps
+[combined opt-in workflow](memory-continuity-workflow.md) now covers maps
 with freshness, links and explicit feedback, including restore and handoff.
 Its bounded map can omit an entity: the demonstrated related-query alias is
 explicit caller input, not an invented complete inventory. Ranking stays off;
-source qualification is separate from release and production admission.
+package qualification is separate from production admission.
