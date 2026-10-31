@@ -24,7 +24,7 @@ L16 also covers the offline memory protocol controls: distinguish direct tool
 events from narration and explain why protocol observations, caller-asserted
 consent and task-quality evidence are separate claims.
 
-Optional unreleased source-only supplement:
+Optional 2.28 supplement:
 [joint continuity evidence](../../memory-continuity-workflow.md). Inspect actual
 map/related/exact-read/search/inspection calls, the independently enumerated
 Markdown policy, development-only votes and eight held-out query cases per arm.

@@ -19,7 +19,7 @@ will go before starting a session.
 - Credential boundaries and environment-variable precedence.
 - Embedding/extraction endpoints and what content they receive.
 - `cairn memory path` and a preflight data-flow checklist.
-- Unreleased source-only storage foundation: `cairn memory-context init` prints
+- Optional 2.28 tracked-store foundation: `cairn memory-context init` prints
   a no-write plan; `--apply --confirm DIGEST` creates only an absent destination.
   `status` and `doctor` inspect the format without initializing SDK schemas.
   Existing stores are not converted, older clients refuse the new format, and
@@ -44,7 +44,7 @@ will go before starting a session.
 - Development-only freshness brief: explicit assertions bind source generations,
   metadata revisions and restore epochs. Changed facts cannot become verified
   again merely because their old text returns. Source references are opaque,
-  never fetched; reads do not verify facts. On the unreleased source branch,
+  never fetched; reads do not verify facts. In the opt-in 2.28 workflow,
   demonstrate local `memory-context set-freshness` plan/exact-digest apply,
   `inspect` and metadata-only `doctor` on a disposable store. Show gated read-only
   `memory_inspect`, its separate HTTP consent and stale-plan refusal. Do not
@@ -57,7 +57,7 @@ will go before starting a session.
 
 ## Hands-on lab
 
-The optional [source-only joint lab](../../memory-continuity-workflow.md) adds
+The optional [opt-in joint lab](../../memory-continuity-workflow.md) adds
 feedback privacy and managed restore to the same workflow. Locate the project
 ledger, explain why minimized digests are still sensitive, and distinguish
 30-day eligibility from retained history and its 10,000-row cap. Export is local;
@@ -66,7 +66,7 @@ Show the same-secret epoch control: restore retains records but invalidates vote
 even about unchanged shared memory. The fixture preserves its entire stopped
 old directory; never demonstrate deleting a real database. Deliberate loopback
 HTTP traffic is distinct from external provider traffic, and one bearer domain
-does not create per-user ACLs. Keep this unreleased supplement separate from
+does not create per-user ACLs. Keep this opt-in supplement separate from
 ordinary released setup and legacy Windows locking limits.
 
 Source-only map extension: identify the private disposable `.memory-map-cache/`

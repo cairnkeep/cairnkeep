@@ -364,17 +364,19 @@ HTTP mode is one trusted storage domain:
 
 ## Inspecting and moving memory
 
-### Unreleased tracked-store foundation (source checkout only)
+<a id="unreleased-tracked-store-foundation-source-checkout-only"></a>
 
-Released installations and existing stores keep their original backend. The
-new `cairn memory-context` administration CLI is currently an isolated storage
-foundation, not production admission or a migration command. The foundation has
-passed native-platform, recovery and independent-review gates; use disposable
-stores until a separate release and production-admission decision.
+### Tracked-store foundation (opt-in since 2.28.0)
 
-The [source-only continuity lab](memory-continuity-workflow.md) combines the
-verified storage/metadata surfaces without changing released installation. Run
-these `memory-context` examples with the checkout's `node bin/cairn`.
+Existing stores keep their original backend. From 2.28.0, the optional
+`cairn memory-context` administration CLI supports explicitly initialized fresh
+tracked stores, not existing-store migration or automatic production admission.
+The foundation passed native-platform, recovery and independent-review gates;
+start with disposable stores before a deployment-specific admission decision.
+
+The [opt-in continuity lab](memory-continuity-workflow.md) combines the verified
+storage/metadata surfaces without changing normal installation defaults. Use
+`cairn` from 2.28.0 or newer; contributors can use the matching `node bin/cairn`.
 
 `init --scope SCOPE --project PATH --json` prints a no-write digest-bound plan.
 Only `init ... --apply --confirm DIGEST` creates the inspected absent target.
@@ -425,9 +427,9 @@ or discard a returned database connection. Resolve the remnant before new opens.
 For a disposable tracked store:
 
 ```bash
-node bin/cairn memory-context backup --scope project --project /path/to/disposable-project --output /safe/path/snapshot.db
+cairn memory-context backup --scope project --project /path/to/disposable-project --output /safe/path/snapshot.db
 # Stop clients, preserve the current store separately, and use an absent target.
-node bin/cairn memory-context restore --scope project --project /path/to/disposable-project --input /safe/path/snapshot.db --json
+cairn memory-context restore --scope project --project /path/to/disposable-project --input /safe/path/snapshot.db --json
 # Inspect the plan, then repeat with --apply --confirm DIGEST.
 ```
 
@@ -459,9 +461,11 @@ Generic export uses the managed online snapshot path for tracked global stores
 and keeps the SQLite CLI path for legacy stores. A mixed export is not a generic
 import authorization: tracked members still require explicit managed recovery.
 
-### Development-only freshness assertions
+<a id="development-only-freshness-assertions"></a>
 
-The unreleased freshness API and local `set-freshness` CLI add explicit assertions
+### Optional freshness assertions
+
+From 2.28.0, the optional freshness API and local `set-freshness` CLI add explicit assertions
 to a fresh tracked store. They do not convert legacy stores. The separately gated
 read-only `memory_inspect` MCP tool observes these assertions; no curation tool is
 available through MCP. Inspection never initializes legacy SDK schema, including
@@ -496,13 +500,15 @@ Managed restore retains assertions in the snapshot but the renewed epoch makes
 old assertions stale. Missing or malformed initialized assertion infrastructure
 fails closed rather than silently rebuilding it. `memory-context status|doctor`
 report whether assertion metadata is initialized and its bounded row count, not
-source text or reference values. Source-only CLI/MCP verification is distinct
-from a release or production admission; use disposable stores. See
-[freshness operations](operating.md#revision-bound-freshness-unreleased-source-checkout-only).
+source text or reference values. CLI/MCP verification is distinct
+from production admission; use disposable stores. See
+[freshness operations](operating.md#revision-bound-freshness-opt-in-since-2280).
 
-### Development-only connection metadata
+<a id="development-only-connection-metadata"></a>
 
-Unreleased explicit entities and links use two additional tables in the same
+### Optional connection metadata
+
+Opt-in explicit entities and links use two additional tables in the same
 tracked database, not a graph backend or sidecar. Graph rows retain independent
 monotonic revisions and removal tombstones. Their full source references and
 endpoint digests prevent stale association revival without changing ordinary
@@ -512,9 +518,11 @@ conversion or automatic metadata repair is added. See
 [evidence-backed connections](memory-connections.md) for exact bounds, atomic
 curation and read-only observations.
 
-### Development-only feedback metadata
+<a id="development-only-feedback-metadata"></a>
 
-Development-only [explicit feedback](memory-feedback.md) adds a minimized
+### Optional feedback metadata
+
+Opt-in [explicit feedback](memory-feedback.md) adds a minimized
 `cairn_memory_feedback_v1` table only on explicit recording in the tracked project
 database, not in shared source stores or an authoritative sidecar. Managed backups
 include it; renewed restore epochs invalidate old receipts and eligibility while
@@ -531,9 +539,11 @@ epoch rejection independently of restart, retains old feedback rows and makes
 even unchanged shared-source votes ineligible when their project ledger is
 restored. See the [workflow and limitations](memory-continuity-workflow.md).
 
-### Development-only map cache
+<a id="development-only-map-cache"></a>
 
-Unreleased [memory maps](memory-maps.md) optionally keep a bounded disposable
+### Optional map cache
+
+Opt-in [memory maps](memory-maps.md) optionally keep a bounded disposable
 preview in `.memory-map-cache/` beside an existing ordinary database. It is not
 an authoritative sidecar or part of managed backups. Private modes/ACLs and safe
 atomic publication apply; every use revalidates visible source/epoch/context

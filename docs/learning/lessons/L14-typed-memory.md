@@ -58,7 +58,7 @@ node mcp-memory-server/scripts/smoke-memory-feedback-coherence.mjs
 The disposable tracked and isolated-legacy controls include unchanged positive
 cases and fresh filtered reads. They do not add cross-process writer locking to
 legacy stores or promote typed metadata/feedback into truth or sharing approval.
-This is an unreleased Brief extension, not a new recorded lesson.
+This is an opt-in 2.28 Brief extension, not a new recorded lesson.
 
 - [Operating guide: typed memory nodes](../../operating.md#typed-memory-nodes-and-note-address-spaces-opt-in)
 - [Storage and deployment](../../storage.md#typed-metadata-import-replay-and-history)

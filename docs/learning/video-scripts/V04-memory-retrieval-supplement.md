@@ -46,7 +46,7 @@ run. Demonstrate the doctor's synthetic request, then disable reranking and
 show unchanged memory text and provenance. This is a recording brief, not a
 claim that this segment has been filmed or published.
 
-## Source-only compact-map segment (unreleased)
+## Optional compact-map segment (since 2.28.0)
 
 Use only the disposable synthetic fixture. Type and pause on:
 
@@ -82,12 +82,12 @@ exact-ID forget plan/apply and separate HTTP consent/profile restrictions.
 Collection changes no ranking and self-reported feedback is not truth, human
 review or anti-Sybil evidence. No production conversion, activation, fabricated
 model-quality gain or new recording/publication is implied by this brief.
-In the source-only coherence test, pause at the synthetic reranker barrier and
+In the source-checkout coherence test, pause at the synthetic reranker barrier and
 change tags/type without changing text. Show omission with `truncated: true`,
 then a fresh correctly filtered search; never attach current provenance to old
 typed fields. Keep the isolated legacy observer and its locking limits explicit.
 
-For an optional source-only ranking segment, run the real feedback policy/MCP
+For an optional opt-in ranking segment, run the real feedback policy/MCP
 tests and `run-memory-continuity-study.mjs --all --check --summary`. Pause on the
 no-held-out-improvement decision: unchanged first-hit/recall, stale count and
 negatives, with added provenance bytes and local latency. Show the opt-in kill
@@ -95,7 +95,7 @@ switch, three-task minimum and bounded one-slot swap using only synthetic data.
 Explain that fabricated task IDs remain possible and recommend collection-only.
 Do not present independent feature controls as a combined agent-quality gain.
 
-## Joint continuity recording brief (unreleased source-only)
+## Joint continuity recording brief (introduced in 2.28.0; opt-in)
 
 Use the [combined workflow guide](../../memory-continuity-workflow.md), a patched
 runtime and this exact source checkout. This is an updated brief, not a claim

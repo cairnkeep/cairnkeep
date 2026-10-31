@@ -1,7 +1,7 @@
-# Fresh and connected memory: source-only workflow
+# Fresh and connected memory: opt-in workflow
 
-Status: **unreleased**, source-only exercises in disposable stores. Installing
-the released 2.27.0 package does not enable these tools or convert existing
+Status: available since Cairnkeep 2.28.0. These opt-in exercises use disposable
+stores. Installing the package does not enable the tools or convert existing
 memory. No production enrollment, new provider or harness asset sync is required.
 
 Ordinary memory already supports continuing work across sessions and clients.
@@ -13,40 +13,42 @@ project sources and outside facts still need their own verification.
 
 ## Start with the right boundary
 
-### Prerelease trial: 2.28.0-rc.1
+### Installed-package trial: 2.28.0
 
-The release candidate is an explicitly opt-in preview, not a stable deployment.
-Until its normal publication workflow completes, use the verified CI tarball;
-do not assume the version is available in the registry. After publication use
-the exact version, never an unpinned channel, for a repeatable isolated trial.
+Use the exact published version, never an unpinned channel, for a repeatable
+isolated trial. Package availability is not deployment-specific admission.
 Keep production overlays, MCP registrations, service settings and memory roots
 unchanged. There is no existing-store conversion or in-place restore.
 
-From the matching source checkout, install the verified candidate into a new
-prefix and run the maintained installed-package drill:
+Install into a new prefix and run the maintained installed-package drill:
 
 ```sh
 trial=$(mktemp -d)
 npm install --prefix "$trial" --ignore-scripts --no-audit --no-fund \
-  ./artifacts/cairnkeep-cli-2.28.0-rc.1.tgz
-node scripts/test-memory-context-installed.mjs "$trial/node_modules/@cairnkeep/cli"
+  @cairnkeep/cli@2.28.0
+cp "$trial/node_modules/@cairnkeep/cli/scripts/test-memory-context-installed.mjs" \
+  "$trial/installed-drill.mjs"
+node "$trial/installed-drill.mjs" "$trial/node_modules/@cairnkeep/cli"
 ```
 
-The drill uses a separate private home and synthetic stores, importing only
+Copying the self-contained drill outside the installed package lets it verify
+that its target really is a separate installation. The drill uses a separate
+private home and synthetic stores, importing only
 installed package modules. It checks legacy bytes, explicit fresh init, graph/
 map/feedback and managed epoch recovery; it does not upgrade a server or prove
 autonomous task quality. Keep the prefix for inspection. The full source replay
 below independently covers two-client handoff and the combined workflow.
-Stable lesson installation pins remain 2.27.0; new-format material stays a brief.
+Stable lesson compatibility pins are 2.28.0; new-format teaching material remains
+a brief, not a newly recorded lesson or independent-human pilot.
 
 The released CLI still requires Node 22 or newer. Fresh tracked stores additionally
 need the Node 22.16+ built-in SQLite API **and** patched bundled SQLite: 3.51.3+
 or the documented 3.50.7/3.44.6 backports. The API floor alone is insufficient.
-Use a current patched runtime; see [storage admission](storage.md#unreleased-tracked-store-foundation-source-checkout-only).
+Use a current patched runtime; see [storage admission](storage.md#tracked-store-foundation-opt-in-since-2280).
 Older database drivers refuse the new format; existing-store conversion and
 in-place restore are not provided. Turning off tools does not undo the format.
 
-Run developer commands from the matching source checkout, not an older global
+Run the developer replays below from the matching source checkout, not an older global
 installation. `node bin/cairn memory-context --help` selects that checkout's CLI.
 The automated exercises below create and clean up their own private synthetic
 stores; do not substitute a real memory directory.
@@ -98,7 +100,7 @@ jobs, each with the complete shared-state invalidation/restore controls. The
 default replay and `--all` still compare both arms together; a selected arm is
 explicitly labeled in its report, never presented as the full comparison.
 It is not free automatic graph retrieval. See the individual
-[freshness](operating.md#revision-bound-freshness-unreleased-source-checkout-only),
+[freshness](operating.md#revision-bound-freshness-opt-in-since-2280),
 [connections](memory-connections.md), [maps](memory-maps.md) and
 [feedback](memory-feedback.md) contracts before any manual lab.
 
@@ -147,7 +149,7 @@ destination. A **same-secret** receipt control isolates epoch invalidation from
 session restart. All 15 old feedback records survive as history, but none remain
 eligible—even votes about an unchanged shared source. Old graph assertions are
 inactive and maps revalidate. Raw-copy replay and cross-owner/in-place restore
-are not covered or supported. Follow [managed recovery](storage.md#unreleased-tracked-store-foundation-source-checkout-only),
+are not covered or supported. Follow [managed recovery](storage.md#tracked-store-foundation-opt-in-since-2280),
 not filesystem deletion or an improvised migration.
 
 ## Consent, privacy and stopping

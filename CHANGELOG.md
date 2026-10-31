@@ -5,6 +5,25 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.28.0] - 2026-10-31
+
+Promote the qualified Fresh and Connected Memory preview to a stable package.
+All new context tools remain opt-in. Installing or upgrading never converts an
+existing store, enables HTTP context access, changes sharing permissions or
+activates experimental feedback ranking. Fresh tracked stores require the
+documented SQLite API floor and patched bundled SQLite; older backends cannot
+open their format.
+
+- Make explicit freshness, evidence-backed connections, bounded maps and
+  project-local retrieval feedback available with checked initialization and
+  managed backup/restore. Preserve the RC's unchanged defaults and limits.
+- Update operating, storage, privacy, compatibility, learning and recording
+  briefs for stable availability. Preserve historical evidence and old deep
+  links. No new recording, human pilot or quality gain is claimed.
+- Retain the held-out no-gain result and disabled ranking experiment. Preserve
+  exact-source artifact verification, native security controls and installed
+  recovery/continuity contracts; no runtime dependency change from the RC.
+
 ## [2.28.0-rc.1] - 2026-10-30
 
 Prerelease candidate for isolated trials only. The stable channel, existing

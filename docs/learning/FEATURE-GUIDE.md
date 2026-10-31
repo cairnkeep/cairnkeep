@@ -1,7 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.27.0
-**Preview candidate:** Cairnkeep 2.28.0-rc.1 (isolated exercises only)
+**Baseline:** Cairnkeep 2.28.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -55,7 +54,7 @@ local stdio MCP bridge. Installing it enables no sharing. L29/V29 cover its
 bounded trial and the distinction between preview availability and production
 admission; team search does not use personal-memory embeddings or reranking.
 
-Unreleased source-checkout [explicit memory feedback](../memory-feedback.md)
+Optional 2.28 [explicit memory feedback](../memory-feedback.md)
 adds provenance-bearing context search and opt-in, session-bound self-reported
 usefulness records. It changes no ranking by collection alone and grants no
 truth, approval or sharing authority. L26 covers the project ledger, expiry and
@@ -66,10 +65,10 @@ self-reported votes as verified facts or a model-quality improvement.
 
 The [combined continuity workflow](../memory-continuity-workflow.md) joins
 freshness, explicit links, maps, provenance search and feedback in a disposable
-source-only exercise. It now tests real MCP stdio/HTTP and managed restore
+opt-in exercise. It now tests real MCP stdio/HTTP and managed restore
 together, with independent Markdown and curation/call costs. Ordinary query
 ranking shows no gain; an extra-curated seven-call linked workflow is a different
-comparison. Released 2.27 prerequisites remain unchanged; no production enrollment,
+comparison. Ordinary-memory runtime prerequisites remain unchanged; no production enrollment,
 new harness UI qualification or completed video is implied.
 
 ## The three-layer model
@@ -191,13 +190,13 @@ See [L26](lessons/L26-context-intelligence.md), its
 [video script](video-scripts/V26-context-intelligence.md), and the
 [context-intelligence reference](../context-intelligence.md).
 
-L26 also has a clearly separated unreleased source-checkout supplement for
+L26 also has a clearly separated opt-in 2.28 supplement for
 explicit entities, aliases and evidence-backed links in disposable tracked
 stores. It covers ambiguity, stale association invalidation, possible conflicts
 and equal-information native/Markdown replay, not automatic graph extraction or
 general model/human quality gains. See [memory connections](../memory-connections.md).
 
-The same source-only supplement now includes [compact memory maps](../memory-maps.md):
+The same opt-in supplement now includes [compact memory maps](../memory-maps.md):
 bounded deterministic prefix/entity orientation, current source provenance and
 freshness/ambiguity labels. Legacy data stays untracked. Follow with exact reads;
 no automatic startup injection or provider is involved. L04/L05/L07/L14 and V04

@@ -171,7 +171,7 @@ For the separate source-checkout longitudinal baseline, see
 actual mutations and fresh MCP clients, keeps an equal-information Markdown
 control, and preserves the historical SDK revision-storage limitation. That
 baseline is unchanged; the revised fresh-only tracked format is a separate,
-unreleased source contract, not a silent conversion of old stores.
+opt-in 2.28 storage contract, not a silent conversion of old stores.
 
 The [combined continuity workflow](memory-continuity-workflow.md) now exercises
 freshness, links, maps, context search and explicit feedback together. It keeps

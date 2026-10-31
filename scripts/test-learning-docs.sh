@@ -228,5 +228,5 @@ for file in docs/learning/FEATURE-GUIDE.md docs/learning/CURRICULUM-MAP.md \
 done
 grep -qF 'freshness,links,maps,feedback' docs/learning/video-scripts/V04-memory-retrieval-supplement.md
 grep -qF 'smoke-memory-feedback-coherence.mjs' docs/learning/lessons/L14-typed-memory.md
-grep -qF 'unreleased source-only' "$coverage"
+grep -qF 'introduced in 2.28.0; opt-in' "$coverage"
 echo "PASS: public learning path structure, readiness, links, and version alignment"

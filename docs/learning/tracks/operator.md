@@ -40,7 +40,7 @@ L27 separates protocol observations from measured task benefits. L28 adds
 deployment posture, adversarial source-checkout controls and exact-source
 release verification; a verified artifact is not a verified fleet rollout.
 
-Optional unreleased source-only supplement:
+Optional 2.28 supplement:
 [combined continuity and recovery](../../memory-continuity-workflow.md). Verify
 patched SQLite admission, full/read-only/custom tool intersections, separate
 HTTP consent/project routing and same-secret restore-epoch invalidation. Protect
