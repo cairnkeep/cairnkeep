@@ -26,11 +26,14 @@ Install into a new prefix and run the maintained installed-package drill:
 trial=$(mktemp -d)
 npm install --prefix "$trial" --ignore-scripts --no-audit --no-fund \
   @cairnkeep/cli@2.28.0
-node "$trial/node_modules/@cairnkeep/cli/scripts/test-memory-context-installed.mjs" \
-  "$trial/node_modules/@cairnkeep/cli"
+cp "$trial/node_modules/@cairnkeep/cli/scripts/test-memory-context-installed.mjs" \
+  "$trial/installed-drill.mjs"
+node "$trial/installed-drill.mjs" "$trial/node_modules/@cairnkeep/cli"
 ```
 
-The drill uses a separate private home and synthetic stores, importing only
+Copying the self-contained drill outside the installed package lets it verify
+that its target really is a separate installation. The drill uses a separate
+private home and synthetic stores, importing only
 installed package modules. It checks legacy bytes, explicit fresh init, graph/
 map/feedback and managed epoch recovery; it does not upgrade a server or prove
 autonomous task quality. Keep the prefix for inspection. The full source replay

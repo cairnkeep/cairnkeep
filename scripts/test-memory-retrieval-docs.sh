@@ -27,6 +27,10 @@ for path in docs/learning/FEATURE-GUIDE.md docs/learning/lessons/L04-memory-fund
 done
 guide=docs/memory-continuity-workflow.md
 [[ -f "$guide" ]] || { echo 'INTEGRATED_DOCS_RED: missing source-only continuity workflow guide' >&2; exit 1; }
+grep -qF 'cp "$trial/node_modules/@cairnkeep/cli/scripts/test-memory-context-installed.mjs"' "$guide" || {
+  echo 'INSTALLED_DRILL_RED: copy the self-contained drill outside the installed package before running it' >&2; exit 1;
+}
+grep -qF 'node "$trial/installed-drill.mjs" "$trial/node_modules/@cairnkeep/cli"' "$guide"
 for phrase in 'Status: available since Cairnkeep 2.28.0' 'opt-in' 'node bin/cairn' 'freshness,links,maps,feedback' \
   'no ranking gain' 'not a storage-efficiency comparison' 'same-secret' 'not per-user ACLs' \
   '3.51.3' '3.50.7' '3.44.6' '30 operator plan/apply calls' 'seven tool calls'; do
