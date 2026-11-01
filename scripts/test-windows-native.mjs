@@ -24,6 +24,7 @@ const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 await import("./test-setup-diagnosis.mjs");
 await import("./test-runtime-file-security.mjs");
 await import("./test-container-health.mjs");
+await import("./test-remote-doctor.mjs");
 await import("./test-omp-staged-security.mjs");
 await import("./test-release-verification.mjs");
 const sandbox = mkdtempSync(join(tmpdir(), "cairn-windows-native-"));

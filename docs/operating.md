@@ -1181,6 +1181,54 @@ its settings file and exports `CAIRN_EXTRA_SETTINGS` — no change to the launch
 
 ### `cairn doctor`
 
+#### Explicit remote check — matching source checkout / next release
+
+The separate remote mode checks the **exported environment**, not a harness's
+cached connection or registration file. It does not source project shell files,
+load shell profiles, discover endpoints, change settings or restart anything.
+Export `CAIRN_MEMORY_REMOTE_URL` and exactly one credential source:
+`CAIRN_MEMORY_HTTP_TOKEN` or a private, non-symlink
+`CAIRN_MEMORY_HTTP_TOKEN_FILE`. Never place tokens in command arguments or URLs.
+Use HTTPS outside an explicitly trusted transport boundary.
+
+```sh
+cairn doctor --remote --json
+cairn doctor --remote --scope project --project-id example-project --json
+cairn doctor --remote --search --timeout-ms 5000 --json
+```
+
+Wrappers that own `doctor` may require their explicit core-command passthrough.
+On a source checkout use `node bin/cairn` instead of the installed `cairn`.
+Remote mode is native Node on Windows, macOS and Linux, with no Bash requirement.
+It cannot be combined with `--repair`.
+
+Each invocation creates a fresh authenticated MCP session, checks the Cairn
+server identity, discovers the required read-only tools, and makes an exact-key
+`memory_read` for a random diagnostic key. It does not create memory entries.
+Scope defaults to `identity`; `project` requires an explicit `--project-id`.
+It never falls back to a broader scope. A restricted tool profile may make the
+observation unavailable without implying the server is down. Only the
+diagnostic's own ephemeral session is closed, with bounded best-effort cleanup.
+
+`--search` separately opts into a fixed synthetic search query. Normal server
+retrieval can send that query and uncached memory excerpts to its already
+configured embedding/reranker providers and update its normal caches. Success
+does **not** distinguish embeddings/reranking from a fallback; the ordinary
+provider probes remain separate. Neither mode calls a memory mutation tool.
+
+`--timeout-ms` sets each stage's deadline, default 5000 ms, allowed 250–30000 ms.
+The network probe has a 30-second ceiling, plus at most 500 ms for session cleanup.
+Responses are bounded to 1 MiB each/2 MiB total; redirects are refused. JSON output
+uses fixed stage/error labels and elapsed times, never endpoints, credentials,
+memory content, provider bodies or server-controlled error strings. Exit 0 means
+the fresh probe passed, 1 a remote-stage failure, and 2 invalid options/configuration.
+
+If this check passes but a harness tool call hangs, reconnect that harness's MCP
+session and check its effective configuration. This independent process cannot
+inspect or repair another client's connection; it does not prove which client
+component failed. An active server process alone proves neither retrieval nor
+the health of an existing client session. Existing `cairn doctor` remains below.
+
 Health-checks the bundled local memory server with a real MCP stdio handshake,
 then checks `./.ai/.env` (or the current environment). It does not inspect a
 harness's remote HTTP registration. Unconfigured optional dependencies are

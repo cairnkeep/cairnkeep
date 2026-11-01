@@ -10,6 +10,23 @@ unreleased controls as installed-package behavior.
 
 ## Recording outline
 
+### Optional source-checkout / next-release remote diagnostic supplement
+
+Use only an isolated synthetic endpoint and credential, supplied off-screen.
+Run `node bin/cairn doctor --remote --json`, then pause on initialization,
+discovery and the exact-key observation. Run the offline
+`node scripts/test-remote-doctor.mjs` controls to show bounded stalled-stage,
+HTTP401/403, redirect, byte-limit and secret/body non-disclosure failures.
+Contrast a working fresh session with an affected harness connection: neither
+an active process nor this probe can identify or repair that client's internals.
+Never imply a server restart is required when the independent probe passes.
+
+Optional `--search` can invoke the server's existing providers and caches.
+Its success does not prove embeddings or reranking instead of fallback. Keep
+the endpoint, token and actual memory off-screen. No mutation RPC, registration
+replacement, migration or feature activation occurs. This is a recording brief,
+not a new recording, native harness UI result or model-quality claim.
+
 ### 0:00–1:20 — Threat model before tooling
 
 Animate five boundaries: project storage, MCP authority, remote transport,
