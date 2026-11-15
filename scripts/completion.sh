@@ -13,7 +13,7 @@ _cairn_complete() {
   COMPREPLY=()
   current=${COMP_WORDS[COMP_CWORD]}
   previous=${COMP_WORDS[COMP_CWORD-1]:-}
-  commands="bootstrap setup memory-server memory-context sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help"
+  commands="bootstrap setup memory-server memory-context sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help wiki-evidence continuation"
   if (( COMP_CWORD == 1 )); then
     COMPREPLY=( $(compgen -W "$commands" -- "$current") )
     return
@@ -61,7 +61,9 @@ _cairn_complete() {
       ;;
     mcp-tools) COMPREPLY=( $(compgen -W "list status set reset full read-only custom --tool --project --json" -- "$current") ) ;;
     pack) COMPREPLY=( $(compgen -W "init lock validate install import-okf validate-okf export-okf list show remove enable disable update skills approve-skill revoke-skill doctor --id --version --title --description --license --ref --project --project-id --output --file --note --check --apply --confirm --repair --json" -- "$current") ) ;;
-    proposals) COMPREPLY=( $(compgen -W "create list show apply doctor --session --scope --model --category --project --json" -- "$current") ) ;;
+    proposals) COMPREPLY=( $(compgen -W "create list show apply doctor consolidate --input --session --scope --model --category --project --json" -- "$current") ) ;;
+    wiki-evidence) COMPREPLY=( $(compgen -W "plan apply check --input --confirm --project --json" -- "$current") ) ;;
+    continuation) COMPREPLY=( $(compgen -W "create show --input --max-bytes --project --json" -- "$current") ) ;;
     notes) COMPREPLY=( $(compgen -W "distill search-error promote doctor --project --session --all-projects --para-root --text --component --with --confirm --repair --json" -- "$current") ) ;;
     eval)
       case "${COMP_WORDS[2]:-}" in
@@ -112,6 +114,8 @@ _cairn() {
     'mcp-tools:inspect and restrict MCP tool exposure'
     'pack:manage immutable context packs and skill approvals'
     'proposals:review and apply session memory proposals'
+    'wiki-evidence:check explicit local citations and source digests'
+    'continuation:create and read non-consuming continuation context'
     'notes:distill and search local hindsight notes'
     'eval:run and inspect default-off local evaluations'
     'skill:review and evaluate evidence-backed skill improvements'
@@ -152,7 +156,9 @@ _cairn() {
     playbook) _values 'playbook command' list status init set enable disable reset check record receipts instructions doctor minimal balanced strict must should may off start finish install remove context.recall context.explore work.plan verify.tests review.repository review.security docs.update learning.capture '--project[project root]:directory:_files -/' '--json[emit JSON]' '--enforce[fail when must evidence is missing]' '--changed[changed project path]:file:_files' '--change-type[change type]:type:(code tests docs config dependencies security)' '--complexity[task complexity]:level:(trivial standard complex)' '--familiarity[context familiarity]:level:(known mixed unfamiliar)' '--risk[task risk]:level:(low normal high security)' '--public-change[public behavior changed]' '--completed[completed action]:action:' '--skipped[skipped action and reason]:evidence:' '--failed[failed action and reason]:evidence:' '--actor[local actor label]:actor:' '--actor-kind[local actor kind]:kind:(user agent service)' '--session[session label]:session:' '--policy[policy digest]:digest:' '--decision[decision digest]:digest:' '--event[lifecycle event]:event:(start check finish)' '--action[canonical action]:action:(context.recall context.explore work.plan verify.tests review.repository review.security docs.update learning.capture)' '--outcome[outcome]:outcome:(completed skipped failed)' '--reason[bounded reason]:reason:' ;;
     mcp-tools) _values 'MCP tool profile command' list status set reset full read-only custom '--tool[allow an exact tool]:tool:' '--project[project root]:directory:_files -/' '--json[emit JSON]' ;;
     pack) _values 'context pack command' init lock validate install import-okf validate-okf export-okf list show remove enable disable update skills approve-skill revoke-skill doctor '--ref[pinned Git ref]:ref:' '--project[project root]:directory:_files -/' '--project-id[remote project ID]:project ID:' '--output[export output directory]:directory:_files -/' '--file[explicit project Markdown file]:file:_files' '--note[promoted shared note ID]:note ID:' '--check[inspect update or export]' '--apply[apply update or export]' '--confirm[confirm digest]:digest:' '--repair[remove only invalid derived context cache state]' '--json[emit JSON]' ;;
-    proposals) _values 'memory proposal command' create list show apply doctor '--session[trajectory session ID]:session:' '--scope[memory scope]:scope:' '--model[extraction model]:model:' '--category[extraction category]:category:' '--project[project root]:directory:_files -/' '--json[emit JSON]' ;;
+    proposals) _values 'memory proposal command' create list show apply doctor consolidate '--input[consolidation candidates]:file:_files' '--session[trajectory session ID]:session:' '--scope[memory scope]:scope:' '--model[extraction model]:model:' '--category[extraction category]:category:' '--project[project root]:directory:_files -/' '--json[emit JSON]' ;;
+    wiki-evidence) _values 'evidence command' plan apply check '--input[manifest or plan]:file:_files' '--confirm[exact digest]:digest:' '--project[project root]:directory:_files -/' '--json[emit JSON]' ;;
+    continuation) _values 'continuation command' create show '--input[packet input]:file:_files' '--max-bytes[output byte budget]:bytes:' '--project[owner project]:directory:_files -/' '--json[emit JSON]' ;;
     capabilities)
       case $words[3] in
         list|status) _arguments '--json[emit JSON]' ;;
@@ -202,8 +208,8 @@ EOF
   fish)
     sed "s/__CAIRN_HARNESSES__/$harnesses/g" <<'EOF'
 complete -c cairn -f
-for command in bootstrap setup memory-server memory-context sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help
-complete -c cairn -n "not __fish_seen_subcommand_from bootstrap setup memory-server memory-context sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help" -a $command
+for command in bootstrap setup memory-server memory-context sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help wiki-evidence continuation
+complete -c cairn -n "not __fish_seen_subcommand_from bootstrap setup memory-server memory-context sync sync-pi sync-kimi sync-omp doctor security team trajectory artifact evidence playbook capabilities mcp-tools pack proposals notes eval skill graph memory audit-timer uninstall completion version help wiki-evidence continuation" -a $command
 end
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l apply
 complete -c cairn -n "__fish_seen_subcommand_from sync" -l live-root -r
@@ -302,7 +308,17 @@ complete -c cairn -n "__fish_seen_subcommand_from pack" -l ref -r
 complete -c cairn -n "__fish_seen_subcommand_from pack" -l confirm -r
 complete -c cairn -n "__fish_seen_subcommand_from pack" -l json
 complete -c cairn -n "__fish_seen_subcommand_from pack; and __fish_seen_subcommand_from doctor" -l repair
-complete -c cairn -n "__fish_seen_subcommand_from proposals" -a "create list show apply doctor"
+complete -c cairn -n "__fish_seen_subcommand_from proposals" -a "create list show apply doctor consolidate"
+complete -c cairn -n "__fish_seen_subcommand_from proposals" -l input -r
+complete -c cairn -n "__fish_seen_subcommand_from wiki-evidence" -a "plan apply check"
+complete -c cairn -n "__fish_seen_subcommand_from continuation" -a "create show"
+for command in wiki-evidence continuation
+complete -c cairn -n "__fish_seen_subcommand_from $command" -l input -r
+complete -c cairn -n "__fish_seen_subcommand_from $command" -l project -r
+complete -c cairn -n "__fish_seen_subcommand_from $command" -l json
+end
+complete -c cairn -n "__fish_seen_subcommand_from wiki-evidence" -l confirm -r
+complete -c cairn -n "__fish_seen_subcommand_from continuation" -l max-bytes -r
 complete -c cairn -n "__fish_seen_subcommand_from proposals" -l session -r
 complete -c cairn -n "__fish_seen_subcommand_from proposals" -l scope -r
 complete -c cairn -n "__fish_seen_subcommand_from proposals" -l model -r

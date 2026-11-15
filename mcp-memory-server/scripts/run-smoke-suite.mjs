@@ -62,6 +62,9 @@ export const smokeChecks = Object.freeze([
   check("route-guard", 4, node("smoke-route-guard.mjs")),
   check("reviewed-memory", 27, node("smoke-reviewed-memory.mjs")),
   check("memory-proposals", 20, node("smoke-memory-proposals.mjs")),
+  // Provisional native budgets until the first hosted qualification completes.
+  check("evidence-continuation", 90, node("smoke-evidence-continuation.mjs")),
+  check("memory-consolidation", 90, node("smoke-memory-consolidation.mjs")),
   check("trajectory-roundtrip", 4, node("smoke-trajectory-roundtrip.mjs")),
   check("trajectory-redaction", 1, node("smoke-trajectory-redaction.mjs")),
   check("trajectory-retention", 3, node("smoke-trajectory-retention.mjs")),

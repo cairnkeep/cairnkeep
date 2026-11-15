@@ -781,11 +781,16 @@ export function powershellCompletion() {
   $setup = '--git','--harness','--memory','--policy','--yes','--json','init','existing','none',${harnesses},'local'
   $playbook = 'list','status','init','set','enable','disable','reset','check','record','receipts','instructions','doctor','minimal','balanced','strict','must','should','may','off','start','finish','install','remove','context.recall','context.explore','work.plan','verify.tests','review.repository','review.security','docs.update','learning.capture','--project','--json','--enforce','--complexity','--familiarity','--risk','--public-change','--changed','--change-type','--completed','--skipped','--failed','--actor','--actor-kind','--session','--policy','--decision','--event','--action','--outcome','--reason'
   $pack = 'init','lock','validate','install','import-okf','validate-okf','export-okf','list','show','remove','enable','disable','update','skills','approve-skill','revoke-skill','doctor','--repair','--project','--project-id','--json'
-  $proposals = 'create','list','show','apply','doctor','--session','--scope','--model','--category','--project','--json'
+  $proposals = 'create','list','show','apply','doctor','consolidate','--input','--session','--scope','--model','--category','--project','--json'
+  $commands += 'wiki-evidence','continuation'
+  $wikiEvidence = 'plan','apply','check','--input','--confirm','--project','--json'
+  $continuation = 'create','show','--input','--max-bytes','--project','--json'
   $security = 'doctor','--project','--json'
   $team = 'connect','disconnect','init','project','member','credential','create','set','remove','issue','revoke','serve','mcp','list','read','search','history','propose','proposals','proposal-show','review','audit','audit-export','audit-verify','audit-archive','doctor','backup','restore','memory-delete','--backup','--previous','--page-size','--cursor','--read-only','--organization','--data','--project','--roles','--class','--expires-at','--output','--input','--confirm','--port','--key','--query','--proposal','--decision','--revision','--project-root','--connection','--client','--url','--token-file','--harness','--access','--apply','--yes'
   $evaluation = 'validate','run','ablate','report','prune','delete','protocol','--task-set','--adapter','--output','--repetitions','--seed','--yes','--json','--disable','--experiment','--older-than-days','--dry-run','--trajectory','--codex-jsonl','--capture-authorized'
   $candidates = if ($commandAst.ToString() -match '^\\s*cairn\\s+memory-context(?:\\s|$)') { $memoryContext } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+setup(?:\\s|$)') { $setup } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+team(?:\\s|$)') { $team } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+playbook(?:\\s|$)') { $playbook } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+pack(?:\\s|$)') { $pack } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+proposals(?:\\s|$)') { $proposals } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+security(?:\\s|$)') { $security } elseif ($commandAst.ToString() -match '^\\s*cairn\\s+eval(?:\\s|$)') { $evaluation } else { $commands }
+  if ($commandAst.ToString() -match '^\\s*cairn\\s+wiki-evidence(?:\\s|$)') { $candidates = $wikiEvidence }
+  if ($commandAst.ToString() -match '^\\s*cairn\\s+continuation(?:\\s|$)') { $candidates = $continuation }
   $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
     [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
   }

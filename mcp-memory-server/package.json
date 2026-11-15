@@ -27,6 +27,7 @@
         "check:route-guard": "node scripts/smoke-route-guard.mjs",
         "check:reviewed-memory": "node scripts/smoke-reviewed-memory.mjs",
         "check:memory-proposals": "node scripts/smoke-memory-proposals.mjs",
+        "check:evidence-continuation": "node scripts/smoke-evidence-continuation.mjs && node scripts/smoke-memory-consolidation.mjs",
         "check:trajectory-roundtrip": "node scripts/smoke-trajectory-roundtrip.mjs",
         "check:trajectory-redaction": "node scripts/smoke-trajectory-redaction.mjs",
         "check:trajectory-retention": "node scripts/smoke-trajectory-retention.mjs",

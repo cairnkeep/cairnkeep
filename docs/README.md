@@ -31,6 +31,10 @@ linked guides rather than the project landing page.
 
 ## Context intelligence
 
+- [Evidence checks, continuation and reviewed consolidation (unreleased)](evidence-continuity.md)
+  adds deterministic source/quote checks, non-consuming packets and explicitly
+  reviewed multi-session proposals without background capture or model calls.
+
 - [Fresh and connected memory workflow (opt-in since 2.28.0)](memory-continuity-workflow.md)
   joins freshness, links, maps and explicit feedback in a disposable opt-in
   lab, with same-information Markdown controls and costs/limitations disclosed.

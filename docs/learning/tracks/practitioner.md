@@ -1,5 +1,9 @@
 # Practitioner Track
 
+After L26, optionally use the source-only
+[L30 evidence-bound continuity supplement](../lessons/L30-evidence-continuation.md).
+This is an additional 35-minute brief, outside the released track's time/readiness.
+
 **Audience:** developers adopting Cairnkeep in daily work
 **Prerequisite:** Quickstart track
 **Total time:** about 4 hours 35 minutes

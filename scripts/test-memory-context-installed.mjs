@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { runInstalledEvidenceContinuity } from './test-evidence-continuity-installed.mjs';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, existsSync, writeFileSync } from 'node:fs';
@@ -8,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // Import only the actual installed package; never substitute checkout modules.
 const installed = realpathSync.native(resolve(process.argv[2]));
+await runInstalledEvidenceContinuity(installed);
 assert.notEqual(installed, realpathSync.native(resolve(dirname(fileURLToPath(import.meta.url)), '..')));
 assert.equal(JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')).name, '@cairnkeep/cli');
 assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-sqlite-worker.js')));

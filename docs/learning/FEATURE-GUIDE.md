@@ -245,3 +245,12 @@ The governed internal review and approved isolated native pilot are complete;
 neither substitutes for independent production review and a deployment-specific
 approved real-data pilot. This is a bounded experimental preview, not general
 production admission.
+
+## Unreleased source-only evidence and continuation
+
+See [the local evidence/continuation guide](../evidence-continuity.md) and
+[L30](lessons/L30-evidence-continuation.md). Explicit `wiki-evidence` checks,
+non-consuming `continuation` packets and `proposals consolidate` are local-only
+CLI additions. No startup hook, MCP tool, provider, restart, storage conversion
+or automatic durable promotion is added. Private records are retained on uninstall
+and require a separate backup; earlier released feature readiness is unchanged.

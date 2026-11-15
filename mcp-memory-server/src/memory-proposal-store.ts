@@ -1,13 +1,10 @@
 import {
-    constants,
     closeSync,
     existsSync,
-    fstatSync,
     fsyncSync,
     lstatSync,
     mkdirSync,
     openSync,
-    readFileSync,
     readdirSync,
     realpathSync,
     rmSync,
@@ -21,6 +18,7 @@ import { extractMemoryCandidates, type ExtractionCategory } from "./memory-extra
 import {
     MEMORY_PROPOSAL_MAX_BYTES,
     MEMORY_PROPOSAL_MAX_CANDIDATES,
+    consolidationInputSchema,
     digestText,
     digestValue,
     expectedMemoryProposalOperation,
@@ -33,7 +31,9 @@ import { applyProposalCandidates, readMemoryBaseHashes, resolveMemoryScopePath, 
 import { redactLocalValue } from "./trajectory-redaction.js";
 import { showTrajectory } from "./trajectory-store.js";
 import { isTypedMemoryNodesEnabled } from "./node-schema.js";
-import { atomicReplace, hardenPrivatePath, privatePathIsSafe } from "./platform-security.js";
+import { atomicReplace, hardenPrivatePath, memoryPathAncestorsAreSafe, privatePathIsSafe, replacementBoundaryIsSafe } from "./platform-security.js";
+import type { TrajectorySession } from './trajectory-schema.js';
+import { readStableJson } from './stable-file.js';
 
 const PROPOSAL_FILE_PATTERN = /^[a-f0-9]{64}\.json$/;
 const PROPOSAL_DIGEST_PATTERN = /^[a-f0-9]{64}$/;
@@ -122,19 +122,7 @@ function parseFile(path: string): MemoryProposal {
     if (info.isSymbolicLink() || !info.isFile()) throw new Error("Memory proposal is not a regular file.");
     if (info.size > MEMORY_PROPOSAL_MAX_BYTES) throw new Error("Memory proposal exceeds its size limit.");
     if (!privatePathIsSafe(path)) throw new Error("Memory proposal is not private.");
-    const fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-    let bytes: Buffer;
-    try {
-        const opened = fstatSync(fd);
-        if (!opened.isFile() || opened.size > MEMORY_PROPOSAL_MAX_BYTES
-            || opened.dev !== info.dev || opened.ino !== info.ino) {
-            throw new Error("Memory proposal changed during validation.");
-        }
-        bytes = readFileSync(fd);
-    } finally { closeSync(fd); }
-    let value: unknown;
-    try { value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
-    catch { throw new Error("Memory proposal is not valid UTF-8 JSON."); }
+    const value = readStableJson(path, { label: 'Memory proposal', maxBytes: MEMORY_PROPOSAL_MAX_BYTES, private: true });
     const proposal = verifyProposal(value);
     if (`${proposal.digest}.json` !== basename(path)) throw new Error("Memory proposal filename does not match its digest.");
     return proposal;
@@ -247,12 +235,93 @@ export async function applyMemoryProposal(digest: string, projectRoot = process.
     const root = canonicalProjectRoot(projectRoot);
     const proposal = showMemoryProposal(digest, root);
     if (proposal.project_root !== root) throw new Error("Memory proposal belongs to a different project.");
-    const trajectory = await showTrajectory(proposal.source.session_id, root);
-    if (digestValue(trajectory) !== proposal.source.digest) throw new Error("Memory proposal source trajectory is stale.");
+    if (proposal.schema_version === 1) {
+        const trajectory = await showTrajectory(proposal.source.session_id, root);
+        if (digestValue(trajectory) !== proposal.source.digest) throw new Error("Memory proposal source trajectory is stale.");
+    } else {
+        assertConsolidationRoot(root);
+        const sessions = await consolidationSessions(root, proposal.source.sessions.map(s => s.session_id));
+        for (const source of proposal.source.sessions) {
+            if (digestValue(sessions.get(source.session_id)) !== source.digest) throw new Error('Consolidation source trajectory is stale.');
+        }
+        validateConsolidationEvidence(root, proposal.candidates, sessions);
+    }
     return applyProposalCandidates(proposal.scope, proposal.digest, proposal.candidates, {
         cwd: root,
         typed: isTypedMemoryNodesEnabled(),
     });
+}
+
+async function consolidationSessions(root: string, ids: string[]): Promise<Map<string, TrajectorySession>> {
+    if (ids.length < 2 || ids.length > 8 || new Set(ids).size !== ids.length) throw new Error('Consolidation requires two to eight distinct exact session IDs.');
+    const sessions = new Map<string, TrajectorySession>();
+    let bytes = 0;
+    for (const id of ids) {
+        const session = await showTrajectory(id, root);
+        if (session.session_id !== id) throw new Error('Consolidation requires exact session IDs.');
+        if (canonicalProjectRoot(session.project_root) !== root) throw new Error('Consolidation source belongs to a different project.');
+        bytes += Buffer.byteLength(JSON.stringify(session));
+        if (bytes > MAX_EXTRACTION_INPUT_BYTES) throw new Error('Consolidation source byte limit exceeded.');
+        sessions.set(id, session);
+    }
+    return sessions;
+}
+
+function payloadContains(payload: unknown, quote: string): boolean {
+    const pending: { value: unknown; depth: number }[] = [{ value: payload, depth: 0 }];
+    let visited = 0, matched = false;
+    while (pending.length) {
+        const { value, depth } = pending.pop()!;
+        if (++visited > 10000 || depth > 64) throw new Error('Consolidation evidence structure limit exceeded.');
+        if (typeof value === 'string' && value.includes(quote)) matched = true;
+        if (value && typeof value === 'object') for (const item of Object.values(value)) pending.push({ value: item, depth: depth + 1 });
+    }
+    return matched;
+}
+
+function validateConsolidationEvidence(root: string, candidates: ConsolidationCandidate[], sessions: Map<string, TrajectorySession>): void {
+    for (const c of candidates) {
+        if (c.preserve.some(p => !c.value.includes(p) || !c.evidence.some(e => e.quote.includes(p)))) throw new Error('Consolidation literal preservation failed.');
+        for (const e of c.evidence) {
+            const session = sessions.get(e.session_id);
+            const event = session?.events.find(v => v.sequence === e.sequence);
+            if (!event || !payloadContains(redactLocalValue(event.payload, root).value, e.quote)) throw new Error('Consolidation evidence quote missing or redacted.');
+        }
+        if (JSON.stringify(redactLocalValue(c, root).value) !== JSON.stringify(c)) throw new Error('Consolidation candidate contains redacted content.');
+    }
+}
+type ConsolidationCandidate = ReturnType<typeof consolidationInputSchema.parse>['candidates'][number];
+
+function assertConsolidationRoot(root: string): void {
+    if (!replacementBoundaryIsSafe(root) || !memoryPathAncestorsAreSafe(join(root, '.agentfs')))
+        throw new Error('Consolidation project ancestry is unsafe.');
+    const runtime = join(root, '.agentfs');
+    if (lstatIfPresent(runtime) && !replacementBoundaryIsSafe(runtime)) throw new Error('Consolidation runtime directory is unsafe.');
+}
+
+export async function createConsolidationProposal(options: {
+    projectRoot?: string; sessionIds: string[]; scope: string; input: unknown;
+}): Promise<MemoryProposal> {
+    const root = canonicalProjectRoot(options.projectRoot ?? process.cwd());
+    assertConsolidationRoot(root);
+    resolveMemoryScopePath(options.scope, { cwd: root });
+    const input = consolidationInputSchema.parse(options.input);
+    if (Buffer.byteLength(JSON.stringify(input)) > MAX_EXTRACTION_INPUT_BYTES) throw new Error('Consolidation input byte limit exceeded.');
+    const sessions = await consolidationSessions(root, options.sessionIds);
+    validateConsolidationEvidence(root, input.candidates, sessions);
+    const keys = input.candidates.map(c => c.key);
+    if (new Set(keys).size !== keys.length) throw new Error('Duplicate consolidation memory key.');
+    const bases = await readMemoryBaseHashes(options.scope, keys, { cwd: root });
+    const candidates = input.candidates.map(c => {
+        const value = `[${c.status}]\n${c.value}`, valueHash = digestText(value), base = bases.get(c.key)!;
+        if (Buffer.byteLength(value) > 64 * 1024) throw new Error('Consolidation candidate byte limit exceeded.');
+        return { ...c, value, value_hash: valueHash, base_hash: base.hash, operation: expectedMemoryProposalOperation(base.hash, valueHash) };
+    });
+    const proposal = sealProposal({ schema_version: 2, created_at: new Date().toISOString(), project_root: root,
+        scope: options.scope, source: { kind: 'trajectories', sessions: [...sessions].sort(([a], [b]) => a.localeCompare(b))
+            .map(([session_id, session]) => ({ session_id, digest: digestValue(session) })) },
+        extraction: { model: 'operator-supplied' }, candidates });
+    await writeImmutable(root, proposal); return proposal;
 }
 
 export function doctorMemoryProposals(projectRoot = process.cwd()): {

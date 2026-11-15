@@ -36,10 +36,12 @@
     "names": []
   },
   "provisional": {
-    "reason": "Separate joint arms retain full shared-state controls; native durations are unmeasured until the new candidate completes.",
+    "reason": "Separate joint arms retain full shared-state controls. Evidence-continuation and consolidation have provisional scheduling budgets only; native durations remain unmeasured until candidate qualification.",
     "budgets": {
       "memory-integrated-study": 1500,
-      "memory-integrated-ranking-study": 1500
+      "memory-integrated-ranking-study": 1500,
+      "evidence-continuation": 90,
+      "memory-consolidation": 90
     }
   },
   "measurements": {

@@ -764,3 +764,13 @@ to the configured service and returns only subject, roles and credential
 ID/class/expiry. It neither reads memory text nor sends data to model providers.
 It appends a normal value-free service audit event. Disconnect retains backups
 and tokens and is not server-side revocation. See [onboarding](team-onboarding.md).
+
+## Unreleased local evidence and continuation supplement
+
+`wiki-evidence`, `continuation` and `proposals consolidate` make no provider or
+network calls. They read only explicitly selected local files/projects or stored
+local trajectories. Records contain selected paths, quotations, project bindings
+and potentially sensitive text; protect them and any redirected JSON output.
+Continuation ownership is a caller label, not authenticated identity. Nothing
+is injected automatically, and no capture, sharing permission or approval is
+inferred. [Formats, authority and storage limits](evidence-continuity.md).

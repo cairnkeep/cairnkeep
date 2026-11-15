@@ -1,5 +1,9 @@
 # Context intelligence
 
+Unreleased source-only additions: [deterministic evidence checks, explicit
+continuation packets and reviewed cross-session consolidation](evidence-continuity.md).
+These are local CLI workflows, not automatic capture or new MCP tools.
+
 Cairnkeep can retrieve immutable project context progressively, measure retrieval
 quality, record privacy-preserving usage evidence, and propose reviewed-memory
 changes. These features keep the existing authority model: retrieval is an

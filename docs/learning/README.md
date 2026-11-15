@@ -13,6 +13,13 @@ enable context tools, convert an existing store or grant production admission.
 
 ## Start here
 
+Source-only optional supplement: [L30 — Evidence-bound continuity](lessons/L30-evidence-continuation.md)
+and its [V30 recording brief](video-scripts/V30-evidence-continuation.md) cover
+deterministic source checks, non-consuming continuation and reviewed multi-session
+consolidation. They do not change the released baseline or claim a new recording.
+
+L30 is an optional **Brief** after L26, not a change to the released curriculum totals.
+
 Choose the shortest track that matches your goal:
 
 - [Quickstart](tracks/quickstart.md) - prove the core value, including the

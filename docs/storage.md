@@ -1,5 +1,11 @@
 # Memory storage and deployment
 
+Unreleased source-checkout supplement: [evidence and continuation records](evidence-continuity.md#storage-rollback-and-qualification)
+live privately under `.agentfs/local-context/{wiki-evidence,continuations}/`.
+Multi-session proposals reuse `.agentfs/memory-proposals/`. Generic memory export
+does not include these directories; back them up separately. Ordinary uninstall
+retains them. No existing store migration or automatic data transfer is added.
+
 ## The placement rule
 
 Cairnkeep stores memory on the filesystem of the machine running the

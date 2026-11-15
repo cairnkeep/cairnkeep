@@ -1675,3 +1675,12 @@ independent production review and a deployment-specific approved real-data pilot
 are still required before using real organization data.
 Existing personal HTTP remains a trusted single storage domain; token-first
 team JSON HTTP is a different service, not OAuth remote MCP HTTP.
+
+## Unreleased evidence and continuation supplement
+
+Source checkouts add `cairn wiki-evidence plan|apply|check`,
+`cairn continuation create|show` and `cairn proposals consolidate`.
+See [the complete schemas-by-example, limits and recovery guide](evidence-continuity.md).
+These commands are explicit local operations; setup, startup, ordinary doctor
+and MCP discovery are unchanged. They do not schedule maintenance, select a
+model, consume handoffs or authorize durable memory writes automatically.
