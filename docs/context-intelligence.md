@@ -1,6 +1,6 @@
 # Context intelligence
 
-Unreleased source-only additions: [deterministic evidence checks, explicit
+Available since Cairnkeep 2.29.0: [deterministic evidence checks, explicit
 continuation packets and reviewed cross-session consolidation](evidence-continuity.md).
 These are local CLI workflows, not automatic capture or new MCP tools.
 

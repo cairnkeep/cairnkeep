@@ -242,4 +242,12 @@ for command in wiki-evidence continuation proposals; do
   grep -qF "cairn $command" <<< "$help_output"
 done
 grep -qF 'cairn proposals --help' docs/learning/lessons/L30-evidence-continuation.md
+grep -qF 'Available since Cairnkeep 2.29.0' docs/context-intelligence.md || {
+  echo 'CONTINUITY_RELEASE_RED: context guide still describes source-only availability' >&2
+  exit 1
+}
+grep -qF '#### Explicit remote check (since 2.29.0)' docs/operating.md
+grep -qF '| Explicit remote doctor (since 2.29.0) |' docs/privacy-and-data-flow.md
+grep -qF 'Since 2.29.0, `cairn doctor --remote`' docs/harness-compatibility.md
+grep -qF '### Optional remote diagnostic supplement (since 2.29.0)' docs/learning/video-scripts/V28-security-assurance.md
 echo "PASS: public learning path structure, readiness, links, and version alignment"

@@ -1181,7 +1181,9 @@ its settings file and exports `CAIRN_EXTRA_SETTINGS` — no change to the launch
 
 ### `cairn doctor`
 
-#### Explicit remote check — matching source checkout / next release
+<a id="explicit-remote-check--matching-source-checkout--next-release"></a>
+
+#### Explicit remote check (since 2.29.0)
 
 The separate remote mode checks the **exported environment**, not a harness's
 cached connection or registration file. It does not source project shell files,
@@ -1197,7 +1199,9 @@ cairn doctor --remote --scope project --project-id example-project --json
 cairn doctor --remote --search --timeout-ms 5000 --json
 ```
 
-Wrappers that own `doctor` may require their explicit core-command passthrough.
+Managed wrappers can own `doctor`; use the route documented by that distribution
+and check which private configuration it forwards. A neutral core passthrough
+can deliberately strip managed credentials.
 On a source checkout use `node bin/cairn` instead of the installed `cairn`.
 Remote mode is native Node on Windows, macOS and Linux, with no Bash requirement.
 It cannot be combined with `--repair`.

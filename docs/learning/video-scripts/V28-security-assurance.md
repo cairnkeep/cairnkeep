@@ -3,17 +3,17 @@
 Target length: 10–12 minutes. Audience: experienced developers operating an
 agent-memory service locally or behind authenticated HTTP.
 
-The source-checkout security follow-up blocks below are optional supplemental
-clips, not part of the original 10–12-minute timing. Record them as a separate
-segment after their branch passes the complete release gates; do not present
-unreleased controls as installed-package behavior.
+The security/diagnostic follow-up blocks below are optional supplemental clips,
+not part of the original 10–12-minute timing or a claim of new recording.
+Use Cairnkeep 2.29.0 or newer for the remote diagnostic. Offline test scripts
+require a matching built source checkout, separate from installed CLI behavior.
 
 ## Recording outline
 
-### Optional source-checkout / next-release remote diagnostic supplement
+### Optional remote diagnostic supplement (since 2.29.0)
 
 Use only an isolated synthetic endpoint and credential, supplied off-screen.
-Run `node bin/cairn doctor --remote --json`, then pause on initialization,
+Run `cairn doctor --remote --json`, then pause on initialization,
 discovery and the exact-key observation. Run the offline
 `node scripts/test-remote-doctor.mjs` controls to show bounded stalled-stage,
 HTTP401/403, redirect, byte-limit and secret/body non-disclosure failures.

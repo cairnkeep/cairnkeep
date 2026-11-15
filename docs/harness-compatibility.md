@@ -4,12 +4,12 @@ Cairnkeep separates memory transport from harness-specific operating assets.
 An MCP client can use the memory tools without also supporting Cairnkeep's
 commands, hooks, plugins, or trajectory adapters.
 
-From the matching source checkout / next release, `cairn doctor --remote` offers
+Since 2.29.0, `cairn doctor --remote` offers
 the same bounded, authenticated fresh-session observation on all native platforms.
 It uses exported configuration, not a harness's MCP registration or connection;
-wrappers may need an explicit core passthrough. It neither reconnects the harness
+managed wrappers may own its configuration-forwarding route. It neither reconnects the harness
 nor proves a specific harness/model integration or server-side embedding mode.
-See [remote diagnostics](operating.md#explicit-remote-check--matching-source-checkout--next-release).
+See [remote diagnostics](operating.md#explicit-remote-check-since-2290).
 
 All six generated launchers—Claude Code, OpenCode, Kimi, Qwen, Pi and Codex—
 support the same opt-in Git-linked work-evidence wrapper. The wrapper is local,
