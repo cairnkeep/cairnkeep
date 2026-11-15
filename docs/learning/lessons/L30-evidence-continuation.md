@@ -12,7 +12,7 @@ session's context. No real host names, credentials or production stores.
 ## Exercise
 
 1. Install Cairnkeep 2.29.0 or newer. Inspect `cairn wiki-evidence --help`,
-   `cairn continuation --help` and `cairn proposals consolidate --help`.
+   `cairn continuation --help` and `cairn proposals --help`.
 2. Follow [the explicit manifest example](../../evidence-continuity.md) in a disposable
    project. Inspect a no-write plan and publish only its exact digest.
 3. Change the cited source without changing the wiki. Check the old digest:

@@ -237,4 +237,9 @@ grep -qF 'Evidence and continuation (since 2.29.0)' "$feature_guide"
 grep -qF 'Brief — available since 2.29.0, not recorded' docs/learning/lessons/L30-evidence-continuation.md
 grep -qF 'Recording brief only; available since 2.29.0, no video produced' docs/learning/video-scripts/V30-evidence-continuation.md
 grep -qF 'No automatic capture, provider or new recording' "$coverage"
+for command in wiki-evidence continuation proposals; do
+  help_output=$(bin/cairn "$command" --help)
+  grep -qF "cairn $command" <<< "$help_output"
+done
+grep -qF 'cairn proposals --help' docs/learning/lessons/L30-evidence-continuation.md
 echo "PASS: public learning path structure, readiness, links, and version alignment"
