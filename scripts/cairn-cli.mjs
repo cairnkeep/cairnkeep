@@ -55,6 +55,7 @@ Usage:
   cairn sync-kimi [--check|--apply] [--live-root DIR]
   cairn sync-omp [--check|--apply] [--live-root DIR]
   cairn doctor [--repair]
+  cairn doctor --remote [--search] [--scope SCOPE] [--project-id ID] [--timeout-ms N] [--json]
   cairn trajectory <list|show|prune>
   cairn proposals <create|list|show|apply|doctor>
   cairn wiki-evidence <plan|apply|check> --project PATH
@@ -101,6 +102,12 @@ export async function main(argv) {
   }
   if (["version", "--version", "-v"].includes(command)) {
     version();
+    return;
+  }
+
+  if (command === 'doctor' && args.includes('--remote')) {
+    const { runRemoteDoctor } = await import('./remote-memory-doctor.mjs');
+    process.exitCode = await runRemoteDoctor(args);
     return;
   }
 
