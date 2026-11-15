@@ -1,6 +1,6 @@
 # L30 — Evidence-bound continuity
 
-**Status:** Brief — unreleased source-checkout supplement, not recorded.
+**Status:** Brief — available since 2.29.0, not recorded.
 Prerequisites: L04, L07, L13 and L26. Suggested lab time: 35 minutes.
 
 ## Outcome
@@ -11,7 +11,8 @@ session's context. No real host names, credentials or production stores.
 
 ## Exercise
 
-1. Build the source checkout. Run `npm --prefix mcp-memory-server run check:evidence-continuation`.
+1. Install Cairnkeep 2.29.0 or newer. Inspect `cairn wiki-evidence --help`,
+   `cairn continuation --help` and `cairn proposals consolidate --help`.
 2. Follow [the explicit manifest example](../../evidence-continuity.md) in a disposable
    project. Inspect a no-write plan and publish only its exact digest.
 3. Change the cited source without changing the wiki. Check the old digest:
@@ -38,3 +39,5 @@ session's context. No real host names, credentials or production stores.
 
 This lab does not enable production features, revise any earlier lesson's
 readiness, or require a new subscription, local inference service or recording.
+Contributors can also build the source checkout and run
+`npm --prefix mcp-memory-server run check:evidence-continuation` offline.

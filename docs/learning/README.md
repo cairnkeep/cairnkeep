@@ -4,7 +4,7 @@ This public learning path teaches Cairnkeep through small, verifiable outcomes.
 It is the technical source for guides, workshops, and independently reviewed
 publication material.
 
-Current compatibility baseline: **2.28.0**. Existing Ready exercises retain their
+Current compatibility baseline: **2.29.0**. Existing Ready exercises retain their
 readiness status with current CLI installation pins; this does not claim new
 filming or a fresh human rehearsal of every lesson. The new
 [opt-in continuity lab](../memory-continuity-workflow.md) and its recording
@@ -13,10 +13,10 @@ enable context tools, convert an existing store or grant production admission.
 
 ## Start here
 
-Source-only optional supplement: [L30 — Evidence-bound continuity](lessons/L30-evidence-continuation.md)
+Optional supplement available since 2.29.0: [L30 — Evidence-bound continuity](lessons/L30-evidence-continuation.md)
 and its [V30 recording brief](video-scripts/V30-evidence-continuation.md) cover
 deterministic source checks, non-consuming continuation and reviewed multi-session
-consolidation. They do not change the released baseline or claim a new recording.
+consolidation. Their Brief status does not imply a rehearsed lab or new recording.
 
 L30 is an optional **Brief** after L26, not a change to the released curriculum totals.
 

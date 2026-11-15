@@ -766,7 +766,7 @@ ID/class/expiry. It neither reads memory text nor sends data to model providers.
 It appends a normal value-free service audit event. Disconnect retains backups
 and tokens and is not server-side revocation. See [onboarding](team-onboarding.md).
 
-## Unreleased local evidence and continuation supplement
+## Local evidence and continuation (since 2.29.0)
 
 `wiki-evidence`, `continuation` and `proposals consolidate` make no provider or
 network calls. They read only explicitly selected local files/projects or stored

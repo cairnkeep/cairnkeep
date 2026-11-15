@@ -1,11 +1,11 @@
 # Curriculum Coverage Map
 
-**Baseline:** Cairnkeep 2.28.0
-**Last reviewed:** 2026-10-31
+**Baseline:** Cairnkeep 2.29.0
+**Last reviewed:** 2026-11-15
 
-Unreleased source supplement reviewed 2026-11-15: L30/V30 cover evidence checks,
-non-consuming continuation and reviewed multi-session consolidation. The released
-baseline and all earlier lesson readiness/recording claims remain unchanged.
+L30/V30 cover evidence checks, non-consuming continuation and reviewed
+multi-session consolidation, available since 2.29.0. Earlier lesson readiness
+and recording claims remain unchanged; these additions are unrecorded briefs.
 
 This map prevents the course from drifting behind the product. It assigns each
 user-facing surface to a lesson and records whether the lesson is complete or
@@ -53,7 +53,7 @@ been rehearsed.
 | Fresh-only tracked storage, revision-bound freshness and managed epoch recovery | L07 | L07 and operator track | Brief; introduced in 2.28.0; opt-in; patched bundled SQLite required; no existing-store conversion |
 | Explicit ordinary-memory links and bounded maps | L04-L05 | L05 and evidence track | Brief; introduced in 2.28.0; opt-in; caller-supplied aliases, current evidence and exact reads |
 | Explicit feedback, typed provenance coherence and joint continuity evidence | L04/L14 | L05/L07, evidence track and V04 supplement | Brief; introduced in 2.28.0; opt-in; ranking off, no gain, no new recording claimed |
-| Deterministic local evidence checking, explicit continuation packets and reviewed cross-session proposals | L30 | L30 and V30 | Brief; unreleased source-only, no automatic capture, provider or new recording |
+| Deterministic local evidence checking, explicit continuation packets and reviewed cross-session proposals | L30 | L30 and V30 | Brief; available since 2.29.0. No automatic capture, provider or new recording |
 
 The optional [combined continuity lab](../memory-continuity-workflow.md) connects
 these opt-in supplements. Core lesson prerequisites and Ready/Brief statuses
@@ -104,8 +104,8 @@ against `cairn help` so a new command cannot bypass a curriculum decision.
 | `cairn bootstrap` | L03 compatibility challenge |
 | `cairn setup` | L03 for Claude/Codex; advanced Pi lifecycle in L23 |
 | `cairn proposals` | L26 |
-| `cairn wiki-evidence` | L30 unreleased source supplement |
-| `cairn continuation` | L30 unreleased source supplement |
+| `cairn wiki-evidence` | L30 optional local supplement, since 2.29.0 |
+| `cairn continuation` | L30 optional local supplement, since 2.29.0 |
 | `cairn memory-server` | L02 |
 | `cairn sync` | L02 |
 | `cairn sync-pi` | L13 and L23 |

@@ -1724,7 +1724,7 @@ are still required before using real organization data.
 Existing personal HTTP remains a trusted single storage domain; token-first
 team JSON HTTP is a different service, not OAuth remote MCP HTTP.
 
-## Unreleased evidence and continuation supplement
+## Local evidence and continuation (since 2.29.0)
 
 Source checkouts add `cairn wiki-evidence plan|apply|check`,
 `cairn continuation create|show` and `cairn proposals consolidate`.

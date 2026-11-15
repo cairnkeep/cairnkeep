@@ -67,7 +67,7 @@ of zero network traffic: configured search advertises open-world behavior.
 
 ## Source material
 
-Source-only advanced extension: request gated `memory_map` for an overview, then
+Optional advanced extension (since 2.28.0): request gated `memory_map` for an overview, then
 read an exact returned key. Compare prefix counts, current source references and
 freshness/ambiguity labels without treating them as truth. Default 4 KiB/hard
 8 KiB includes serialized CallToolResult text/structured content, not transport
@@ -75,7 +75,7 @@ envelopes; `truncated` is explicit and legacy refs are
 null/untracked. Run the [map replay](../../memory-maps.md#reproduce) against the
 equal-information Markdown arm; no general agent-quality gain is implied.
 
-The unreleased [feedback extension](../../memory-feedback.md) provides a separate
+The opt-in [feedback extension](../../memory-feedback.md) provides a separate
 provenance-bearing search and explicit session-bound useful/stale/wrong-context
 records. It collects nothing automatically, changes no ranking by collection
 alone, and grants no truth or permission. Practice receipt rejection after a
@@ -87,7 +87,7 @@ the frozen held-out replay found no gain. Explain the three-task minimum,
 0.02 adjustment and one-slot limit without calling them anti-Sybil protection.
 
 Follow the optional [joint continuity lab](../../memory-continuity-workflow.md)
-only from the matching unreleased source checkout. Explain why three linked
+with Cairnkeep 2.28.0 or newer in disposable tracked projects. Explain why three linked
 records require explicit associations and seven calls, why a bounded map can
 omit an entity, and why a freshness warning does not correct an old fact.
 Compare the independent Markdown arm and retain the no-gain ranking result;

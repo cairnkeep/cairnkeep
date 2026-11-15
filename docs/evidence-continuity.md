@@ -1,9 +1,9 @@
 # Evidence checks, continuation and reviewed consolidation
 
-**Unreleased source-checkout features.** These native Node commands work without
+**Available since Cairnkeep 2.29.0.** These native Node commands work without
 a shell, model, embedding service or new dependency. Nothing runs at startup,
 captures a conversation, injects context or changes production configuration.
-Use `bin/cairn` from a built checkout until a release includes these commands.
+Use the installed `cairn`, or `bin/cairn` from a built source checkout.
 
 ## 1. Deterministic local evidence checks
 
