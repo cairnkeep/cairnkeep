@@ -86,10 +86,14 @@ try {
   }
   // Documentation examples are schema-checked, not just copied from prose.
   const doc = readFileSync(join(import.meta.dirname, '..', '..', 'docs', 'evidence-continuity.md'), 'utf8');
-  const samples = [...doc.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m => JSON.parse(m[1]));
   const { wikiEvidenceInputSchema } = await import('../dist/wiki-evidence.js');
   const { continuationInputSchema } = await import('../dist/continuation.js');
   const { consolidationInputSchema } = await import('../dist/memory-proposal-schema.js');
-  wikiEvidenceInputSchema.parse(samples[0]); continuationInputSchema.parse(samples[1]); consolidationInputSchema.parse(samples[2]);
+  const lf = doc.replace(/\r\n/g, '\n');
+  for (const text of [lf, lf.replace(/\n/g, '\r\n')]) {
+    const samples = [...text.matchAll(/```json\r?\n([\s\S]*?)\r?\n```/g)].map(m => JSON.parse(m[1]));
+    assert.equal(samples.length, 3, 'all documented examples must be checked with LF and CRLF');
+    wikiEvidenceInputSchema.parse(samples[0]); continuationInputSchema.parse(samples[1]); consolidationInputSchema.parse(samples[2]);
+  }
   console.log('PASS: deterministic evidence, literal fidelity, bounded non-consuming cross-process/cwd/project continuity and hostile local paths');
 } finally { rmSync(scratch, { recursive: true, force: true }); }
