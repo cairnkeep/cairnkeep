@@ -28,7 +28,7 @@ done
 guide=docs/memory-continuity-workflow.md
 [[ -f "$guide" ]] || { echo 'INTEGRATED_DOCS_RED: missing source-only continuity workflow guide' >&2; exit 1; }
 grep -qF 'cp "$trial/node_modules/@cairnkeep/cli/scripts/test-memory-context-installed.mjs"' "$guide" || {
-  echo 'INSTALLED_DRILL_RED: copy the self-contained drill outside the installed package before running it' >&2; exit 1;
+  echo 'INSTALLED_DRILL_RED: copy the single-file entry point outside the installed package before running it' >&2; exit 1;
 }
 grep -qF 'node "$trial/installed-drill.mjs" "$trial/node_modules/@cairnkeep/cli"' "$guide"
 for phrase in 'Status: available since Cairnkeep 2.28.0' 'opt-in' 'node bin/cairn' 'freshness,links,maps,feedback' \

@@ -229,4 +229,25 @@ done
 grep -qF 'freshness,links,maps,feedback' docs/learning/video-scripts/V04-memory-retrieval-supplement.md
 grep -qF 'smoke-memory-feedback-coherence.mjs' docs/learning/lessons/L14-typed-memory.md
 grep -qF 'introduced in 2.28.0; opt-in' "$coverage"
+grep -qF 'Available since Cairnkeep 2.29.0' docs/evidence-continuity.md || {
+  echo 'CONTINUITY_RELEASE_RED: evidence guide still describes checkout-only availability' >&2
+  exit 1
+}
+grep -qF 'Evidence and continuation (since 2.29.0)' "$feature_guide"
+grep -qF 'Brief — available since 2.29.0, not recorded' docs/learning/lessons/L30-evidence-continuation.md
+grep -qF 'Recording brief only; available since 2.29.0, no video produced' docs/learning/video-scripts/V30-evidence-continuation.md
+grep -qF 'No automatic capture, provider or new recording' "$coverage"
+for command in wiki-evidence continuation proposals; do
+  help_output=$(bin/cairn "$command" --help)
+  grep -qF "cairn $command" <<< "$help_output"
+done
+grep -qF 'cairn proposals --help' docs/learning/lessons/L30-evidence-continuation.md
+grep -qF 'Available since Cairnkeep 2.29.0' docs/context-intelligence.md || {
+  echo 'CONTINUITY_RELEASE_RED: context guide still describes source-only availability' >&2
+  exit 1
+}
+grep -qF '#### Explicit remote check (since 2.29.0)' docs/operating.md
+grep -qF '| Explicit remote doctor (since 2.29.0) |' docs/privacy-and-data-flow.md
+grep -qF 'Since 2.29.0, `cairn doctor --remote`' docs/harness-compatibility.md
+grep -qF '### Optional remote diagnostic supplement (since 2.29.0)' docs/learning/video-scripts/V28-security-assurance.md
 echo "PASS: public learning path structure, readiness, links, and version alignment"

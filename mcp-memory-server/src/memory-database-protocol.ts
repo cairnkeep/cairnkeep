@@ -1,8 +1,15 @@
 // Internal worker protocol. No SQL or worker options are accepted from MCP input.
+import { WINDOWS_SECURITY_COMMAND_TIMEOUT_MS } from './platform-security-limits.js';
+
+export function memoryStartupDeadlineMs(platform = process.platform): number {
+    // Windows performs a bounded native identity lookup and two fresh ACL
+    // batches before readiness. Retain a finite overall bound for that work.
+    return platform === 'win32' ? 3 * WINDOWS_SECURITY_COMMAND_TIMEOUT_MS : 5_000;
+}
 export const MEMORY_DATABASE_LIMITS = Object.freeze({
     queueEntries: 128, queueBytes: 64 * 1024 * 1024,
     requestBytes: 8 * 1024 * 1024, replyBytes: 32 * 1024 * 1024,
-    startupMs: 5_000, operationMs: 30_000, backupMs: 120_000,
+    startupMs: memoryStartupDeadlineMs(), operationMs: 30_000, backupMs: 120_000,
     snapshotBytes: 512 * 1024 * 1024,
 });
 export type MemoryDatabaseLimits = { -readonly [K in keyof typeof MEMORY_DATABASE_LIMITS]: number };

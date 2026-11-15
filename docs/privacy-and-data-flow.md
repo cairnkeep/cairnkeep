@@ -40,7 +40,7 @@ or physical erasure. No existing-store conversion or production enrollment occur
 | Privacy-reviewed OKF export | None | Only explicitly named Markdown/promoted shared notes are redacted into the operator-selected local output directory after exact preview confirmation |
 | Optional Graphify workflow | The repository path, exact query/symbol names, root `graphify-out/` work directory, and local `.planning/graphs/` publication are passed to or produced by the operator-installed `graphify` executable | Local Graphify subprocess with a minimal environment and no provider credentials; managed build uses code-only `update`, never semantic document extraction |
 | Remote HTTP memory | MCP requests and responses, including memory content | The explicitly registered Cairnkeep HTTP server |
-| Explicit remote doctor (matching source / next release) | Credential-bearing MCP initialization, tool discovery and one random exact-key read; optional synthetic search | Only exported `CAIRN_MEMORY_REMOTE_URL`, with no redirects or endpoint discovery. Output omits endpoint/token/memory/error bodies; optional search can use existing server-side providers and caches. No memory mutation RPC; only its own ephemeral session is closed |
+| Explicit remote doctor (since 2.29.0) | Credential-bearing MCP initialization, tool discovery and one random exact-key read; optional synthetic search | Only exported `CAIRN_MEMORY_REMOTE_URL`, with no redirects or endpoint discovery. Output omits endpoint/token/memory/error bodies; optional search can use existing server-side providers and caches. No memory mutation RPC; only its own ephemeral session is closed |
 | Opt-in trajectory capture | None | Local `<project>/.agentfs/trajectory.db` only; no model or HTTP path exists |
 | Opt-in capability callback records | None | Payload-free final metadata in local `<project>/.agentfs/trajectory.db`; HTTP transport is always skipped |
 | Opt-in Git-linked work evidence | Repository-relative Git state and exact local object identifiers | Local `<Git root>/.agentfs/work-evidence/v1/`; HTTP transport is always skipped |
@@ -765,3 +765,13 @@ to the configured service and returns only subject, roles and credential
 ID/class/expiry. It neither reads memory text nor sends data to model providers.
 It appends a normal value-free service audit event. Disconnect retains backups
 and tokens and is not server-side revocation. See [onboarding](team-onboarding.md).
+
+## Local evidence and continuation (since 2.29.0)
+
+`wiki-evidence`, `continuation` and `proposals consolidate` make no provider or
+network calls. They read only explicitly selected local files/projects or stored
+local trajectories. Records contain selected paths, quotations, project bindings
+and potentially sensitive text; protect them and any redirected JSON output.
+Continuation ownership is a caller label, not authenticated identity. Nothing
+is injected automatically, and no capture, sharing permission or approval is
+inferred. [Formats, authority and storage limits](evidence-continuity.md).

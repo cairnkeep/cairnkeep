@@ -10,6 +10,9 @@ for shell in bash zsh fish; do
   [[ -s $tmp/$shell ]]
   grep -q 'completion' "$tmp/$shell"
   grep -q 'memory-context' "$tmp/$shell"
+  grep -q 'wiki-evidence' "$tmp/$shell"
+  grep -q 'continuation' "$tmp/$shell"
+  grep -q 'consolidate' "$tmp/$shell"
   grep -q 'set-freshness' "$tmp/$shell"
   grep -q 'feedback' "$tmp/$shell"
   grep -q 'forget' "$tmp/$shell"

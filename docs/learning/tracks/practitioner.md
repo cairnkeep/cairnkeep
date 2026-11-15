@@ -1,5 +1,9 @@
 # Practitioner Track
 
+After L26, optionally use the local, since-2.29.0
+[L30 evidence-bound continuity supplement](../lessons/L30-evidence-continuation.md).
+This is an additional 35-minute brief, outside the released track's time/readiness.
+
 **Audience:** developers adopting Cairnkeep in daily work
 **Prerequisite:** Quickstart track
 **Total time:** about 4 hours 35 minutes
@@ -24,7 +28,7 @@ for cross-session orientation, then read exact sources. Scope partitions,
 truncation, asserted freshness and a private disposable cache are not new
 permission or factual verification. Released prerequisites stay unchanged.
 
-For explicit usefulness capture, follow the unreleased
+For explicit usefulness capture, follow the opt-in
 [feedback lab](../../memory-feedback.md): search with an opaque task digest,
 record one outcome deliberately, demonstrate stale/session refusal, inspect
 minimized records and confirm an exact forget plan. Collection alone changes
@@ -32,11 +36,11 @@ no ranking and never substitutes for source review or sharing approval.
 Inspect the separate default-off ranking replay and its no-gain result; leave
 ranking disabled rather than tuning to held-out cases or claiming quality gains.
 
-Optional source-only supplement after L07:
+Optional opt-in supplement after L07 (since 2.28.0):
 [fresh and connected continuity](../../memory-continuity-workflow.md). Practice
 handoff, bounded orientation, exact reads and an overdue warning together;
 separate ordinary query results from the extra-curated linked workflow. This
-unreleased lab changes neither the released setup nor lesson readiness.
+synthetic lab changes neither the default setup nor lesson readiness.
 
 Hands-on spine: `course-02-memory`, `course-03-quality`, and
 `course-05-evidence`, and `course-13-playbooks` in the public

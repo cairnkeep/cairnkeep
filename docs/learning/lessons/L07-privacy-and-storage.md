@@ -24,8 +24,8 @@ will go before starting a session.
   `status` and `doctor` inspect the format without initializing SDK schemas.
   Existing stores are not converted, older clients refuse the new format, and
   turning off context tools does not roll back storage. Use disposable stores
-  only: foundation platform/recovery gates pass, but production admission and
-  release remain separate decisions. This is not a
+  only: release qualification does not grant deployment-specific production
+  admission. This is not a
   rehearsed lesson or a change to the released installation instructions.
 - Advanced recovery brief: `cairn memory-context backup --output FILE` creates
   a standalone no-overwrite snapshot. `restore --input FILE` plans an absent,
@@ -41,14 +41,18 @@ will go before starting a session.
 - Runtime check: the Node 22.16 API floor is not a safe SQLite-version promise.
   Tracked stores require a bundled SQLite with the WAL-reset fix; an unsupported
   native runtime refuses before writes while ordinary legacy memory still works.
-- Development-only freshness brief: explicit assertions bind source generations,
+- Bounded initialization: distinguish a worker's startup timer from an entire
+  tool call. Since 2.29.0 Windows budgets 30 seconds for mandatory native
+  identity/ACL checks; Unix keeps five seconds. No permission check or legacy
+  format boundary is bypassed. See the [storage bounds](../../storage.md#tracked-store-foundation-opt-in-since-2280).
+- Optional freshness brief (since 2.28.0): explicit assertions bind source generations,
   metadata revisions and restore epochs. Changed facts cannot become verified
   again merely because their old text returns. Source references are opaque,
   never fetched; reads do not verify facts. In the opt-in 2.28 workflow,
   demonstrate local `memory-context set-freshness` plan/exact-digest apply,
   `inspect` and metadata-only `doctor` on a disposable store. Show gated read-only
   `memory_inspect`, its separate HTTP consent and stale-plan refusal. Do not
-  imply released availability, independent native qualification or a recording.
+  imply deployment-specific production admission or a new recording.
   Explain that oversized escaped keys refuse rather than changing identity, and
   legacy inspection never initializes SDK tables. Its bounded read-only child
   cannot change the main server's SDK connection cache or later write behavior.
@@ -69,7 +73,7 @@ HTTP traffic is distinct from external provider traffic, and one bearer domain
 does not create per-user ACLs. Keep this opt-in supplement separate from
 ordinary released setup and legacy Windows locking limits.
 
-Source-only map extension: identify the private disposable `.memory-map-cache/`
+Optional map extension (since 2.28.0): identify the private disposable `.memory-map-cache/`
 beside the selected database. It can contain sensitive keys/titles/provenance,
 but is not authoritative memory or part of managed backups. A missing/corrupt
 cache must not enable access, conversion or network traffic. Demonstrate HTTP's

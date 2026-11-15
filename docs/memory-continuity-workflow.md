@@ -13,7 +13,7 @@ project sources and outside facts still need their own verification.
 
 ## Start with the right boundary
 
-### Installed-package trial: 2.28.0
+### Installed-package trial: 2.29.0
 
 Use the exact published version, never an unpinned channel, for a repeatable
 isolated trial. Package availability is not deployment-specific admission.
@@ -25,20 +25,22 @@ Install into a new prefix and run the maintained installed-package drill:
 ```sh
 trial=$(mktemp -d)
 npm install --prefix "$trial" --ignore-scripts --no-audit --no-fund \
-  @cairnkeep/cli@2.28.0
+  @cairnkeep/cli@2.29.0
 cp "$trial/node_modules/@cairnkeep/cli/scripts/test-memory-context-installed.mjs" \
   "$trial/installed-drill.mjs"
 node "$trial/installed-drill.mjs" "$trial/node_modules/@cairnkeep/cli"
 ```
 
-Copying the self-contained drill outside the installed package lets it verify
-that its target really is a separate installation. The drill uses a separate
-private home and synthetic stores, importing only
-installed package modules. It checks legacy bytes, explicit fresh init, graph/
-map/feedback and managed epoch recovery; it does not upgrade a server or prove
+Copying the single-file entry point outside the installed package lets it verify
+that its target really is a separate installation. Supplemental checks load from
+that same installed package; no sibling copy or source checkout is required.
+The drill uses a separate private home and synthetic stores, importing only
+installed package modules. It checks local evidence/continuation/consolidation,
+legacy bytes, explicit fresh init, graph/map/feedback and managed epoch recovery;
+it does not upgrade a server or prove
 autonomous task quality. Keep the prefix for inspection. The full source replay
 below independently covers two-client handoff and the combined workflow.
-Stable lesson compatibility pins are 2.28.0; new-format teaching material remains
+Stable lesson compatibility pins are 2.29.0; new-format teaching material remains
 a brief, not a newly recorded lesson or independent-human pilot.
 
 The released CLI still requires Node 22 or newer. Fresh tracked stores additionally

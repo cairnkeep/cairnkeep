@@ -1181,7 +1181,9 @@ its settings file and exports `CAIRN_EXTRA_SETTINGS` — no change to the launch
 
 ### `cairn doctor`
 
-#### Explicit remote check — matching source checkout / next release
+<a id="explicit-remote-check--matching-source-checkout--next-release"></a>
+
+#### Explicit remote check (since 2.29.0)
 
 The separate remote mode checks the **exported environment**, not a harness's
 cached connection or registration file. It does not source project shell files,
@@ -1197,7 +1199,9 @@ cairn doctor --remote --scope project --project-id example-project --json
 cairn doctor --remote --search --timeout-ms 5000 --json
 ```
 
-Wrappers that own `doctor` may require their explicit core-command passthrough.
+Managed wrappers can own `doctor`; use the route documented by that distribution
+and check which private configuration it forwards. A neutral core passthrough
+can deliberately strip managed credentials.
 On a source checkout use `node bin/cairn` instead of the installed `cairn`.
 Remote mode is native Node on Windows, macOS and Linux, with no Bash requirement.
 It cannot be combined with `--repair`.
@@ -1723,3 +1727,12 @@ independent production review and a deployment-specific approved real-data pilot
 are still required before using real organization data.
 Existing personal HTTP remains a trusted single storage domain; token-first
 team JSON HTTP is a different service, not OAuth remote MCP HTTP.
+
+## Local evidence and continuation (since 2.29.0)
+
+Source checkouts add `cairn wiki-evidence plan|apply|check`,
+`cairn continuation create|show` and `cairn proposals consolidate`.
+See [the complete schemas-by-example, limits and recovery guide](evidence-continuity.md).
+These commands are explicit local operations; setup, startup, ordinary doctor
+and MCP discovery are unchanged. They do not schedule maintenance, select a
+model, consume handoffs or authorize durable memory writes automatically.

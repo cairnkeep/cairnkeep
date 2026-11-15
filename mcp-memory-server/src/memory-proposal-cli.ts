@@ -2,11 +2,14 @@
 import {
     applyMemoryProposal,
     createMemoryProposal,
+    createConsolidationProposal,
     doctorMemoryProposals,
     listMemoryProposals,
     showMemoryProposal,
 } from "./memory-proposal-store.js";
 import type { ExtractionCategory } from "./memory-extraction.js";
+import { readLocalInput } from './local-context-record.js';
+import { localContextArgs } from './local-context-cli.js';
 
 const categories = new Set<ExtractionCategory>(["decision", "preference", "pattern", "pitfall", "constraint", "bug", "convention"]);
 
@@ -15,6 +18,7 @@ function usage(): string {
 
 Usage:
   cairn proposals create --session ID --scope SCOPE [--model MODEL] [--category CATEGORY] [--project PATH] [--json]
+  cairn proposals consolidate --session ID --session ID [--session ID...] --scope SCOPE --input FILE [--project PATH] [--json]
   cairn proposals list [--project PATH] [--json]
   cairn proposals show DIGEST [--project PATH] [--json]
   cairn proposals apply DIGEST [--project PATH] [--json]
@@ -58,6 +62,17 @@ async function main(): Promise<void> {
     const json = args.includes("--json");
     try {
         if (["help", "--help", "-h"].includes(command)) { process.stdout.write(usage()); return; }
+        if (command === 'consolidate') {
+            const ids: string[] = [], rest: string[] = [];
+            for (let i = 0; i < args.length; i++) {
+                if (args[i] === '--session') { const id = args[++i]; if (!id || id.startsWith('--')) throw new Error('Missing session ID.'); ids.push(id); }
+                else rest.push(args[i]);
+            }
+            const { options, positional } = localContextArgs(rest, ['--project', '--scope', '--input', '--json']);
+            if (positional.length || !options.has('--scope') || !options.has('--input')) throw new Error('consolidate requires sessions, --scope and --input.');
+            print(await createConsolidationProposal({ projectRoot, sessionIds: ids, scope: options.get('--scope')!, input: readLocalInput(options.get('--input')!) }), json);
+            return;
+        }
         if (command === "create") {
             const sessionId = valueAfter(args, "--session");
             const scope = valueAfter(args, "--scope");

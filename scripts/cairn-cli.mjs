@@ -11,6 +11,8 @@ const NODE_COMMANDS = new Map([
   ["memory-context", "memory-context-cli.js"],
   ["trajectory", "trajectory-cli.js"],
   ["proposals", "memory-proposal-cli.js"],
+  ["wiki-evidence", "wiki-evidence-cli.js"],
+  ["continuation", "continuation-cli.js"],
   ["artifact", "artifact-cli.js"],
   ["capabilities", "capability-cli.js"],
   ["mcp-tools", "mcp-tool-cli.js"],
@@ -56,6 +58,8 @@ Usage:
   cairn doctor --remote [--search] [--scope SCOPE] [--project-id ID] [--timeout-ms N] [--json]
   cairn trajectory <list|show|prune>
   cairn proposals <create|list|show|apply|doctor>
+  cairn wiki-evidence <plan|apply|check> --project PATH
+  cairn continuation <create|show> --project PATH
   cairn artifact <list|show|delete|prune>
   cairn capabilities <list|status|enable|disable|reset|logging>
   cairn mcp-tools <list|status|set|reset>

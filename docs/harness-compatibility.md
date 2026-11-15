@@ -4,12 +4,12 @@ Cairnkeep separates memory transport from harness-specific operating assets.
 An MCP client can use the memory tools without also supporting Cairnkeep's
 commands, hooks, plugins, or trajectory adapters.
 
-From the matching source checkout / next release, `cairn doctor --remote` offers
+Since 2.29.0, `cairn doctor --remote` offers
 the same bounded, authenticated fresh-session observation on all native platforms.
 It uses exported configuration, not a harness's MCP registration or connection;
-wrappers may need an explicit core passthrough. It neither reconnects the harness
+managed wrappers may own its configuration-forwarding route. It neither reconnects the harness
 nor proves a specific harness/model integration or server-side embedding mode.
-See [remote diagnostics](operating.md#explicit-remote-check--matching-source-checkout--next-release).
+See [remote diagnostics](operating.md#explicit-remote-check-since-2290).
 
 All six generated launchers—Claude Code, OpenCode, Kimi, Qwen, Pi and Codex—
 support the same opt-in Git-linked work-evidence wrapper. The wrapper is local,
@@ -27,6 +27,9 @@ stores are not converted. The foundation passed native-platform and independent
 review gates; its context tools also passed separate qualification, not a
 claim derived solely from the existing harness matrix below.
 See [storage lifecycle and recovery](storage.md#tracked-store-foundation-opt-in-since-2280).
+From 2.29.0, Windows tracked-worker startup allows 30 seconds for its mandatory
+native identity/ACL validation; Unix keeps five seconds. This is not the entire
+MCP request deadline and does not remove any ACL or stalled-worker control.
 The Node 22.16 API floor alone is insufficient: tracked stores also require the
 bundled SQLite WAL-reset fix (3.51.3+ or documented maintenance backports).
 Unpatched native admission is refused; legacy stores keep their existing runtime.
