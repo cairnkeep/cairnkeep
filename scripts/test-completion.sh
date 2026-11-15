@@ -63,6 +63,9 @@ for shell in bash zsh fish; do
   grep -q -- '--project\|-l project' "$tmp/$shell"
   grep -q 'init.*lock.*validate.*install.*list.*show.*remove.*enable.*disable.*update.*skills.*approve-skill.*revoke-skill.*doctor\|init lock validate install list show remove enable disable update skills approve-skill revoke-skill doctor' "$tmp/$shell"
   grep -q -- '--repair\|-l repair' "$tmp/$shell"
+  for remote_flag in remote search scope project-id timeout-ms json; do
+    grep -q -- "--$remote_flag\|-l $remote_flag" "$tmp/$shell"
+  done
   grep -q 'proposals' "$tmp/$shell"
   grep -q 'create.*list.*show.*apply.*doctor\|create list show apply doctor' "$tmp/$shell"
   for proposal_flag in --session --scope --model --category --project --json; do
@@ -83,6 +86,7 @@ for shell in bash zsh fish; do
 done
 
 "$ROOT/bin/cairn" help >"$tmp/root-help"
+grep -qF 'cairn doctor --remote' "$tmp/root-help"
 grep -qF 'cairn eval <validate|run|ablate|report|prune|delete|protocol>' "$tmp/root-help"
 node "$ROOT/mcp-memory-server/dist/eval-cli.js" --help >"$tmp/eval-help"
 for command in $eval_commands; do

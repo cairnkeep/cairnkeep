@@ -48,6 +48,14 @@ feedback exports and the retained old directory. Feature-off is not a storage
 rollback; no existing-store conversion, production activation or team enrollment
 is part of this lab. Released prerequisites and Brief statuses stay unchanged.
 
+Source-checkout / next-release reliability exercise: compare a bounded fresh
+`doctor --remote --json` session with the affected harness, then optionally
+exercise search. Separate client/session, authentication/network, read-tool
+policy, timeout and provider-fallback evidence. Keep endpoint/token/memory bodies
+out of recordings. The diagnostic does not restart a server, alter an MCP entry,
+convert memory or repair another harness's session. See
+[the remote check](../../operating.md#explicit-remote-check--matching-source-checkout--next-release).
+
 Hands-on spine: `course-04-operation`, `course-06-governance`, and
 `course-07-evaluation`, `course-10-trust-context`, and
 `course-12-guided-setup`, and `course-13-playbooks` in the public

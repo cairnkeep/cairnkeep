@@ -5,6 +5,13 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+- Add explicit, cross-platform `cairn doctor --remote` diagnostics for fresh
+  authenticated MCP initialization, tool discovery and an exact-key read.
+  Optional `--search` exercises the existing search path without claiming
+  provider availability rather than fallback. Stage/total deadlines, response
+  limits, redirect refusal and redacted errors keep diagnosis bounded. Ordinary
+  doctor behavior and all runtime/provider/sharing defaults remain unchanged.
+
 ## [2.28.0] - 2026-10-31
 
 Promote the qualified Fresh and Connected Memory preview to a stable package.

@@ -102,6 +102,16 @@ installation.
 
 ## Common failures
 
+For remote memory, ordinary doctor checks and a harness registration are
+different evidence. On the matching source checkout / next release, export the
+approved endpoint and private token source, then run `cairn doctor --remote
+--json`. Add explicit project routing when needed. A successful fresh probe with
+a hung harness suggests checking/reconnecting that client; it does not identify
+the precise failing component. Never paste tokens into command arguments or
+record a terminal that shows them. Optional `--search` can use existing
+server-side providers; do not label fallback as verified semantic retrieval.
+See the [remote check contract](../../operating.md#explicit-remote-check--matching-source-checkout--next-release).
+
 | Symptom | Cause | Recovery |
 |---|---|---|
 | `cairn` is not found | npm global bin directory is absent from `PATH` | Run `npm prefix -g`, locate its bin directory, and update `PATH` |

@@ -25,7 +25,7 @@ _cairn_complete() {
     sync-pi) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
     sync-kimi) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
     sync-omp) COMPREPLY=( $(compgen -W "--apply --live-root" -- "$current") ) ;;
-    doctor) COMPREPLY=( $(compgen -W "--repair" -- "$current") ) ;;
+    doctor) COMPREPLY=( $(compgen -W "--repair --remote --search --scope --project-id --timeout-ms --json" -- "$current") ) ;;
     security) COMPREPLY=( $(compgen -W "doctor --project --json" -- "$current") ) ;;
     team) COMPREPLY=( $(compgen -W "connect disconnect init project member credential create set remove issue revoke serve mcp list read search history propose proposals proposal-show review audit audit-export audit-verify audit-archive doctor backup restore memory-delete --backup --previous --page-size --cursor --read-only --organization --data --project --roles --class --expires-at --output --input --confirm --port --key --query --proposal --decision --revision --project-root --connection --client --url --token-file --harness --access --apply --yes" -- "$current") ) ;;
     trajectory) COMPREPLY=( $(compgen -W "list show prune --json --dry-run" -- "$current") ) ;;
@@ -134,7 +134,7 @@ _cairn() {
     sync-pi) _arguments '--apply[apply changes]' '--live-root[Pi agent root]:directory:_files -/' ;;
     sync-kimi) _arguments '--apply[apply changes]' '--live-root[Kimi Code root]:directory:_files -/' ;;
     sync-omp) _arguments '--apply[apply changes]' '--live-root[omp agent root]:directory:_files -/' ;;
-    doctor) _arguments '--repair[repair trajectory metadata and indexes]' ;;
+    doctor) _arguments '--repair[repair safe derived metadata and indexes]' '--remote[probe a fresh authenticated remote MCP session]' '--search[also probe remote search using existing server providers]' '--scope[one concrete remote scope]:scope:' '--project-id[explicit remote project identity]:project ID:' '--timeout-ms[per-stage deadline 250..30000 ms]:milliseconds:' '--json[emit redacted remote diagnostic JSON]' ;;
     security) _values 'security command' doctor '--project[project root]:directory:_files -/' '--json[emit JSON]' ;;
     memory-context) _values 'memory context command' init status doctor backup restore inspect set-freshness entity link set remove related map feedback list export forget '--entity[explicit ID or alias]:entity:' '--direction[traversal direction]:direction:(outbound inbound both)' '--depth[bounded traversal]:depth:(1 2)' '--limit[node or map entry limit]:limit:' '--max-bytes[map UTF-8 budget 1024..8192]:bytes:' '--scope[concrete memory scope]:scope:' '--project[project root]:directory:_files -/' '--key[live ordinary key]:key:' '--input[snapshot or curation JSON]:file:_files' '--output[new snapshot file]:file:_files' '--apply[apply confirmed plan]' '--confirm[exact plan digest]:digest:' '--json[emit JSON]' ;;
     team) _values 'team command' connect disconnect init project member credential create set remove issue revoke serve mcp list read search history propose proposals proposal-show review audit audit-export audit-verify audit-archive doctor backup restore memory-delete '--previous[previous archive segment]:file:_files' '--backup[verified backup file]:file:_files' '--page-size[page bound]:value:' '--cursor[continuation]:value:' '--read-only[observe-only backup]' '--organization[team option]:value:' '--data[team option]:value:' '--project[team option]:value:' '--roles[team option]:value:' '--class[team option]:value:' '--expires-at[team option]:value:' '--output[team option]:value:' '--input[team option]:value:' '--confirm[team option]:value:' '--port[team option]:value:' '--key[team option]:value:' '--query[team option]:value:' '--proposal[team option]:value:' '--decision[team option]:value:' '--revision[team option]:value:' '--apply[apply plan]' '--yes[confirm plan]' '--client[client diagnostics]' '--url[team URL]:value:' '--token-file[private credential file]:file:_files' '--harness[team adapters]:value:' '--access[tool profile]:value:(read-only full)' '--connection[private connection file]:file:_files' '--project-root[team option]:value:' ;;
@@ -222,6 +222,12 @@ complete -c cairn -n "__fish_seen_subcommand_from setup" -l yes
 complete -c cairn -n "__fish_seen_subcommand_from setup" -l json
 complete -c cairn -n "__fish_seen_subcommand_from memory" -a "path export import"
 complete -c cairn -n "__fish_seen_subcommand_from doctor" -l repair
+complete -c cairn -n "__fish_seen_subcommand_from doctor" -l remote
+complete -c cairn -n "__fish_seen_subcommand_from doctor" -l search
+complete -c cairn -n "__fish_seen_subcommand_from doctor" -l scope -r
+complete -c cairn -n "__fish_seen_subcommand_from doctor" -l project-id -r
+complete -c cairn -n "__fish_seen_subcommand_from doctor" -l timeout-ms -r
+complete -c cairn -n "__fish_seen_subcommand_from doctor" -l json
 complete -c cairn -n "__fish_seen_subcommand_from security" -a "doctor"
 complete -c cairn -n "__fish_seen_subcommand_from security" -l project -r
 complete -c cairn -n "__fish_seen_subcommand_from security" -l json
