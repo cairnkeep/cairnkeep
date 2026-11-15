@@ -31,7 +31,7 @@ linked guides rather than the project landing page.
 
 ## Context intelligence
 
-- [Evidence checks, continuation and reviewed consolidation (unreleased)](evidence-continuity.md)
+- [Evidence checks, continuation and reviewed consolidation (since 2.29.0)](evidence-continuity.md)
   adds deterministic source/quote checks, non-consuming packets and explicitly
   reviewed multi-session proposals without background capture or model calls.
 

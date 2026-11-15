@@ -1,6 +1,6 @@
 # Memory storage and deployment
 
-Unreleased source-checkout supplement: [evidence and continuation records](evidence-continuity.md#storage-rollback-and-qualification)
+Since 2.29.0, explicit local [evidence and continuation records](evidence-continuity.md#storage-rollback-and-qualification)
 live privately under `.agentfs/local-context/{wiki-evidence,continuations}/`.
 Multi-session proposals reuse `.agentfs/memory-proposals/`. Generic memory export
 does not include these directories; back them up separately. Ordinary uninstall

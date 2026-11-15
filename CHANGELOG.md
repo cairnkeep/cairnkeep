@@ -5,12 +5,35 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [2.29.0] - 2026-11-15
+
+### Evidence-bound continuity
+
+- Add explicit local `wiki-evidence plan|apply|check` with exact quotations,
+  source/page hashes, bounded relative links and affected-page reports.
+- Add immutable, exact-digest continuation packets with selected project
+  bindings, assertion labels, stale-evidence checks and whole-entry byte limits.
+  Reading never consumes a packet or executes its next-step text.
+- Consolidate explicitly selected session evidence through ordinary reviewed
+  proposals. Preserve required literals, hypothesis labels and current source
+  hashes; proposal creation never bypasses review or promotes facts automatically.
+- Keep these commands local and operator-invoked: no new MCP tool, model call,
+  provider, capture hook, startup injection, migration or runtime default change.
+- Align operating, privacy, storage, agent and learning guides. L30 and V30
+  remain briefs; no new recording, human pilot or model-quality gain is claimed.
+
+### Diagnostics and security maintenance
+
 - Add explicit, cross-platform `cairn doctor --remote` diagnostics for fresh
   authenticated MCP initialization, tool discovery and an exact-key read.
   Optional `--search` exercises the existing search path without claiming
   provider availability rather than fallback. Stage/total deadlines, response
   limits, redirect refusal and redacted errors keep diagnosis bounded. Ordinary
   doctor behavior and all runtime/provider/sharing defaults remain unchanged.
+- Update the MCP SDK and resolved HTTP transport dependencies to reviewed patch
+  versions, and refresh SHA-pinned CodeQL and registry-login actions.
+- Validate documentation examples with both LF and CRLF line endings, retaining
+  their strict schemas and native Windows qualification requirements.
 
 ## [2.28.0] - 2026-10-31
 

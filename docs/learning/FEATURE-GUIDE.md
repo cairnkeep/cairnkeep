@@ -1,6 +1,6 @@
 # Cairnkeep feature guide
 
-**Baseline:** Cairnkeep 2.28.0
+**Baseline:** Cairnkeep 2.29.0
 
 This is the step-back map for choosing and operating Cairnkeep features. The
 [course labs](https://github.com/cairnkeep/cairnkeep-course-labs) provide one
@@ -246,7 +246,7 @@ neither substitutes for independent production review and a deployment-specific
 approved real-data pilot. This is a bounded experimental preview, not general
 production admission.
 
-## Unreleased source-only evidence and continuation
+## Evidence and continuation (since 2.29.0)
 
 See [the local evidence/continuation guide](../evidence-continuity.md) and
 [L30](lessons/L30-evidence-continuation.md). Explicit `wiki-evidence` checks,

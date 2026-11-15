@@ -229,4 +229,12 @@ done
 grep -qF 'freshness,links,maps,feedback' docs/learning/video-scripts/V04-memory-retrieval-supplement.md
 grep -qF 'smoke-memory-feedback-coherence.mjs' docs/learning/lessons/L14-typed-memory.md
 grep -qF 'introduced in 2.28.0; opt-in' "$coverage"
+grep -qF 'Available since Cairnkeep 2.29.0' docs/evidence-continuity.md || {
+  echo 'CONTINUITY_RELEASE_RED: evidence guide still describes checkout-only availability' >&2
+  exit 1
+}
+grep -qF 'Evidence and continuation (since 2.29.0)' "$feature_guide"
+grep -qF 'Brief — available since 2.29.0, not recorded' docs/learning/lessons/L30-evidence-continuation.md
+grep -qF 'Recording brief only; available since 2.29.0, no video produced' docs/learning/video-scripts/V30-evidence-continuation.md
+grep -qF 'No automatic capture, provider or new recording' "$coverage"
 echo "PASS: public learning path structure, readiness, links, and version alignment"

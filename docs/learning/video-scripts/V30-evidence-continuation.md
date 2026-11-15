@@ -1,6 +1,6 @@
 # V30 — Resume without losing the evidence
 
-**Recording brief only; unreleased source features, no video produced.**
+**Recording brief only; available since 2.29.0, no video produced.**
 Audience: experienced developers. Companion: [L30](../lessons/L30-evidence-continuation.md).
 
 1. **Open with the user problem (30 seconds).** "Yesterday's task crossed two
@@ -24,4 +24,4 @@ Audience: experienced developers. Companion: [L30](../lessons/L30-evidence-conti
 
 Use deliberate pauses after digest comparisons and failure output. Keep commands
 visible long enough to read; use real disposable command output, not fabricated
-results. Source-only availability must remain visible until a verified release.
+results. Keep the installed version pin and the unrecorded Brief status visible.
