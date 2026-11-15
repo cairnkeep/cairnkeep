@@ -7,7 +7,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export async function runInstalledEvidenceContinuity(packageRoot) {
   const installed = realpathSync(packageRoot);
-  assert.notEqual(installed, realpathSync(fileURLToPath(new URL('..', import.meta.url))));
   const load = name => import(pathToFileURL(join(installed, 'mcp-memory-server', 'dist', name + '.js')).href);
   const { hardenPrivatePath } = await load('platform-security');
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'cairn-installed-continuity-'))); hardenPrivatePath(scratch);
@@ -55,4 +54,9 @@ export async function runInstalledEvidenceContinuity(packageRoot) {
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await runInstalledEvidenceContinuity(process.argv[2]);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  // Executable entry points establish source/target separation. The exported
+  // check is also called by the external drill using this installed module.
+  assert.notEqual(realpathSync(process.argv[2]), realpathSync(fileURLToPath(new URL('..', import.meta.url))), 'Installed check requires a separate target.');
+  await runInstalledEvidenceContinuity(process.argv[2]);
+}

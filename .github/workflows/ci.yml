@@ -159,14 +159,19 @@ jobs:
           $prefix = Join-Path $env:RUNNER_TEMP 'Tracked package install'
           npm install --global --prefix $prefix (Join-Path (Get-Location) $package)
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node scripts/test-memory-context-installed.mjs (Join-Path $prefix 'node_modules/@cairnkeep/cli')
+          $installed = Join-Path $prefix 'node_modules/@cairnkeep/cli'
+          $drill = Join-Path $env:RUNNER_TEMP 'installed-drill.mjs'
+          Copy-Item -LiteralPath (Join-Path $installed 'scripts/test-memory-context-installed.mjs') -Destination $drill
+          node $drill $installed
       - name: Installed tracked worker (POSIX)
         if: runner.os != 'Windows'
         run: |
           package=$(npm pack --ignore-scripts --json | node -e 'let s="";process.stdin.on("data",b=>s+=b).on("end",()=>console.log(JSON.parse(s)[0].filename))')
           prefix="$RUNNER_TEMP/Tracked package install"
           npm install --global --prefix "$prefix" "./$package"
-          node scripts/test-memory-context-installed.mjs "$prefix/lib/node_modules/@cairnkeep/cli"
+          installed="$prefix/lib/node_modules/@cairnkeep/cli"
+          cp "$installed/scripts/test-memory-context-installed.mjs" "$RUNNER_TEMP/installed-drill.mjs"
+          node "$RUNNER_TEMP/installed-drill.mjs" "$installed"
       - name: Diagnose runner ancestor permissions on failure
         if: failure() && runner.os == 'Windows'
         shell: pwsh

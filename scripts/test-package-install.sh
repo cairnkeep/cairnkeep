@@ -60,10 +60,17 @@ env -u CAIRN_NOTE_DISTILLATION cairn notes --help >/dev/null \
   || fail "installed package omitted the notes command"
 
 installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
+for driver in test-memory-context-installed test-evidence-continuity-installed; do
+    if node "$ROOT/scripts/$driver.mjs" "$ROOT" >"$tmp/source-target-$driver.log" 2>&1; then
+        fail "$driver accepted its source checkout as an installed target"
+    fi
+    grep -qF 'Installed check requires a separate target.' "$tmp/source-target-$driver.log" || fail "$driver source-target control failed unexpectedly"
+done
 for module in memory-sqlite-worker memory-database memory-database-protocol memory-context-schema memory-store-format ordinary-memory-store memory-context-cli memory-legacy-inspection; do
   [[ -f "$installed_root/mcp-memory-server/dist/$module.js" ]] || fail "npm tarball omitted tracked-store module $module"
 done
-node "$ROOT/scripts/test-memory-context-installed.mjs" "$installed_root" || fail "installed tracked-store recovery failed"
+cp "$installed_root/scripts/test-memory-context-installed.mjs" "$tmp/installed-drill.mjs"
+node "$tmp/installed-drill.mjs" "$installed_root" || fail "documented copied installed drill failed"
 cairn team --help >"$tmp/installed-team-help"
 grep -qF 'experimental token-first team continuity' "$tmp/installed-team-help" || fail "installed package omitted team preview"
 node "$ROOT/scripts/test-team-installed.mjs" "$installed_root" || fail "installed team onboarding failed"

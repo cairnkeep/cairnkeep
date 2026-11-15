@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { runInstalledEvidenceContinuity } from './test-evidence-continuity-installed.mjs';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, existsSync, writeFileSync } from 'node:fs';
@@ -9,9 +8,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // Import only the actual installed package; never substitute checkout modules.
 const installed = realpathSync.native(resolve(process.argv[2]));
-await runInstalledEvidenceContinuity(installed);
-assert.notEqual(installed, realpathSync.native(resolve(dirname(fileURLToPath(import.meta.url)), '..')));
+assert.notEqual(installed, realpathSync.native(resolve(dirname(fileURLToPath(import.meta.url)), '..')), 'Installed check requires a separate target.');
 assert.equal(JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')).name, '@cairnkeep/cli');
+// The documented drill copies only this entry point. Resolve supplemental
+// checks from the actual target, never a sibling of that external copy.
+const { runInstalledEvidenceContinuity } = await import(pathToFileURL(join(installed, 'scripts/test-evidence-continuity-installed.mjs')).href);
+await runInstalledEvidenceContinuity(installed);
 assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-sqlite-worker.js')));
 assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-legacy-inspection.js')));
 assert.ok(existsSync(join(installed, 'mcp-memory-server/dist/memory-connections.js')));
