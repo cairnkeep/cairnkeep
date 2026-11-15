@@ -3,9 +3,9 @@ import { rename } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
+import { WINDOWS_SECURITY_COMMAND_TIMEOUT_MS as WINDOWS_COMMAND_TIMEOUT_MS } from './platform-security-limits.js';
 
 let cachedWindowsIdentity: { account: string; sid: string } | undefined;
-const WINDOWS_COMMAND_TIMEOUT_MS = 10_000;
 const WINDOWS_COMMAND_MAX_BUFFER = 1024 * 1024;
 
 export type WindowsAclSnapshot = {

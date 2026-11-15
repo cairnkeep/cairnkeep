@@ -19,6 +19,17 @@ import { createTypedNode, getTypedNode, supersedeTypedNode, planMemoryImport, co
 let implementation;
 try { implementation = await import('../dist/memory-database.js'); }
 catch (error) { if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error; }
+const protocol = await import('../dist/memory-database-protocol.js');
+const startupForPlatform = protocol.memoryStartupDeadlineMs ?? (() => protocol.MEMORY_DATABASE_LIMITS.startupMs);
+assert.equal(startupForPlatform('win32'), 30_000, 'Windows startup must budget its fresh native identity and ACL inspections');
+for (const platform of ['linux', 'darwin']) assert.equal(startupForPlatform(platform), 5_000, 'Unix startup bounds must remain unchanged');
+assert.equal(protocol.MEMORY_DATABASE_LIMITS.startupMs, startupForPlatform(process.platform));
+assert.equal(protocol.memoryDatabaseLimits({ startupMs: 150 }).startupMs, 150, 'a caller can still tighten startup for stalled-worker controls');
+assert.throws(() => protocol.memoryDatabaseLimits({ startupMs: protocol.MEMORY_DATABASE_LIMITS.startupMs + 1 }), { code: 'MEMORY_INVALID_LIMIT' });
+const { startupMs: _startup, ...unchangedLimits } = protocol.MEMORY_DATABASE_LIMITS;
+assert.deepEqual(unchangedLimits, { queueEntries: 128, queueBytes: 64 * 1024 * 1024,
+  requestBytes: 8 * 1024 * 1024, replyBytes: 32 * 1024 * 1024,
+  operationMs: 30_000, backupMs: 120_000, snapshotBytes: 512 * 1024 * 1024 });
 const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'cairn-memory-database-')));
 hardenPrivatePath(root);
 const opened = [], children = new Set(), childErrors = new WeakMap();
@@ -232,9 +243,15 @@ try {
 
   const fixtureUrl = new URL('./fixtures/memory-database-worker.mjs', import.meta.url);
   for (const [mode, code] of [['stall', 'MEMORY_STARTUP_TIMEOUT'], ['bad-ready', 'MEMORY_WORKER_PROTOCOL']]) {
+    let workerStartedAt;
     await assert.rejects(implementation.openMemoryDatabase(tracked.db.name, { limits: { startupMs: mode === 'stall' ? 150 : 5000 },
-      workerFactory: (_url, options) => new Worker(fixtureUrl, { ...options, workerData: { mode } }),
+      workerFactory: (_url, options) => {
+        workerStartedAt = performance.now();
+        return new Worker(fixtureUrl, { ...options, workerData: { mode } });
+      },
     }), { code });
+    if (mode === 'stall') assert.ok(performance.now() - workerStartedAt < 5000,
+      'the 150ms startup override must terminate its stalled worker, not wait for the platform default');
   }
   const malformed = await implementation.openMemoryDatabase(tracked.db.name, {
     workerFactory: (_url, options) => new Worker(fixtureUrl, { ...options, workerData: { mode: 'bad-response' } }),

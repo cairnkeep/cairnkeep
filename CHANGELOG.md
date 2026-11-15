@@ -34,6 +34,12 @@ All notable user-facing changes are documented here. This project follows
   versions, and refresh SHA-pinned CodeQL and registry-login actions.
 - Validate documentation examples with both LF and CRLF line endings, retaining
   their strict schemas and native Windows qualification requirements.
+- Give Windows tracked-worker initialization a bounded 30-second budget for
+  mandatory native identity and ACL inspections. Unix retains five seconds;
+  query/backup/queue limits, all permission checks and strict timeout controls
+  remain intact. No existing store is converted by this timing fix.
+- Preserve the documented one-file installed drill and exercise its actual
+  copied-entry recipe across native platforms, with source/target separation.
 
 ## [2.28.0] - 2026-10-31
 

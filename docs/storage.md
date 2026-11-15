@@ -403,6 +403,16 @@ back the current state before deciding whether a mutation should be attempted
 again. Older database clients refuse this format. The persistent format, not
 `CAIRN_MEMORY_CONTEXT`, selects its backend: disabling tools is not rollback.
 
+Since 2.29.0, the tracked worker's own startup deadline is 30 seconds on Windows
+and remains five seconds on Unix. Windows performs a native identity lookup and
+two fresh ACL batches before readiness; each native command is independently
+bounded to ten seconds. ACL/identity checks are not skipped or cached across
+opens. Statement/transaction and backup budgets remain 30 and 120 seconds,
+respectively; internal instance overrides can only tighten the platform caps.
+The worker-startup timer is not an end-to-end MCP request budget: caller-side
+path admission also has bounded native checks. A startup timeout still poisons
+and terminates the worker. This does not convert or reopen any legacy store.
+
 Database validation retains one shared probe descriptor until the last owning
 SQLite worker exits. While connections are live, sidecar checks inspect metadata
 only: opening and closing another descriptor for a database or SHM inode can

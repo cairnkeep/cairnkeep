@@ -27,6 +27,9 @@ stores are not converted. The foundation passed native-platform and independent
 review gates; its context tools also passed separate qualification, not a
 claim derived solely from the existing harness matrix below.
 See [storage lifecycle and recovery](storage.md#tracked-store-foundation-opt-in-since-2280).
+From 2.29.0, Windows tracked-worker startup allows 30 seconds for its mandatory
+native identity/ACL validation; Unix keeps five seconds. This is not the entire
+MCP request deadline and does not remove any ACL or stalled-worker control.
 The Node 22.16 API floor alone is insufficient: tracked stores also require the
 bundled SQLite WAL-reset fix (3.51.3+ or documented maintenance backports).
 Unpatched native admission is refused; legacy stores keep their existing runtime.
