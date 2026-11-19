@@ -5,7 +5,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 CANDIDATE_WORKFLOW="$ROOT/.github/workflows/ci.yml"
 PUBLISH_WORKFLOW="$ROOT/.github/workflows/publish.yml"
 TEMP_DIR=$(mktemp -d)
-trap 'rm -f "$TEMP_DIR/cairnkeep.cdx.json"; rmdir "$TEMP_DIR"' EXIT
+trap 'rm -f "$TEMP_DIR/cairnkeep.cdx.json" "$TEMP_DIR/cairnkeep-repeat.cdx.json"; rmdir "$TEMP_DIR"' EXIT
 
 fail() {
   echo "FAIL: $*" >&2
@@ -21,7 +21,7 @@ const manifest = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const lock = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 const candidateWorkflow = fs.readFileSync(process.argv[4], "utf8");
 const publishWorkflow = fs.readFileSync(process.argv[5], "utf8");
-const expected = "6.0.1";
+const expected = "7.0.1";
 
 if (manifest.devDependencies?.["@cyclonedx/cyclonedx-npm"] !== expected) {
   throw new Error(`package.json must pin @cyclonedx/cyclonedx-npm exactly to ${expected}`);
@@ -31,6 +31,12 @@ if (lock.packages?.[""]?.devDependencies?.["@cyclonedx/cyclonedx-npm"] !== expec
 }
 if (lock.packages?.["node_modules/@cyclonedx/cyclonedx-npm"]?.version !== expected) {
   throw new Error(`package-lock.json must resolve @cyclonedx/cyclonedx-npm ${expected}`);
+}
+for (const [name, version] of Object.entries({ ajv: "8.20.0", "ajv-formats": "3.0.1", "ajv-formats-draft2019": "1.6.1" })) {
+  assert.equal(manifest.devDependencies?.[name], version, `${name} must be an explicit pinned build-only validator`);
+  assert.equal(manifest.dependencies?.[name], undefined, `${name} must not become a direct runtime dependency`);
+  assert.equal(lock.packages?.[""]?.devDependencies?.[name], version);
+  assert.equal(lock.packages?.[`node_modules/${name}`]?.version, version);
 }
 
 if (!candidateWorkflow.includes("release-candidate:")
@@ -122,14 +128,46 @@ fi
   --validate \
   "$ROOT/package.json"
 
-node - "$TEMP_DIR/cairnkeep.cdx.json" <<'NODE'
+"$ROOT/node_modules/.bin/cyclonedx-npm" \
+  --package-lock-only \
+  --omit dev \
+  --output-reproducible \
+  --spec-version 1.6 \
+  --output-format JSON \
+  --output-file "$TEMP_DIR/cairnkeep-repeat.cdx.json" \
+  --validate \
+  "$ROOT/package.json"
+
+cmp "$TEMP_DIR/cairnkeep.cdx.json" "$TEMP_DIR/cairnkeep-repeat.cdx.json" || fail "release SBOM bytes are not reproducible"
+
+node - "$TEMP_DIR/cairnkeep.cdx.json" "$ROOT/package.json" <<'NODE'
 const fs = require("node:fs");
+const assert = require("node:assert/strict");
+const { Validation, Spec } = require("@cyclonedx/cyclonedx-library");
 
 const bom = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const manifest = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 if (bom.bomFormat !== "CycloneDX") throw new Error("release SBOM format is not CycloneDX");
 if (bom.specVersion !== "1.6") throw new Error("release SBOM version is not CycloneDX 1.6");
 if (!Array.isArray(bom.components) || bom.components.length === 0) throw new Error("release SBOM has no components");
 if (!Array.isArray(bom.dependencies) || bom.dependencies.length === 0) throw new Error("release SBOM has no dependency graph");
+assert.equal(bom.metadata.component.version, manifest.version);
+assert.equal(bom.metadata.component.name, "cli");
+assert.equal(bom.metadata.component.group, "@cairnkeep");
+function flatten(components) { return components.flatMap(c => [c, ...flatten(c.components ?? [])]); }
+const components = flatten(bom.components);
+assert.ok(!components.some(c => c.group === "@cyclonedx"), "build-only generator must not enter the runtime SBOM");
+const refs = new Set([bom.metadata.component["bom-ref"], ...components.map(c => c["bom-ref"])]);
+assert.ok(!refs.has(undefined));
+function checkGraph(dependencies) {
+  for (const row of dependencies) {
+    assert.ok(refs.has(row.ref), "dependency graph has an unknown source");
+    for (const target of row.dependsOn ?? []) assert.ok(refs.has(target), "dependency graph has an unknown target");
+  }
+}
+checkGraph(bom.dependencies);
+assert.throws(() => checkGraph([{ ref: "missing-source", dependsOn: [] }]), /unknown source/);
+assert.throws(() => checkGraph([{ ref: bom.metadata.component["bom-ref"], dependsOn: ["missing-target"] }]), /unknown target/);
 
 const scpLike = /^[^/@\s:]+@[^/\s:]+:.+$/;
 function inspect(value) {
@@ -148,6 +186,20 @@ function inspect(value) {
   for (const child of Object.values(value)) inspect(child);
 }
 inspect(bom);
+
+async function validateControls() {
+  assert.equal(Validation.JsonValidator.cannot, false, "schema validation must remain available");
+  const validator = new Validation.JsonValidator(Spec.Version.v1dot6);
+  assert.equal(await validator.validate(JSON.stringify(bom)), null);
+  const wrongType = structuredClone(bom); wrongType.components[0].type = "not-a-component-type";
+  const wrongComponents = structuredClone(bom); wrongComponents.components = "not-an-array";
+  const missingFormat = structuredClone(bom); delete missingFormat.bomFormat;
+  for (const invalid of [wrongComponents, wrongType, missingFormat]) {
+    assert.notEqual(await validator.validate(JSON.stringify(invalid)), null, "malformed BOM must fail the real schema validator");
+  }
+  console.log("PASS: actual CycloneDX 1.6 schema rejects three malformed BOM controls");
+}
+validateControls().catch(error => { console.error(error); process.exitCode = 1; });
 NODE
 
 echo "PASS: release SBOM is reproducible, schema-validated CycloneDX 1.6"

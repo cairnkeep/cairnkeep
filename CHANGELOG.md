@@ -5,6 +5,11 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+- Upgrade the build-only CycloneDX generator to 7.0.1 and explicitly pin its
+  JSON validation dependencies. Retain validated CycloneDX 1.6 output; verify
+  repeat-generation byte equality and reject malformed schema controls. No
+  runtime dependency or published release changes.
+
 ## [2.29.0] - 2026-11-15
 
 ### Evidence-bound continuity
