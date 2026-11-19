@@ -22,6 +22,15 @@ does not require republishing the npm package.
 
 ## Release contract
 
+The locked CycloneDX generator and its JSON validator dependencies are build-only
+tools. Generator 7 requires explicit `ajv`, `ajv-formats` and
+`ajv-formats-draft2019`; keep their exact development pins and `--validate`.
+The output contract remains CycloneDX **1.6**, not the generator's 1.7 default.
+The release test compares two actual generations byte-for-byte, checks nested
+dependency references, and rejects malformed documents with the real schema
+validator. Do not restore XML/native validation dependencies for JSON output or
+disable schema validation to make a dependency update pass.
+
 1. Update the root `package.json` version and `CHANGELOG.md` on a pull request.
 2. Run `npm ci`, `npm run check:public`, and
    `npm --prefix mcp-memory-server test`.
