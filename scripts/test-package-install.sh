@@ -5,7 +5,13 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
+cleanup() {
+  # Imported fixture objects are deliberately read-only. Touch only this
+  # invocation's generated object tree, including when an assertion fails.
+  if [[ -d "$tmp/okf-store/objects" ]]; then chmod -R u+w "$tmp/okf-store/objects"; fi
+  rm -rf "$tmp"
+}
+trap cleanup EXIT
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
 manifest_field() {
@@ -60,6 +66,26 @@ env -u CAIRN_NOTE_DISTILLATION cairn notes --help >/dev/null \
   || fail "installed package omitted the notes command"
 
 installed_root="$tmp/prefix/lib/node_modules/@cairnkeep/cli"
+mkdir -p "$tmp/okf-source/concepts"
+printf '%s\n' '---' 'okf_version: "0.3"' 'title: Installed catalog' 'license: CC0-1.0' '---' '# Catalog' >"$tmp/okf-source/index.md"
+printf '%s\n' '---' 'type: Reference' 'generated: { by: process:fixture, at: 2026-08-03 }' 'verified: { by: human:reviewer, at: 2026-08-02 }' '---' 'Synthetic installed knowledge.' >"$tmp/okf-source/concepts/policy.md"
+printf '%s\n' '# Packaging only' >"$tmp/okf-source/SKILL.md"
+CAIRN_PACK_BASE_DIR="$tmp/okf-store" cairn pack validate-okf "$tmp/okf-source" --json >"$tmp/okf-validation.json"
+CAIRN_PACK_BASE_DIR="$tmp/okf-store" cairn pack import-okf "$tmp/okf-source" --id installed-catalog --version 1.0.0 --license CC0-1.0 --json >"$tmp/okf-import.json"
+CAIRN_PACK_BASE_DIR="$tmp/okf-store" cairn pack show installed-catalog --json >"$tmp/okf-pack.json"
+node --input-type=module - "$tmp/okf-validation.json" "$tmp/okf-pack.json" <<'JS'
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const validation = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+const installed = JSON.parse(readFileSync(process.argv[3], 'utf8'));
+assert.equal(validation.version, '0.3');
+assert.equal(validation.concepts[0].trust_tier, 'unverified');
+assert.ok(validation.diagnostics.some(({ code }) => code === 'ignored-file'));
+assert.equal(installed.source_format.version, '0.3');
+assert.equal(installed.files.some(({ path }) => path === 'SKILL.md'), false);
+console.log('PASS: actual installed OKF 0.3 validation/import and obsolete-review boundary');
+JS
+CAIRN_PACK_BASE_DIR="$tmp/okf-store" cairn pack remove installed-catalog --json >"$tmp/okf-remove.json"
 for driver in test-memory-context-installed test-evidence-continuity-installed; do
     if node "$ROOT/scripts/$driver.mjs" "$ROOT" >"$tmp/source-target-$driver.log" 2>&1; then
         fail "$driver accepted its source checkout as an installed target"
