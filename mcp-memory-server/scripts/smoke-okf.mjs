@@ -307,6 +307,20 @@ type: Reference
 `);
     for (const name of ["one", "two", "three", "unused"]) write(join(references, `${name}.md`), "---\ntype: Reference\n---\nSynthetic.\n");
     assert.deepEqual((await validateOkfBundle(references)).files.find(({ path }) => path === "from.md").outbound, ["one.md", "three.md", "two.md"]);
+    const adversarial = join(root, "adversarial-links");
+    write(join(adversarial, "brackets.md"), "---\ntype: Reference\n---\n" + "[".repeat(200000));
+    write(join(adversarial, "targets.md"), "---\ntype: Reference\n---\n" + "[a](".repeat(40000));
+    write(join(adversarial, "long-target.md"), "---\ntype: Reference\n---\n[oversized](" + "x".repeat(200000) + ")\n");
+    const boundedLinks = spawnSync(process.execPath, ["--input-type=module", "-e", `
+        import assert from 'node:assert/strict';
+        import { validateOkfBundle } from './dist/okf.js';
+        const bundle = await validateOkfBundle(process.argv[1]);
+        assert.equal(bundle.concepts.length, 3);
+        assert.ok(bundle.files.every(file => file.outbound.length === 0));
+        assert.ok(bundle.diagnostics.some(({ code }) => code === 'broken-link'));
+    `, adversarial], { cwd: new URL("..", import.meta.url), encoding: "utf8", timeout: 10000, maxBuffer: 16384 });
+    assert.equal(boundedLinks.error, undefined, "adversarial links must finish within the bounded child deadline");
+    assert.equal(boundedLinks.status, 0, boundedLinks.stderr);
     await assert.rejects(() => indexOkfBundle(modern, ["index.md", "concepts/current.md"], "0.2"), /pinned manifest/);
     const duplicateYaml = join(root, "duplicate-yaml");
     write(join(duplicateYaml, "bad.md"), "---\ntype: Reference\ntype: Policy\n---\nSynthetic.\n");

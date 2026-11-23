@@ -283,7 +283,10 @@ function conceptFrom(path: string, parsed: ParsedFrontmatter): OkfConcept {
 }
 
 function localLinkTarget(from: string, raw: string): string | null {
-    const withoutTitle = raw.trim().replace(/\s+["'][\s\S]*["']$/, "");
+    if (raw.length > 4096) return "!unsafe-path";
+    const trimmed = raw.trim();
+    const titleStart = trimmed.search(/\s["']/);
+    const withoutTitle = titleStart >= 0 && /["']$/.test(trimmed) ? trimmed.slice(0, titleStart).trimEnd() : trimmed;
     const withoutFragment = withoutTitle.split("#", 1)[0].split("?", 1)[0];
     if (!withoutFragment || withoutFragment.startsWith("#") || withoutFragment.startsWith("//")
         || /^[a-z][a-z0-9+.-]*:/i.test(withoutFragment)) return null;
@@ -302,16 +305,16 @@ function localLinkTarget(from: string, raw: string): string | null {
 
 function markdownLinks(text: string, from: string): string[] {
     const links: string[] = [];
-    for (const match of text.matchAll(/!?\[[^\]]*\]\(([^)]+)\)/g)) {
+    for (const match of text.matchAll(/!?\[[^\[\]\n]*\]\(([^()[\]\n]+)\)/g)) {
         const target = localLinkTarget(from, match[1]);
         if (target) links.push(target);
     }
     const label = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
     const definitions = new Map<string, string>();
-    for (const match of text.matchAll(/^ {0,3}\[([^\]\n]+)\]:[ \t]*(?:<([^>\n]+)>|(\S+))/gm)) {
+    for (const match of text.matchAll(/^ {0,3}\[([^\[\]\n]+)\]:[ \t]*(?:<([^>\n]+)>|(\S+))/gm)) {
         if (!match[1].startsWith("^") && !definitions.has(label(match[1]))) definitions.set(label(match[1]), match[2] ?? match[3]);
     }
-    for (const match of text.matchAll(/!?\[([^\]\n]+)\](?:\[([^\]\n]*)\])?/g)) {
+    for (const match of text.matchAll(/!?\[([^\[\]\n]+)\](?:\[([^\[\]\n]*)\])?/g)) {
         // An inline link or an unused definition is not a reference use.
         const next = text[(match.index ?? 0) + match[0].length];
         if (next === "(" || next === ":") continue;

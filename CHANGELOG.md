@@ -12,6 +12,8 @@ All notable user-facing changes are documented here. This project follows
 - Add reference-style and deprecated-replacement links with version-bound
   legacy path fallback. Preserve immutable objects, local-only reads and the
   existing OKF 0.2 export format; execute no imported instructions or computation.
+- Bound local link targets and avoid quadratic scans of repeated brackets or
+  unterminated targets; exercise adversarial bodies in a deadline-limited child.
 - Update the OKF operating guide, lesson and recording script, distinguishing
   candidate-only behavior from the published stable release.
 
