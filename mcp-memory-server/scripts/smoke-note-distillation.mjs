@@ -138,7 +138,11 @@ try {
     assert.equal(okfPlan.output_files.some(({ kind }) => kind === "shared-note"), true);
     await applyOkfExport(okfOptions, okfPlan.confirmation_digest);
     const exportedShared = (await validateOkfBundle(okfOutput)).concepts[0];
-    assert.equal(exportedShared.trust_tier, "machine-confirmed");
+    // The unchanged 0.2 exporter records an undated generation event. Keep
+    // promotion history, but do not invent the date needed for current review.
+    assert.equal(exportedShared.trust_tier, "unverified");
+    assert.equal(exportedShared.verified[0].by, "process:cairnkeep-promotion");
+    assert.ok(exportedShared.verified[0].at);
     assert.match(readFileSync(join(okfOutput, "notes", `${promoted.shared_id}.md`), "utf8"), /Cairnkeep Shared Note/);
     await assert.rejects(() => promoteNotes({ sourceNoteId: created.id, corroboratingNoteId: created.id, confirm: true }));
     await assert.rejects(() => promoteNotes({ sourceNoteId: created.id, corroboratingNoteId: other.created[0].id, confirm: false }));

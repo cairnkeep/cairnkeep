@@ -21,7 +21,7 @@ import {
     type ProgressivePack,
 } from "./context-pack-retrieval.js";
 import type { ProgressiveContextFileInput } from "./context-pack-retrieval.js";
-import { indexOkfBundle, validateOkfBundle, validatedOkfFileContent, type OkfIndex } from "./okf.js";
+import { indexOkfBundle, okfStale, validateOkfBundle, validatedOkfFileContent, type OkfIndex } from "./okf.js";
 import { atomicReplace, hardenPrivatePath } from "./platform-security.js";
 import { portablePathCollisionKey, portableRelativePathIssue } from "./path-security.js";
 import { acquireContextPackPointerLock } from "./context-pack-lock.js";
@@ -764,13 +764,16 @@ async function okfProvenance(pack: ValidatedContextPack, file: ContextPackFile):
     if (!index) return {};
     const indexed = index.files.find(({ path }) => path === file.path);
     if (!indexed) return {};
+    const concept = indexed.concept ? { ...indexed.concept, stale: okfStale(indexed.concept.stale_after) } : null;
+    const diagnostics = index.diagnostics.filter(({ path, code }) => path === file.path && code !== "stale");
+    if (concept?.stale) diagnostics.push({ severity: "warning", code: "stale", path: file.path, message: `Concept is stale or has a malformed review deadline: ${concept.stale_after}.` });
     return {
         okf: {
             version: index.version,
             role: indexed.role,
-            ...(indexed.concept ?? {}),
+            ...(concept ?? {}),
             links: { outbound: indexed.outbound, broken: indexed.broken_links },
-            diagnostics: index.diagnostics.filter(({ path }) => path === file.path),
+            diagnostics,
         },
     };
 }
@@ -1097,7 +1100,8 @@ export async function relatedVisibleContext(packSelector: string, path: string, 
         const relation = outbound.has(candidatePath) && inbound.has(candidatePath) ? "both" : outbound.has(candidatePath) ? "outbound" : "inbound";
         results.push({ ...provenance(pack, candidateFile), ...await okfProvenance(pack, candidateFile), relation, title: candidateFile.title, description: candidateFile.description, keywords: candidateFile.keywords });
     }
-    return { schema_version: 1, ...provenance(pack, file), ...await okfProvenance(pack, file), direction, results, diagnostics: index.diagnostics.filter(({ path: diagnosticPath }) => diagnosticPath === file.path) };
+    const metadata = await okfProvenance(pack, file);
+    return { schema_version: 1, ...provenance(pack, file), ...metadata, direction, results, diagnostics: (metadata.okf as { diagnostics: unknown[] }).diagnostics };
 }
 
 export async function doctorContextPacks(options: { repair?: boolean } = {}): Promise<{ ok: boolean; objects: number; projects: number; issues: string[]; temporary_remnants: string[] }> {

@@ -16,7 +16,7 @@ import {
     relatedVisibleContext,
     searchVisibleContext,
 } from "../dist/context-pack.js";
-import { applyOkfExport, indexOkfBundle, planOkfExport, validateOkfBundle } from "../dist/okf.js";
+import { applyOkfExport, indexOkfBundle, okfStale, planOkfExport, validateOkfBundle } from "../dist/okf.js";
 
 const root = mkdtempSync(join(tmpdir(), "cairn-okf-"));
 process.env.CAIRN_PACK_BASE_DIR = join(root, "store");
@@ -173,10 +173,156 @@ Legacy OKF v0.1 content.
     assert.equal(legacy.version, "0.1");
     assert.equal(legacy.concepts[0].timestamp, "2026-01-01T00:00:00Z");
 
+    const modern = join(root, "v03");
+    write(join(modern, "index.md"), `---
+okf_version: "0.3"
+title: Modern catalog
+description: Synthetic current-format bundle.
+license: CC0-1.0
+x-fixture: { preserved: true }
+---
+# Catalog
+`);
+    write(join(modern, "README.md"), "# Packaging notes\nNot a concept.\n");
+    write(join(modern, "SKILL.md"), "---\nname: inert-instructions\n---\nNever activate this file.\n");
+    write(join(modern, ".private", "hidden.md"), "not valid YAML or public context\n");
+    write(join(modern, "concepts", "current.md"), `---
+type: Unregistered Type
+tags: synthetic
+sources: { resource: /concepts/replacement.md, last_modified: 2026-08-01T12:00:00+02:00, x-source: retained }
+usage_window: { from: 2026-08-01, to: 2026-08-02T00:00:00Z, x-window: retained }
+generated: { by: process:fixture, at: 2026-08-03T00:00:00Z, x-generation: retained }
+verified:
+  - { by: human:reviewer, at: 2026-08-02T00:00:00Z, x-review: retained }
+  - { by: process:checker, at: 2026-08-03T02:00:00+02:00 }
+  - { by: human:missing-date }
+status: deprecated
+superseded_by: ./replacement.md
+stale_after: 2000-01-01T12:00:00+02:00
+---
+See [replacement][next] and [packaging notes](/README.md).
+
+[next]: /concepts/replacement.md
+`);
+    write(join(modern, "concepts", "replacement.md"), "---\ntype: Reference\n---\nCurrent replacement.\n");
+    const currentBundle = await validateOkfBundle(modern);
+    assert.equal(currentBundle.version, "0.3");
+    assert.equal(currentBundle.files.find(({ path }) => path === "index.md").title, "Modern catalog");
+    assert.equal(currentBundle.files.some(({ path }) => /README|SKILL|hidden/.test(path)), false, "non-concepts and dot paths never enter imported context");
+    assert.equal(currentBundle.diagnostics.some(({ code }) => code === "unsupported-version"), false);
+    assert.ok(currentBundle.diagnostics.some(({ code }) => code === "ignored-file"));
+    const currentConcept = currentBundle.concepts.find(({ concept_id }) => concept_id === "concepts/current");
+    assert.equal(currentConcept.trust_tier, "machine-confirmed", "old human review cannot qualify rewritten content");
+    assert.equal(currentConcept.stale, true);
+    assert.deepEqual(currentConcept.tags, ["synthetic"]);
+    assert.equal(currentConcept.generated["x-generation"], "retained");
+    assert.equal(currentConcept.verified[0]["x-review"], "retained");
+    assert.equal(currentConcept.sources[0]["x-source"], "retained");
+    assert.deepEqual(currentBundle.files.find(({ path }) => path === "concepts/current.md").outbound, ["concepts/replacement.md"]);
+    assert.ok(currentBundle.files.find(({ path }) => path === "concepts/current.md").broken_links.includes("README.md"), "ignored Markdown cannot create a graph edge missing from the installed object");
+    const modernPack = await installOkfContextPack(modern, { id: "modern-catalog", version: "1.0.0", license: "CC0-1.0" });
+    const modernProject = join(root, "modern-project");
+    mkdirSync(modernProject);
+    await enableContextPack(modernPack.pack.digest, { projectRoot: modernProject });
+    const modernListed = await listVisibleContext({ projectRoot: modernProject });
+    assert.equal(modernListed.packs[0].files.length, 3);
+    assert.equal((await readVisibleContext("modern-catalog", "concepts/current.md", { projectRoot: modernProject })).okf.trust_tier, "machine-confirmed");
+    assert.equal((await searchVisibleContext("Current replacement", { projectRoot: modernProject })).results[0].path, "concepts/replacement.md");
+    assert.deepEqual((await relatedVisibleContext("modern-catalog", "concepts/current.md", { projectRoot: modernProject })).results.map(({ path }) => path), ["concepts/replacement.md"]);
+    await assert.rejects(() => readVisibleContext("modern-catalog", "SKILL.md", { projectRoot: modernProject }));
+    assert.equal((await doctorContextPacks()).ok, true);
+
+    let probeNumber = 0;
+    async function probe(metadata) {
+        const directory = join(root, `metadata-${++probeNumber}`);
+        write(join(directory, "index.md"), '---\nokf_version: "0.3"\n---\n');
+        write(join(directory, "concept.md"), `---\ntype: Reference\n${metadata}\n---\nSynthetic.\n`);
+        return (await validateOkfBundle(directory)).concepts[0];
+    }
+    assert.equal((await probe("generated: { by: process:fixture, at: 2026-08-03 }\nverified: { by: human:reviewer, at: 2026-08-02 }")).trust_tier, "unverified");
+    assert.equal((await probe("generated: { by: process:fixture, at: 2026-08-03 }\nverified: { by: human:reviewer, at: 2026-08-03 }")).trust_tier, "human-reviewed");
+    assert.equal((await probe("verified: { by: human:reviewer }")).trust_tier, "unverified");
+    assert.equal((await probe("verified: { by: 'human:', at: 2026-08-03 }")).trust_tier, "machine-confirmed");
+    assert.equal((await probe("generated: { by: process:fixture, at: nonsense }\nverified: { by: human:reviewer, at: 2026-08-03 }")).trust_tier, "unverified");
+    assert.equal((await probe("generated: { by: process:fixture }\nverified: { by: process:checker, at: 2026-08-03 }")).trust_tier, "unverified", "undated generation cannot establish a current review");
+    assert.equal((await probe("generated: { by: process:fixture, at: '2026-08-03T00:00:00.000000002Z' }\nverified: { by: human:reviewer, at: '2026-08-03T00:00:00.000000001Z' }")).trust_tier, "unverified", "submillisecond precision cannot round an old review up");
+    assert.equal((await probe("generated: { by: process:fixture, at: '2026-08-03T00:00:00.000000001Z' }\nverified: { by: human:reviewer, at: '2026-08-03T02:00:00.000000002+02:00' }")).trust_tier, "human-reviewed");
+    assert.equal((await probe("verified: { at: 2026-08-03 }\nsources: { title: Missing resource }\ntags: null")).sources.length, 0);
+    assert.equal((await probe("verified: { by: human:reviewer, at: 2026-02-30T00:00:00Z }")).trust_tier, "unverified");
+    assert.equal((await probe("verified: { by: human:reviewer, at: 2026-08-03T00:00:00 }")).trust_tier, "unverified");
+    assert.equal((await probe("stale_after: nonsense")).stale, true, "malformed dates are never fresh");
+    assert.equal((await probe("stale_after: 2999-01-01T00:00:00Z")).stale, false);
+    assert.equal((await probe("stale_after: null\nverified: []\ngenerated: null\nstatus: provisional")).status, "provisional");
+    const deadline = Date.parse("2026-08-03T00:00:00Z");
+    assert.equal(okfStale("2026-08-03T02:00:00+02:00", deadline - 1), false);
+    assert.equal(okfStale("2026-08-03T02:00:00+02:00", deadline), true);
+    assert.equal(okfStale("2026-08-03", deadline), true);
+    assert.equal(okfStale("2026-08-03T00:00:00.000000001Z", deadline), false);
+    assert.equal(okfStale("2026-08-03T00:00:00.000000001Z", deadline + 1), true);
+    assert.equal(okfStale("2026-02-30", deadline), true);
+    assert.equal(okfStale("2026-08-03T00:00:00", deadline), true);
+    const originalNow = Date.now;
+    try {
+        Date.now = () => Date.parse("1999-01-01T00:00:00Z");
+        const beforeDeadline = await readVisibleContext("modern-catalog", "concepts/current.md", { projectRoot: modernProject });
+        assert.equal(beforeDeadline.okf.stale, false, "live provenance must not freeze staleness in the graph cache");
+        assert.equal(beforeDeadline.okf.diagnostics.some(({ code }) => code === "stale"), false);
+        const beforeRelated = await relatedVisibleContext("modern-catalog", "concepts/current.md", { projectRoot: modernProject });
+        assert.equal(beforeRelated.diagnostics.some(({ code }) => code === "stale"), false);
+    } finally {
+        Date.now = originalNow;
+    }
+
+    const beforeReviewDigest = modernPack.pack.digest;
+    write(join(modern, "concepts", "current.md"), readFileSync(join(modern, "concepts", "current.md"), "utf8").replace("human:missing-date", "human:reviewer, at: 2026-08-04"));
+    const reviewUpdate = await inspectContextPackUpdate("modern-catalog", { projectRoot: modernProject });
+    assert.equal(reviewUpdate.changed, true);
+    await applyContextPackUpdate("modern-catalog", reviewUpdate.candidate_digest, { projectRoot: modernProject });
+    const reviewedRead = await readVisibleContext("modern-catalog", "concepts/current.md", { projectRoot: modernProject });
+    assert.equal(reviewedRead.okf.trust_tier, "human-reviewed");
+    assert.notEqual(reviewedRead.pack_digest, beforeReviewDigest);
+    assert.equal((await indexOkfBundle(join(process.env.CAIRN_PACK_BASE_DIR, "objects", beforeReviewDigest), modernPack.pack.manifest.files.map(({ path }) => path), "0.3")).files.find(({ path }) => path === "concepts/current.md").concept.trust_tier, "machine-confirmed", "updating never rewrites the previous immutable object");
+
+    for (const version of ["0.1", "0.2", "0.3"]) {
+        const paths = join(root, `paths-${version}`);
+        write(join(paths, "index.md"), `---\nokf_version: "${version}"\n---\n`);
+        write(join(paths, "concepts", "from.md"), "---\ntype: Reference\nresource: concepts/target.md\ncomputation: ../../outside.md\n---\n[escape](%2e%2e/%2e%2e/outside.md)\n");
+        write(join(paths, "concepts", "target.md"), "---\ntype: Reference\n---\nLocal.\n");
+        const from = (await validateOkfBundle(paths)).files.find(({ path }) => path === "concepts/from.md");
+        assert.deepEqual(from.outbound, version === "0.3" ? [] : ["concepts/target.md"], "legacy root fallback is version-bound and never reads outside the bundle");
+        assert.ok(from.broken_links.includes("!unsafe-path"));
+    }
+
+    const references = join(root, "reference-links");
+    write(join(references, "from.md"), `---
+type: Reference
+---
+[Full][target], [Collapsed][], [Shortcut], [Inline](one.md).
+
+[target]: one.md
+[Collapsed]: two.md
+[Shortcut]: three.md
+[Unused]: unused.md
+[Inline]: unused.md
+`);
+    for (const name of ["one", "two", "three", "unused"]) write(join(references, `${name}.md`), "---\ntype: Reference\n---\nSynthetic.\n");
+    assert.deepEqual((await validateOkfBundle(references)).files.find(({ path }) => path === "from.md").outbound, ["one.md", "three.md", "two.md"]);
+    await assert.rejects(() => indexOkfBundle(modern, ["index.md", "concepts/current.md"], "0.2"), /pinned manifest/);
+    const duplicateYaml = join(root, "duplicate-yaml");
+    write(join(duplicateYaml, "bad.md"), "---\ntype: Reference\ntype: Policy\n---\nSynthetic.\n");
+    await assert.rejects(() => validateOkfBundle(duplicateYaml), /YAML/);
+    const oversized = join(root, "oversized");
+    write(join(oversized, "good.txt"), "x".repeat(1024 * 1024));
+    assert.equal((await validateOkfBundle(oversized)).files[0].bytes, 1024 * 1024);
+    write(join(oversized, "bad.md"), "x".repeat(1024 * 1024 + 1));
+    await assert.rejects(() => validateOkfBundle(oversized), /OKF file is unsafe, changed or unreadable/);
+
     const missingType = join(root, "missing-type");
     mkdirSync(missingType);
     write(join(missingType, "bad.md"), "---\ntitle: Missing type\n---\nBad.\n");
-    await assert.rejects(() => validateOkfBundle(missingType), /type/i);
+    const skipped = await validateOkfBundle(missingType);
+    assert.equal(skipped.concepts.length, 0);
+    assert.ok(skipped.diagnostics.some(({ code }) => code === "ignored-file"));
 
     const aliases = join(root, "aliases");
     mkdirSync(aliases);

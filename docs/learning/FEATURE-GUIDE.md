@@ -18,6 +18,9 @@ retention contract.
 Version 2.14 adds OKF 0.1/0.2 import, structured provenance,
 deterministic links, and reviewed OKF 0.2 export; see
 [L24](lessons/L24-okf-exchange.md).
+The unreleased OKF 0.3 source candidate extends L24 with current-review
+timestamp checks, root metadata and replacement links. Stable 2.29 remains
+the baseline; the candidate does not change the 0.2 export format.
 Version 2.15 adds local bounded playbooks and private outcome receipts; see
 [L25](lessons/L25-playbooks.md).
 Version 2.15.4 makes generic task-derived, project-scoped retrieval the first

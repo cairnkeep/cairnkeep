@@ -34,7 +34,8 @@ title: Synthetic policy
 description: Offline course fixture.
 sources:
   - resource: urn:course:fixture
-verified: { by: human:course-reviewer }
+generated: { by: process:course-fixture, at: 2026-08-01T00:00:00Z }
+verified: { by: human:course-reviewer, at: 2026-08-02T00:00:00Z }
 ---
 # Synthetic policy
 
@@ -70,8 +71,9 @@ cairn pack validate-okf "$lab/export"
 
 ## Common failures
 
-- A concept without YAML `type`, a YAML alias, a symlink, invalid UTF-8, or an
-  unsafe path fails validation.
+- In stable 2.29, a concept without YAML `type` fails validation. The unreleased
+  candidate skips such Markdown with a diagnostic and never exposes it through
+  pack tools. YAML aliases, symlinks, invalid UTF-8 and unsafe paths still fail.
 - Git input needs an explicit `--ref`; local validation/import does not use the
   network.
 - Export rejects broad private/runtime paths and accepts only named Markdown or
@@ -87,6 +89,27 @@ metadata is never executed. Optional embedding search can send chunks to the
 configured endpoint; substring search and link traversal stay local. Export
 applies redaction, but explicit review of both preview and output is still
 required before publication.
+
+## Candidate extension: current reviews and OKF 0.3
+
+This extension requires the unreleased OKF 0.3 source candidate, not stable
+2.29. Do not present it as installed availability in a stable-only lesson.
+
+In a second disposable source, declare `okf_version: "0.3"` and add root
+`title`, `description` and `license`. Include an untyped README and SKILL file;
+validate/import and confirm neither enters the pack manifest or read/search
+results. They are packaging files, not approved skills or executable authority.
+
+Move the policy's `generated.at` forward to `2026-08-03T00:00:00Z` without
+changing the verification. Import under a different ID (or use the explicit
+update check/confirmation workflow). Its old human review must now yield
+`unverified`. Add a new verification at `2026-08-04T00:00:00Z`: only a new
+digest-pinned import/update may show the declared human-review label again.
+The old object and original verification history remain unchanged.
+
+Also try an offset-bearing `stale_after`, a malformed deadline, and a deprecated
+concept with `superseded_by: ./replacement.md`. Inspect staleness diagnostics
+and the replacement edge. None of these metadata claims grant authorization.
 
 An external knowledge adapter remains deferred unless a representative task
 demonstrates a necessary capability that memory, promoted notes, context packs,

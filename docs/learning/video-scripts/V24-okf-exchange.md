@@ -29,3 +29,16 @@
 - Keep embeddings disabled so the recording proves the offline fallback.
 - Do not claim publisher authenticity, semantic correctness, or quality gains.
 - Remove the disposable pack object and project pointer on camera.
+
+## Candidate-only insert: OKF 0.3
+
+Record only against the verified source candidate until a release includes it;
+otherwise omit this insert and keep the stable 0.2 demonstration above.
+
+1. Add bundle title/license metadata, an untyped README and SKILL file. Show
+   that packaging files do not become searchable instructions.
+2. Advance `generated.at` beyond a dated human review. Show `unverified`, then
+   add a later dated review and explicitly import/update the new digest.
+   Emphasize that these are source declarations, not Cairnkeep approval.
+3. Show an offset-bearing review deadline, a malformed deadline marked stale,
+   and a local `superseded_by` edge. Never execute an imported computation.

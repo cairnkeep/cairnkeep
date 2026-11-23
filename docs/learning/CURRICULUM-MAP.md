@@ -44,7 +44,7 @@ been rehearsed.
 | Native Windows x64 CLI, hooks, ACLs, scheduling, and recovery | L22 | L22 | Ready; PowerShell-native |
 | Guided project setup, selected harness state, and Git-less limitations | L03 | L03 and L23 | Ready |
 | Pi local stdio memory bridge, trusted annotation details, and explicit lifecycle | L23 | L23 | Ready; Pi 0.84.1 validated minimum |
-| OKF 0.1/0.2 validation/import, provenance, links, regressions, and reviewed 0.2 export | L24 | L24 | Ready; local/offline by default |
+| OKF 0.1/0.2 validation/import, provenance, links, regressions, and reviewed 0.2 export | L24 | L24 | Ready; local/offline by default; 0.3 extension requires unreleased candidate |
 | Bounded project playbooks, generic memory retrieval guidance, enforcement, and private receipts | L25 | L25 | Ready; balanced/local by default; invocation requires runtime evidence; actor identity unverified |
 | Progressive pack retrieval, frozen benchmark, context-usage receipts, review-gated memory proposals, optional provider adapter | L26 | V26 | Ready; default flat search and AnythingLLM remain compatible; OpenViking and receipt mutation are explicitly gated |
 | Branchable agent state, model-managed context, and learned decision-model comparisons | L27 | V27 | Ready; evidence runners are operator-invoked and no companion is a runtime dependency or authority |

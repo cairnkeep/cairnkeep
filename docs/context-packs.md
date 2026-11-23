@@ -154,3 +154,6 @@ Use `cairn pack validate-okf` and `cairn pack import-okf` to consume OKF 0.1 or
 workflow to export only named project Markdown and promoted shared notes. See
 [Open Knowledge Format exchange](open-knowledge-format.md) for the provenance,
 graph, privacy, regression, and external-adapter decision contracts.
+The unreleased source candidate additionally reads OKF 0.3, including current
+verification timestamps and replacement links; it does not rewrite installed
+objects or change the 0.2 export format.

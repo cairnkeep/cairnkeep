@@ -5,6 +5,16 @@ All notable user-facing changes are documented here. This project follows
 
 ## [Unreleased]
 
+- Read OKF 0.3 bundles with root metadata, nested extensions, singleton optional
+  lists and conservative timestamp-based verification/freshness. Exclude
+  non-concept Markdown and dot paths from new imports. Keep obsolete reviews
+  as source history, not current human-review labels, including for old bundles.
+- Add reference-style and deprecated-replacement links with version-bound
+  legacy path fallback. Preserve immutable objects, local-only reads and the
+  existing OKF 0.2 export format; execute no imported instructions or computation.
+- Update the OKF operating guide, lesson and recording script, distinguishing
+  candidate-only behavior from the published stable release.
+
 - Upgrade the build-only CycloneDX generator to 7.0.1 and explicitly pin its
   JSON validation dependencies. Retain validated CycloneDX 1.6 output; verify
   repeat-generation byte equality and reject malformed schema controls. No
